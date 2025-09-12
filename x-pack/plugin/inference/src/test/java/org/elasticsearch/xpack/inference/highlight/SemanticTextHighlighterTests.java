@@ -67,7 +67,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -100,15 +99,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
         Map<String, Object> queryMap = (Map<String, Object>) queries.get("dense_vector_1");
         float[] vector = readDenseVector(queryMap.get("embeddings"));
         var fieldType = (SemanticTextFieldMapper.SemanticTextFieldType) mapperService.mappingLookup().getFieldType(SEMANTIC_FIELD_E5);
-        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
-            fieldType.getEmbeddingsField().fullPath(),
-            vector,
-            10,
-            10,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null,
-            null
-        );
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(fieldType.getEmbeddingsField().fullPath(), vector, 10, 10, null, null);
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder(fieldType.getChunksField().fullPath(), knnQuery, ScoreMode.Max);
         var shardRequest = createShardSearchRequest(nestedQueryBuilder);
         var sourceToParse = new SourceToParse("0", readSampleDoc(useLegacyFormat), XContentType.JSON);

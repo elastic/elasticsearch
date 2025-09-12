@@ -1,30 +1,26 @@
 {
-  "indices.get_migrate_reindex_status": {
-    "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-migration",
-      "description": "Get the migration reindexing status"
+  "indices.get_migrate_reindex_status":{
+    "documentation":{
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-migration",
+      "description":"Get the migration reindexing status"
     },
-    "stability": "stable",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ],
-      "content_type": [
-        "application/json"
-      ]
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
     },
-    "url": {
-      "paths": [
+    "url":{
+      "paths":[
         {
-          "path": "/_migration/reindex/{index}/_status",
-          "methods": [
+          "path":"/_migration/reindex/{index}/_status",
+          "methods":[
             "GET"
           ],
-          "parts": {
-            "index": {
-              "type": "string",
-              "description": "The index or data stream name"
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index or data stream name"
             }
           }
         }
@@ -32,3 +28,4 @@
     }
   }
 }
+

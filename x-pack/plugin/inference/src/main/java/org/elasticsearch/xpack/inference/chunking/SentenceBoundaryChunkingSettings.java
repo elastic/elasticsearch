@@ -60,27 +60,6 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     }
 
     @Override
-    public void validate() {
-        ValidationException validationException = new ValidationException();
-
-        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
-            validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
-            );
-        }
-
-        if (sentenceOverlap > 1 || sentenceOverlap < 0) {
-            validationException.addValidationError(
-                ChunkingSettingsOptions.SENTENCE_OVERLAP + "[" + sentenceOverlap + "] must be either 0 or 1"
-            );
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-    }
-
-    @Override
     public Map<String, Object> asMap() {
         return Map.of(
             ChunkingSettingsOptions.STRATEGY.toString(),

@@ -35,7 +35,8 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
     ) {
         var originalModelServiceSettings = model.getServiceSettings();
         var overriddenServiceSettings = new ElasticInferenceServiceCompletionServiceSettings(
-            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId())
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            originalModelServiceSettings.rateLimitSettings()
         );
 
         return new ElasticInferenceServiceCompletionModel(model, overriddenServiceSettings);

@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -108,29 +109,23 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterState apply(ClusterState clusterState, RerouteStrategy rerouteStrategy);
     }
 
-    @FunctionalInterface
-    public interface ShardAllocationExplainer {
-        ShardAllocationDecision explain(ShardRouting shard, RoutingAllocation allocation);
-    }
-
     public DesiredBalanceShardsAllocator(
         ClusterSettings clusterSettings,
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
-        ShardAllocationExplainer shardAllocationExplainer,
-        DesiredBalanceMetrics desiredBalanceMetrics
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
         this(
             delegateAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator, shardAllocationExplainer),
+            new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
-            nodeAllocationStatsAndWeightsCalculator,
-            desiredBalanceMetrics
+            telemetryProvider,
+            nodeAllocationStatsAndWeightsCalculator
         );
     }
 
@@ -140,10 +135,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
-        DesiredBalanceMetrics desiredBalanceMetrics
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
     ) {
-        this.desiredBalanceMetrics = desiredBalanceMetrics;
+        this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
         this.balancerRoundSummaryService = new AllocationBalancingRoundSummaryService(threadPool, clusterService.getClusterSettings());
         this.delegateAllocator = delegateAllocator;

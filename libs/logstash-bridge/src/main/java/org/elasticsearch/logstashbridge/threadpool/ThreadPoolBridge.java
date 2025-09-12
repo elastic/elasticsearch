@@ -19,43 +19,25 @@ import java.util.concurrent.TimeUnit;
 /**
  * An external bridge for {@link ThreadPool}
  */
-public interface ThreadPoolBridge extends StableBridgeAPI<ThreadPool> {
+public class ThreadPoolBridge extends StableBridgeAPI.ProxyInternal<ThreadPool> {
 
-    long relativeTimeInMillis();
-
-    long absoluteTimeInMillis();
-
-    boolean terminate(long timeout, TimeUnit timeUnit);
-
-    static ThreadPoolBridge create(final SettingsBridge bridgedSettings) {
-        final ThreadPool internal = new ThreadPool(bridgedSettings.toInternal(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
-        return new ProxyInternal(internal);
+    public ThreadPoolBridge(final SettingsBridge settingsBridge) {
+        this(new ThreadPool(settingsBridge.toInternal(), MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders()));
     }
 
-    /**
-     * An implementation of {@link ThreadPoolBridge} that proxies calls through
-     * to an internal {@link ThreadPool}.
-     * @see StableBridgeAPI.ProxyInternal
-     */
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<ThreadPool> implements ThreadPoolBridge {
+    public ThreadPoolBridge(final ThreadPool delegate) {
+        super(delegate);
+    }
 
-        ProxyInternal(final ThreadPool delegate) {
-            super(delegate);
-        }
+    public static boolean terminate(final ThreadPoolBridge pool, final long timeout, final TimeUnit timeUnit) {
+        return ThreadPool.terminate(pool.toInternal(), timeout, timeUnit);
+    }
 
-        @Override
-        public long relativeTimeInMillis() {
-            return internalDelegate.relativeTimeInMillis();
-        }
+    public long relativeTimeInMillis() {
+        return internalDelegate.relativeTimeInMillis();
+    }
 
-        @Override
-        public long absoluteTimeInMillis() {
-            return internalDelegate.absoluteTimeInMillis();
-        }
-
-        @Override
-        public boolean terminate(final long timeout, final TimeUnit timeUnit) {
-            return ThreadPool.terminate(internalDelegate, timeout, timeUnit);
-        }
+    public long absoluteTimeInMillis() {
+        return internalDelegate.absoluteTimeInMillis();
     }
 }

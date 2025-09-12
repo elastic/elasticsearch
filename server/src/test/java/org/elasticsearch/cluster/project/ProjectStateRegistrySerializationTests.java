@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.project;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -26,8 +27,6 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ProjectStateRegistrySerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
-
-    private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
 
     @Override
     protected ClusterState.Custom makeTestChanges(ClusterState.Custom testInstance) {
@@ -95,7 +94,7 @@ public class ProjectStateRegistrySerializationTests extends SimpleDiffableWireSe
 
     public void testProjectStateRegistryBwcSerialization() throws IOException {
         ProjectStateRegistry projectStateRegistry = randomProjectStateRegistry();
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_STATE_REGISTRY_ENTRY);
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY);
         ClusterState.Custom serialized = copyInstance(projectStateRegistry, oldVersion);
         assertThat(serialized, equalTo(projectStateRegistry));
     }

@@ -9,33 +9,27 @@
 
 package org.elasticsearch.search.TelemetryMetrics;
 
-import org.elasticsearch.action.search.MultiSearchRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_search_metrics2";
@@ -46,7 +40,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     @Before
-    public void setUpIndex() {
+    public void setUpIndex() throws Exception {
         var num_primaries = randomIntBetween(1, 4);
         createIndex(
             indexName,
@@ -62,7 +56,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     @After
-    public void afterTest() {
+    private void afterTest() {
         resetMeter();
     }
 
@@ -72,48 +66,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     public void testSimpleQuery() {
-        SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("foo")).get();
-        try {
-            assertNoFailures(searchResponse);
-            assertSearchHits(searchResponse, "1", "2");
-        } finally {
-            searchResponse.decRef();
-        }
-
-        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
-        assertEquals(1, measurements.size());
-        assertEquals(searchResponse.getTook().millis(), measurements.getFirst().getLong());
-    }
-
-    public void testMultiSearch() {
-        MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
-        int numSearchRequests = randomIntBetween(3, 10);
-        for (int i = 0; i < numSearchRequests; i++) {
-            SearchRequest searchRequest = new SearchRequest();
-            searchRequest.source(new SearchSourceBuilder().query(simpleQueryStringQuery("foo")));
-            multiSearchRequestBuilder.add(searchRequest);
-        }
-        List<Long> tookTimes;
-        MultiSearchResponse multiSearchResponse = null;
-        try {
-            multiSearchResponse = multiSearchRequestBuilder.get();
-            tookTimes = Arrays.stream(multiSearchResponse.getResponses())
-                .map(item -> item.getResponse().getTook().millis())
-                .sorted()
-                .toList();
-        } finally {
-            if (multiSearchResponse != null) {
-                multiSearchResponse.decRef();
-            }
-        }
-        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
-        assertEquals(numSearchRequests, measurements.size());
-        measurements.sort(Comparator.comparing(Measurement::getLong));
-
-        int i = 0;
-        for (Measurement measurement : measurements) {
-            assertEquals(tookTimes.get(i++).longValue(), measurement.getLong());
-        }
+        assertSearchHitsWithoutFailures(client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("foo")), "1", "2");
+        assertMetricsRecorded();
     }
 
     public void testScroll() {
@@ -124,18 +78,24 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             2,
             (respNum, response) -> {
                 if (respNum <= 2) {
-                    List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
-                        TOOK_DURATION_TOTAL_HISTOGRAM_NAME
-                    );
-                    assertEquals(1, measurements.size());
+                    assertMetricsRecorded();
                 }
                 resetMeter();
             }
         );
     }
 
+    private void assertMetricsRecorded() {
+        MatcherAssert.assertThat(getNumberOfLongHistogramMeasurements(TOOK_DURATION_TOTAL_HISTOGRAM_NAME), greaterThan(0));
+    }
+
     private void resetMeter() {
         getTestTelemetryPlugin().resetMeter();
+    }
+
+    private int getNumberOfLongHistogramMeasurements(String instrumentName) {
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(instrumentName);
+        return measurements.size();
     }
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {

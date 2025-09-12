@@ -46,7 +46,6 @@ public class SearchLookup implements SourceProvider {
     private final Set<String> fieldChain;
     private final SourceProvider sourceProvider;
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final Function<String, Boolean> onlyMappedAsRuntimeField;
     private final TriFunction<
         MappedFieldType,
         Supplier<SearchLookup>,
@@ -65,7 +64,7 @@ public class SearchLookup implements SourceProvider {
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider
     ) {
-        this(fieldTypeLookup, fieldName -> false, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
+        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
     }
 
     /**
@@ -77,13 +76,11 @@ public class SearchLookup implements SourceProvider {
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        Function<String, Boolean> onlyMappedAsRuntimeField,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
-        this.onlyMappedAsRuntimeField = onlyMappedAsRuntimeField;
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
@@ -101,16 +98,6 @@ public class SearchLookup implements SourceProvider {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
         this.sourceProvider = searchLookup.sourceProvider;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
-        this.onlyMappedAsRuntimeField = searchLookup.onlyMappedAsRuntimeField;
-        this.fieldDataLookup = searchLookup.fieldDataLookup;
-        this.fieldLookupProvider = searchLookup.fieldLookupProvider;
-    }
-
-    private SearchLookup(SearchLookup searchLookup, SourceProvider sourceProvider) {
-        this.fieldChain = searchLookup.fieldChain;
-        this.sourceProvider = sourceProvider;
-        this.fieldTypeLookup = searchLookup.fieldTypeLookup;
-        this.onlyMappedAsRuntimeField = searchLookup.onlyMappedAsRuntimeField;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
     }
@@ -149,13 +136,6 @@ public class SearchLookup implements SourceProvider {
         return fieldTypeLookup.apply(fieldName);
     }
 
-    /**
-     * @return whether a field is only mapped as runtime field. A runtime and normal field can share the same name.
-     */
-    public boolean onlyMappedAsRuntimeField(String fieldName) {
-        return onlyMappedAsRuntimeField.apply(fieldName);
-    }
-
     public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
         return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
     }
@@ -165,8 +145,4 @@ public class SearchLookup implements SourceProvider {
         return sourceProvider.getSource(ctx, doc);
     }
 
-    public SearchLookup optimizedSourceProvider(SourceFilter sourceFilter) {
-        SourceProvider copy = sourceProvider.optimizedSourceProvider(sourceFilter);
-        return new SearchLookup(this, copy);
-    }
 }

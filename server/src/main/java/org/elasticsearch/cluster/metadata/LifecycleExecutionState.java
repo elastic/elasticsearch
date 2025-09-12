@@ -40,8 +40,7 @@ public record LifecycleExecutionState(
     String snapshotName,
     String shrinkIndexName,
     String snapshotIndexName,
-    String downsampleIndexName,
-    String forceMergeCloneIndexName
+    String downsampleIndexName
 ) {
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
@@ -65,7 +64,6 @@ public record LifecycleExecutionState(
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
-    private static final String FORCE_MERGE_CLONE_INDEX_NAME = "force_merge_clone_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
 
@@ -91,8 +89,7 @@ public record LifecycleExecutionState(
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
             .setDownsampleIndexName(state.downsampleIndexName)
-            .setStepTime(state.stepTime)
-            .setForceMergeCloneIndexName(state.forceMergeCloneIndexName);
+            .setStepTime(state.stepTime);
     }
 
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
@@ -205,10 +202,6 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             builder.setDownsampleIndexName(downsampleIndexName);
         }
-        String forceMergeCloneIndexName = customData.get(FORCE_MERGE_CLONE_INDEX_NAME);
-        if (forceMergeCloneIndexName != null) {
-            builder.setForceMergeCloneIndexName(forceMergeCloneIndexName);
-        }
         return builder.build();
     }
 
@@ -281,9 +274,6 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
         }
-        if (forceMergeCloneIndexName != null) {
-            result.put(FORCE_MERGE_CLONE_INDEX_NAME, forceMergeCloneIndexName);
-        }
         return Collections.unmodifiableMap(result);
     }
 
@@ -317,7 +307,6 @@ public record LifecycleExecutionState(
         private String shrinkIndexName;
         private String snapshotIndexName;
         private String downsampleIndexName;
-        private String forceMergeCloneIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -409,11 +398,6 @@ public record LifecycleExecutionState(
             return this;
         }
 
-        public Builder setForceMergeCloneIndexName(String forceMergeCloneIndexName) {
-            this.forceMergeCloneIndexName = forceMergeCloneIndexName;
-            return this;
-        }
-
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(
                 phase,
@@ -433,8 +417,7 @@ public record LifecycleExecutionState(
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                downsampleIndexName,
-                forceMergeCloneIndexName
+                downsampleIndexName
             );
         }
     }

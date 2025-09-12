@@ -4,7 +4,7 @@
 
 simpleFuse
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse
 required_capability: match_operator_colon
 
 FROM employees METADATA _id, _index, _score
@@ -23,7 +23,7 @@ _score:double | _fork:keyword | emp_no:integer
 
 fuseWithMatchAndScore
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -46,7 +46,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithDisjunctionAndPostFilter
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -69,7 +69,7 @@ _score:double | _fork:keyword  | _id:keyword
 
 fuseWithStats
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -89,7 +89,7 @@ count_fork:long | _fork:keyword
 
 fuseWithMultipleForkBranches
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse
 required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
@@ -116,7 +116,7 @@ _score:double | author:keyword                    | title:keyword        | _fork
 
 fuseWithSemanticSearch
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse
 required_capability: semantic_text_field_caps
 required_capability: metadata_score
 
@@ -133,100 +133,4 @@ FROM semantic_text METADATA _id, _score, _index
 _fork:keyword  | _score:double | _id:keyword | semantic_text_field:keyword
 [fork1, fork2] | 0.0328        | 2           | all we have to decide is what to do with the time that is given to us
 [fork1, fork2] | 0.0323        | 3           | be excellent to each other
-;
-
-fuseWithSimpleRrf
-required_capability: fork_v9
-required_capability: fuse_v2
-required_capability: semantic_text_field_caps
-required_capability: metadata_score
-
-FROM books METADATA _id, _index, _score
-| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE rrf
-| SORT _score DESC, _id, _index
-| EVAL _fork = mv_sort(_fork)
-| EVAL _score = round(_score, 5)
-| KEEP _score, _fork, _id
-;
-
-_score:double | _fork:keyword  | _id:keyword
-0.03279       | [fork1, fork2] | 4
-0.01613       | fork1          | 56
-0.01613       | fork2          | 60
-0.01587       | fork2          | 1
-0.01587       | fork1          | 26
-;
-
-fuseWithRrfAndRankConstant
-required_capability: fork_v9
-required_capability: fuse_v2
-required_capability: semantic_text_field_caps
-required_capability: metadata_score
-
-FROM books METADATA _id, _index, _score
-| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE rrf WITH {"rank_constant": 50 }
-| SORT _score DESC, _id, _index
-| EVAL _fork = mv_sort(_fork)
-| EVAL _score = round(_score, 5)
-| KEEP _score, _fork, _id
-;
-
-_score:double | _fork:keyword  | _id:keyword
-0.03922       | [fork1, fork2] | 4
-0.01923       | fork1          | 56
-0.01923       | fork2          | 60
-0.01887       | fork2          | 1
-0.01887       | fork1          | 26
-;
-
-fuseWithRrfAndWeights
-required_capability: fork_v9
-required_capability: fuse_v2
-required_capability: semantic_text_field_caps
-required_capability: metadata_score
-
-FROM books METADATA _id, _index, _score
-| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-| FUSE rrf WITH {"weights": { "fork1": 0.3, "fork2": 0.7 } }
-| SORT _score DESC, _id, _index
-| EVAL _fork = mv_sort(_fork)
-| EVAL _score = round(_score, 5)
-| KEEP _score, _fork, _id
-;
-
-_score:double | _fork:keyword  | _id:keyword
-0.01639       | [fork1, fork2] | 4
-0.01129       | fork2          | 60
-0.01111       | fork2          | 1
-0.00484       | fork1          | 56
-0.00476       | fork1          | 26
-;
-
-fuseWithRrfRankConstantAndWeights
-required_capability: fork_v9
-required_capability: fuse_v2
-required_capability: semantic_text_field_caps
-required_capability: metadata_score
-
-FROM books METADATA _id, _score, _index
-| FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
-       ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3)
-| FUSE rrf WITH {"rank_constant": 60, "weights": { "fork1": 0.3, "fork2": 0.7 } }
-| SORT _score DESC, _id, _index
-| EVAL _fork = mv_sort(_fork)
-| EVAL _score = round(_score, 5)
-| KEEP _score, _fork, _id
-;
-
-_score:double | _fork:keyword  | _id:keyword
-0.01639       | [fork1, fork2] | 4
-0.01129       | fork2          | 60
-0.01111       | fork2          | 1
-0.00484       | fork1          | 56
-0.00476       | fork1          | 26
 ;

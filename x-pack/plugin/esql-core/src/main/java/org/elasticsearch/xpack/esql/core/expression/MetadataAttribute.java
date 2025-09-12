@@ -131,13 +131,6 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     public boolean isDimension() {
-        // Metadata attributes cannot be dimensions. I think?
-        return false;
-    }
-
-    @Override
-    public boolean isMetric() {
-        // Metadata attributes definitely cannot be metrics.
         return false;
     }
 

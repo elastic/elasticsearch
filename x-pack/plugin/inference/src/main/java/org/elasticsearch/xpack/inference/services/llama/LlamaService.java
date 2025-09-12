@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.llama;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
@@ -76,7 +77,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class LlamaService extends SenderService {
     public static final String NAME = "llama";
     private static final String SERVICE_NAME = "Llama";
-    private static final TransportVersion ML_INFERENCE_LLAMA_ADDED = TransportVersion.fromName("ml_inference_llama_added");
     /**
      * The optimal batch size depends on the hardware the model is deployed on.
      * For Llama use a conservatively small max batch size as it is
@@ -363,7 +363,7 @@ public class LlamaService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_LLAMA_ADDED;
+        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
     }
 
     /**

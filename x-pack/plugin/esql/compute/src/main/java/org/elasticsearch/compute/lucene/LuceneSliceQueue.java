@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -175,6 +176,17 @@ public final class LuceneSliceQueue {
      */
     public Map<String, PartitioningStrategy> partitioningStrategies() {
         return partitioningStrategies;
+    }
+
+    public Collection<String> remainingShardsIdentifiers() {
+        List<String> remaining = new ArrayList<>(slices.length());
+        for (int i = 0; i < slices.length(); i++) {
+            LuceneSlice slice = slices.get(i);
+            if (slice != null) {
+                remaining.add(slice.shardContext().shardIdentifier());
+            }
+        }
+        return remaining;
     }
 
     public static LuceneSliceQueue create(

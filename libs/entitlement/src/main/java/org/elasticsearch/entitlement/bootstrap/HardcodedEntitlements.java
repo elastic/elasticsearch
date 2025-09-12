@@ -114,13 +114,7 @@ class HardcodedEntitlements {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
-            new Scope(
-                "java.desktop",
-                List.of(
-                    new LoadNativeLibrariesEntitlement(),
-                    new ManageThreadsEntitlement() // For sun.java2d.Disposer. TODO: https://elasticco.atlassian.net/browse/ES-12888
-                )
-            ),
+            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope(
                 "java.xml",
                 List.of(

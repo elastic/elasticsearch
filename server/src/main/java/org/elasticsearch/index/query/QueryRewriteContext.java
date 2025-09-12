@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.client.internal.Client;
@@ -33,7 +32,6 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -58,8 +56,6 @@ public class QueryRewriteContext {
     protected final MappingLookup mappingLookup;
     protected final Map<String, MappedFieldType> runtimeMappings;
     protected final IndexSettings indexSettings;
-    private final TransportVersion minTransportVersion;
-    private final String localClusterAlias;
     protected final Index fullyQualifiedIndex;
     protected final Predicate<String> indexNameMatcher;
     protected final NamedWriteableRegistry writeableRegistry;
@@ -76,7 +72,6 @@ public class QueryRewriteContext {
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
-    private final Boolean ccsMinimizeRoundTrips;
     private final boolean isExplain;
 
     public QueryRewriteContext(
@@ -87,8 +82,6 @@ public class QueryRewriteContext {
         final MappingLookup mappingLookup,
         final Map<String, MappedFieldType> runtimeMappings,
         final IndexSettings indexSettings,
-        final TransportVersion minTransportVersion,
-        final String localClusterAlias,
         final Index fullyQualifiedIndex,
         final Predicate<String> indexNameMatcher,
         final NamedWriteableRegistry namedWriteableRegistry,
@@ -98,7 +91,6 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
-        final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain
     ) {
 
@@ -110,8 +102,6 @@ public class QueryRewriteContext {
         this.allowUnmappedFields = indexSettings == null || indexSettings.isDefaultAllowUnmappedFields();
         this.runtimeMappings = runtimeMappings;
         this.indexSettings = indexSettings;
-        this.minTransportVersion = minTransportVersion;
-        this.localClusterAlias = localClusterAlias;
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.indexNameMatcher = indexNameMatcher;
         this.writeableRegistry = namedWriteableRegistry;
@@ -121,7 +111,6 @@ public class QueryRewriteContext {
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
         this.queryRewriteInterceptor = queryRewriteInterceptor;
-        this.ccsMinimizeRoundTrips = ccsMinimizeRoundTrips;
         this.isExplain = isExplain;
     }
 
@@ -143,9 +132,6 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            null,
-            null,
-            null,
             false
         );
     }
@@ -154,37 +140,20 @@ public class QueryRewriteContext {
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final TransportVersion minTransportVersion,
-        final String localClusterAlias,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final QueryRewriteInterceptor queryRewriteInterceptor,
-        final Boolean ccsMinimizeRoundTrips
+        final QueryRewriteInterceptor queryRewriteInterceptor
     ) {
-        this(
-            parserConfiguration,
-            client,
-            nowInMillis,
-            minTransportVersion,
-            localClusterAlias,
-            resolvedIndices,
-            pit,
-            queryRewriteInterceptor,
-            ccsMinimizeRoundTrips,
-            false
-        );
+        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
     }
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
         final Client client,
         final LongSupplier nowInMillis,
-        final TransportVersion minTransportVersion,
-        final String localClusterAlias,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
-        final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain
     ) {
         this(
@@ -195,8 +164,6 @@ public class QueryRewriteContext {
             MappingLookup.EMPTY,
             Collections.emptyMap(),
             null,
-            minTransportVersion,
-            localClusterAlias,
             null,
             null,
             null,
@@ -206,7 +173,6 @@ public class QueryRewriteContext {
             resolvedIndices,
             pit,
             queryRewriteInterceptor,
-            ccsMinimizeRoundTrips,
             isExplain
         );
     }
@@ -313,13 +279,6 @@ public class QueryRewriteContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    /**
-     * Returns the CCS minimize round-trips setting. Returns null if the value of the setting is unknown.
-     */
-    public Boolean isCcsMinimizeRoundTrips() {
-        return ccsMinimizeRoundTrips;
-    }
-
     public boolean isExplain() {
         return this.isExplain;
     }
@@ -384,20 +343,6 @@ public class QueryRewriteContext {
                 action.accept(client, internalListener);
             }
         }
-    }
-
-    /**
-     * Returns the local cluster alias.
-     */
-    public String getLocalClusterAlias() {
-        return localClusterAlias != null ? localClusterAlias : RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-    }
-
-    /**
-     * Returns the minimum {@link TransportVersion} for intra-cluster node-to-node communications. Returns null if it is unknown.
-     */
-    public TransportVersion getMinTransportVersion() {
-        return minTransportVersion;
     }
 
     /**

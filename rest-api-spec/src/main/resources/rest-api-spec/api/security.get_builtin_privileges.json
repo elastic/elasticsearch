@@ -1,26 +1,24 @@
 {
-  "security.get_builtin_privileges": {
-    "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-builtin-privileges",
-      "description": "Get builtin privileges"
+  "security.get_builtin_privileges":{
+    "documentation":{
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-get-builtin-privileges",
+      "description":"Get builtin privileges"
     },
-    "stability": "stable",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ]
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
     },
-    "url": {
-      "paths": [
+    "url":{
+      "paths":[
         {
-          "path": "/_security/privilege/_builtin",
-          "methods": [
+          "path":"/_security/privilege/_builtin",
+          "methods":[
             "GET"
           ]
         }
       ]
     },
-    "params": {}
+    "params":{}
   }
 }

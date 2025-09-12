@@ -2,5 +2,5 @@
 
 **Description**
 
-Converts an input value to a `geohex` value. A string will only be successfully converted if it respects the `geohex` format, as described for the [geohex grid aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).
+Converts an input value to a `geohex` value. A string will only be successfully converted if it respects the `geohex` format.
 

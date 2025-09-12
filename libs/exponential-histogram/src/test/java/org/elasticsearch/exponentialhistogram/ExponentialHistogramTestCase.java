@@ -28,14 +28,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
-import java.util.function.Consumer;
 
 public abstract class ExponentialHistogramTestCase extends ESTestCase {
 
     private final ArrayList<ReleasableExponentialHistogram> releaseBeforeEnd = new ArrayList<>();
 
     /**
-     * Release all histograms registered via {@link #autoReleaseOnTestEnd(ReleasableExponentialHistogram)}
+     * Release all histograms created via {@link #createAutoReleasedHistogram(int)}
      * before {@link ESTestCase} checks for unreleased bytes.
      */
     @After
@@ -62,15 +61,13 @@ public abstract class ExponentialHistogramTestCase extends ESTestCase {
         releaseBeforeEnd.add(toRelease);
     }
 
-    ExponentialHistogram createAutoReleasedHistogram(Consumer<ExponentialHistogramBuilder> customizer) {
-        ExponentialHistogramBuilder resultBuilder = ExponentialHistogram.builder(ExponentialHistogram.MAX_SCALE, breaker());
-        customizer.accept(resultBuilder);
-        ReleasableExponentialHistogram result = resultBuilder.build();
+    FixedCapacityExponentialHistogram createAutoReleasedHistogram(int numBuckets) {
+        FixedCapacityExponentialHistogram result = FixedCapacityExponentialHistogram.create(numBuckets, breaker());
         releaseBeforeEnd.add(result);
         return result;
     }
 
-    protected ExponentialHistogram createAutoReleasedHistogram(int numBuckets, double... values) {
+    ExponentialHistogram createAutoReleasedHistogram(int numBuckets, double... values) {
         ReleasableExponentialHistogram result = ExponentialHistogram.create(numBuckets, breaker(), values);
         releaseBeforeEnd.add(result);
         return result;

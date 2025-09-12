@@ -145,7 +145,6 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
         }
 
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
-        float[] scratch = new float[dimensions];
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 OptimizedScalarQuantizer.QuantizationResult[] results =
@@ -158,7 +157,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                         if (similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
                             VectorUtil.l2normalize(vectors[i + j]);
                         }
-                        results[j] = quantizer.scalarQuantize(vectors[i + j], scratch, quantizedScratch, (byte) 4, centroid);
+                        results[j] = quantizer.scalarQuantize(vectors[i + j].clone(), quantizedScratch, (byte) 4, centroid);
                         for (int k = 0; k < dimensions; k++) {
                             quantizeVector[k] = (byte) quantizedScratch[k];
                         }
@@ -176,8 +175,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                 VectorUtil.l2normalize(query);
             }
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query,
-                new float[dimensions],
+                query.clone(),
                 quantizedScratch,
                 (byte) 4,
                 centroid

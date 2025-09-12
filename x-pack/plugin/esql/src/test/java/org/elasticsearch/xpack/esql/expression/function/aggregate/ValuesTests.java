@@ -79,7 +79,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             var expected = new HashSet<>(fieldTypedData.multiRowData());
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                standardAggregatorNameAllBytesTheSame("Values", fieldSupplier.type()),
+                "Values[field=Attribute[channel=0]]",
                 fieldSupplier.type(),
                 valuesInAnyOrder(expected)
             );

@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -36,46 +35,35 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
 
     public static final String NAME = "elastic_rerank_service_settings";
 
-    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
-        "inference_api_disable_eis_rate_limiting"
-    );
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
 
     public static ElasticInferenceServiceRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
-            ModelConfigurations.SERVICE_SETTINGS,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
             ElasticInferenceService.NAME,
-            TaskType.RERANK,
-            context,
-            validationException
+            context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new ElasticInferenceServiceRerankServiceSettings(modelId);
+        return new ElasticInferenceServiceRerankServiceSettings(modelId, rateLimitSettings);
     }
 
     private final String modelId;
 
     private final RateLimitSettings rateLimitSettings;
 
-    public ElasticInferenceServiceRerankServiceSettings(String modelId) {
+    public ElasticInferenceServiceRerankServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
+        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public ElasticInferenceServiceRerankServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
-        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
-            new RateLimitSettings(in);
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -127,9 +115,7 @@ public class ElasticInferenceServiceRerankServiceSettings extends FilteredXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

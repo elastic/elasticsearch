@@ -49,27 +49,6 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
     }
 
     @Override
-    public void validate() {
-        ValidationException validationException = new ValidationException();
-
-        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
-            validationException.addValidationError(
-                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
-            );
-        }
-
-        if (overlap > maxChunkSize / 2) {
-            validationException.addValidationError(
-                ChunkingSettingsOptions.OVERLAP + "[" + overlap + "] must be less than or equal to half of max chunk size"
-            );
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-    }
-
-    @Override
     public Map<String, Object> asMap() {
         return Map.of(
             ChunkingSettingsOptions.STRATEGY.toString(),

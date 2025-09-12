@@ -3,8 +3,7 @@
 ### TO GEOTILE
 Converts an input value to a `geotile` value.
 A string will only be successfully converted if it respects the
-`geotile` format, as described for the
-[geotile grid aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation).
+`geotile` format.
 
 ```esql
 ROW string = "4/8/5"

@@ -824,8 +824,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mappingLookup,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             indexSettings,
-            null,
-            clusterAlias,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
@@ -835,7 +833,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
-            null,
             null,
             null,
             null,

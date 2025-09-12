@@ -11,28 +11,28 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.transport.LinkedProjectConfig;
-import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.DeleteInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutInternalCcrRepositoryRequest;
 import org.elasticsearch.xpack.ccr.repository.CcrRepository;
 
+import java.util.Set;
+
 class CcrRepositoryManager extends AbstractLifecycleComponent {
 
     private final Client client;
     private final RemoteSettingsUpdateListener updateListener;
-    private final LinkedProjectConfigService linkedProjectConfigService;
 
-    CcrRepositoryManager(Settings settings, LinkedProjectConfigService linkedProjectConfigService, Client client) {
+    CcrRepositoryManager(Settings settings, ClusterService clusterService, Client client) {
         this.client = client;
         updateListener = new RemoteSettingsUpdateListener(settings);
-        linkedProjectConfigService.register(updateListener);
-        this.linkedProjectConfigService = linkedProjectConfigService;
+        updateListener.listenForUpdates(clusterService.getClusterSettings());
     }
 
     @Override
@@ -67,15 +67,16 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
         }
 
         void init() {
-            for (var config : linkedProjectConfigService.getInitialLinkedProjectConfigs()) {
-                putRepository(CcrRepository.NAME_PREFIX + config.linkedProjectAlias());
+            Set<String> clusterAliases = getEnabledRemoteClusters(settings);
+            for (String clusterAlias : clusterAliases) {
+                putRepository(CcrRepository.NAME_PREFIX + clusterAlias);
             }
         }
 
         @Override
-        public void updateLinkedProject(LinkedProjectConfig config) {
-            String repositoryName = CcrRepository.NAME_PREFIX + config.linkedProjectAlias();
-            if (config.isConnectionEnabled()) {
+        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+            String repositoryName = CcrRepository.NAME_PREFIX + clusterAlias;
+            if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, settings)) {
                 putRepository(repositoryName);
             } else {
                 deleteRepository(repositoryName);

@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
@@ -34,7 +31,6 @@ import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
-import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
@@ -93,7 +89,6 @@ import org.elasticsearch.xpack.inference.services.googleaistudio.completion.Goog
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankServiceSettings;
@@ -575,14 +570,6 @@ public class InferenceNamedWriteablesProvider {
             )
         );
 
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                TaskSettings.class,
-                GoogleVertexAiChatCompletionTaskSettings.NAME,
-                GoogleVertexAiChatCompletionTaskSettings::new
-            )
-        );
-
     }
 
     private static void addInternalNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -611,24 +598,6 @@ public class InferenceNamedWriteablesProvider {
                 ServiceSettings.class,
                 ElasticRerankerServiceSettings.NAME,
                 ElasticRerankerServiceSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
-                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                NamedDiff.class,
-                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
-                in -> AbstractNamedDiffable.readDiffFrom(
-                    Metadata.ProjectCustom.class,
-                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
-                    in
-                )
             )
         );
     }

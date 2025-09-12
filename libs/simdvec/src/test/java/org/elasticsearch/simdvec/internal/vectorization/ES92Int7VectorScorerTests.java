@@ -83,7 +83,6 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final int numVectors = random().nextInt(1, 100);
 
         float[][] vectors = new float[numVectors][dimensions];
-        final float[] residualScratch = new float[dimensions];
         final int[] scratch = new int[dimensions];
         final byte[] qVector = new byte[dimensions];
         final float[] centroid = new float[dimensions];
@@ -95,8 +94,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 for (float[] vector : vectors) {
                     randomVector(vector, similarityFunction);
                     OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
-                        vector,
-                        residualScratch,
+                        vector.clone(),
                         scratch,
                         (byte) 7,
                         centroid
@@ -114,8 +112,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query,
-                residualScratch,
+                query.clone(),
                 scratch,
                 (byte) 7,
                 centroid
@@ -173,7 +170,6 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final float[][] vectors = new float[numVectors][dimensions];
         final int[] quantizedScratch = new int[dimensions];
         final byte[] quantizeVector = new byte[dimensions];
-        final float[] residualScratch = new float[dimensions];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
         randomVector(centroid, similarityFunction);
@@ -186,7 +182,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
                     for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
                         randomVector(vectors[i + j], similarityFunction);
-                        results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, quantizedScratch, (byte) 7, centroid);
+                        results[j] = quantizer.scalarQuantize(vectors[i + j].clone(), quantizedScratch, (byte) 7, centroid);
                         for (int k = 0; k < dimensions; k++) {
                             quantizeVector[k] = (byte) quantizedScratch[k];
                         }
@@ -199,8 +195,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             final byte[] quantizeQuery = new byte[dimensions];
             randomVector(query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
-                query,
-                residualScratch,
+                query.clone(),
                 quantizedScratch,
                 (byte) 7,
                 centroid

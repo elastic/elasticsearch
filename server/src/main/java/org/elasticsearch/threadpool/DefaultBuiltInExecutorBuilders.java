@@ -45,7 +45,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.WRITE_COORDINATION,
                 allocatedProcessors,
                 10000,
-                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build()
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             )
         );
         result.put(
@@ -210,7 +210,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE_COORDINATION,
                 halfProcMaxAt5,
                 1000,
-                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build(),
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
                 true
             )
         );

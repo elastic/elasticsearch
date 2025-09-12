@@ -320,62 +320,6 @@ count:long | centroid:geo_point                            | geohashString:keywo
 2          | POINT (16.706149326637387 32.37822346854955)  | sm                    | POLYGON((11.25 28.125, 22.5 28.125, 22.5 33.75, 11.25 33.75, 11.25 28.125))
 ;
 
-gridGeohashDocsFromCell
-required_capability: spatial_grid_intersects
-
-FROM airports
-| WHERE ST_INTERSECTS(location, TO_GEOHASH("u1"))
-| STATS
-    count = COUNT(*),
-    centroid = ST_CENTROID_AGG(location)
-;
-
-count:long | centroid:geo_point
-8          | POINT (6.351574736181647 51.8981519783847)
-;
-
-gridIntersectsDisjointGeohash
-required_capability: spatial_grid_intersects
-
-FROM airports
-| EVAL intersects = ST_INTERSECTS(location, "u1"::geohash)
-| EVAL disjoint = ST_DISJOINT(location, "u1"::geohash)
-| STATS count = COUNT(*) BY intersects, disjoint
-| SORT count ASC
-;
-
-count:long | intersects:boolean | disjoint:boolean
-8          | true               | false
-883        | false              | true
-;
-
-gridGeohashLiteralFromCell
-required_capability: spatial_grid_intersects
-
-ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (6.351574736181647 51.8981519783847)", "POINT (5.268637698941997 42.747250193330856)"]
-| EVAL location = TO_GEOPOINT(location)
-| MV_EXPAND location
-| WHERE ST_INTERSECTS(location, "u1"::geohash)
-;
-
-location:geo_point
-POINT (6.351574736181647 51.8981519783847)
-;
-
-gridGeohashLiteralFromCellDisjoint
-required_capability: spatial_grid_intersects
-
-ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (6.351574736181647 51.8981519783847)", "POINT (5.268637698941997 42.747250193330856)"]
-| EVAL location = location::geo_point
-| MV_EXPAND location
-| WHERE ST_DISJOINT(location, "u1"::geohash)
-;
-
-location:geo_point
-POINT (6.360728044651057 47.94084087577894)
-POINT (5.268637698941997 42.747250193330856)
-;
-
 gridGeohashStatsByWhereUK
 required_capability: spatial_grid_types
 
@@ -742,62 +686,6 @@ FROM airports
 count:long | centroid:geo_point                           | geotileString:keyword | cellBoundary:geo_shape
 100        | POINT (18.10569669920951 50.40505832391791)  | 3/4/2                 | POLYGON((0.0 40.979898069620134, 45.0 40.979898069620134, 45.0 66.51326044311186, 0.0 66.51326044311186, 0.0 40.979898069620134))
 79         | POINT (24.516750878736943 23.93036561181085) | 3/4/3                 | POLYGON((0.0 0.0, 45.0 0.0, 45.0 40.979898069620134, 0.0 40.979898069620134, 0.0 0.0))
-;
-
-gridGeotileDocsFromCell
-required_capability: spatial_grid_intersects
-
-FROM airports
-| WHERE ST_INTERSECTS(location, TO_GEOTILE("3/4/3"))
-| STATS
-    count = COUNT(*),
-    centroid = ST_CENTROID_AGG(location)
-;
-
-count:long | centroid:geo_point
-79         | POINT (24.516750878736943 23.93036561181085)
-;
-
-gridIntersectsDisjointGeotile
-required_capability: spatial_grid_intersects
-
-FROM airports
-| EVAL intersects = ST_INTERSECTS(location, "3/4/3"::geotile)
-| EVAL disjoint = ST_DISJOINT(location, "3/4/3"::geotile)
-| STATS count = COUNT(*) BY intersects, disjoint
-| SORT count ASC
-;
-
-count:long | intersects:boolean | disjoint:boolean
-79         | true               | false
-812        | false              | true
-;
-
-gridGeotileLiteralFromCell
-required_capability: spatial_grid_intersects
-
-ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (24.516750878736943 23.93036561181085)", "POINT (5.268637698941997 42.747250193330856)"]
-| EVAL location = TO_GEOPOINT(location)
-| MV_EXPAND location
-| WHERE ST_INTERSECTS(location, "3/4/3"::geotile)
-;
-
-location:geo_point
-POINT (24.516750878736943 23.93036561181085)
-;
-
-gridGeotileLiteralFromCellDisjoint
-required_capability: spatial_grid_intersects
-
-ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (24.516750878736943 23.93036561181085)", "POINT (5.268637698941997 42.747250193330856)"]
-| EVAL location = location::geo_point
-| MV_EXPAND location
-| WHERE ST_DISJOINT(location, "3/4/3"::geotile)
-;
-
-location:geo_point
-POINT (6.360728044651057 47.94084087577894)
-POINT (5.268637698941997 42.747250193330856)
 ;
 
 gridGeotileStatsByWhereUK
@@ -1233,62 +1121,6 @@ location:geo_point                        | geohex:keyword  | geohexBounded:geoh
 POINT (46.035023249891 51.5606456508842)  | 8110bffffffffff | null                 | POLYGON ((42.136829069634125 51.40943727610449, 47.038222832332735 48.33994165728296, 53.670493635625505 49.37211750883398, 56.286117998753014 53.74532256646542, 51.15131422930829 57.15637211465772, 43.547481617187756 55.820803924848654, 42.136829069634125 51.40943727610449))
 POINT (13.1442589810713 32.6691695504993) | 813fbffffffffff | 813fbffffffffff      | POLYGON ((8.974635637589913 30.254840780701706, 9.380676605201614 25.60370257696876, 13.915183885634578 23.45043771532035, 18.351304577591982 25.86678026136113, 18.343416368196834 30.62734805513404, 13.488580338198277 32.87501547725471, 8.974635637589913 30.254840780701706))
 POINT (118.12696884672 24.537192570557)   | 8141bffffffffff | null                 | POLYGON ((121.34751445935747 26.200276060455465, 120.50339385995798 29.892985338693542, 116.26130043917948 31.68090796798786, 112.74092235558841 29.367231998154967, 113.70376749169584 25.199133186716526, 117.99047716641066 23.5089519597363, 119.64146543031175 24.728661050965922, 121.34751445935747 26.200276060455465))
-;
-
-gridGeohexDocsFromCell
-required_capability: spatial_grid_intersects
-
-FROM airports
-| WHERE ST_INTERSECTS(location, TO_GEOHEX("81397ffffffffff"))
-| STATS
-    count = COUNT(*),
-    centroid = ST_CENTROID_AGG(location)
-;
-
-count:long | centroid:geo_point
-7          | POINT (2.475211258445467 41.32352174592337)
-;
-
-gridIntersectsDisjointGeohex
-required_capability: spatial_grid_intersects
-
-FROM airports
-| EVAL intersects = ST_INTERSECTS(location, "81397ffffffffff"::geohex)
-| EVAL disjoint = ST_DISJOINT(location, "81397ffffffffff"::geohex)
-| STATS count = COUNT(*) BY intersects, disjoint
-| SORT count ASC
-;
-
-count:long | intersects:boolean | disjoint:boolean
-7          | true               | false
-884        | false              | true
-;
-
-gridGeohexLiteralFromCell
-required_capability: spatial_grid_intersects
-
-ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (2.475211258445467 41.32352174592337)", "POINT (5.268637698941997 42.747250193330856)"]
-| EVAL location = TO_GEOPOINT(location)
-| MV_EXPAND location
-| WHERE ST_INTERSECTS(location, "81397ffffffffff"::geohex)
-;
-
-location:geo_point
-POINT (2.475211258445467 41.32352174592337)
-POINT (5.268637698941997 42.747250193330856)
-;
-
-gridGeohexLiteralFromCellDisjoint
-required_capability: spatial_grid_intersects
-
-ROW location = ["POINT (6.360728044651057 47.94084087577894)", "POINT (2.475211258445467 41.32352174592337)", "POINT (5.268637698941997 42.747250193330856)"]
-| EVAL location = TO_GEOPOINT(location)
-| MV_EXPAND location
-| WHERE ST_DISJOINT(location, "81397ffffffffff"::geohex)
-;
-
-location:geo_point
-POINT (6.360728044651057 47.94084087577894)
 ;
 
 gridGeohexStatsByWhereUK

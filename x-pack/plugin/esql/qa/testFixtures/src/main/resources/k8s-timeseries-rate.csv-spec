@@ -73,24 +73,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 2.210158359293873    | prod            | 2024-05-10T00:20:00.000Z
 0.8955555555555565   | qa              | 2024-05-10T00:20:00.000Z
 0.595                | staging         | 2024-05-10T00:20:00.000Z
-;
 
-rate_with_inline_filtering
-required_capability: metrics_command
-TS k8s 
-| STATS rate_bytes_in = sum(rate(network.total_bytes_in)) WHERE pod == "one" BY cluster, time_bucket = bucket(@timestamp, 10minute)
-| SORT time_bucket, cluster | LIMIT 10;
-
-rate_bytes_in:double | cluster:keyword | time_bucket:datetime
-4.0314581958195825   | prod            | 2024-05-10T00:00:00.000Z
-9.955833333333333    | qa              | 2024-05-10T00:00:00.000Z
-4.242445473251029    | staging         | 2024-05-10T00:00:00.000Z
-11.188380281690138   | prod            | 2024-05-10T00:10:00.000Z
-12.222592592592592   | qa              | 2024-05-10T00:10:00.000Z
-3.050371490280777    | staging         | 2024-05-10T00:10:00.000Z
-2.210158359293873    | prod            | 2024-05-10T00:20:00.000Z
-0.8955555555555565   | qa              | 2024-05-10T00:20:00.000Z
-0.595                | staging         | 2024-05-10T00:20:00.000Z
 ;
 
 eval_on_rate

@@ -16,13 +16,13 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> {
 
@@ -45,7 +45,8 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
     @Override
     public void accept(ShardSearchRequest request, StreamOutput out) throws IOException {
         final SecurityContext securityContext = securityContextHolder.get();
-        final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(securityContext.getThreadContext());
+        final IndicesAccessControl indicesAccessControl = securityContext.getThreadContext()
+            .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         final String indexName = request.shardId().getIndexName();
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
         if (indexAccessControl != null

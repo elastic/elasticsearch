@@ -177,9 +177,9 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             Float minScore,
             boolean failuresAllowed,
             String throwingType,
-            ChunkScorerConfig chunkScorerConfig
+            SnippetConfig snippetConfig
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, chunkScorerConfig);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed, snippetConfig);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 

@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -38,8 +37,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String TEMPERATURE = "temperature";
     private static final String MAX_OUTPUT_TOKENS = "maxOutputTokens";
     private static final String TOP_P = "topP";
-    private static final String THINKING_CONFIG = "thinkingConfig";
-    private static final String THINKING_BUDGET = "thinkingBudget";
 
     private static final String TOOLS = "tools";
     private static final String FUNCTION_DECLARATIONS = "functionDeclarations";
@@ -59,7 +56,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
     private static final String FUNCTION_CALL_ARGS = "args";
 
     private final UnifiedChatInput unifiedChatInput;
-    private final ThinkingConfig thinkingConfig;
 
     private static final String USER_ROLE = "user";
     private static final String MODEL_ROLE = "model";
@@ -70,9 +66,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
 
     private static final String SYSTEM_INSTRUCTION = "systemInstruction";
 
-    public GoogleVertexAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, ThinkingConfig thinkingConfig) {
+    public GoogleVertexAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
-        this.thinkingConfig = Objects.requireNonNull(thinkingConfig);
     }
 
     private String messageRoleToGoogleVertexAiSupportedRole(String messageRole) {
@@ -321,8 +316,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         boolean hasAnyConfig = request.stop() != null
             || request.temperature() != null
             || request.maxCompletionTokens() != null
-            || request.topP() != null
-            || thinkingConfig.isEmpty() == false;
+            || request.topP() != null;
 
         if (hasAnyConfig == false) {
             return;
@@ -341,11 +335,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         }
         if (request.topP() != null) {
             builder.field(TOP_P, request.topP());
-        }
-        if (thinkingConfig.isEmpty() == false) {
-            builder.startObject(THINKING_CONFIG);
-            builder.field(THINKING_BUDGET, thinkingConfig.getThinkingBudget());
-            builder.endObject();
         }
 
         builder.endObject();

@@ -7,24 +7,20 @@
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": [
-        "application/json"
-      ]
+      "accept": ["application/json"]
     },
     "url": {
       "paths": [
         {
           "path": "/_security/delegate_pki",
-          "methods": [
-            "POST"
-          ]
+          "methods": ["POST"]
         }
       ]
     },
     "params": {},
     "body": {
-      "description": "The X509Certificate chain.",
-      "required": true
+      "description":"The X509Certificate chain.",
+      "required":true
     }
   }
 }

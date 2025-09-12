@@ -56,7 +56,7 @@ public record VectorData(float[] floatVector, byte[] byteVector) implements Writ
         if (byteVector != null) {
             return byteVector;
         }
-        DenseVectorFieldMapper.BYTE_ELEMENT.checkVectorBounds(floatVector);
+        DenseVectorFieldMapper.ElementType.BYTE.checkVectorBounds(floatVector);
         byte[] vec = new byte[floatVector.length];
         for (int i = 0; i < floatVector.length; i++) {
             vec[i] = (byte) floatVector[i];

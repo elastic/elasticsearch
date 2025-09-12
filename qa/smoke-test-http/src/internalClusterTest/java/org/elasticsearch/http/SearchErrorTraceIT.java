@@ -16,6 +16,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.ErrorTraceHelper;
@@ -24,15 +25,19 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collection;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 
 public class SearchErrorTraceIT extends HttpSmokeTestCase {
+    private BooleanSupplier hasStackTrace;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -42,6 +47,18 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
     @BeforeClass
     public static void setDebugLogLevel() {
         Configurator.setLevel(SearchService.class, Level.DEBUG);
+    }
+
+    @Before
+    public void setupMessageListener() {
+        hasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
+        // TODO: make this test work with batched query execution by enhancing ErrorTraceHelper.setupErrorTraceListener
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    }
+
+    @After
+    public void resetSettings() {
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     private void setupIndexWithDocs() {
@@ -69,7 +86,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             }
             """);
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testSearchFailingQueryErrorTraceTrue() throws IOException {
@@ -88,7 +105,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             """);
         searchRequest.addParameter("error_trace", "true");
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
+        assertTrue(hasStackTrace.getAsBoolean());
     }
 
     public void testSearchFailingQueryErrorTraceFalse() throws IOException {
@@ -107,7 +124,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             """);
         searchRequest.addParameter("error_trace", "false");
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testDataNodeLogsStackTrace() throws IOException {
@@ -156,7 +173,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
             new NByteArrayEntity(requestBody, ContentType.create(contentType.mediaTypeWithoutParameters(), (Charset) null))
         );
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testMultiSearchFailingQueryErrorTraceTrue() throws IOException {
@@ -173,7 +190,7 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         );
         searchRequest.addParameter("error_trace", "true");
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
+        assertTrue(hasStackTrace.getAsBoolean());
     }
 
     public void testMultiSearchFailingQueryErrorTraceFalse() throws IOException {
@@ -190,7 +207,8 @@ public class SearchErrorTraceIT extends HttpSmokeTestCase {
         );
         searchRequest.addParameter("error_trace", "false");
         getRestClient().performRequest(searchRequest);
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+
+        assertFalse(hasStackTrace.getAsBoolean());
     }
 
     public void testDataNodeLogsStackTraceMultiSearch() throws IOException {

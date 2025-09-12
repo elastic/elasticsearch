@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,7 +23,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -69,7 +67,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
-    private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
     public static final DataType[] UNSUPPORTED_TYPES = {
         TEXT,
         VERSION,
@@ -133,21 +130,8 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteable(left());
-        out.writeNamedWriteable(getRightToSerialize(out));
+        out.writeNamedWriteable(right());
         config.writeTo(out);
-    }
-
-    protected LogicalPlan getRightToSerialize(StreamOutput out) {
-        LogicalPlan rightToSerialize = right();
-        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER) == false) {
-            // Prior to TransportVersions.ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER
-            // we do not support a filter on top of the right side of the join
-            // As we consider the filters optional, we remove them here
-            while (rightToSerialize instanceof Filter filter) {
-                rightToSerialize = filter.child();
-            }
-        }
-        return rightToSerialize;
     }
 
     @Override

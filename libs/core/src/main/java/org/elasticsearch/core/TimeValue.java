@@ -340,7 +340,7 @@ public class TimeValue implements Comparable<TimeValue> {
     }
 
     public String getStringRep() {
-        if (duration < 0 && TimeUnit.MILLISECONDS == timeUnit) {
+        if (duration < 0) {
             return Long.toString(duration);
         }
         return switch (timeUnit) {

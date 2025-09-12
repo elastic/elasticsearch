@@ -85,7 +85,7 @@ public class LastOverTimeTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorName("Last", fieldSupplier.type()) + "ByTimestamp",
+                "LastOverTime[field=Attribute[channel=0],timestamp=Attribute[channel=1]]",
                 type,
                 equalTo(expected)
             );

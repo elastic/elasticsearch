@@ -1,26 +1,24 @@
 {
-  "get_script_languages": {
-    "documentation": {
+  "get_script_languages":{
+    "documentation":{
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-languages",
-      "description": "Get script languages"
+      "description":"Get script languages"
     },
-    "stability": "stable",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ]
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
     },
-    "url": {
-      "paths": [
+    "url":{
+      "paths":[
         {
-          "path": "/_script_language",
-          "methods": [
+          "path":"/_script_language",
+          "methods":[
             "GET"
           ]
         }
       ]
     },
-    "params": {}
+    "params":{}
   }
 }

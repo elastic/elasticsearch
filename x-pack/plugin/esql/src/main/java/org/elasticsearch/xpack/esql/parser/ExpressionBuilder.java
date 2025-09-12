@@ -1047,12 +1047,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 return new UnresolvedAttribute(source, value.toString());
             }
         }
-        if ((type == KEYWORD || type == TEXT)) {
-            if (value instanceof String) {
-                value = BytesRefs.toBytesRef(value);
-            } else if (value instanceof List<?> list) {
-                value = list.stream().map(v -> v instanceof String ? BytesRefs.toBytesRef(v) : v).toList();
-            }
+        if ((type == KEYWORD || type == TEXT) && value instanceof String) {
+            value = BytesRefs.toBytesRef(value);
         }
         return new Literal(source, value, type);
     }

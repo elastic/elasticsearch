@@ -641,29 +641,8 @@ setup:
 
 ---
 "Query multiple indices":
-  - requires:
-      cluster_features: "semantic_query.multiple_inference_ids"
-      reason: Semantic query support for querying multiple inference IDs
-
   - do:
-      index:
-        index: test-sparse-index
-        id: doc_1
-        body:
-          inference_field: [ "inference test", "another inference test" ]
-          non_inference_field: "non inference test"
-        refresh: true
-
-  - do:
-      index:
-        index: test-dense-index
-        id: doc_2
-        body:
-          inference_field: [ "inference test", "another inference test" ]
-          non_inference_field: "non inference test"
-        refresh: true
-
-  - do:
+      catch: bad_request
       search:
         index:
           - test-sparse-index
@@ -674,12 +653,12 @@ setup:
               field: "inference_field"
               query: "inference test"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_2" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
 
   # Test wildcard resolution
   - do:
+      catch: bad_request
       search:
         index: test-*
         body:
@@ -688,9 +667,8 @@ setup:
               field: "inference_field"
               query: "inference test"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_2" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
 
   # Test querying an index alias that resolves to multiple indices
   - do:
@@ -701,6 +679,7 @@ setup:
         name: my-alias
 
   - do:
+      catch: bad_request
       search:
         index: my-alias
         body:
@@ -709,11 +688,10 @@ setup:
               field: "inference_field"
               query: "inference test"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_2" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
 
-  # Test querying multiple indices that use the same inference ID
+  # Test querying multiple indices that use the same inference ID - this should work
   - do:
       indices.create:
         index: test-sparse-index-2
@@ -728,8 +706,16 @@ setup:
 
   - do:
       index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+        refresh: true
+
+  - do:
+      index:
         index: test-sparse-index-2
-        id: doc_3
+        id: doc_2
         body:
           inference_field: "another inference test"
         refresh: true
@@ -744,8 +730,8 @@ setup:
               query: "inference test"
 
   - match: { hits.total.value: 2 }
-  - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_3" }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
 
 ---
 "Query a field that has no indexed inference results":

@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 
 public class ActionUtils {
 
@@ -27,15 +28,17 @@ public class ActionUtils {
                 l.onFailure(esException);
             } else {
                 l.onFailure(
-                    // Determine the appropriate RestStatus from the unwrapped exception, then wrap in an ElasticsearchStatusException
-                    new ElasticsearchStatusException(
-                        Strings.format("%s. Cause: %s", errorMessage, unwrappedException.getMessage()),
-                        ExceptionsHelper.status(unwrappedException),
-                        unwrappedException
+                    createInternalServerError(
+                        unwrappedException,
+                        Strings.format("%s. Cause: %s", errorMessage, unwrappedException.getMessage())
                     )
                 );
             }
         });
+    }
+
+    public static ElasticsearchStatusException createInternalServerError(Throwable e, String message) {
+        return new ElasticsearchStatusException(message, RestStatus.INTERNAL_SERVER_ERROR, e);
     }
 
     public static String constructFailedToSendRequestMessage(String message) {

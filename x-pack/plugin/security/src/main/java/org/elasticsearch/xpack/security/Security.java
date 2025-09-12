@@ -108,7 +108,6 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -204,12 +203,13 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
+import org.elasticsearch.xpack.core.security.authc.apikey.CustomApiKeyAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -419,8 +419,6 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
-import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
-import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -463,7 +461,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_ENABLED;
@@ -752,7 +749,6 @@ public class Security extends Plugin
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client()),
-                services.linkedProjectConfigService(),
                 services.projectResolver()
             );
         } catch (final Exception e) {
@@ -773,7 +769,6 @@ public class Security extends Plugin
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService,
-        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
     ) throws Exception {
         logger.info("Security is {}", enabled ? "enabled" : "disabled");
@@ -979,8 +974,7 @@ public class Security extends Plugin
         this.fileRolesStore.set(
             new FileRolesStore(settings, environment, resourceWatcherService, getLicenseState(), xContentRegistry, fileRoleValidator.get())
         );
-        ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get()
-            .create(clusterService, projectResolver, fileRolesStore.get()::exists);
+        ReservedRoleNameChecker reservedRoleNameChecker = reservedRoleNameCheckerFactory.get().create(fileRolesStore.get()::exists);
         components.add(new PluginComponentBinding<>(ReservedRoleNameChecker.class, reservedRoleNameChecker));
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -1088,8 +1082,9 @@ public class Security extends Plugin
             operatorPrivilegesService.set(OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         }
 
-        final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
-        components.addAll(customAuthenticators);
+        final CustomApiKeyAuthenticator customApiKeyAuthenticator = createCustomApiKeyAuthenticator(extensionComponents);
+
+        components.add(customApiKeyAuthenticator);
 
         authcService.set(
             new AuthenticationService(
@@ -1103,7 +1098,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customAuthenticators,
+                customApiKeyAuthenticator,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1183,20 +1178,12 @@ public class Security extends Plugin
             )
         );
         components.add(crossClusterAccessAuthcService.get());
-
-        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = new CrossClusterAccessTransportInterceptor(
-            settings,
-            threadPool,
-            authcService.get(),
-            authzService,
-            securityContext.get(),
-            crossClusterAccessAuthcService.get(),
-            getLicenseState()
-        );
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
                 threadPool,
+                authcService.get(),
+                authzService,
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
@@ -1352,40 +1339,37 @@ public class Security extends Plugin
                 if (false == isInternalExtension(extension)) {
                     throw new IllegalStateException(
                         "The ["
-                            + securityExtension.extensionName()
-                            + "] extension tried to install a  "
-                            + CustomAuthenticator.class.getSimpleName()
-                            + ". "
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CustomApiKeyAuthenticator. "
                             + "This functionality is not available to external extensions."
                     );
                 }
-                customAuthenticatorsByExtension.put(securityExtension.extensionName(), customAuthenticators);
+                customApiKeyAuthenticatorByExtension.put(extension.extensionName(), customApiKeyAuthenticator);
             }
         }
 
-        if (customAuthenticatorsByExtension.isEmpty()) {
+        if (customApiKeyAuthenticatorByExtension.isEmpty()) {
             logger.debug(
-                "No custom implementations for [{}] provided by security extensions.",
-                CustomAuthenticator.class.getCanonicalName()
+                "No custom implementation for [{}]. Falling-back to noop implementation.",
+                CustomApiKeyAuthenticator.class.getCanonicalName()
             );
-            return List.of();
-        } else if (customAuthenticatorsByExtension.size() > 1) {
+            return new CustomApiKeyAuthenticator.Noop();
+
+        } else if (customApiKeyAuthenticatorByExtension.size() > 1) {
             throw new IllegalStateException(
-                "Multiple extensions tried to install custom authenticators: " + customAuthenticatorsByExtension.keySet()
+                "Multiple extensions tried to install a custom CustomApiKeyAuthenticator: " + customApiKeyAuthenticatorByExtension.keySet()
             );
+
         } else {
-            final var authenticatorByExtensionEntry = customAuthenticatorsByExtension.entrySet().iterator().next();
-            final List<CustomAuthenticator> customAuthenticators = authenticatorByExtensionEntry.getValue();
+            final var authenticatorByExtensionEntry = customApiKeyAuthenticatorByExtension.entrySet().iterator().next();
+            final CustomApiKeyAuthenticator customApiKeyAuthenticator = authenticatorByExtensionEntry.getValue();
             final String extensionName = authenticatorByExtensionEntry.getKey();
-            for (CustomAuthenticator authenticator : customAuthenticators) {
-                logger.debug(
-                    "{} implementation [{}] provided by extension [{}]",
-                    CustomAuthenticator.class.getSimpleName(),
-                    authenticator.getClass().getCanonicalName(),
-                    extensionName
-                );
-            }
-            return customAuthenticators;
+            logger.debug(
+                "CustomApiKeyAuthenticator implementation [{}] provided by extension [{}]",
+                customApiKeyAuthenticator.getClass().getCanonicalName(),
+                extensionName
+            );
+            return customApiKeyAuthenticator;
         }
     }
 
@@ -2359,7 +2343,8 @@ public class Security extends Plugin
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext.get());
+                IndicesAccessControl indicesAccessControl = threadContext.get()
+                    .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
                 if (dlsFlsEnabled.get() == false) {
                     return FieldPredicate.ACCEPT_ALL;
                 }

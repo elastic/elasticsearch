@@ -250,10 +250,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             false
         ).acceptsNull();
 
-        final Parameter<Integer> ignoreAbove = Parameter.ignoreAboveParam(
-            m -> toType(m).ignoreAbove,
-            IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE
-        );
+        final Parameter<Integer> ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE)
+            .addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
         final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
 
         public Builder(String name) {

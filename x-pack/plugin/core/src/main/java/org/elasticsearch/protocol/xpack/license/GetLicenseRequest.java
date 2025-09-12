@@ -17,7 +17,6 @@ public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> 
 
     public GetLicenseRequest(TimeValue masterNodeTimeout) {
         super(masterNodeTimeout);
-        local = true; // default to a local response, no need to forward to the master in most cases
     }
 
     public GetLicenseRequest(StreamInput in) throws IOException {

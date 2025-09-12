@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -46,7 +47,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             taskType,
             service,
             GoogleVertexAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettings),
+            new EmptyTaskSettings(),
             GoogleVertexAiSecretSettings.fromMap(secrets)
         );
     }
@@ -56,7 +57,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         TaskType taskType,
         String service,
         GoogleVertexAiChatCompletionServiceSettings serviceSettings,
-        GoogleVertexAiChatCompletionTaskSettings taskSettings,
+        EmptyTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
         super(
@@ -70,14 +71,6 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private GoogleVertexAiChatCompletionModel(
-        GoogleVertexAiChatCompletionModel model,
-        GoogleVertexAiChatCompletionTaskSettings taskSettings
-    ) {
-        super(model, taskSettings);
-        streamingURI = model.streamingURI();
     }
 
     public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, UnifiedCompletionRequest request) {
@@ -100,26 +93,6 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         );
     }
 
-    /**
-     * Overrides the task settings in the given model with the settings in the map. If no new settings are present or the provided settings
-     * do not differ from those already in the model, returns the original model
-     * @param model the model whose task settings will be overridden
-     * @param taskSettingsMap the new task settings to use
-     * @return a {@link GoogleVertexAiChatCompletionModel} with overridden {@link GoogleVertexAiChatCompletionTaskSettings}
-     */
-    public static GoogleVertexAiChatCompletionModel of(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettingsMap) {
-        if (taskSettingsMap == null || taskSettingsMap.isEmpty()) {
-            return model;
-        }
-
-        var requestTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
-        if (requestTaskSettings.isEmpty() || model.getTaskSettings().equals(requestTaskSettings)) {
-            return model;
-        }
-        var combinedTaskSettings = GoogleVertexAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
-        return new GoogleVertexAiChatCompletionModel(model, combinedTaskSettings);
-    }
-
     @Override
     public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
@@ -136,8 +109,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleVertexAiChatCompletionTaskSettings getTaskSettings() {
-        return (GoogleVertexAiChatCompletionTaskSettings) super.getTaskSettings();
+    public EmptyTaskSettings getTaskSettings() {
+        return (EmptyTaskSettings) super.getTaskSettings();
     }
 
     @Override

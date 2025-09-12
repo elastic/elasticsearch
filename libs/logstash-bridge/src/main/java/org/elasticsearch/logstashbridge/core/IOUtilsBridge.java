@@ -16,8 +16,6 @@ import java.io.Closeable;
  * An external bridge for {@link IOUtils}
  */
 public class IOUtilsBridge {
-    private IOUtilsBridge() {}
-
     public static void closeWhileHandlingException(final Iterable<? extends Closeable> objects) {
         IOUtils.closeWhileHandlingException(objects);
     }

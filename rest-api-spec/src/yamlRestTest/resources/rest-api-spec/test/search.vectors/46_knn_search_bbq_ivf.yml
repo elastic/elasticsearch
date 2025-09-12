@@ -106,28 +106,6 @@ setup:
   - match: { hits.hits.1._id: "3" }
   - match: { hits.hits.2._id: "2" }
 ---
-"Test knn search with visit_percentage":
-  - do:
-      search:
-        index: bbq_disk
-        body:
-          knn:
-            field: vector
-            query_vector: [0.128,  0.067, -0.08 ,  0.395, -0.11 , -0.259,  0.473, -0.393,
-                           0.292,  0.571, -0.491,  0.444, -0.288,  0.198, -0.343,  0.015,
-                           0.232,  0.088,  0.228,  0.151, -0.136,  0.236, -0.273, -0.259,
-                           -0.217,  0.359, -0.207,  0.352, -0.142,  0.192, -0.061, -0.17 ,
-                           -0.343,  0.189, -0.221,  0.32 , -0.301, -0.1  ,  0.005,  0.232,
-                           -0.344,  0.136,  0.252,  0.157, -0.13 , -0.244,  0.193, -0.034,
-                           -0.12 , -0.193, -0.102,  0.252, -0.185, -0.167, -0.575,  0.582,
-                           -0.426,  0.983,  0.212,  0.204,  0.03 , -0.276, -0.425, -0.158]
-            k: 3
-            visit_percentage: 1.0
-
-  - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.2._id: "2" }
----
 "Vector rescoring has same scoring as exact search for kNN section":
   - skip:
       features: "headers"

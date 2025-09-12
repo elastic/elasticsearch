@@ -96,10 +96,6 @@ public class Last extends AggregateFunction implements ToAggregator {
         return new Last(source(), field(), filter, sort);
     }
 
-    public Expression sort() {
-        return sort;
-    }
-
     @Override
     public DataType dataType() {
         return field().dataType().noText();

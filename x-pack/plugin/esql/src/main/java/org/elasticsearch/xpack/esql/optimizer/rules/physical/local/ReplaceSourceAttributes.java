@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -33,19 +34,34 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
         attributes.add(docId);
 
         var outputIterator = plan.output().iterator();
-        Attribute score = null;
-        while (score == null && outputIterator.hasNext()) {
+        var isTimeSeries = plan.indexMode() == IndexMode.TIME_SERIES;
+        var keepIterating = true;
+        Attribute tsid = null, timestamp = null, score = null;
+
+        while (keepIterating && outputIterator.hasNext()) {
             Attribute attr = outputIterator.next();
             if (attr instanceof MetadataAttribute ma) {
                 if (ma.name().equals(MetadataAttribute.SCORE)) {
                     score = attr;
+                } else if (isTimeSeries && ma.name().equals(MetadataAttribute.TSID_FIELD)) {
+                    tsid = attr;
                 }
+            } else if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                timestamp = attr;
             }
+            keepIterating = score == null || (isTimeSeries && (tsid == null || timestamp == null));
         }
-        // TODO: Add timestamp_watermark for time-series
+        if (isTimeSeries) {
+            if (tsid == null || timestamp == null) {
+                throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
+            }
+            attributes.add(tsid);
+            attributes.add(timestamp);
+        }
         if (score != null) {
             attributes.add(score);
         }
+
         return new EsQueryExec(
             plan.source(),
             plan.indexPattern(),

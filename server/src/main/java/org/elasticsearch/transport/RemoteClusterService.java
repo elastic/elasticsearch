@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -38,7 +39,6 @@ import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteC
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -286,13 +286,17 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     @Override
-    public void skipUnavailableChanged(
-        ProjectId originProjectId,
-        ProjectId linkedProjectId,
-        String linkedProjectAlias,
-        boolean skipUnavailable
-    ) {
-        final var remote = getConnectionsMapForProject(originProjectId).get(linkedProjectAlias);
+    public void listenForUpdates(ClusterSettings clusterSettings) {
+        super.listenForUpdates(clusterSettings);
+        clusterSettings.addAffixUpdateConsumer(
+            RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
+            this::updateSkipUnavailable,
+            (alias, value) -> {}
+        );
+    }
+
+    private synchronized void updateSkipUnavailable(String clusterAlias, Boolean skipUnavailable) {
+        RemoteClusterConnection remote = getConnectionsMapForCurrentProject().get(clusterAlias);
         if (remote != null) {
             remote.setSkipUnavailable(skipUnavailable);
         }
@@ -325,7 +329,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private void maybeRebuildConnectionOnCredentialsChange(
         ProjectId projectId,
         String clusterAlias,
-        Settings newSettings,
+        Settings settings,
         RefCountingRunnable connectionRefs
     ) {
         final var connectionsMap = getConnectionsMapForProject(projectId);
@@ -340,9 +344,7 @@ public final class RemoteClusterService extends RemoteClusterAware
             return;
         }
 
-        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        final var config = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
-        updateRemoteCluster(config, true, ActionListener.releaseAfter(new ActionListener<>() {
+        updateRemoteCluster(projectId, clusterAlias, settings, true, ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterConnectionStatus status) {
                 logger.info(
@@ -372,11 +374,11 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     @Override
-    public void updateLinkedProject(LinkedProjectConfig config) {
-        final var projectId = config.originProjectId();
-        final var clusterAlias = config.linkedProjectAlias();
+    protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+        @FixForMultiProject(description = "ES-12270: Refactor as needed to support project specific changes to linked remotes.")
+        final var projectId = projectResolver.getProjectId();
         CountDownLatch latch = new CountDownLatch(1);
-        updateRemoteCluster(config, false, ActionListener.runAfter(new ActionListener<>() {
+        updateRemoteCluster(projectId, clusterAlias, settings, false, ActionListener.runAfter(new ActionListener<>() {
             @Override
             public void onResponse(RemoteClusterConnectionStatus status) {
                 logger.info("project [{}] remote cluster connection [{}] updated: {}", projectId, clusterAlias, status);
@@ -408,19 +410,34 @@ public final class RemoteClusterService extends RemoteClusterAware
     // Package-access for testing.
     @FixForMultiProject(description = "Refactor to supply the project ID associated with the alias and settings, or eliminate this method.")
     void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<RemoteClusterConnectionStatus> listener) {
-        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
-        updateRemoteCluster(config, false, listener);
+        updateRemoteCluster(projectResolver.getProjectId(), clusterAlias, newSettings, false, listener);
     }
 
     /**
      * Adds, rebuilds, or closes and removes the connection for the specified remote cluster.
      *
-     * @param config The linked project configuration.
+     * @param projectId The project the remote cluster is associated with.
+     * @param clusterAlias The alias used for the remote cluster being connected.
+     * @param newSettings The updated settings for the remote connection.
      * @param forceRebuild Forces an existing connection to be closed and reconnected even if the connection strategy does not require it.
      * @param listener The listener invoked once the configured cluster has been connected.
      */
+    private synchronized void updateRemoteCluster(
+        ProjectId projectId,
+        String clusterAlias,
+        Settings newSettings,
+        boolean forceRebuild,
+        ActionListener<RemoteClusterConnectionStatus> listener
+    ) {
+        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
+        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+        final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, mergedSettings);
+        updateRemoteCluster(linkedProjectConfig, forceRebuild, listener);
+    }
+
     private synchronized void updateRemoteCluster(
         LinkedProjectConfig config,
         boolean forceRebuild,
@@ -474,18 +491,26 @@ public final class RemoteClusterService extends RemoteClusterAware
      * Connects to all remote clusters in a blocking fashion. This should be called on node startup to establish an initial connection
      * to all configured seed nodes.
      */
-    void initializeRemoteClusters(Collection<LinkedProjectConfig> configs) {
-        if (configs.isEmpty()) {
-            return;
-        }
-
+    void initializeRemoteClusters() {
         @FixForMultiProject(description = "Refactor for initializing connections to linked projects for each origin project supported.")
         final var projectId = projectResolver.getProjectId();
         final TimeValue timeValue = RemoteClusterSettings.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        CountDownActionListener listener = new CountDownActionListener(configs.size(), future);
-        for (LinkedProjectConfig config : configs) {
-            updateRemoteCluster(config, false, listener.map(ignored -> null));
+        Set<String> enabledClusters = RemoteClusterAware.getEnabledRemoteClusters(settings);
+
+        if (enabledClusters.isEmpty()) {
+            return;
+        }
+
+        CountDownActionListener listener = new CountDownActionListener(enabledClusters.size(), future);
+        for (String clusterAlias : enabledClusters) {
+            @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
+            final var linkedProjectConfig = RemoteClusterSettings.toConfig(projectId, ProjectId.DEFAULT, clusterAlias, settings);
+            updateRemoteCluster(linkedProjectConfig, false, listener.map(ignored -> null));
+        }
+
+        if (enabledClusters.isEmpty()) {
+            future.onResponse(null);
         }
 
         try {

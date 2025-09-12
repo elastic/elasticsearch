@@ -104,8 +104,6 @@ import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankDoc;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
-import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
-import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
@@ -205,7 +203,6 @@ public class InferencePlugin extends Plugin
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
-    public static final String INFERENCE_RESPONSE_THREAD_POOL_NAME = "inference_response";
 
     private static final Logger log = LogManager.getLogger(InferencePlugin.class);
 
@@ -240,8 +237,7 @@ public class InferencePlugin extends Plugin
             new ActionHandler(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
             new ActionHandler(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class),
             new ActionHandler(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
-            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class),
-            new ActionHandler(ClearInferenceEndpointCacheAction.INSTANCE, ClearInferenceEndpointCacheAction.class)
+            new ActionHandler(GetRerankerWindowSizeAction.INSTANCE, TransportGetRerankerWindowSizeAction.class)
         );
     }
 
@@ -378,9 +374,7 @@ public class InferencePlugin extends Plugin
 
         components.add(serviceRegistry);
         components.add(modelRegistry.get());
-        components.add(
-            new TransportGetInferenceDiagnosticsAction.ClientManagers(httpClientManager, elasticInferenceServiceHttpClientManager)
-        );
+        components.add(httpClientManager);
         components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
@@ -394,16 +388,6 @@ public class InferencePlugin extends Plugin
 
         // Add binding for interface -> implementation
         components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
-
-        components.add(
-            new InferenceEndpointRegistry(
-                services.clusterService(),
-                settings,
-                modelRegistry.get(),
-                serviceRegistry,
-                services.projectResolver()
-            )
-        );
 
         return components;
     }
@@ -457,13 +441,6 @@ public class InferencePlugin extends Plugin
                 Metadata.ProjectCustom.class,
                 new ParseField(ModelRegistryMetadata.TYPE),
                 ModelRegistryMetadata::fromXContent
-            )
-        );
-        namedXContent.add(
-            new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                new ParseField(ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME),
-                ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::fromXContent
             )
         );
         return namedXContent;
@@ -520,10 +497,10 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(inferenceUtilityExecutor(), inferenceResponseExecutor());
+        return List.of(inferenceUtilityExecutor(settings));
     }
 
-    private static ExecutorBuilder<?> inferenceUtilityExecutor() {
+    public static ExecutorBuilder<?> inferenceUtilityExecutor(Settings settings) {
         return new ScalingExecutorBuilder(
             UTILITY_THREAD_POOL_NAME,
             0,
@@ -531,17 +508,6 @@ public class InferencePlugin extends Plugin
             TimeValue.timeValueMinutes(10),
             false,
             "xpack.inference.utility_thread_pool"
-        );
-    }
-
-    private static ExecutorBuilder<?> inferenceResponseExecutor() {
-        return new ScalingExecutorBuilder(
-            INFERENCE_RESPONSE_THREAD_POOL_NAME,
-            0,
-            10,
-            TimeValue.timeValueMinutes(10),
-            false,
-            "xpack.inference.inference_response_thread_pool"
         );
     }
 
@@ -561,7 +527,6 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
-        settings.addAll(InferenceEndpointRegistry.getSettingsDefinitions());
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
         return Collections.unmodifiableSet(settings);
     }

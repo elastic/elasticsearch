@@ -8,7 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
@@ -17,22 +17,18 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
- * A {@link StableBridgeAPI} for {@link Pipeline}
+ * An external bridge for {@link Pipeline}
  */
-public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
-
-    String getId();
-
-    void execute(IngestDocumentBridge bridgedIngestDocument, BiConsumer<IngestDocumentBridge, Exception> bridgedHandler);
-
-    static PipelineBridge fromInternal(final Pipeline pipeline) {
-        return new ProxyInternal(pipeline);
+public class PipelineBridge extends StableBridgeAPI.ProxyInternal<Pipeline> {
+    public static PipelineBridge fromInternal(final Pipeline pipeline) {
+        return new PipelineBridge(pipeline);
     }
 
-    static PipelineBridge create(
+    @FixForMultiProject(description = "should we pass a non-null project ID here?")
+    public static PipelineBridge create(
         String id,
         Map<String, Object> config,
-        Map<String, ProcessorFactoryBridge> processorFactories,
+        Map<String, ProcessorBridge.Factory> processorFactories,
         ScriptServiceBridge scriptServiceBridge
     ) throws Exception {
         return fromInternal(
@@ -41,33 +37,23 @@ public interface PipelineBridge extends StableBridgeAPI<Pipeline> {
                 config,
                 StableBridgeAPI.toInternal(processorFactories),
                 StableBridgeAPI.toInternalNullable(scriptServiceBridge),
-                ProjectId.DEFAULT
+                null
             )
         );
     }
 
-    /**
-     * An implementation of {@link PipelineBridge} that proxies calls through to
-     * an internal {@link Pipeline}.
-     * @see StableBridgeAPI.ProxyInternal
-     */
-    class ProxyInternal extends StableBridgeAPI.ProxyInternal<Pipeline> implements PipelineBridge {
+    public PipelineBridge(final Pipeline delegate) {
+        super(delegate);
+    }
 
-        ProxyInternal(final Pipeline delegate) {
-            super(delegate);
-        }
+    public String getId() {
+        return internalDelegate.getId();
+    }
 
-        @Override
-        public String getId() {
-            return internalDelegate.getId();
-        }
-
-        @Override
-        public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-            this.internalDelegate.execute(
-                StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
-                (ingestDocument, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e)
-            );
-        }
+    public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
+        this.internalDelegate.execute(
+            StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
+            (ingestDocument, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e)
+        );
     }
 }

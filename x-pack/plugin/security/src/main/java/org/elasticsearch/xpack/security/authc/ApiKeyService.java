@@ -2342,7 +2342,7 @@ public class ApiKeyService implements Closeable {
 
     private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
         return notification -> {
-            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().weight() >= maximumWeight) {
+            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
                 evictionCounter.increment();
                 logger.trace(
                     "API key with ID [{}] was evicted from the authentication cache, " + "possibly due to cache size limit",

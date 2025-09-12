@@ -222,7 +222,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final SearchPhaseController.TopDocsStats topDocsStats;
         private final QueryPhaseResultConsumer.MergeResult mergeResult;
 
-        public NodeQueryResponse(StreamInput in) throws IOException {
+        NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
             this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
             this.topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);

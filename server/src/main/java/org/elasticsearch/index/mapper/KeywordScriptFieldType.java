@@ -92,8 +92,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta,
-            scriptFactory.isParsedFromSource()
+            meta
         );
     }
 

@@ -687,125 +687,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
-    public void testArrayValuesAllowedInValueParams() throws IOException {
-        Map<String, Object> responseMap = runEsql(
-            RequestObjectBuilder.jsonBuilder()
-                .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e")
-                .params(
-                    "[{\"a\" : [\"a1\", \"a2\"]}, {\"b\" : [1, 2]}, {\"c\": [true, false]}, {\"d\": [1.1, 2.2]},"
-                        + " {\"e\": [1674835275193, 1674835275193]}]"
-                )
-        );
-        System.out.println(responseMap);
-
-        ListMatcher values = matchesList().item(
-            matchesList().item(matchesList().item("a1").item("a2"))
-                .item(matchesList().item(1).item(2))
-                .item(matchesList().item(true).item(false))
-                .item(matchesList().item(1.1).item(2.2))
-                .item(matchesList().item(1674835275193L).item(1674835275193L))
-        );
-    }
-
-    public void testArrayValuesNullsNotAllowedInValueParams() throws IOException {
+    public void testErrorMessageForArrayValuesInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsqlSync(
-                RequestObjectBuilder.jsonBuilder()
-                    .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e, f = ?f")
-                    .params(
-                        "[{\"a\" : [null, \"a2\"]}, {\"b\" : [null, 2]}, {\"c\": [null, false]}, {\"d\": [null, 2.2]},"
-                            + " {\"e\": [null, 1674835275193]}, {\"f\": [null, null]}]"
-                    )
-            )
-        );
-
-        String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
-        assertThat(
-            error,
-            containsString(
-                "[1:79] Parameter [a] contains a null entry: [null, a2]. " + "Null values are not allowed in multivalued params;"
-            )
-        );
-        assertThat(
-            error,
-            containsString(
-                "[1:101] Parameter [b] contains a null entry: [null, 2]. " + "Null values are not allowed in multivalued params;"
-            )
-        );
-        assertThat(
-            error,
-            containsString(
-                "[1:120] Parameter [c] contains a null entry: [null, false]. " + "Null values are not allowed in multivalued params;"
-            )
-        );
-        assertThat(
-            error,
-            containsString(
-                "[1:142] Parameter [d] contains a null entry: [null, 2.2]. " + "Null values are not allowed in multivalued params;"
-            )
-        );
-        assertThat(
-            error,
-            containsString(
-                "[1:162] Parameter [e] contains a null entry: [null, 1674835275193]. "
-                    + "Null values are not allowed in multivalued params;"
-            )
-        );
-        assertThat(
-            error,
-            containsString(
-                "[1:192] Parameter [f] contains a null entry: [null, null]. " + "Null values are not allowed in multivalued params"
-            )
-        );
-    }
-
-    public void testArrayValuesAllowedInUnnamedParams() throws IOException {
-        Map<String, Object> responseMap = runEsql(
-            RequestObjectBuilder.jsonBuilder()
-                .query("row a = ? | eval b = ?, c = ?, d = ?, e = ?")
-                .params("[[\"a1\", \"a2\"], [1, 2], [true, false], [1.1, 2.2], [1674835275193, 1674835275193]]")
-        );
-        System.out.println(responseMap);
-
-        ListMatcher values = matchesList().item(
-            matchesList().item(matchesList().item("a1").item("a2"))
-                .item(matchesList().item(1).item(2))
-                .item(matchesList().item(true).item(false))
-                .item(matchesList().item(1.1).item(2.2))
-                .item(matchesList().item(1674835275193L).item(1674835275193L))
-        );
-
-        assertResultMap(
-            responseMap,
-            matchesList().item(matchesMap().entry("name", "a").entry("type", "keyword"))
-                .item(matchesMap().entry("name", "b").entry("type", "integer"))
-                .item(matchesMap().entry("name", "c").entry("type", "boolean"))
-                .item(matchesMap().entry("name", "d").entry("type", "double"))
-                .item(matchesMap().entry("name", "e").entry("type", "long")),
-            values
-        );
-    }
-
-    public void testErrorMessageForArrayValuesInNonValueParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(
-                RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval ?n1 = 5").params("[{\"n1\" : {\"identifier\" : [\"integer\"]}}]")
-            )
+            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("\"Failed to parse params: [1:47] n1={identifier=[integer]} parameter is multivalued")
-        );
-
-        re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | keep ?n1").params("[{\"n1\" : {\"pattern\" : [\"a*\"]}}]"))
-        );
-        assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("\"Failed to parse params: [1:43] n1={pattern=[a*]} parameter is multivalued")
+            containsString("Failed to parse params: [1:45] n1=[5, 6, 7] is not supported as a parameter")
         );
     }
 

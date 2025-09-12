@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
@@ -58,9 +59,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -79,14 +78,12 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -103,8 +100,6 @@ public class EsqlSession {
     public interface PlanRunner {
         void run(PhysicalPlan plan, ActionListener<Result> listener);
     }
-
-    private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
 
     private final String sessionId;
     private final Configuration configuration;
@@ -173,14 +168,13 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        EsqlStatement statement = parse(request.query(), request.params());
-        LogicalPlan plan = statement.plan();
-        if (plan instanceof Explain explain) {
+        LogicalPlan parsed = parse(request.query(), request.params());
+        if (parsed instanceof Explain explain) {
             explainMode = true;
-            plan = explain.query();
-            parsedPlanString = plan.toString();
+            parsed = explain.query();
+            parsedPlanString = parsed.toString();
         }
-        analyzedPlan(plan, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+        analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
                 assert ThreadPool.assertCurrentThreadPool(
@@ -313,12 +307,9 @@ public class EsqlSession {
         return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
     }
 
-    private EsqlStatement parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createQuery(query, params, planTelemetry, configuration);
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
-            LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
-        }
+    private LogicalPlan parse(String query, QueryParams params) {
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry, configuration);
+        LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
 
@@ -381,32 +372,20 @@ public class EsqlSession {
             return;
         }
 
-        var preAnalysis = preAnalyzer.preAnalyze(parsed);
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
+        PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
-        SubscribableListener. //
-        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
+        var listener = SubscribableListener. //
+        <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches, executionInfo, l))
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
-            .<PreAnalysisResult>andThen((l, r) -> resolveInferences(parsed, r, l))
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
-            .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
-            .addListener(logicalPlanListener);
-    }
-
-    private void preAnalyzeLookupIndices(
-        Iterator<IndexPattern> lookupIndices,
-        PreAnalysisResult preAnalysisResult,
-        EsqlExecutionInfo executionInfo,
-        ActionListener<PreAnalysisResult> listener
-    ) {
-        if (lookupIndices.hasNext()) {
-            preAnalyzeLookupIndex(lookupIndices.next(), preAnalysisResult, executionInfo, listener.delegateFailureAndWrap((l, r) -> {
-                preAnalyzeLookupIndices(lookupIndices, r, executionInfo, l);
-            }));
-        } else {
-            listener.onResponse(preAnalysisResult);
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
+        // first resolve the lookup indices, then the main indices
+        for (var index : preAnalysis.lookupIndices) {
+            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
         }
+        listener.<PreAnalysisResult>andThen((l, result) -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
+            .<LogicalPlan>andThen((l, result) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, result, l))
+            .addListener(logicalPlanListener);
     }
 
     private void preAnalyzeLookupIndex(
@@ -614,7 +593,7 @@ public class EsqlSession {
             if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 // No need to check local, obviously
                 var connection = remoteClusterService.getConnection(clusterAlias);
-                if (connection != null && connection.getTransportVersion().supports(LOOKUP_JOIN_CCS) == false) {
+                if (connection != null && connection.getTransportVersion().before(TransportVersions.LOOKUP_JOIN_CCS)) {
                     skipClusterOrError(
                         clusterAlias,
                         executionInfo,
@@ -641,17 +620,26 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (preAnalysis.index() != null) {
+        // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
+        List<IndexPattern> indices = preAnalysis.indices;
+        if (indices.size() > 1) {
+            // Note: JOINs are not supported but we detect them when
+            listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
+        } else if (indices.size() == 1) {
+            IndexPattern table = indices.getFirst();
+
+            // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
+            // based only on available clusters (which could now be an empty list)
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
+                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
                 );
             } else {
                 boolean includeAllDimensions = false;
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
+                if (preAnalysis.indexMode == IndexMode.TIME_SERIES) {
                     includeAllDimensions = true;
                     // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
@@ -672,8 +660,12 @@ public class EsqlSession {
                 );
             }
         } else {
-            // occurs when dealing with local relations (row a = 1)
-            listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
+            try {
+                // occurs when dealing with local relations (row a = 1)
+                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
+            } catch (Exception ex) {
+                listener.onFailure(ex);
+            }
         }
     }
 

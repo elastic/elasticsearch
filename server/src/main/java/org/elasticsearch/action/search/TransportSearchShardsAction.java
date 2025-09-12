@@ -16,7 +16,6 @@ import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
@@ -114,8 +113,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             System::nanoTime
         );
 
-        final ClusterState clusterState = clusterService.state();
-        final ProjectState project = projectResolver.getProjectState(clusterState);
+        final ProjectState project = projectResolver.getProjectState(clusterService.state());
         final ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             searchShardsRequest,
             project.metadata(),
@@ -127,17 +125,9 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
             throw new UnsupportedOperationException("search_shards API doesn't support remote indices " + searchShardsRequest);
         }
 
-        // Set CCS minimize round-trips to null since search shards requests are guaranteed to only reference local indices
         Rewriteable.rewriteAndFetch(
             original,
-            searchService.getRewriteContext(
-                timeProvider::absoluteStartMillis,
-                clusterState.getMinTransportVersion(),
-                searchShardsRequest.clusterAlias(),
-                resolvedIndices,
-                null,
-                null
-            ),
+            searchService.getRewriteContext(timeProvider::absoluteStartMillis, resolvedIndices, null),
             listener.delegateFailureAndWrap((delegate, searchRequest) -> {
                 Index[] concreteIndices = resolvedIndices.getConcreteLocalIndices();
                 final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(

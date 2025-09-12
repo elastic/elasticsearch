@@ -89,7 +89,6 @@ toc:
             - file: rest-apis/rescore-search-results.md
             - file: rest-apis/find-text-structure-examples.md
             - file: rest-apis/highlighting.md
-            - file: rest-apis/index-disk-usage.md
             - file: rest-apis/optimistic-concurrency-control.md
             - file: rest-apis/paginate-search-results.md
             - file: rest-apis/query-api-keys.md

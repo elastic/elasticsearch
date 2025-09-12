@@ -10,7 +10,6 @@
 // TODO: publish this when ready?
 //apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   api project(':libs:core')

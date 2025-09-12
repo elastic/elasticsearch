@@ -27,13 +27,13 @@ import java.util.TreeMap;
 
 /**
  * A builder for building a {@link ReleasableExponentialHistogram} directly from buckets.
- * Note that this class is not optimized regarding memory allocations or performance, so it is not intended for high-throughput usage.
+ * Note that this class is not optimized regarding memory allocations, so it is not intended for high-throughput usage.
  */
 public class ExponentialHistogramBuilder {
 
     private final ExponentialHistogramCircuitBreaker breaker;
 
-    private int scale;
+    private final int scale;
     private ZeroBucket zeroBucket = ZeroBucket.minimalEmpty();
     private Double sum;
     private Double min;
@@ -45,29 +45,6 @@ public class ExponentialHistogramBuilder {
     ExponentialHistogramBuilder(int scale, ExponentialHistogramCircuitBreaker breaker) {
         this.breaker = breaker;
         this.scale = scale;
-    }
-
-    ExponentialHistogramBuilder(ExponentialHistogram toCopy, ExponentialHistogramCircuitBreaker breaker) {
-        this(toCopy.scale(), breaker);
-        zeroBucket(toCopy.zeroBucket());
-        sum(toCopy.sum());
-        min(toCopy.min());
-        max(toCopy.max());
-        BucketIterator negBuckets = toCopy.negativeBuckets().iterator();
-        while (negBuckets.hasNext()) {
-            setNegativeBucket(negBuckets.peekIndex(), negBuckets.peekCount());
-            negBuckets.advance();
-        }
-        BucketIterator posBuckets = toCopy.positiveBuckets().iterator();
-        while (posBuckets.hasNext()) {
-            setPositiveBucket(posBuckets.peekIndex(), posBuckets.peekCount());
-            posBuckets.advance();
-        }
-    }
-
-    public ExponentialHistogramBuilder scale(int scale) {
-        this.scale = scale;
-        return this;
     }
 
     public ExponentialHistogramBuilder zeroBucket(ZeroBucket zeroBucket) {
@@ -106,32 +83,38 @@ public class ExponentialHistogramBuilder {
     }
 
     /**
-     * Sets the given bucket of the positive buckets.
-     * Buckets may be set in arbitrary order. If the bucket already exists, it will be replaced.
+     * Adds the given bucket to the positive buckets.
+     * Buckets may be added in arbitrary order, but each bucket can only be added once.
      *
      * @param index the index of the bucket
      * @param count the count of the bucket, must be at least 1
      * @return the builder
      */
-    public ExponentialHistogramBuilder setPositiveBucket(long index, long count) {
+    public ExponentialHistogramBuilder addPositiveBucket(long index, long count) {
         if (count < 1) {
             throw new IllegalArgumentException("Bucket count must be at least 1");
+        }
+        if (positiveBuckets.containsKey(index)) {
+            throw new IllegalArgumentException("Positive bucket already exists: " + index);
         }
         positiveBuckets.put(index, count);
         return this;
     }
 
     /**
-     * Sets the given bucket of the negative buckets.
-     * Buckets may be set in arbitrary order. If the bucket already exists, it will be replaced.
+     * Adds the given bucket to the negative buckets.
+     * Buckets may be added in arbitrary order, but each bucket can only be added once.
      *
      * @param index the index of the bucket
      * @param count the count of the bucket, must be at least 1
      * @return the builder
      */
-    public ExponentialHistogramBuilder setNegativeBucket(long index, long count) {
+    public ExponentialHistogramBuilder addNegativeBucket(long index, long count) {
         if (count < 1) {
             throw new IllegalArgumentException("Bucket count must be at least 1");
+        }
+        if (negativeBuckets.containsKey(index)) {
+            throw new IllegalArgumentException("Negative bucket already exists: " + index);
         }
         negativeBuckets.put(index, count);
         return this;
@@ -169,6 +152,8 @@ public class ExponentialHistogramBuilder {
                 Releasables.close(result);
             }
         }
+
+        // Create histogram
         return result;
     }
 }

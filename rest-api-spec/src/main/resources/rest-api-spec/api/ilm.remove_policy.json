@@ -1,32 +1,30 @@
 {
-  "ilm.remove_policy": {
-    "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-remove-policy",
-      "description": "Remove policies from an index"
+  "ilm.remove_policy":{
+    "documentation":{
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-remove-policy",
+      "description":"Remove policies from an index"
     },
-    "stability": "stable",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ]
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
     },
-    "url": {
-      "paths": [
+    "url":{
+      "paths":[
         {
-          "path": "/{index}/_ilm/remove",
-          "methods": [
+          "path":"/{index}/_ilm/remove",
+          "methods":[
             "POST"
           ],
-          "parts": {
-            "index": {
-              "type": "string",
-              "description": "The name of the index to remove policy on"
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index to remove policy on"
             }
           }
         }
       ]
     },
-    "params": {}
+    "params":{}
   }
 }

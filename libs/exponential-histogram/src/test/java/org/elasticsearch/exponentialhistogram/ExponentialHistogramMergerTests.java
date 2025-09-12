@@ -43,17 +43,17 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
 
     public void testZeroThresholdCollapsesOverlappingBuckets() {
 
-        ExponentialHistogram first = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(2.0001, 10)));
+        FixedCapacityExponentialHistogram first = createAutoReleasedHistogram(100);
+        first.setZeroBucket(ZeroBucket.create(2.0001, 10));
 
-        ExponentialHistogram second = createAutoReleasedHistogram(
-            b -> b.scale(0)
-                .setNegativeBucket(0, 1)
-                .setNegativeBucket(1, 1)
-                .setNegativeBucket(2, 7)
-                .setPositiveBucket(0, 1)
-                .setPositiveBucket(1, 1)
-                .setPositiveBucket(2, 42)
-        );
+        FixedCapacityExponentialHistogram second = createAutoReleasedHistogram(100);
+        first.resetBuckets(0); // scale 0 means base 2
+        first.tryAddBucket(0, 1, false); // bucket (-2, 1]
+        first.tryAddBucket(1, 1, false); // bucket (-4, 2]
+        first.tryAddBucket(2, 7, false); // bucket (-8, 4]
+        first.tryAddBucket(0, 1, true); // bucket (1, 2]
+        first.tryAddBucket(1, 1, true); // bucket (2, 4]
+        first.tryAddBucket(2, 42, true); // bucket (4, 8]
 
         ExponentialHistogram mergeResult = mergeWithMinimumScale(100, 0, first, second);
 
@@ -76,7 +76,8 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
 
         // ensure buckets of the accumulated histogram are collapsed too if needed
-        ExponentialHistogram third = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(45.0, 1)));
+        FixedCapacityExponentialHistogram third = createAutoReleasedHistogram(100);
+        third.setZeroBucket(ZeroBucket.create(45.0, 1));
 
         mergeResult = mergeWithMinimumScale(100, 0, mergeResult, third);
         assertThat(mergeResult.zeroBucket().zeroThreshold(), closeTo(45.0, 0.000001));
@@ -86,11 +87,14 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
     }
 
     public void testEmptyZeroBucketIgnored() {
-        ExponentialHistogram first = createAutoReleasedHistogram(
-            b -> b.zeroBucket(ZeroBucket.create(2.0, 10)).scale(0).setPositiveBucket(2, 42)
-        );
+        FixedCapacityExponentialHistogram first = createAutoReleasedHistogram(100);
+        first.setZeroBucket(ZeroBucket.create(2.0, 10));
+        first.resetBuckets(0); // scale 0 means base 2
+        first.tryAddBucket(2, 42L, true); // bucket (4, 8]
 
-        ExponentialHistogram second = createAutoReleasedHistogram(b -> b.zeroBucket(ZeroBucket.create(100.0, 0)));
+        FixedCapacityExponentialHistogram second = createAutoReleasedHistogram(100);
+        second.setZeroBucket(ZeroBucket.create(100.0, 0));
+
         ExponentialHistogram mergeResult = mergeWithMinimumScale(100, 0, first, second);
 
         assertThat(mergeResult.zeroBucket().zeroThreshold(), equalTo(2.0));
@@ -132,15 +136,12 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
             boolean isPositive = i % 2 == 0;
             boolean useMinIndex = i > 1;
 
+            FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(2);
+            histo.resetBuckets(20);
+
             long index = useMinIndex ? MIN_INDEX / 2 : MAX_INDEX / 2;
-            ExponentialHistogram histo = createAutoReleasedHistogram(b -> {
-                b.scale(20);
-                if (isPositive) {
-                    b.setPositiveBucket(index, 1);
-                } else {
-                    b.setNegativeBucket(index, 1);
-                }
-            });
+
+            histo.tryAddBucket(index, 1, isPositive);
 
             try (ReleasableExponentialHistogram result = ExponentialHistogram.merge(100, breaker(), histo)) {
                 assertThat(result.scale(), equalTo(21));

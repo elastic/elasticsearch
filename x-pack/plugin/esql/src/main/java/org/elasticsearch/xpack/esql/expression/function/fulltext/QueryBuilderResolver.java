@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndices;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -60,27 +58,16 @@ public final class QueryBuilderResolver {
     }
 
     private static QueryRewriteContext queryRewriteContext(TransportActionServices services, Set<String> indexNames) {
-        ClusterState clusterState = services.clusterService().state();
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            services.projectResolver().getProjectMetadata(clusterState),
+            services.projectResolver().getProjectMetadata(services.clusterService().state()),
             services.indexNameExpressionResolver(),
             services.transportService().getRemoteClusterService(),
             System.currentTimeMillis()
         );
 
-        // Set the cluster alias to the local cluster and CCS minimize round-trips to false since ES|QL does not perform a remote cluster
-        // coordinator node rewrite
-        return services.searchService()
-            .getRewriteContext(
-                System::currentTimeMillis,
-                clusterState.getMinTransportVersion(),
-                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                resolvedIndices,
-                null,
-                false
-            );
+        return services.searchService().getRewriteContext(System::currentTimeMillis, resolvedIndices, null);
     }
 
     private static Set<String> indexNames(LogicalPlan plan) {

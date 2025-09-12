@@ -242,7 +242,7 @@ public class RealmsAuthenticator implements Authenticator {
                 } else {
                     final AuthenticationResult<User> result = authenticationResultRef.get();
                     assert result != null : "authentication result must not be null when user is not null";
-                    AuthenticationResult.THREAD_CONTEXT_VALUE.set(context.getThreadContext(), result);
+                    context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
                     listener.onResponse(
                         AuthenticationResult.success(Authentication.newRealmAuthentication(user, authenticatedByRef.get().realmRef()))
                     );

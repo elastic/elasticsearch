@@ -22,17 +22,13 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
@@ -210,26 +206,6 @@ public class Literal extends LeafExpression implements Accountable {
 
     public static Literal keyword(Source source, String literal) {
         return new Literal(source, BytesRefs.toBytesRef(literal), KEYWORD);
-    }
-
-    public static Literal text(Source source, String literal) {
-        return new Literal(source, BytesRefs.toBytesRef(literal), TEXT);
-    }
-
-    public static Literal timeDuration(Source source, Duration literal) {
-        return new Literal(source, literal, DataType.TIME_DURATION);
-    }
-
-    public static Literal integer(Source source, Integer literal) {
-        return new Literal(source, literal, INTEGER);
-    }
-
-    public static Literal fromDouble(Source source, Double literal) {
-        return new Literal(source, literal, DOUBLE);
-    }
-
-    public static Literal fromLong(Source source, Long literal) {
-        return new Literal(source, literal, LONG);
     }
 
     /**

@@ -11,7 +11,6 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -66,10 +65,6 @@ public class BulkRequest extends LegacyActionRequest
         Accountable,
         RawIndexingDataTransportRequest {
 
-    private static final TransportVersion STREAMS_ENDPOINT_PARAM_RESTRICTIONS = TransportVersion.fromName(
-        "streams_endpoint_param_restrictions"
-    );
-
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkRequest.class);
 
     private static final int REQUEST_OVERHEAD = 50;
@@ -115,7 +110,7 @@ public class BulkRequest extends LegacyActionRequest
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
         } // else default value is true
-        if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
     }
@@ -182,7 +177,7 @@ public class BulkRequest extends LegacyActionRequest
 
         requests.add(request);
         // lack of source is validated in validate() method
-        sizeInBytes += request.indexSource().byteLength() + REQUEST_OVERHEAD;
+        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
         indices.add(request.index());
         return this;
     }
@@ -200,10 +195,10 @@ public class BulkRequest extends LegacyActionRequest
 
         requests.add(request);
         if (request.doc() != null) {
-            sizeInBytes += request.doc().indexSource().byteLength();
+            sizeInBytes += request.doc().source().length();
         }
         if (request.upsertRequest() != null) {
-            sizeInBytes += request.upsertRequest().indexSource().byteLength();
+            sizeInBytes += request.upsertRequest().source().length();
         }
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;
@@ -484,7 +479,7 @@ public class BulkRequest extends LegacyActionRequest
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             out.writeBoolean(includeSourceOnError);
         }
-        if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             out.writeCollection(paramsUsed, StreamOutput::writeString);
         }
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.Arrays;
 import java.util.stream.IntStream;
 
 /**
@@ -94,7 +95,7 @@ public class FloatBucketedSort implements Releasable {
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {
                 values.set(rootIndex, value);
-                downHeap(rootIndex, 0, bucketSize);
+                downHeap(rootIndex, 0);
             }
             return;
         }
@@ -110,7 +111,7 @@ public class FloatBucketedSort implements Releasable {
         values.set(index, value);
         if (next == 0) {
             heapMode.set(bucket);
-            heapify(rootIndex, bucketSize);
+            heapify(rootIndex);
         } else {
             setNextGatherOffset(rootIndex, next - 1);
         }
@@ -171,12 +172,14 @@ public class FloatBucketedSort implements Releasable {
             return blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
+        // Used to sort the values in the bucket.
+        var bucketValues = new float[bucketSize];
+
         try (var builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
                 var bounds = getBucketValuesIndexes(bucket);
-                var rootIndex = bounds.v1();
                 var size = bounds.v2() - bounds.v1();
 
                 if (size == 0) {
@@ -189,15 +192,22 @@ public class FloatBucketedSort implements Releasable {
                     continue;
                 }
 
-                // If we are in the gathering mode, we need to heapify before sorting.
-                if (inHeapMode(bucket) == false) {
-                    heapify(rootIndex, (int) size);
+                for (int i = 0; i < size; i++) {
+                    bucketValues[i] = values.get(bounds.v1() + i);
                 }
-                heapSort(rootIndex, (int) size);
+
+                // TODO: Make use of heap structures to faster iterate in order instead of copying and sorting
+                Arrays.sort(bucketValues, 0, (int) size);
 
                 builder.beginPositionEntry();
-                for (int i = 0; i < size; i++) {
-                    builder.appendFloat(values.get(bounds.v1() + i));
+                if (order == SortOrder.ASC) {
+                    for (int i = 0; i < size; i++) {
+                        builder.appendFloat(bucketValues[i]);
+                    }
+                } else {
+                    for (int i = (int) size - 1; i >= 0; i--) {
+                        builder.appendFloat(bucketValues[i]);
+                    }
                 }
                 builder.endPositionEntry();
             }
@@ -295,28 +305,10 @@ public class FloatBucketedSort implements Releasable {
      * </ul>
      * @param rootIndex the index the start of the bucket
      */
-    private void heapify(long rootIndex, int heapSize) {
-        int maxParent = heapSize / 2 - 1;
+    private void heapify(long rootIndex) {
+        int maxParent = bucketSize / 2 - 1;
         for (int parent = maxParent; parent >= 0; parent--) {
-            downHeap(rootIndex, parent, heapSize);
-        }
-    }
-
-    /**
-     * Sorts all the values in the heap using heap sort algorithm.
-     * This runs in {@code O(n log n)} time.
-     * @param rootIndex index of the start of the bucket
-     * @param heapSize Number of values that belong to the heap.
-     *                 Can be less than bucketSize.
-     *                 In such a case, the remaining values in range
-     *                 (rootIndex + heapSize, rootIndex + bucketSize)
-     *                 are *not* considered part of the heap.
-     */
-    private void heapSort(long rootIndex, int heapSize) {
-        while (heapSize > 0) {
-            swap(rootIndex, rootIndex + heapSize - 1);
-            heapSize--;
-            downHeap(rootIndex, 0, heapSize);
+            downHeap(rootIndex, parent);
         }
     }
 
@@ -326,27 +318,22 @@ public class FloatBucketedSort implements Releasable {
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
-     * @param heapSize Number of values that belong to the heap.
-     *                 Can be less than bucketSize.
-     *                 In such a case, the remaining values in range
-     *                 (rootIndex + heapSize, rootIndex + bucketSize)
-     *                 are *not* considered part of the heap.
      */
-    private void downHeap(long rootIndex, int parent, int heapSize) {
+    private void downHeap(long rootIndex, int parent) {
         while (true) {
             long parentIndex = rootIndex + parent;
             int worst = parent;
             long worstIndex = parentIndex;
             int leftChild = parent * 2 + 1;
             long leftIndex = rootIndex + leftChild;
-            if (leftChild < heapSize) {
+            if (leftChild < bucketSize) {
                 if (betterThan(values.get(worstIndex), values.get(leftIndex))) {
                     worst = leftChild;
                     worstIndex = leftIndex;
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+                if (rightChild < bucketSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

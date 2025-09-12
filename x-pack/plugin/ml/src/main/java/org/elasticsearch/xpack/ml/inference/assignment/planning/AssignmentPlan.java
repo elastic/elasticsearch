@@ -107,7 +107,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             );
         }
 
-        public long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
+        long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
                 modelId,
                 memoryBytes,
@@ -308,7 +308,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                     Node n = nodeAllocations.getKey();
                     weighedAllocationsScore += (1 + 0.1 * (m.currentAllocationsByNodeId().containsKey(n.id()) ? 1 : 0)) * modelAssignments
                         .get(n);
-                    memoryScore -= (nodeAllocations.getValue() > 0 ? m.estimateMemoryUsageBytes(nodeAllocations.getValue()) : 0);
+                    memoryScore -= (nodeAllocations.getValue() > 0 ? m.memoryBytes() : 0);
                 }
             }
         }
@@ -441,8 +441,32 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         public Builder assignModelToNode(Deployment deployment, Node node, int allocations, long requiredMemory) {
-            if (allocations <= 0 || canAssign(deployment, node, allocations, requiredMemory) == false) {
+            if (allocations <= 0) {
                 return this;
+            }
+            if (requiredMemory > remainingNodeMemory.get(node)) {
+                throw new IllegalArgumentException(
+                    "not enough memory on node ["
+                        + node.id()
+                        + "] to assign ["
+                        + allocations
+                        + "] allocations to deployment ["
+                        + deployment.deploymentId()
+                        + "]"
+                );
+            }
+            if (deployment.priority == Priority.NORMAL && allocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
+                throw new IllegalArgumentException(
+                    "not enough cores on node ["
+                        + node.id()
+                        + "] to assign ["
+                        + allocations
+                        + "] allocations to deployment ["
+                        + deployment.deploymentId()
+                        + "]; required threads per allocation ["
+                        + deployment.threadsPerAllocation()
+                        + "]"
+                );
             }
 
             assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + allocations);

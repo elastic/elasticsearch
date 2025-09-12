@@ -279,7 +279,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             }
                         } else {
                             // extra dependencies like TS ones (that require a timestamp)
-                            for (Expression input : aggregateFunction.aggregateInputReferences()) {
+                            for (Expression input : aggregateFunction.references()) {
                                 Attribute attr = Expressions.attribute(input);
                                 if (attr == null) {
                                     throw new EsqlIllegalArgumentException(

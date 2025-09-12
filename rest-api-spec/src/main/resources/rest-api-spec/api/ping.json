@@ -1,26 +1,24 @@
 {
-  "ping": {
-    "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-cluster",
-      "description": "Ping the cluster"
+  "ping":{
+    "documentation":{
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-cluster",
+      "description":"Ping the cluster"
     },
-    "stability": "stable",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ]
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
     },
-    "url": {
-      "paths": [
+    "url":{
+      "paths":[
         {
-          "path": "/",
-          "methods": [
+          "path":"/",
+          "methods":[
             "HEAD"
           ]
         }
       ]
     },
-    "params": {}
+    "params":{}
   }
 }

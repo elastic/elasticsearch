@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
@@ -67,7 +66,7 @@ public class VectorScoreScriptUtils {
             ElementType... allowedTypes
         ) {
             super(scoreScript, field);
-            field.getElement().checkDimensions(field.get().getDims(), queryVector.size());
+            field.getElementType().checkDimensions(field.get().getDims(), queryVector.size());
             float[] floatValues = new float[queryVector.size()];
             double queryMagnitude = 0;
             for (int i = 0; i < queryVector.size(); i++) {
@@ -77,7 +76,7 @@ public class VectorScoreScriptUtils {
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
 
-            switch (Element.checkValidVector(floatValues, allowedTypes)) {
+            switch (ElementType.checkValidVector(floatValues, allowedTypes)) {
                 case FLOAT:
                     byteQueryVector = null;
                     floatQueryVector = floatValues;
@@ -150,7 +149,7 @@ public class VectorScoreScriptUtils {
                 queryMagnitude += value * value;
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
-            field.getElement().checkVectorBounds(this.queryVector);
+            field.getElementType().checkVectorBounds(this.queryVector);
 
             if (normalizeQuery) {
                 for (int dim = 0; dim < this.queryVector.length; dim++) {

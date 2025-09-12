@@ -176,18 +176,14 @@ public final class SourceConfirmedTextQuery extends Query {
             return false;
         }
         SourceConfirmedTextQuery that = (SourceConfirmedTextQuery) obj;
-        // We intentionally do not compare the value fetcher or analyzer, as they
-        // do not typically implement equals() themselves, and the inner
-        // Query is sufficient to establish identity.
-        return Objects.equals(in, that.in);
+        return Objects.equals(in, that.in)
+            && Objects.equals(valueFetcherProvider, that.valueFetcherProvider)
+            && Objects.equals(indexAnalyzer, that.indexAnalyzer);
     }
 
     @Override
     public int hashCode() {
-        // We intentionally do not hash the value fetcher or analyzer, as they
-        // do not typically implement hashCode() themselves, and the inner
-        // Query is sufficient to establish identity.
-        return 31 * Objects.hash(in) + classHash();
+        return 31 * Objects.hash(in, valueFetcherProvider, indexAnalyzer) + classHash();
     }
 
     @Override

@@ -22,7 +22,6 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
         String fieldName,
         int k,
         int numCands,
-        Float visitPercentage,
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
@@ -30,7 +29,7 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomByte();
         }
-        return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, visitPercentage, rescoreVectorBuilder, similarity);
+        return new KnnVectorQueryBuilder(fieldName, vector, k, numCands, rescoreVectorBuilder, similarity);
     }
 
     @Override

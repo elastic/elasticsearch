@@ -18,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -388,7 +387,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
-
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
                     try (onFinish) {
@@ -456,7 +454,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     TimeValue.MAX_VALUE,
                     completionListener
                 );
-
         }
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
@@ -632,7 +629,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().indexSource().byteLength());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().length());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
@@ -727,30 +724,28 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            IndexSource indexSource = indexRequest.indexSource();
-            int originalSourceSize = indexSource.byteLength();
-            BytesReference originalSource = indexSource.bytes();
+            BytesReference originalSource = indexRequest.source();
             if (useLegacyFormat) {
-                var newDocMap = indexSource.sourceAsMap();
+                var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
                     XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
-                indexSource.source(newDocMap, indexSource.contentType());
+                indexRequest.source(newDocMap, indexRequest.getContentType());
             } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);
-                    indexSource.source(builder);
+                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
+                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
+                    indexRequest.source(builder);
                 }
             }
-            long modifiedSourceSize = indexSource.byteLength();
+            long modifiedSourceSize = indexRequest.source().length();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.length());
             } catch (EsRejectedExecutionException e) {
-                indexSource.source(originalSource, indexSource.contentType());
+                indexRequest.source(originalSource, indexRequest.getContentType());
                 item.abort(
                     item.index(),
                     new InferenceException(

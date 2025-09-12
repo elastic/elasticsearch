@@ -13,6 +13,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
             "id",
             TaskType.COMPLETION,
             "elastic",
-            new ElasticInferenceServiceCompletionServiceSettings("model_id"),
+            new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of("url")

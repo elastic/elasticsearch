@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -39,9 +38,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
-    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
-        "inference_api_disable_eis_rate_limiting"
-    );
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
         Map<String, Object> map,
@@ -57,20 +54,19 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             validationException
         );
 
-        RateLimitSettings.rejectRateLimitFieldForRequestContext(
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
-            ModelConfigurations.SERVICE_SETTINGS,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
             ElasticInferenceService.NAME,
-            TaskType.SPARSE_EMBEDDING,
-            context,
-            validationException
+            context
         );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens);
+        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, rateLimitSettings);
     }
 
     private final String modelId;
@@ -78,19 +74,20 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
 
-    public ElasticInferenceServiceSparseEmbeddingsServiceSettings(String modelId, @Nullable Integer maxInputTokens) {
+    public ElasticInferenceServiceSparseEmbeddingsServiceSettings(
+        String modelId,
+        @Nullable Integer maxInputTokens,
+        @Nullable RateLimitSettings rateLimitSettings
+    ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.maxInputTokens = maxInputTokens;
-        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
+        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.maxInputTokens = in.readOptionalVInt();
-        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
-        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
-            new RateLimitSettings(in);
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -142,9 +139,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeOptionalVInt(maxInputTokens);
-        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

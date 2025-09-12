@@ -1337,14 +1337,6 @@ public abstract class FieldMapper extends Mapper {
                 .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
         }
 
-        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
-            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
-                if (v < 0) {
-                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
-                }
-            });
-        }
-
         /**
          * Defines a script parameter
          * @param initializer   retrieves the equivalent parameter from an existing FieldMapper for use in merges

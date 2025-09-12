@@ -60,18 +60,24 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
     }
 
     public void testSumInfinityHandling() {
-        ExponentialHistogram morePositiveValues = createAutoReleasedHistogram(
-            b -> b.scale(0).setNegativeBucket(1999, 1).setNegativeBucket(2000, 2).setPositiveBucket(1999, 2).setPositiveBucket(2000, 2)
-        );
+        FixedCapacityExponentialHistogram morePositiveValues = createAutoReleasedHistogram(100);
+        morePositiveValues.resetBuckets(0);
+        morePositiveValues.tryAddBucket(1999, 1, false);
+        morePositiveValues.tryAddBucket(2000, 2, false);
+        morePositiveValues.tryAddBucket(1999, 2, true);
+        morePositiveValues.tryAddBucket(2000, 2, true);
 
         double sum = ExponentialHistogramUtils.estimateSum(
             morePositiveValues.negativeBuckets().iterator(),
             morePositiveValues.positiveBuckets().iterator()
         );
         assertThat(sum, equalTo(Double.POSITIVE_INFINITY));
-        ExponentialHistogram moreNegativeValues = createAutoReleasedHistogram(
-            b -> b.scale(0).setNegativeBucket(1999, 2).setNegativeBucket(2000, 2).setPositiveBucket(1999, 1).setPositiveBucket(2000, 2)
-        );
+        FixedCapacityExponentialHistogram moreNegativeValues = createAutoReleasedHistogram(100);
+        moreNegativeValues.resetBuckets(0);
+        moreNegativeValues.tryAddBucket(1999, 2, false);
+        moreNegativeValues.tryAddBucket(2000, 2, false);
+        moreNegativeValues.tryAddBucket(1999, 1, true);
+        moreNegativeValues.tryAddBucket(2000, 2, true);
 
         sum = ExponentialHistogramUtils.estimateSum(
             moreNegativeValues.negativeBuckets().iterator(),
@@ -137,7 +143,9 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
     }
 
     public void testMinMaxEstimationPositiveInfinityHandling() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setPositiveBucket(2000, 1));
+        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
+        histo.resetBuckets(0);
+        histo.tryAddBucket(2000, 1, true);
 
         OptionalDouble minEstimate = ExponentialHistogramUtils.estimateMin(
             ZeroBucket.minimalEmpty(),
@@ -157,7 +165,9 @@ public class ExponentialHistogramUtilsTests extends ExponentialHistogramTestCase
     }
 
     public void testMinMaxEstimationNegativeInfinityHandling() {
-        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setNegativeBucket(2000, 1));
+        FixedCapacityExponentialHistogram histo = createAutoReleasedHistogram(100);
+        histo.resetBuckets(0);
+        histo.tryAddBucket(2000, 1, false);
 
         OptionalDouble minEstimate = ExponentialHistogramUtils.estimateMin(
             ZeroBucket.minimalEmpty(),

@@ -66,7 +66,6 @@ import ChangePoint,
        MvExpand,
        Project,
        Rename,
-       Set,
        Show,
        UnknownCommand;
 

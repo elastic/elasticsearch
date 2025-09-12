@@ -79,9 +79,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
             randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
-            randomBoolean(),
-            // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
-            null
+            randomBoolean()
         );
     }
 
@@ -109,8 +107,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : new BytesArray(new RandomStepInfo(() -> randomAlphaOfLength(10)).toString()),
                 randomBoolean() ? null : PhaseExecutionInfoTests.randomPhaseExecutionInfo(""),
-                randomBoolean(),
-                randomBoolean() ? null : randomAlphaOfLength(10)
+                randomBoolean()
             )
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
@@ -147,8 +144,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
             null,
             null,
             null,
-            false,
-            null
+            false
         );
         assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
         Long now = 1_000_000L;
@@ -335,9 +331,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractXContentSerializ
                 stepInfo,
                 previousStepInfo,
                 phaseExecutionInfo,
-                skip,
-                // We don't mutate any fields from this point onwards as we don't (de)serialize them, as the action is run on the local node
-                instance.getForceMergeCloneIndexName()
+                skip
             );
         } else {
             return switch (between(0, 1)) {

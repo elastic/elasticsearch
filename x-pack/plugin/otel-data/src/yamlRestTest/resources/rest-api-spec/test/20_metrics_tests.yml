@@ -10,6 +10,8 @@ setup:
           template:
             settings:
               index:
+                routing_path: [unit, attributes.*, resource.attributes.*]
+                mode: time_series
                 time_series:
                   start_time: 2024-07-01T13:03:08.138Z
 ---

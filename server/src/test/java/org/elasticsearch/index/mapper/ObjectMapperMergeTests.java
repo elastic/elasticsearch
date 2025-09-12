@@ -263,12 +263,12 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         ObjectMapper parent0 = (ObjectMapper) mergedAdd0.getMapper("parent");
         assertNotNull(parent0.getMapper("child1"));
-        assertEquals(42, ((KeywordFieldMapper) parent0.getMapper("child1")).fieldType().ignoreAbove().get());
+        assertEquals(42, ((KeywordFieldMapper) parent0.getMapper("child1")).fieldType().ignoreAbove());
         assertNull(parent0.getMapper("child2"));
 
         ObjectMapper parent1 = (ObjectMapper) mergedAdd1.getMapper("parent");
         assertNotNull(parent1.getMapper("child1"));
-        assertEquals(42, ((KeywordFieldMapper) parent1.getMapper("child1")).fieldType().ignoreAbove().get());
+        assertEquals(42, ((KeywordFieldMapper) parent1.getMapper("child1")).fieldType().ignoreAbove());
         assertNotNull(parent1.getMapper("child2"));
     }
 

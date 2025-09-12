@@ -5,11 +5,9 @@
       "description": "Get cache statistics"
     },
     "stability": "experimental",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ]
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
     },
     "url": {
       "paths": [
@@ -24,10 +22,10 @@
           "methods": [
             "GET"
           ],
-          "parts": {
-            "node_id": {
-              "type": "list",
-              "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+          "parts":{
+            "node_id":{
+              "type":"list",
+              "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
             }
           }
         }

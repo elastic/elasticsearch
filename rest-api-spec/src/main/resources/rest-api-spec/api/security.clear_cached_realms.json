@@ -1,37 +1,35 @@
 {
-  "security.clear_cached_realms": {
-    "documentation": {
-      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-clear-cached-realms",
-      "description": "Clear the user cache"
+  "security.clear_cached_realms":{
+    "documentation":{
+      "url":"https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-clear-cached-realms",
+      "description":"Clear the user cache"
     },
-    "stability": "stable",
-    "visibility": "public",
-    "headers": {
-      "accept": [
-        "application/json"
-      ]
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
     },
-    "url": {
-      "paths": [
+    "url":{
+      "paths":[
         {
-          "path": "/_security/realm/{realms}/_clear_cache",
-          "methods": [
+          "path":"/_security/realm/{realms}/_clear_cache",
+          "methods":[
             "POST"
           ],
-          "parts": {
-            "realms": {
-              "type": "list",
-              "description": "Comma-separated list of realms to clear"
+          "parts":{
+            "realms":{
+              "type":"list",
+              "description":"Comma-separated list of realms to clear"
             }
           }
         }
       ]
     },
-    "params": {
-      "usernames": {
-        "type": "list",
-        "description": "Comma-separated list of usernames to clear from the cache",
-        "required": false
+    "params":{
+      "usernames":{
+        "type":"list",
+        "description":"Comma-separated list of usernames to clear from the cache",
+        "required":false
       }
     }
   }

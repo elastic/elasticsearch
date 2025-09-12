@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -23,9 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
@@ -100,49 +97,25 @@ public class LocalMapper {
             }
 
             PhysicalPlan left = map(binary.left());
+            PhysicalPlan right = map(binary.right());
+
             // if the right is data we can use a hash join directly
-            if (binary.right() instanceof LocalRelation) {
-                PhysicalPlan right = map(binary.right());
-                if (right instanceof LocalSourceExec localData) {
-                    return new HashJoinExec(
-                        join.source(),
-                        left,
-                        localData,
-                        config.matchFields(),
-                        config.leftFields(),
-                        config.rightFields(),
-                        join.rightOutputFields()
-                    );
-                } else {
-                    throw new EsqlIllegalArgumentException("Unsupported right plan for join [" + binary.right().nodeName() + "]");
-                }
-            }
-            EsRelation rightRelation = null;
-            if (binary.right() instanceof EsRelation esRelation) {
-                rightRelation = esRelation;
-            } else if (binary.right() instanceof Filter filter && filter.child() instanceof EsRelation esRelation) {
-                rightRelation = esRelation;
-            }
-            if (rightRelation == null) {
-                throw new EsqlIllegalArgumentException("Unsupported right plan for lookup join [" + binary.right().nodeName() + "]");
-            }
-            if (rightRelation.indexMode() != IndexMode.LOOKUP) {
-                throw new EsqlIllegalArgumentException(
-                    "To perform a lookup join with index [" + rightRelation.indexPattern() + "], it must be a in lookup index mode"
+            if (right instanceof LocalSourceExec localData) {
+                return new HashJoinExec(
+                    join.source(),
+                    left,
+                    localData,
+                    config.matchFields(),
+                    config.leftFields(),
+                    config.rightFields(),
+                    join.rightOutputFields()
                 );
             }
-            // we want to do local physical planning on the lookup node eventually for the right side of the lookup join
-            // so here we will wrap the logical plan with a FragmentExec and keep it as is
-            FragmentExec fragmentExec = new FragmentExec(binary.right());
-            return new LookupJoinExec(
-                join.source(),
-                left,
-                fragmentExec,
-                config.leftFields(),
-                config.rightFields(),
-                join.rightOutputFields()
-            );
+            if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
+                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            }
         }
+
         return MapperUtils.unsupported(binary);
     }
 }

@@ -97,9 +97,8 @@ fieldLessQuery
 
 fieldQueryValue
     : (UNQUOTED_LITERAL|WILDCARD)+
-    | (UNQUOTED_LITERAL|WILDCARD)? (OR|AND|NOT)
-    | (AND|OR) (UNQUOTED_LITERAL|WILDCARD)?
-    | (AND|OR) (AND|OR|NOT)
+    | (UNQUOTED_LITERAL|WILDCARD)? (OR|AND|NOT)+
+    | (AND|OR)+ (UNQUOTED_LITERAL|WILDCARD)?
     | QUOTED_STRING
     | operator=NOT (fieldQueryValue)?
     | LEFT_PARENTHESIS booleanFieldQueryValue RIGHT_PARENTHESIS

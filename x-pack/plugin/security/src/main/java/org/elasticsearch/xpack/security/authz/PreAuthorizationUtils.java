@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public final class PreAuthorizationUtils {
@@ -117,9 +118,9 @@ public final class PreAuthorizationUtils {
     }
 
     public static boolean shouldRemoveParentAuthorizationFromThreadContext(
+        Optional<String> remoteClusterAlias,
         String childAction,
-        SecurityContext securityContext,
-        boolean isRemoteClusterRequest
+        SecurityContext securityContext
     ) {
         final ParentActionAuthorization parentAuthorization = securityContext.getParentAuthorization();
         if (parentAuthorization == null) {
@@ -127,7 +128,7 @@ public final class PreAuthorizationUtils {
             return false;
         }
 
-        if (isRemoteClusterRequest) {
+        if (remoteClusterAlias.isPresent()) {
             // We never want to send the parent authorization header to remote clusters.
             return true;
         }

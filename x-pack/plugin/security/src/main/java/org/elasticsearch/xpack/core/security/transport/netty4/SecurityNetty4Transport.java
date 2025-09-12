@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.SslProfile;
-import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
+import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -79,7 +79,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final boolean remoteClusterServerSslEnabled;
     private final SslProfile remoteClusterClientSslProfile;
     private final RemoteClusterClientBootstrapOptions remoteClusterClientBootstrapOptions;
-    private final RemoteClusterAuthenticationService remoteClusterAuthenticationService;
+    private final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService;
 
     public SecurityNetty4Transport(
         final Settings settings,
@@ -91,7 +91,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         final CircuitBreakerService circuitBreakerService,
         final SSLService sslService,
         final SharedGroupFactory sharedGroupFactory,
-        final RemoteClusterAuthenticationService remoteClusterAuthenticationService
+        final CrossClusterAccessAuthenticationService crossClusterAccessAuthenticationService
     ) {
         super(
             settings,
@@ -103,7 +103,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             circuitBreakerService,
             sharedGroupFactory
         );
-        this.remoteClusterAuthenticationService = remoteClusterAuthenticationService;
+        this.crossClusterAccessAuthenticationService = crossClusterAccessAuthenticationService;
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.transportSslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
@@ -180,7 +180,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                         channel.config().setAutoRead(false);
                         // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
                         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext()) {
-                            remoteClusterAuthenticationService.authenticateHeaders(
+                            crossClusterAccessAuthenticationService.tryAuthenticate(
                                 header.getRequestHeaders(),
                                 ActionListener.runAfter(ActionListener.wrap(aVoid -> {
                                     // authn is successful -> NOOP (the complete request will be subsequently authn & authz & audited)

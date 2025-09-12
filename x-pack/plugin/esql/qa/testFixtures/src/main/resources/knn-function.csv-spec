@@ -1,5 +1,9 @@
+# TODO Most tests explicitly set k. Until knn function uses LIMIT as k, we need to explicitly set it to all values
+# in the dataset to avoid test failures due to docs allocation in different shards, which can impact results for a 
+# top-n query at the shard level 
+
 knnSearch
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 // tag::knn-function[]
 from colors metadata _score 
@@ -26,7 +30,7 @@ chartreuse | [127.0, 255.0, 0.0]
 ;
 
 knnSearchWithSimilarityOption
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [255,192,203], {"similarity": 40})
@@ -42,7 +46,7 @@ wheat      | [245.0, 222.0, 179.0]
 ;
 
 knnHybridSearch
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where match(color, "blue") or knn(rgb_vector, [65,105,225])
@@ -65,7 +69,7 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithPrefilter
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors
 | where knn(rgb_vector, [120,180,0]) and (match(color, "olive") or match(color, "green")) 
@@ -79,7 +83,7 @@ olive
 ;
 
 knnWithNegatedPrefilter
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score
 | where knn(rgb_vector, [128,128,0]) and not (match(color, "olive") or match(color, "chocolate")) 
@@ -102,7 +106,7 @@ orange     | [255.0, 165.0, 0.0]
 ;
 
 knnAfterKeep
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score
 | keep rgb_vector, color, _score 
@@ -121,7 +125,7 @@ rgb_vector:dense_vector
 ;
 
 knnAfterDrop
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score
 | drop primary
@@ -140,7 +144,7 @@ lime           | [0.0, 255.0, 0.0]
 ;
 
 knnAfterEval
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
@@ -159,7 +163,7 @@ golden rod | true
 ;
 
 knnWithConjunction
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [255,255,238]) and hex_code like "#FFF*" 
@@ -179,7 +183,7 @@ yellow        | #FFFF00          | [255.0, 255.0, 0.0]
 ;
 
 knnWithDisjunctionAndFiltersConjunction
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where (knn(rgb_vector, [0,255,255]) or knn(rgb_vector, [128, 0, 255])) and primary == true 
@@ -202,7 +206,7 @@ yellow     | [255.0, 255.0, 0.0]
 ;
 
 knnWithNegationsAndFiltersConjunction
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where (knn(rgb_vector, [0,255,255]) and not(primary == true and match(color, "blue"))) 
@@ -225,7 +229,7 @@ azure       | [240.0, 255.0, 255.0]
 ;
 
 knnWithNonPushableConjunction
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
@@ -249,7 +253,7 @@ maroon     | false
 ;
 
 testKnnWithNonPushableDisjunctions
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0]) or length(color) > 10 
@@ -272,7 +276,7 @@ green
 ;
 
 testKnnWithNonPushableDisjunctionsAndMinCandidates
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where (knn(rgb_vector, [128,128,0], {"min_candidates": 2}) and length(color) > 10) or (knn(rgb_vector, [128,0,128], {"min_candidates": 2}) and primary == true) 
@@ -296,7 +300,7 @@ cyan          | true
 ;
 
 testKnnWithStats
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 
 from colors metadata _score 
 | where knn(rgb_vector, [128,128,0])
@@ -310,7 +314,7 @@ c:long
 ;
 
 testKnnWithRerank
-required_capability: knn_function_v5
+required_capability: knn_function_v4
 required_capability: rerank
 
 from colors metadata _score 
@@ -333,125 +337,4 @@ sienna
 chocolate
 firebrick
 golden rod
-;
-
-testKnnWithSemanticText
-required_capability: knn_function_v5
-
-from semantic_text
-| where knn(semantic_text_dense_field, [0, 1, 2])
-| keep semantic_text_dense_field
-| sort semantic_text_dense_field asc
-;
-
-semantic_text_dense_field:text
-all we have to decide is what to do with the time that is given to us
-be excellent to each other
-live long and prosper
-;
-
-testKnnWithSemanticTextAndKeyword
-required_capability: knn_function_v5
-
-from semantic_text
-| where knn(semantic_text_dense_field, [0, 1, 2])
-| keep semantic_text_dense_field, host
-| sort host asc
-;
-
-semantic_text_dense_field:text | host:keyword
-live long and prosper                                                 | host1
-all we have to decide is what to do with the time that is given to us | host2
-be excellent to each other                                            | host3
-
-;
-
-testKnnWithSemanticTextMultiValueField
-required_capability: knn_function_v5
-
-from semantic_text metadata _id
-| where match(st_multi_value, "something") AND match(host, "host1")
-| keep _id, st_multi_value
-;
-
-_id: keyword | st_multi_value:text
-1            | ["Hello there!", "This is a random value", "for testing purposes"]
-;
-
-testKnnWithSemanticTextWithEvalsAndOtherFunctionsAndStats
-required_capability: knn_function_v5
-
-from semantic_text
-| where qstr("description:some*")
-| eval size = mv_count(st_multi_value)
-| where knn(semantic_text_dense_field, [0, 1, 2])
-| limit 100
-| stats result = count(*)
-;
-
-result:long
-3
-;
-
-testKnnWithSemanticTextAndKql
-required_capability: knn_function_v5
-required_capability: kql_function
-
-from semantic_text
-| where kql("host:host1") AND knn(semantic_text_dense_field, [0, 1, 2])
-| KEEP host, semantic_text_dense_field
-;
-
-host:keyword | semantic_text_dense_field:text
-"host1"      | live long and prosper
-;
-
-
-knnWithCasting
-required_capability: knn_function_v5
-required_capability: to_dense_vector_function
-
-from colors metadata _score
-| eval query = to_dense_vector([0, 120, 0])
-| where knn(rgb_vector, query) 
-| sort _score desc, color asc
-| keep color, rgb_vector
-| limit 10
-;
-
-color:text | rgb_vector:dense_vector
-green      | [0.0, 128.0, 0.0]
-black      | [0.0, 0.0, 0.0]
-olive      | [128.0, 128.0, 0.0]
-teal       | [0.0, 128.0, 128.0]
-lime       | [0.0, 255.0, 0.0]
-sienna     | [160.0, 82.0, 45.0]
-maroon     | [128.0, 0.0, 0.0]
-navy       | [0.0, 0.0, 128.0]
-gray       | [128.0, 128.0, 128.0]
-chartreuse | [127.0, 255.0, 0.0]
-;
-
-knnWithHexStringCasting
-required_capability: knn_function_v5
-required_capability: to_dense_vector_function
-
-from colors metadata _score
-| where knn(rgb_vector, "007800") 
-| sort _score desc, color asc
-| keep color, rgb_vector
-| limit 10
-;
-
-color:text | rgb_vector:dense_vector
-green      | [0.0, 128.0, 0.0]
-black      | [0.0, 0.0, 0.0]
-olive      | [128.0, 128.0, 0.0]
-teal       | [0.0, 128.0, 128.0]
-lime       | [0.0, 255.0, 0.0]
-sienna     | [160.0, 82.0, 45.0]
-maroon     | [128.0, 0.0, 0.0]
-navy       | [0.0, 0.0, 128.0]
-gray       | [128.0, 128.0, 128.0]
-chartreuse | [127.0, 255.0, 0.0]
 ;

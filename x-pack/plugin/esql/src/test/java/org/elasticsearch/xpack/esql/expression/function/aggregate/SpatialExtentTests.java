@@ -83,7 +83,7 @@ public class SpatialExtentTests extends SpatialAggregationTestCase {
             Rectangle result = pointVisitor.getResult();
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                standardAggregatorName("SpatialExtent", fieldSupplier.type()) + "SourceValues",
+                "SpatialExtent[field=Attribute[channel=0]]",
                 expectedType,
                 new WellKnownBinaryBytesRefMatcher<>(RectangleMatcher.closeToFloat(result, 1e-3, pointType.encoder()))
             );

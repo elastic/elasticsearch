@@ -899,7 +899,7 @@ public class SSLServiceTests extends ESTestCase {
         SSLService sslService = new SSLService(env);
         SslProfile profile = sslService.profile("xpack.security.transport.ssl");
         logger.info("SSL Configuration: {}", profile.configuration());
-        SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy();
+        SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy4();
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
@@ -920,7 +920,7 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
         final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
-        final SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy();
+        final SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy4();
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 

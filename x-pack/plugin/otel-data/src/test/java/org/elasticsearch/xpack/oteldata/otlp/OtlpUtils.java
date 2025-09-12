@@ -13,11 +13,7 @@ import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
-import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
-import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Gauge;
-import io.opentelemetry.proto.metrics.v1.Histogram;
-import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
@@ -99,34 +95,6 @@ public class OtlpUtils {
 
     public static Metric createGaugeMetric(String name, String unit, List<NumberDataPoint> dataPoints) {
         return Metric.newBuilder().setName(name).setUnit(unit).setGauge(Gauge.newBuilder().addAllDataPoints(dataPoints).build()).build();
-    }
-
-    public static Metric createExponentialHistogramMetric(
-        String name,
-        String unit,
-        List<ExponentialHistogramDataPoint> dataPoints,
-        AggregationTemporality temporality
-    ) {
-        return Metric.newBuilder()
-            .setName(name)
-            .setUnit(unit)
-            .setExponentialHistogram(
-                ExponentialHistogram.newBuilder().setAggregationTemporality(temporality).addAllDataPoints(dataPoints).build()
-            )
-            .build();
-    }
-
-    public static Metric createHistogramMetric(
-        String name,
-        String unit,
-        List<HistogramDataPoint> dataPoints,
-        AggregationTemporality temporality
-    ) {
-        return Metric.newBuilder()
-            .setName(name)
-            .setUnit(unit)
-            .setHistogram(Histogram.newBuilder().setAggregationTemporality(temporality).addAllDataPoints(dataPoints).build())
-            .build();
     }
 
     public static Metric createSumMetric(

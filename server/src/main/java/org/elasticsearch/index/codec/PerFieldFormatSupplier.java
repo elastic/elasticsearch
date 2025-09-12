@@ -27,13 +27,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -41,23 +35,7 @@ import java.util.Set;
  */
 public class PerFieldFormatSupplier {
 
-    static final FeatureFlag SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT = new FeatureFlag("seqno_field_use_tsdb_doc_values_format");
-    private static final Set<String> INCLUDE_META_FIELDS;
-
-    static {
-        // TODO: should we just allow all fields to use tsdb doc values codec?
-        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
-        // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        Set<String> includeMetaField = new HashSet<>(3);
-        includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
-        includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
-        if (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()) {
-            includeMetaField.add(SeqNoFieldMapper.NAME);
-        }
-        // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
-        // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
-        INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
-    }
+    private static final FeatureFlag SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT = new FeatureFlag("seqno_field_use_tsdb_doc_values_format");
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
@@ -148,7 +126,13 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
+        // TODO: should we just allow all fields to use tsdb doc values codec?
+        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
+        // But _tsid and _ts_routing_hash should always use the tsdb codec.
+        return fieldName.startsWith("_")
+            && fieldName.equals("_tsid") == false
+            && fieldName.equals("_ts_routing_hash") == false
+            && (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled() && fieldName.equals(SeqNoFieldMapper.NAME) == false);
     }
 
     private boolean isTimeSeriesModeIndex() {

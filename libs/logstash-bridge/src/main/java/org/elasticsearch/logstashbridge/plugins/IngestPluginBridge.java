@@ -9,8 +9,7 @@
 package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
-import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
-import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 import org.elasticsearch.plugins.IngestPlugin;
 
 import java.io.Closeable;
@@ -21,7 +20,7 @@ import java.util.Map;
  * An external bridge for {@link IngestPlugin}
  */
 public interface IngestPluginBridge {
-    Map<String, ProcessorFactoryBridge> getProcessors(ProcessorParametersBridge parameters);
+    Map<String, ProcessorBridge.Factory> getProcessors(ProcessorBridge.Parameters parameters);
 
     static ProxyInternal fromInternal(final IngestPlugin delegate) {
         return new ProxyInternal(delegate);
@@ -30,16 +29,16 @@ public interface IngestPluginBridge {
     /**
      * An implementation of {@link IngestPluginBridge} that proxies calls to an internal {@link IngestPlugin}
      */
-    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<IngestPlugin> implements IngestPluginBridge, Closeable {
+    class ProxyInternal extends StableBridgeAPI.ProxyInternal<IngestPlugin> implements IngestPluginBridge, Closeable {
 
         private ProxyInternal(final IngestPlugin delegate) {
             super(delegate);
         }
 
-        public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
+        public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
             return StableBridgeAPI.fromInternal(
                 this.internalDelegate.getProcessors(parameters.toInternal()),
-                ProcessorFactoryBridge::fromInternal
+                ProcessorBridge.Factory::fromInternal
             );
         }
 

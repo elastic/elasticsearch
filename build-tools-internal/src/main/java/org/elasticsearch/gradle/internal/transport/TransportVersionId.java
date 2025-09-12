@@ -9,17 +9,15 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-record TransportVersionId(int complete, int base, int patch) implements Comparable<TransportVersionId> {
-
-    public static TransportVersionId fromInt(int complete) {
-        int patch = complete % 1000;
-        int base = complete - patch;
-
-        return new TransportVersionId(complete, base, patch);
-    }
+record TransportVersionId(int complete, int major, int server, int subsidiary, int patch) implements Comparable<TransportVersionId> {
 
     static TransportVersionId fromString(String s) {
-        return fromInt(Integer.parseInt(s));
+        int complete = Integer.parseInt(s);
+        int patch = complete % 100;
+        int subsidiary = (complete / 100) % 10;
+        int server = (complete / 1000) % 1000;
+        int major = complete / 1000000;
+        return new TransportVersionId(complete, major, server, subsidiary, patch);
     }
 
     @Override
@@ -31,5 +29,9 @@ record TransportVersionId(int complete, int base, int patch) implements Comparab
     @Override
     public String toString() {
         return Integer.toString(complete);
+    }
+
+    public int base() {
+        return (complete / 1000) * 1000;
     }
 }

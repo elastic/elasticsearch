@@ -13,6 +13,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
 
@@ -21,7 +22,13 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
             "id",
             TaskType.TEXT_EMBEDDING,
             "elastic",
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null),
+            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                modelId,
+                SimilarityMeasure.COSINE,
+                null,
+                null,
+                new RateLimitSettings(1000L)
+            ),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),

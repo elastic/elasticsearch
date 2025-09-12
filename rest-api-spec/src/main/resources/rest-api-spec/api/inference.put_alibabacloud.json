@@ -7,20 +7,14 @@
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": [
-        "application/json"
-      ],
-      "content_type": [
-        "application/json"
-      ]
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
     },
     "url": {
       "paths": [
         {
           "path": "/_inference/{task_type}/{alibabacloud_inference_id}",
-          "methods": [
-            "PUT"
-          ],
+          "methods": ["PUT"],
           "parts": {
             "task_type": {
               "type": "string",

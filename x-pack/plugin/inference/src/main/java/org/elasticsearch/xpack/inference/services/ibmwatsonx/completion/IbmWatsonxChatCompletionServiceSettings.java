@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,9 +40,6 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
         ServiceSettings,
         IbmWatsonxRateLimitServiceSettings {
     public static final String NAME = "ibm_watsonx_completion_service_settings";
-    private static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = TransportVersion.fromName(
-        "ml_inference_ibm_watsonx_completion_added"
-    );
 
     /**
      * Rate limits are defined at
@@ -162,7 +160,7 @@ public class IbmWatsonxChatCompletionServiceSettings extends FilteredXContentObj
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED;
+        return TransportVersions.ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED;
     }
 
     @Override

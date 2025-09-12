@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.ML_ROLLOVER_LEGACY_INDICES;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 /**
@@ -43,6 +42,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
 
     private static final Logger logger = LogManager.getLogger(MlIndexRollover.class);
+
+    private static final TransportVersion ML_ROLLOVER_LEGACY_INDICES = TransportVersion.fromName("ml_rollover_legacy_indices");
 
     public record IndexPatternAndAlias(String indexPattern, String alias) {}
 

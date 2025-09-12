@@ -86,7 +86,7 @@ import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getModelListenerForException;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -123,7 +123,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
     public void init() throws Exception {
         webServer.start();
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
-        threadPool = createThreadPool(inferenceUtilityExecutors());
+        threadPool = createThreadPool(inferenceUtilityPool());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -193,28 +193,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             var failureListener = getModelListenerForException(
                 ElasticsearchStatusException.class,
                 "Configuration contains settings [{extra_key=value}] unknown to the [elastic] service"
-            );
-            service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
-        }
-    }
-
-    public void testParseRequestConfig_ThrowsWhenRateLimitFieldExistsInServiceSettingsMap() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            Map<String, Object> serviceSettings = new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    ElserModels.ELSER_V2_MODEL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
-                )
-            );
-
-            var config = getRequestConfigMap(serviceSettings, Map.of(), Map.of());
-
-            var failureListener = getModelListenerForException(
-                ValidationException.class,
-                "Validation Failed: 1: [service_settings] rate limit settings are not permitted for "
-                    + "service [elastic] and task type [sparse_embedding];"
             );
             service.parseRequestConfig("id", TaskType.SPARSE_EMBEDDING, config, failureListener);
         }
@@ -317,39 +295,6 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(completionModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
             assertThat(completionModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(completionModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
-        }
-    }
-
-    public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenRateLimitFieldExistsInServiceSettings() throws IOException {
-        try (var service = createServiceWithMockSender()) {
-            Map<String, Object> serviceSettingsMap = new HashMap<>(
-                Map.of(
-                    ServiceFields.MODEL_ID,
-                    ElserModels.ELSER_V2_MODEL,
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100))
-                )
-            );
-
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, Map.of(), Map.of());
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.SPARSE_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(ElasticInferenceServiceSparseEmbeddingsModel.class));
-
-            var parsedModel = (ElasticInferenceServiceSparseEmbeddingsModel) model;
-            assertThat(parsedModel.getServiceSettings().modelId(), is(ElserModels.ELSER_V2_MODEL));
-            assertThat(parsedModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(parsedModel.getSecretSettings(), is(EmptySecretSettings.INSTANCE));
-            assertThat(
-                serviceSettingsMap,
-                is(Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
-            );
         }
     }
 
@@ -742,7 +687,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.CHAT_COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
@@ -1437,7 +1382,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 "id",
                 TaskType.COMPLETION,
                 "elastic",
-                new ElasticInferenceServiceCompletionServiceSettings("model_id"),
+                new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
                 ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)

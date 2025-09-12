@@ -90,11 +90,13 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                totalSizeInBytes += ((IndexRequest) request).indexSource().byteLength();
+                if (((IndexRequest) request).source() != null) {
+                    totalSizeInBytes += ((IndexRequest) request).source().length();
+                }
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null) {
-                    totalSizeInBytes += ((UpdateRequest) request).doc().indexSource().byteLength();
+                if (doc != null && doc.source() != null) {
+                    totalSizeInBytes += ((UpdateRequest) request).doc().source().length();
                 }
             }
         }
@@ -106,11 +108,13 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
             if (request instanceof IndexRequest) {
-                maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).indexSource().byteLength());
+                if (((IndexRequest) request).source() != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((IndexRequest) request).source().length());
+                }
             } else if (request instanceof UpdateRequest) {
                 IndexRequest doc = ((UpdateRequest) request).doc();
-                if (doc != null) {
-                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().indexSource().byteLength());
+                if (doc != null && doc.source() != null) {
+                    maxOperationSizeInBytes = Math.max(maxOperationSizeInBytes, ((UpdateRequest) request).doc().source().length());
                 }
             }
         }

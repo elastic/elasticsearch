@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -125,17 +124,7 @@ public class DirectIOIT extends ESIntegTestCase {
             indexVectors();
 
             // do a search
-            var knn = List.of(
-                new KnnSearchBuilder(
-                    "fooVector",
-                    new VectorData(null, new byte[64]),
-                    10,
-                    20,
-                    IVF_FORMAT.isEnabled() ? 10f : null,
-                    null,
-                    null
-                )
-            );
+            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, null, null));
             assertHitCount(prepareSearch("foo-vectors").setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

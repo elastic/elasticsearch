@@ -83,8 +83,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta,
-            scriptFactory.isParsedFromSource()
+            meta
         );
     }
 

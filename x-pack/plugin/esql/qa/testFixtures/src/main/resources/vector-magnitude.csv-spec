@@ -85,15 +85,3 @@ row a = 1
 magnitude:double
 null
 ;
-
-magnitudeWithRow
-required_capability: magnitude_scalar_vector_function
-required_capability: to_dense_vector_function
- 
-row vector = to_dense_vector([1, 2, 3]) 
-| eval magnitude = round(v_magnitude(vector), 3) 
-;
-
-vector: dense_vector | magnitude:double
-[1.0, 2.0, 3.0]      | 3.742
-;

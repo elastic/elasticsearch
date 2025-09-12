@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -74,11 +73,6 @@ public class InlineJoin extends Join {
         } else {
             return target.replaceRight(data);
         }
-    }
-
-    @Override
-    protected LogicalPlan getRightToSerialize(StreamOutput out) {
-        return right();
     }
 
     /**

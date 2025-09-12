@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
 import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
-import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
-import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 
 import org.elasticsearch.test.ESTestCase;
@@ -20,11 +18,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE;
-import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createDoubleDataPoint;
-import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createExponentialHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createGaugeMetric;
-import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createHistogramMetric;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createLongDataPoint;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createMetricsRequest;
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.createResourceMetrics;
@@ -54,25 +49,11 @@ public class DataPointGroupingContextTests extends ESTestCase {
                     true,
                     AGGREGATION_TEMPORALITY_CUMULATIVE
                 ),
-                createExponentialHistogramMetric(
-                    "http.request.duration",
-                    "",
-                    List.of(
-                        ExponentialHistogramDataPoint.newBuilder().setTimeUnixNano(nowUnixNanos).setStartTimeUnixNano(nowUnixNanos).build()
-                    ),
-                    AGGREGATION_TEMPORALITY_DELTA
-                ),
-                createHistogramMetric(
-                    "http.request.size",
-                    "",
-                    List.of(HistogramDataPoint.newBuilder().setTimeUnixNano(nowUnixNanos).setStartTimeUnixNano(nowUnixNanos).build()),
-                    AGGREGATION_TEMPORALITY_DELTA
-                ),
                 createSummaryMetric("summary", "", List.of(createSummaryDataPoint(nowUnixNanos, List.of())))
             )
         );
         context.groupDataPoints(metricsRequest);
-        assertEquals(6, context.totalDataPoints());
+        assertEquals(4, context.totalDataPoints());
         assertEquals(0, context.getIgnoredDataPoints());
         assertEquals("", context.getIgnoredDataPointsMessage());
 

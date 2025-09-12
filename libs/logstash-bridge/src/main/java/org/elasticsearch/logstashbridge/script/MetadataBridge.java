@@ -16,86 +16,52 @@ import java.time.ZonedDateTime;
 /**
  * An external bridge for {@link Metadata}
  */
-public interface MetadataBridge extends StableBridgeAPI<Metadata> {
-
-    String getIndex();
-
-    void setIndex(String index);
-
-    String getId();
-
-    void setId(String id);
-
-    long getVersion();
-
-    void setVersion(long version);
-
-    String getVersionType();
-
-    void setVersionType(String versionType);
-
-    String getRouting();
-
-    void setRouting(String routing);
-
-    ZonedDateTime getNow();
-
-    static MetadataBridge fromInternal(final Metadata metadata) {
-        return new ProxyInternal(metadata);
+public class MetadataBridge extends StableBridgeAPI.ProxyInternal<Metadata> {
+    public MetadataBridge(final Metadata delegate) {
+        super(delegate);
     }
 
-    /**
-     * An implementation of {@link MetadataBridge} that proxies calls through
-     * to an internal {@link Metadata}.
-     * @see StableBridgeAPI.ProxyInternal
-     */
-    final class ProxyInternal extends StableBridgeAPI.ProxyInternal<Metadata> implements MetadataBridge {
-        ProxyInternal(final Metadata delegate) {
-            super(delegate);
-        }
+    public String getIndex() {
+        return internalDelegate.getIndex();
+    }
 
-        public String getIndex() {
-            return internalDelegate.getIndex();
-        }
+    public void setIndex(final String index) {
+        internalDelegate.setIndex(index);
+    }
 
-        public void setIndex(final String index) {
-            internalDelegate.setIndex(index);
-        }
+    public String getId() {
+        return internalDelegate.getId();
+    }
 
-        public String getId() {
-            return internalDelegate.getId();
-        }
+    public void setId(final String id) {
+        internalDelegate.setId(id);
+    }
 
-        public void setId(final String id) {
-            internalDelegate.setId(id);
-        }
+    public long getVersion() {
+        return internalDelegate.getVersion();
+    }
 
-        public long getVersion() {
-            return internalDelegate.getVersion();
-        }
+    public void setVersion(final long version) {
+        internalDelegate.setVersion(version);
+    }
 
-        public void setVersion(final long version) {
-            internalDelegate.setVersion(version);
-        }
+    public String getVersionType() {
+        return internalDelegate.getVersionType();
+    }
 
-        public String getVersionType() {
-            return internalDelegate.getVersionType();
-        }
+    public void setVersionType(final String versionType) {
+        internalDelegate.setVersionType(versionType);
+    }
 
-        public void setVersionType(final String versionType) {
-            internalDelegate.setVersionType(versionType);
-        }
+    public String getRouting() {
+        return internalDelegate.getRouting();
+    }
 
-        public String getRouting() {
-            return internalDelegate.getRouting();
-        }
+    public void setRouting(final String routing) {
+        internalDelegate.setRouting(routing);
+    }
 
-        public void setRouting(final String routing) {
-            internalDelegate.setRouting(routing);
-        }
-
-        public ZonedDateTime getNow() {
-            return internalDelegate.getNow();
-        }
+    public ZonedDateTime getNow() {
+        return internalDelegate.getNow();
     }
 }

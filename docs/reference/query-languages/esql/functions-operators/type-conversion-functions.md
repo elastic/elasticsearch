@@ -43,19 +43,10 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/to_double.md
 :::
 
-:::{include} ../_snippets/functions/layout/to_geohash.md
-:::
-
-:::{include} ../_snippets/functions/layout/to_geohex.md
-:::
-
 :::{include} ../_snippets/functions/layout/to_geopoint.md
 :::
 
 :::{include} ../_snippets/functions/layout/to_geoshape.md
-:::
-
-:::{include} ../_snippets/functions/layout/to_geotile.md
 :::
 
 :::{include} ../_snippets/functions/layout/to_integer.md

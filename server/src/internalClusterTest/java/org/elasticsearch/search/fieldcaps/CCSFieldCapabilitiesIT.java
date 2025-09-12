@@ -14,12 +14,15 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryBuilder;
+import org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT.ExceptionOnRewriteQueryPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -43,7 +46,14 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         return false;
     }
 
-    public void testFailuresFromRemote() throws IOException {
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.add(ExceptionOnRewriteQueryPlugin.class);
+        return plugins;
+    }
+
+    public void testFailuresFromRemote() {
         Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).build();
         final Client localClient = client(LOCAL_CLUSTER);
         final Client remoteClient = client("remote_cluster");
@@ -61,10 +71,11 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         FieldCapabilitiesResponse response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:" + remoteErrorIndex));
 
-        // Closed shards will result to index error because shards must be in readable state
-        FieldCapabilitiesIT.closeShards(cluster("remote_cluster"), remoteErrorIndex);
-
-        response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
+        // adding an index filter so remote call should fail
+        response = client().prepareFieldCaps("*", "remote_cluster:*")
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get();
         assertThat(response.getIndices()[0], equalTo(localIndex));
         assertThat(response.getFailedIndicesCount(), equalTo(1));
         FieldCapabilitiesFailure failure = response.getFailures()
@@ -75,22 +86,25 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         Exception ex = failure.getException();
         assertEquals(RemoteTransportException.class, ex.getClass());
         Throwable cause = ExceptionsHelper.unwrapCause(ex);
-        assertEquals(IllegalIndexShardStateException.class, cause.getClass());
-        assertEquals(
-            "CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]",
-            cause.getMessage()
-        );
+        assertEquals(IllegalArgumentException.class, cause.getClass());
+        assertEquals("I throw because I choose to.", cause.getMessage());
 
         // if we only query the remote we should get back an exception only
-        ex = expectThrows(IllegalIndexShardStateException.class, client().prepareFieldCaps("remote_cluster:*").setFields("*"));
-        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", ex.getMessage());
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            client().prepareFieldCaps("remote_cluster:*").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+        );
+        assertEquals("I throw because I choose to.", ex.getMessage());
 
         // add an index that doesn't fail to the remote
         assertAcked(remoteClient.admin().indices().prepareCreate("okay_remote_index"));
         remoteClient.prepareIndex("okay_remote_index").setId("2").setSource("foo", "bar").get();
         remoteClient.admin().indices().prepareRefresh("okay_remote_index").get();
 
-        response = client().prepareFieldCaps("*", "remote_cluster:*").setFields("*").get();
+        response = client().prepareFieldCaps("*", "remote_cluster:*")
+            .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
+            .get();
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder(localIndex, "remote_cluster:okay_remote_index"));
         assertThat(response.getFailedIndicesCount(), equalTo(1));
         failure = response.getFailures()
@@ -99,8 +113,8 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
             .findFirst()
             .get();
         ex = failure.getException();
-        assertEquals(IllegalIndexShardStateException.class, ex.getClass());
-        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", ex.getMessage());
+        assertEquals(IllegalArgumentException.class, ex.getClass());
+        assertEquals("I throw because I choose to.", ex.getMessage());
     }
 
     public void testFailedToConnectToRemoteCluster() throws Exception {

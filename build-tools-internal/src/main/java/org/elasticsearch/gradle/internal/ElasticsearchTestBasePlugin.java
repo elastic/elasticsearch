@@ -24,7 +24,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
@@ -56,9 +55,6 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
     @Inject
     protected abstract ProviderFactory getProviderFactory();
-
-    @Inject
-    protected abstract BuildFeatures getBuildFeatures();
 
     @Override
     public void apply(Project project) {
@@ -168,11 +164,9 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             );
             test.systemProperties(sysprops);
 
-            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability
-            // also ignore when configuration cache is on since the test seed as task input would break
-            // configuration cache reuse.
-            if (System.getProperty("ignore.tests.seed") != null || getBuildFeatures().getConfigurationCache().getActive().get()) {
-                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeedProvider());
+            // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
+            if (System.getProperty("ignore.tests.seed") != null) {
+                nonInputProperties.systemProperty("tests.seed", buildParams.get().getTestSeed());
             } else {
                 test.systemProperty("tests.seed", buildParams.get().getTestSeed());
             }

@@ -110,52 +110,6 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
         }
     }
 
-    public void testFromRemotesWithCoordPolicy() {
-
-        String query = "FROM *:events | eval ip= TO_STR(host) | "
-            + enrichHostsLocal(Enrich.Mode.COORDINATOR)
-            + " | stats c = COUNT(*) by os | SORT os";
-        try (EsqlQueryResponse resp = runQuery(query, null)) {
-            List<List<Object>> rows = getValuesList(resp);
-            assertThat(
-                rows,
-                equalTo(
-                    List.of(
-                        List.of(1L, "Android"),
-                        List.of(2L, "Linux"),
-                        List.of(4L, "MacOS"),
-                        List.of(3L, "Windows"),
-                        List.of(1L, "iOS"),
-                        Arrays.asList(2L, (String) null)
-                    )
-                )
-            );
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
-        }
-
-        query = "FROM *:events | eval ip= TO_STR(host) | stats by ip | "
-            + enrichHostsLocal(Enrich.Mode.COORDINATOR)
-            + " | stats c = COUNT(*) by os | SORT os";
-        try (EsqlQueryResponse resp = runQuery(query, null)) {
-            List<List<Object>> rows = getValuesList(resp);
-            assertThat(
-                rows,
-                equalTo(
-                    List.of(
-                        List.of(1L, "Android"),
-                        List.of(2L, "Linux"),
-                        List.of(2L, "MacOS"),
-                        List.of(2L, "Windows"),
-                        List.of(1L, "iOS"),
-                        Arrays.asList(2L, (String) null)
-                    )
-                )
-            );
-            assertTrue(resp.getExecutionInfo().isCrossClusterSearch());
-        }
-
-    }
-
     public void testEnrichHostsAggThenEnrichVendorCoordinator() {
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();

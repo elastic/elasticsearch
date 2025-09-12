@@ -194,7 +194,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         verifyNoInteractions(auditableRequest);
     }
 
-    public void testTerminateExceptionBubblesUpWithAuthenticateHeaders() {
+    public void testTerminateExceptionBubblesUpWithTryAuthenticate() {
         @SuppressWarnings("unchecked")
         final ArgumentCaptor<ActionListener<AuthenticationResult<User>>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(i -> null).when(apiKeyService)

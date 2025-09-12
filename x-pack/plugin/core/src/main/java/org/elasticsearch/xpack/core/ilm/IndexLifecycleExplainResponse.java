@@ -57,7 +57,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     private static final ParseField SKIP_NAME = new ParseField("skip");
-    private static final ParseField FORCE_MERGE_CLONE_INDEX_NAME = new ParseField("force_merge_clone_index_name");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response",
@@ -82,8 +81,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (BytesReference) a[11],
             (BytesReference) a[21],
             (PhaseExecutionInfo) a[12],
-            Objects.requireNonNullElse((Boolean) a[22], false),
-            (String) a[24]
+            Objects.requireNonNullElse((Boolean) a[22], false)
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
             // a[23] = "age_in_millis"
@@ -126,7 +124,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }, PREVIOUS_STEP_INFO_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_CLONE_INDEX_NAME);
     }
 
     private final String index;
@@ -150,7 +147,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final String snapshotName;
     private final String shrinkIndexName;
     private final boolean skip;
-    private final String forceMergeCloneIndexName;
 
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
@@ -174,8 +170,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         BytesReference stepInfo,
         BytesReference previousStepInfo,
         PhaseExecutionInfo phaseExecutionInfo,
-        boolean skip,
-        String forceMergeCloneIndexName
+        boolean skip
     ) {
         return new IndexLifecycleExplainResponse(
             index,
@@ -198,8 +193,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepInfo,
             previousStepInfo,
             phaseExecutionInfo,
-            skip,
-            forceMergeCloneIndexName
+            skip
         );
     }
 
@@ -225,8 +219,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             null,
             null,
             null,
-            false,
-            null
+            false
         );
     }
 
@@ -251,8 +244,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         BytesReference stepInfo,
         BytesReference previousStepInfo,
         PhaseExecutionInfo phaseExecutionInfo,
-        boolean skip,
-        String forceMergeCloneIndexName
+        boolean skip
     ) {
         if (managedByILM) {
             if (policyName == null) {
@@ -321,7 +313,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.snapshotName = snapshotName;
         this.shrinkIndexName = shrinkIndexName;
         this.skip = skip;
-        this.forceMergeCloneIndexName = forceMergeCloneIndexName;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -360,8 +351,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 skip = false;
             }
-            // No need for deserialization from this point onwards as this action only runs on the local node.
-            forceMergeCloneIndexName = null;
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -382,7 +371,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             shrinkIndexName = null;
             indexCreationDate = null;
             skip = false;
-            forceMergeCloneIndexName = null;
         }
     }
 
@@ -417,7 +405,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 || out.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
                 out.writeBoolean(skip);
             }
-            // No need for serialization from this point onwards as this action only runs on the local node.
         }
     }
 
@@ -521,10 +508,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return skip;
     }
 
-    public String getForceMergeCloneIndexName() {
-        return forceMergeCloneIndexName;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -612,9 +595,6 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 builder.field(PHASE_EXECUTION_INFO.getPreferredName(), phaseExecutionInfo);
             }
             builder.field(SKIP_NAME.getPreferredName(), skip);
-            if (forceMergeCloneIndexName != null) {
-                builder.field(FORCE_MERGE_CLONE_INDEX_NAME.getPreferredName(), forceMergeCloneIndexName);
-            }
         }
         builder.endObject();
         return builder;
@@ -643,8 +623,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepInfo,
             previousStepInfo,
             phaseExecutionInfo,
-            skip,
-            forceMergeCloneIndexName
+            skip
         );
     }
 
@@ -677,8 +656,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             && Objects.equals(stepInfo, other.stepInfo)
             && Objects.equals(previousStepInfo, other.previousStepInfo)
             && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo)
-            && Objects.equals(skip, other.skip)
-            && Objects.equals(forceMergeCloneIndexName, other.forceMergeCloneIndexName);
+            && Objects.equals(skip, other.skip);
     }
 
     @Override

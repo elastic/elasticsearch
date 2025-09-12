@@ -11,9 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -23,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
@@ -154,17 +153,6 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
     }
 
-    /**
-     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
-     */
-    public AttributeSet aggregateInputReferences() {
-        if (hasFilter()) {
-            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
-        } else {
-            return references();
-        }
-    }
-
     @Override
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
@@ -186,7 +174,9 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            if ((p instanceof Aggregate) == false) {
+            // `dedup` for now is not exposed as a command,
+            // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
+            if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));

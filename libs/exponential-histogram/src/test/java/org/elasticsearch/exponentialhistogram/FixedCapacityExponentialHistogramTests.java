@@ -31,8 +31,7 @@ public class FixedCapacityExponentialHistogramTests extends ExponentialHistogram
 
     public void testValueCountUpdatedCorrectly() {
 
-        FixedCapacityExponentialHistogram histogram = FixedCapacityExponentialHistogram.create(100, breaker());
-        autoReleaseOnTestEnd(histogram);
+        FixedCapacityExponentialHistogram histogram = createAutoReleasedHistogram(100);
 
         assertThat(histogram.negativeBuckets().valueCount(), equalTo(0L));
         assertThat(histogram.positiveBuckets().valueCount(), equalTo(0L));

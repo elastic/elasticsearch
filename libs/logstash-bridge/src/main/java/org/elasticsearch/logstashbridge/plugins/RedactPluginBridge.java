@@ -9,8 +9,7 @@
 package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
-import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 import org.elasticsearch.xpack.redact.RedactProcessor;
 
 import java.util.Map;
@@ -18,15 +17,15 @@ import java.util.Map;
 /**
  * An external bridge for {@link org.elasticsearch.xpack.redact.RedactPlugin}
  */
-public final class RedactPluginBridge implements IngestPluginBridge {
+public class RedactPluginBridge implements IngestPluginBridge {
     @Override
-    public Map<String, ProcessorFactoryBridge> getProcessors(ProcessorParametersBridge parameters) {
+    public Map<String, ProcessorBridge.Factory> getProcessors(ProcessorBridge.Parameters parameters) {
         // Provide a TRIAL license state to the redact processor
         final XPackLicenseState trialLicenseState = new XPackLicenseState(parameters.toInternal().relativeTimeSupplier);
 
         return Map.of(
             RedactProcessor.TYPE,
-            ProcessorFactoryBridge.fromInternal(new RedactProcessor.Factory(trialLicenseState, parameters.toInternal().matcherWatchdog))
+            ProcessorBridge.Factory.fromInternal(new RedactProcessor.Factory(trialLicenseState, parameters.toInternal().matcherWatchdog))
         );
     }
 }

@@ -10,15 +10,14 @@ package org.elasticsearch.logstashbridge.plugins;
 
 import org.elasticsearch.ingest.useragent.IngestUserAgentPlugin;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
-import org.elasticsearch.logstashbridge.ingest.ProcessorFactoryBridge;
-import org.elasticsearch.logstashbridge.ingest.ProcessorParametersBridge;
+import org.elasticsearch.logstashbridge.ingest.ProcessorBridge;
 
 import java.util.Map;
 
 /**
  * An external bridge for {@link IngestUserAgentPlugin}
  */
-public final class IngestUserAgentPluginBridge implements IngestPluginBridge {
+public class IngestUserAgentPluginBridge implements IngestPluginBridge {
 
     private final IngestUserAgentPlugin delegate;
 
@@ -26,7 +25,7 @@ public final class IngestUserAgentPluginBridge implements IngestPluginBridge {
         delegate = new IngestUserAgentPlugin();
     }
 
-    public Map<String, ProcessorFactoryBridge> getProcessors(final ProcessorParametersBridge parameters) {
-        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorFactoryBridge::fromInternal);
+    public Map<String, ProcessorBridge.Factory> getProcessors(final ProcessorBridge.Parameters parameters) {
+        return StableBridgeAPI.fromInternal(this.delegate.getProcessors(parameters.toInternal()), ProcessorBridge.Factory::fromInternal);
     }
 }

@@ -45,7 +45,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH_90)
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
             || in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
             contentLength = in.readVInt();
         } else {
@@ -106,7 +106,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH_90)
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.V_9_0_0)
             || out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
             out.writeVInt(contentLength);
         } else {

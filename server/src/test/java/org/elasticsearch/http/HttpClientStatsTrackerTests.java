@@ -9,14 +9,11 @@
 
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -25,13 +22,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -385,55 +377,6 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
                 clientThread.join();
             }
         }
-    }
-
-    public void testToXContent() throws IOException {
-        final var clientStats = new HttpStats.ClientStats(
-            randomNonNegativeInt(),
-            randomIdentifier(),
-            randomIdentifier(),
-            randomIdentifier(),
-            randomIdentifier(),
-            randomIdentifier(),
-            randomIdentifier(),
-            randomLongBetween(1, Long.MAX_VALUE),
-            randomLongBetween(1, Long.MAX_VALUE),
-            randomLongBetween(1, Long.MAX_VALUE),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
-        final var description = Strings.toString(clientStats, false, true);
-        logger.info("description: {}", description);
-
-        final Map<String, Object> xcontentMap;
-        try (var builder = XContentFactory.jsonBuilder()) {
-            builder.humanReadable(true).value(clientStats, ToXContent.EMPTY_PARAMS);
-            xcontentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
-        }
-
-        assertEquals(description, clientStats.id(), xcontentMap.get("id"));
-        assertEquals(description, clientStats.agent(), xcontentMap.get("agent"));
-        assertEquals(description, clientStats.localAddress(), xcontentMap.get("local_address"));
-        assertEquals(description, clientStats.remoteAddress(), xcontentMap.get("remote_address"));
-        assertEquals(description, clientStats.lastUri(), xcontentMap.get("last_uri"));
-        assertEquals(description, clientStats.forwardedFor(), xcontentMap.get("x_forwarded_for"));
-        assertEquals(description, clientStats.opaqueId(), xcontentMap.get("x_opaque_id"));
-
-        assertEquals(description, clientStats.openedTimeMillis(), xcontentMap.get("opened_time_millis"));
-        assertEquals(description, Instant.ofEpochMilli(clientStats.openedTimeMillis()).toString(), xcontentMap.get("opened_time"));
-
-        assertEquals(description, clientStats.closedTimeMillis(), xcontentMap.get("closed_time_millis"));
-        assertEquals(description, Instant.ofEpochMilli(clientStats.closedTimeMillis()).toString(), xcontentMap.get("closed_time"));
-
-        assertEquals(description, clientStats.lastRequestTimeMillis(), xcontentMap.get("last_request_time_millis"));
-        assertEquals(
-            description,
-            Instant.ofEpochMilli(clientStats.lastRequestTimeMillis()).toString(),
-            xcontentMap.get("last_request_time")
-        );
-
-        assertEquals(description, clientStats.requestCount(), (long) xcontentMap.get("request_count"));
-        assertEquals(description, clientStats.requestSizeBytes(), (long) xcontentMap.get("request_size_bytes"));
     }
 
     private Map<String, String> getRelevantHeaders(HttpRequest httpRequest) {

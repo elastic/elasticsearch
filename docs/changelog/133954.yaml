@@ -1,6 +1,0 @@
-pr: 133954
-summary: "ILM: Force merge on zero-replica cloned index before snapshotting for searchable snapshots"
-area: ILM+SLM
-type: enhancement
-issues:
- - 75478

@@ -120,7 +120,7 @@ public class RateTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                standardAggregatorName("Rate", fieldTypedData.type()),
+                "Rate[field=Attribute[channel=0],timestamp=Attribute[channel=1]]",
                 DataType.DOUBLE,
                 matcher
             );

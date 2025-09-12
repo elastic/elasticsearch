@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.elasticsearch.gradle.internal.test.TestResultExtension
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
-import org.gradle.tooling.BuildException
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
@@ -211,17 +210,13 @@ abstract class AbstractGradleFuncTest extends Specification {
         """
     }
 
-    String execute(String command, File workingDir = testProjectDir.root) {
+    void execute(String command, File workingDir = testProjectDir.root) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
         if (proc.exitValue()) {
-            String msg = """Error running command ${command}:
-                Sysout: ${proc.inputStream.text}
-                Syserr: ${proc.errorStream.text}
-            """
-            throw new RuntimeException(msg)
+            System.err.println("Error running command ${command}:")
+            System.err.println("Syserr: " + proc.errorStream.text)
         }
-        return proc.inputStream.text
     }
 
     File dir(String path) {

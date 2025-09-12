@@ -29,16 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.custom.response.TextEmbeddingResponseParser.TEXT_EMBEDDING_PARSER_EMBEDDINGS;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializationTestCase<TextEmbeddingResponseParser> {
-
-    private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = TransportVersion.fromName(
-        "ml_inference_custom_service_embedding_type"
-    );
 
     public static TextEmbeddingResponseParser createRandom() {
         return new TextEmbeddingResponseParser("$." + randomAlphaOfLength(5), randomFrom(CustomServiceEmbeddingType.values()));
@@ -320,7 +317,7 @@ public class TextEmbeddingResponseParserTests extends AbstractBWCWireSerializati
 
     @Override
     protected TextEmbeddingResponseParser mutateInstanceForVersion(TextEmbeddingResponseParser instance, TransportVersion version) {
-        if (version.supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE) == false) {
+        if (version.before(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE)) {
             return new TextEmbeddingResponseParser(instance.getTextEmbeddingsPath(), CustomServiceEmbeddingType.FLOAT);
         }
         return instance;

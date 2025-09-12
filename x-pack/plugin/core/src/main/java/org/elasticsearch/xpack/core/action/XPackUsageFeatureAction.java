@@ -53,9 +53,6 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> DATA_STREAM_LIFECYCLE = xpackUsageFeatureAction(
         XPackField.DATA_STREAM_LIFECYCLE
     );
-    public static final ActionType<XPackUsageFeatureResponse> TIME_SERIES_DATA_STREAMS = xpackUsageFeatureAction(
-        XPackField.TIME_SERIES_DATA_STREAMS
-    );
     public static final ActionType<XPackUsageFeatureResponse> DATA_TIERS = xpackUsageFeatureAction(XPackField.DATA_TIERS);
     public static final ActionType<XPackUsageFeatureResponse> AGGREGATE_METRIC = xpackUsageFeatureAction(XPackField.AGGREGATE_METRIC);
     public static final ActionType<XPackUsageFeatureResponse> ARCHIVE = xpackUsageFeatureAction(XPackField.ARCHIVE);
@@ -94,8 +91,7 @@ public final class XPackUsageFeatureAction {
         REMOTE_CLUSTERS,
         ENTERPRISE_SEARCH,
         UNIVERSAL_PROFILING,
-        LOGSDB,
-        TIME_SERIES_DATA_STREAMS
+        LOGSDB
     );
 
     public static ActionType<XPackUsageFeatureResponse> xpackUsageFeatureAction(String suffix) {

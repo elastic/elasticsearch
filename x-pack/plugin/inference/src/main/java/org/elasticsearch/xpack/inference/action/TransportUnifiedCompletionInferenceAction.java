@@ -16,6 +16,7 @@ import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,7 +29,7 @@ import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.concurrent.Flow;
 
@@ -39,7 +40,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         TransportService transportService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
-        InferenceEndpointRegistry inferenceEndpointRegistry,
+        ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
@@ -52,7 +53,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
             transportService,
             actionFilters,
             licenseState,
-            inferenceEndpointRegistry,
+            modelRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
@@ -64,12 +65,15 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
     }
 
     @Override
-    protected boolean isInvalidTaskTypeForInferenceEndpoint(UnifiedCompletionAction.Request request, Model model) {
-        return request.getTaskType().isAnyOrSame(TaskType.CHAT_COMPLETION) == false || model.getTaskType() != TaskType.CHAT_COMPLETION;
+    protected boolean isInvalidTaskTypeForInferenceEndpoint(UnifiedCompletionAction.Request request, UnparsedModel unparsedModel) {
+        return request.getTaskType().isAnyOrSame(TaskType.CHAT_COMPLETION) == false || unparsedModel.taskType() != TaskType.CHAT_COMPLETION;
     }
 
     @Override
-    protected ElasticsearchStatusException createInvalidTaskTypeException(UnifiedCompletionAction.Request request, Model model) {
+    protected ElasticsearchStatusException createInvalidTaskTypeException(
+        UnifiedCompletionAction.Request request,
+        UnparsedModel unparsedModel
+    ) {
         return new ElasticsearchStatusException(
             "Incompatible task_type for unified API, the requested type [{}] must be one of [{}]",
             RestStatus.BAD_REQUEST,

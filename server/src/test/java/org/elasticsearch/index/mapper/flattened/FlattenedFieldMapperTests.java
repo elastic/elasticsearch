@@ -86,10 +86,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("time_series_dimensions", b -> b.field("time_series_dimensions", List.of("one", "two")));
 
         checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(
-            b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((FlattenedFieldMapper) m).fieldType().ignoreAbove().get())
-        );
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((FlattenedFieldMapper) m).ignoreAbove()));
         checker.registerUpdateCheck(
             b -> b.field("split_queries_on_whitespace", true),
             m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().searchAnalyzer().name())

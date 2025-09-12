@@ -24,6 +24,4 @@ public interface ChunkingSettings extends ToXContentObject, VersionedNamedWritea
      * @return The max chunk size specified, or null if not specified
      */
     Integer maxChunkSize();
-
-    default void validate() {}
 }

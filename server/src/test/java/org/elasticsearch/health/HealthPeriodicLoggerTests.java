@@ -436,14 +436,16 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // run it once, verify getHealth is called
-        Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-        logHealthThread.start();
-        // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
-        assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
-        // We try to log again while it's in progress, we expect this run to be skipped
-        assertFalse(testHealthPeriodicLogger.tryToLogHealth());
-        // Unblock the first execution
-        waitForSecondRun.countDown();
+        {
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
+            // We wait to verify that the triggered even is in progress, then we block, so it will rename in progress
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+            // We try to log again while it's in progress, we expect this run to be skipped
+            assertFalse(testHealthPeriodicLogger.tryToLogHealth());
+            // Unblock the first execution
+            waitForSecondRun.countDown();
+        }
 
         // run it again, verify getHealth is called, because we are calling the results listener
         {
@@ -451,9 +453,6 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
-
-        // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
-        logHealthThread.join();
     }
 
     public void testTryToLogHealthConcurrencyControl() throws Exception {
@@ -486,9 +485,11 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
         SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
         // call it and verify that getHealth is called
-        Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-        logHealthThread.start();
-        assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+        {
+            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+            logHealthThread.start();
+            assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(1)));
+        }
 
         // run it again, verify that it's skipped because the other one is in progress
         {
@@ -503,9 +504,6 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             testHealthPeriodicLogger.triggered(event);
             assertBusy(() -> assertThat(getHealthCalled.get(), equalTo(2)));
         }
-
-        // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
-        logHealthThread.join();
     }
 
     public void testTryToLogHealthConcurrencyControlWithException() throws Exception {
@@ -611,9 +609,11 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
 
             // call it and verify that getHealth is called
-            Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
-            logHealthThread.start();
-            assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
+            {
+                Thread logHealthThread = new Thread(() -> testHealthPeriodicLogger.triggered(event));
+                logHealthThread.start();
+                assertBusy(() -> assertTrue(testHealthPeriodicLogger.currentlyRunning()));
+            }
 
             // stop and close it
             {
@@ -626,9 +626,6 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 waitForCloseToBeTriggered.countDown();
                 assertBusy(() -> assertEquals(Lifecycle.State.CLOSED, testHealthPeriodicLogger.lifecycleState()));
             }
-
-            // Wait for the log thread to finish, to ensure it logs during this test and doesn't pollute other tests.
-            logHealthThread.join();
         }
     }
 

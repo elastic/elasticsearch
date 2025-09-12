@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
+                    .indices(".kibana*", ".reporting-*", ".chat-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -539,8 +539,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
-                        "logs-microsoft_defender_cloud.assessment-*",
-                        "logs-sentinel_one.application_risk-*"
+                        "logs-microsoft_defender_cloud.assessment-*"
                     )
                     .privileges(
                         "read",
@@ -549,11 +548,10 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop, QualysGAV, and SentinelOne Application Dataset specific actions. Kibana reads, writes and manages this
-                // index
+                // For ExtraHop and QualysGAV specific actions. Kibana reads, writes and manages this index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*", "logs-sentinel_one.application-*")
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*")
                     .privileges(
                         "manage",
                         "create_index",

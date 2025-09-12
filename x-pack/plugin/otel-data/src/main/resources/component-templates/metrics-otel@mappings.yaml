@@ -9,7 +9,7 @@ template:
   mappings:
     properties:
       start_timestamp:
-        type: date
+        type: date_nanos
       metrics:
         type: passthrough
         dynamic: true

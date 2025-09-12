@@ -11,7 +11,6 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
@@ -294,7 +293,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * is a field and value pairs.
      */
     public UpdateRequestBuilder setDoc(XContentType xContentType, Object... source) {
-        return setDoc(IndexSource.getXContentBuilder(xContentType, source));
+        return setDoc(IndexRequest.getXContentBuilder(xContentType, source));
     }
 
     /**
@@ -373,7 +372,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * includes field and value pairs.
      */
     public UpdateRequestBuilder setUpsert(XContentType xContentType, Object... source) {
-        return setUpsert(IndexSource.getXContentBuilder(xContentType, source));
+        return setUpsert(IndexRequest.getXContentBuilder(xContentType, source));
     }
 
     /**

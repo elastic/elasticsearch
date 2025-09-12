@@ -17,9 +17,4 @@ public interface ScriptFactory {
     default boolean isResultDeterministic() {
         return false;
     }
-
-    /** Returns {@code true} if the script only parses a field from source */
-    default boolean isParsedFromSource() {
-        return false;
-    }
 }

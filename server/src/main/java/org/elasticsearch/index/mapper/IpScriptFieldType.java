@@ -81,8 +81,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta,
-            scriptFactory.isParsedFromSource()
+            meta
         );
     }
 

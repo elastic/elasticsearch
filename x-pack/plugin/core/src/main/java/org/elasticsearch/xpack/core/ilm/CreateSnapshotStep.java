@@ -101,11 +101,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             );
             return;
         }
-        // If we performed the force merge step on the cloned index, we need to snapshot that index instead of the original.
-        final String clonedIndexName = lifecycleState.forceMergeCloneIndexName();
-        final String forceMergedIndexName = clonedIndexName != null ? clonedIndexName : indexName;
         CreateSnapshotRequest request = new CreateSnapshotRequest(TimeValue.MAX_VALUE, snapshotRepository, snapshotName);
-        request.indices(forceMergedIndexName);
+        request.indices(indexName);
         // this is safe as the snapshot creation will still be async, it's just that the listener will be notified when the snapshot is
         // complete
         request.waitForCompletion(true);
@@ -115,7 +112,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,
-                forceMergedIndexName,
+                indexName,
                 Strings.toString(response)
             );
             final SnapshotInfo snapInfo = response.getSnapshotInfo();
@@ -131,7 +128,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                         snapshotRepository,
                         snapshotName,
                         policyName,
-                        forceMergedIndexName,
+                        indexName,
                         snapInfo.failedShards(),
                         snapInfo.totalShards()
                     )

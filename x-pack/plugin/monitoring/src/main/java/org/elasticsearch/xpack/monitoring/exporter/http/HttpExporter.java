@@ -760,7 +760,7 @@ public class HttpExporter extends Exporter {
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
             final SslProfile profile = sslService.profile(concreteSetting.getKey());
-            sslStrategy = profile.ioSessionStrategy();
+            sslStrategy = profile.ioSessionStrategy4();
         }
         return sslStrategy;
     }

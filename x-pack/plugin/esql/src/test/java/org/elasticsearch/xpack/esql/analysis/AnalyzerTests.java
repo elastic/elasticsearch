@@ -57,7 +57,6 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
@@ -75,6 +74,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -88,8 +88,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -2349,41 +2349,14 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testDenseVectorImplicitCastingKnn() {
         assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
-        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled());
 
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkDenseVectorCastingHexKnn("float_vector");
-            checkDenseVectorCastingKnn("float_vector");
-        }
-        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS.isEnabled()) {
-            checkDenseVectorCastingKnn("byte_vector");
-            checkDenseVectorCastingHexKnn("byte_vector");
-            checkDenseVectorEvalCastingKnn("byte_vector");
-        }
-        if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
-            checkDenseVectorCastingKnn("bit_vector");
-            checkDenseVectorCastingHexKnn("bit_vector");
-            checkDenseVectorEvalCastingKnn("bit_vector");
-        }
+        checkDenseVectorCastingKnn("float_vector");
     }
 
     private static void checkDenseVectorCastingKnn(String fieldName) {
         var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, [0, 1, 2])
-            """, fieldName), "mapping-dense_vector.json");
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var knn = as(filter.condition(), Knn.class);
-        var conversion = as(knn.query(), ToDenseVector.class);
-        var literal = as(conversion.field(), Literal.class);
-        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
-    }
-
-    private static void checkDenseVectorCastingHexKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, "000102")
+            from test | where knn(%s, [0.342, 0.164, 0.234])
             """, fieldName), "mapping-dense_vector.json");
 
         var limit = as(plan, Limit.class);
@@ -2391,85 +2364,44 @@ public class AnalyzerTests extends ESTestCase {
         var knn = as(filter.condition(), Knn.class);
         var queryVector = as(knn.query(), Literal.class);
         assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        assertThat(queryVector.value(), equalTo(List.of(0.0f, 1.0f, 2.0f)));
-    }
-
-    private static void checkDenseVectorEvalCastingKnn(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
-            from test | eval query = to_dense_vector([0, 1, 2]) | where knn(%s, query)
-            """, fieldName), "mapping-dense_vector.json");
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var knn = as(filter.condition(), Knn.class);
-        var queryVector = as(knn.query(), ReferenceAttribute.class);
-        assertEquals(DataType.DENSE_VECTOR, queryVector.dataType());
-        assertThat(queryVector.name(), is("query"));
-    }
-
-    public void testDenseVectorImplicitCastingKnnQueryParams() {
-        checkDenseVectorCastingKnnQueryParams("float_vector");
-        checkDenseVectorCastingKnnQueryParams("byte_vector");
-        checkDenseVectorCastingKnnQueryParams("bit_vector");
-    }
-
-    private void checkDenseVectorCastingKnnQueryParams(String fieldName) {
-        var plan = analyze(String.format(Locale.ROOT, """
-            from test | where knn(%s, ?query_vector)
-            """, fieldName), "mapping-dense_vector.json", new QueryParams(List.of(paramAsConstant("query_vector", List.of(0, 1, 2)))));
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var knn = as(filter.condition(), Knn.class);
-        var queryVector = as(knn.query(), ToDenseVector.class);
-        var literal = as(queryVector.field(), Literal.class);
-        assertThat(literal.value(), equalTo(List.of(0, 1, 2)));
+        assertThat(queryVector.value(), equalTo(List.of(0.342f, 0.164f, 0.234f)));
     }
 
     public void testDenseVectorImplicitCastingSimilarityFunctions() {
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
-
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_cosine(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
+                List.of(0.342f, 0.164f, 0.234f)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_dot_product(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
+                List.of(0.342f, 0.164f, 0.234f)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_l1_norm(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
+                List.of(0.342f, 0.164f, 0.234f)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l1_norm(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_l2_norm(float_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
+                List.of(0.342f, 0.164f, 0.234f)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1, 2, 3));
-            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(bit_vector, [1, 2])", List.of(1, 2));
-            }
+            checkDenseVectorImplicitCastingSimilarityFunction("v_l2_norm(float_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkDenseVectorImplicitCastingSimilarityFunction(
                 "v_hamming(byte_vector, [0.342, 0.164, 0.234])",
-                List.of(0.342, 0.164, 0.234)
+                List.of(0.342f, 0.164f, 0.234f)
             );
-            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1, 2, 3));
-            if (EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS.isEnabled()) {
-                checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(bit_vector, [1, 2])", List.of(1, 2));
-            }
+            checkDenseVectorImplicitCastingSimilarityFunction("v_hamming(byte_vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
     }
 
@@ -2484,83 +2416,36 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("similarity", alias.name());
         var similarity = as(alias.child(), VectorSimilarityFunction.class);
         var left = as(similarity.left(), FieldAttribute.class);
-        assertThat(List.of("float_vector", "byte_vector", "bit_vector"), hasItem(left.name()));
-        var right = as(similarity.right(), ToDenseVector.class);
-        var literal = as(right.field(), Literal.class);
-        assertThat(literal.value(), equalTo(expectedElems));
-    }
-
-    public void testDenseVectorEvalCastingSimilarityFunctions() {
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
-
-        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_cosine(byte_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_dot_product(byte_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_l1_norm(byte_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_l2_norm(float_vector, query)");
-        }
-        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
-            checkDenseVectorEvalCastingSimilarityFunction("v_hamming(byte_vector, query)");
-        }
-    }
-
-    private void checkDenseVectorEvalCastingSimilarityFunction(String similarityFunction) {
-        var plan = analyze(String.format(Locale.ROOT, """
-            from test | eval query = to_dense_vector([0.342, 0.164, 0.234]) | eval similarity = %s
-            """, similarityFunction), "mapping-dense_vector.json");
-
-        var limit = as(plan, Limit.class);
-        var eval = as(limit.child(), Eval.class);
-        var alias = as(eval.fields().get(0), Alias.class);
-        assertEquals("similarity", alias.name());
-        var similarity = as(alias.child(), VectorSimilarityFunction.class);
-        var left = as(similarity.left(), FieldAttribute.class);
         assertThat(List.of("float_vector", "byte_vector"), hasItem(left.name()));
-        var right = as(similarity.right(), ReferenceAttribute.class);
+        var right = as(similarity.right(), Literal.class);
         assertThat(right.dataType(), is(DENSE_VECTOR));
-        assertThat(right.name(), is("query"));
+        assertThat(right.value(), equalTo(expectedElems));
     }
 
-    public void testVectorFunctionHexImplicitCastingError() {
-        assumeTrue("dense vector casting must be enabled", EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled());
-
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("where knn(float_vector, \"notcorrect\")");
+    public void testNoDenseVectorFailsSimilarityFunction() {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_cosine([0, 1, 2], 0.342)");
         }
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_dot_product(\"notcorrect\", 0.342)");
+            checkNoDenseVectorFailsSimilarityFunction("v_dot_product([0, 1, 2], 0.342)");
         }
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_l1_norm(\"notcorrect\", 0.342)");
+            checkNoDenseVectorFailsSimilarityFunction("v_l1_norm([0, 1, 2], 0.342)");
         }
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_l2_norm(\"notcorrect\", 0.342)");
+            checkNoDenseVectorFailsSimilarityFunction("v_l2_norm([0, 1, 2], 0.342)");
         }
         if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
-            checkVectorFunctionHexImplicitCastingError("eval s = v_hamming(\"notcorrect\", 0.342)");
+            checkNoDenseVectorFailsSimilarityFunction("v_hamming([0, 1, 2], 0.342)");
         }
     }
 
-    private void checkVectorFunctionHexImplicitCastingError(String clause) {
-        var query = "from test | " + clause;
-        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, "mapping-dense_vector.json"));
+    private void checkNoDenseVectorFailsSimilarityFunction(String similarityFunction) {
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval similarity = %s", similarityFunction);
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
         assertThat(
             error.getMessage(),
-            containsString(
-                "Cannot convert string [notcorrect] to [DENSE_VECTOR], "
-                    + "error [notcorrect is not a valid hex string: not a hexadecimal digit: \"n\" = 110]"
-            )
+            containsString("second argument of [" + similarityFunction + "] must be" + " [dense_vector], found value [0.342] type [double]")
         );
     }
 
@@ -2576,9 +2461,20 @@ public class AnalyzerTests extends ESTestCase {
         var alias = as(eval.fields().get(0), Alias.class);
         assertEquals("scalar", alias.name());
         var scalar = as(alias.child(), Magnitude.class);
-        var child = as(scalar.field(), ToDenseVector.class);
-        var literal = as(child.field(), Literal.class);
-        assertThat(literal.value(), equalTo(List.of(1, 2, 3)));
+        var child = as(scalar.field(), Literal.class);
+        assertThat(child.dataType(), is(DENSE_VECTOR));
+        assertThat(child.value(), equalTo(List.of(1.0f, 2.0f, 3.0f)));
+    }
+
+    public void testNoDenseVectorFailsForMagnitude() {
+        assumeTrue("v_magnitude not available", EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled());
+
+        var query = String.format(Locale.ROOT, "row a = 1 |  eval scalar = v_magnitude(0.342)");
+        VerificationException error = expectThrows(VerificationException.class, () -> analyze(query));
+        assertThat(
+            error.getMessage(),
+            containsString("first argument of [v_magnitude(0.342)] must be [dense_vector], found value [0.342] type [double]")
+        );
     }
 
     public void testRateRequiresCounterTypes() {
@@ -3598,7 +3494,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
@@ -3609,20 +3505,21 @@ public class AnalyzerTests extends ESTestCase {
 
         Limit limit = as(plan, Limit.class);
 
-        Aggregate aggregate = as(limit.child(), Aggregate.class);
-        assertThat(aggregate.groupings().size(), equalTo(2));
+        Dedup dedup = as(limit.child(), Dedup.class);
+        assertThat(dedup.groupings().size(), equalTo(2));
+        assertThat(dedup.aggregates().size(), equalTo(15));
 
-        FuseScoreEval scoreEval = as(aggregate.child(), FuseScoreEval.class);
-        assertThat(scoreEval.score(), instanceOf(ReferenceAttribute.class));
-        assertThat(scoreEval.score().name(), equalTo("_score"));
-        assertThat(scoreEval.discriminator(), instanceOf(ReferenceAttribute.class));
-        assertThat(scoreEval.discriminator().name(), equalTo("_fork"));
+        RrfScoreEval rrf = as(dedup.child(), RrfScoreEval.class);
+        assertThat(rrf.scoreAttribute(), instanceOf(ReferenceAttribute.class));
+        assertThat(rrf.scoreAttribute().name(), equalTo("_score"));
+        assertThat(rrf.forkAttribute(), instanceOf(ReferenceAttribute.class));
+        assertThat(rrf.forkAttribute().name(), equalTo("_fork"));
 
-        assertThat(scoreEval.child(), instanceOf(Fork.class));
+        assertThat(rrf.child(), instanceOf(Fork.class));
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -4244,6 +4141,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForDateAndDateNanosFields() {
+        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         Analyzer analyzer = AnalyzerTestUtils.analyzer(indexWithUnionTypedFields);
 

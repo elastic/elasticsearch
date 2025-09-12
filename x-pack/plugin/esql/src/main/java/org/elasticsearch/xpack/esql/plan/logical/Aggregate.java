@@ -114,26 +114,10 @@ public class Aggregate extends UnaryPlan
         return new Aggregate(source(), child, newGroupings, newAggregates);
     }
 
-    /**
-     * What this aggregation is grouped by. Generally, this corresponds to the {@code BY} clause, even though this command will not output
-     * those values unless they are also part of the {@link Aggregate#aggregates()}. This enables grouping without outputting the grouping
-     * keys, and makes it so that an {@link Aggregate}s also acts as a projection.
-     * <p>
-     * The actual grouping keys will be extracted from multivalues, so that if the grouping is on {@code mv_field}, and the document has
-     * {@code mv_field: [1, 2, 2]}, then the document will be part of the groups for both {@code mv_field=1} and {@code mv_field=2} (and
-     * counted only once in each group).
-     */
     public List<Expression> groupings() {
         return groupings;
     }
 
-    /**
-     * The actual aggregates to compute. This includes the grouping keys if they are to be output.
-     * <p>
-     * Multivalued grouping keys will be extracted into single values, so that if the grouping is on {@code mv_field}, and the document has
-     * {@code mv_field: [1, 2, 2]}, then the output will have two corresponding rows, one with {@code mv_field=1} and one with
-     * {@code mv_field=2}.
-     */
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
     }

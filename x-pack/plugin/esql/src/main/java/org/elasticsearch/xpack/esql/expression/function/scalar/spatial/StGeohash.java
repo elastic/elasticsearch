@@ -118,7 +118,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         description = """
             Calculates the `geohash` of the supplied geo_point at the specified precision.
             The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
-            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
+            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](esql-to_geoshape.md) to calculate
             the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
@@ -134,7 +134,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         ) Expression field,
         @Param(name = "precision", type = { "integer" }, description = """
             Expression of type `integer`. If `null`, the function returns `null`.
-            Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""") Expression precision,
+            Valid values are between [1 and 12](https://en.wikipedia.org/wiki/Geohash).""", optional = true) Expression precision,
         @Param(name = "bounds", type = { "geo_shape" }, description = """
             Optional bounds to filter the grid tiles, a `geo_shape` of type `BBOX`.
             Use [`ST_ENVELOPE`](#esql-st_envelope) if the `geo_shape` is of any other type.""", optional = true) Expression bounds

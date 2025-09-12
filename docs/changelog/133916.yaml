@@ -1,5 +1,0 @@
-pr: 133916
-summary: Fix model assignment error handling and assignment explanation generation
-area: Machine Learning
-type: bug
-issues: []

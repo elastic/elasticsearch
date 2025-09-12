@@ -55,7 +55,7 @@ class TSDataGenerationHelper {
         this.numDocs = numDocs;
         var maxAttributes = (int) Math.sqrt(numDocs);
         List<String> tempAttributeSet = List.copyOf(
-            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(3, 30)))
+            Set.copyOf(ESTestCase.randomList(1, maxAttributes, () -> ESTestCase.randomAlphaOfLengthBetween(2, 30)))
         );
         var maxTimeSeries = (int) Math.sqrt(numDocs);
         var minTimeSeries = Math.max(1, maxTimeSeries / 4);
@@ -119,12 +119,12 @@ class TSDataGenerationHelper {
 
                         (ignored) -> {
                             var res = new HashMap<String, Object>();
-                            res.put("counterl_hdd.bytes.read", Randomness.get().nextLong(0, 1000L));
+                            res.put("counter_hdd.bytes.read", Randomness.get().nextLong(0, 1000L));
                             // Counter metrics
                             switch (ESTestCase.randomIntBetween(0, 2)) {
-                                case 0 -> res.put("counterd_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
-                                case 1 -> res.put("gaugel_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
-                                case 2 -> res.put("gauged_cpu.percent", Randomness.get().nextDouble(0, 100));
+                                case 0 -> res.put("counter_kwh.consumed", Randomness.get().nextDouble(0, 1000000));
+                                case 1 -> res.put("gauge_hdd.bytes.used", Randomness.get().nextLong(0, 1000000000L));
+                                case 2 -> res.put("gauge_cpu.percent", Randomness.get().nextDouble(0, 100));
                             }
                             return res;
                         }
@@ -146,19 +146,19 @@ class TSDataGenerationHelper {
             List.of(
                 Map.of(
                     "counter_long",
-                    Map.of("path_match", "metrics.counterl_*", "mapping", Map.of("type", "long", "time_series_metric", "counter"))
+                    Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "long", "time_series_metric", "counter"))
                 ),
                 Map.of(
                     "counter_double",
-                    Map.of("path_match", "metrics.counterd_*", "mapping", Map.of("type", "double", "time_series_metric", "counter"))
+                    Map.of("path_match", "metrics.counter_*", "mapping", Map.of("type", "double", "time_series_metric", "counter"))
                 ),
                 Map.of(
                     "gauge_long",
-                    Map.of("path_match", "metrics.gaugel_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
+                    Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "long", "time_series_metric", "gauge"))
                 ),
                 Map.of(
                     "gauge_double",
-                    Map.of("path_match", "metrics.gauged_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
+                    Map.of("path_match", "metrics.gauge_*", "mapping", Map.of("type", "double", "time_series_metric", "gauge"))
                 )
             )
         );

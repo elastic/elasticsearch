@@ -223,8 +223,7 @@ public class TransportExplainLifecycleAction extends TransportLocalProjectMetada
                     stepInfoBytes,
                     previousStepInfoBytes,
                     phaseExecutionInfo,
-                    LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings),
-                    lifecycleState.forceMergeCloneIndexName()
+                    LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings)
                 );
             } else {
                 indexResponse = null;

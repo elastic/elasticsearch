@@ -45,8 +45,9 @@ dependencies {
       exclude group: 'org.bouncycastle'
   }
 
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "org.apache.httpcomponents:httpasyncclient:${versions.httpasyncclient}"
@@ -248,9 +249,7 @@ tasks.named("thirdPartyAudit").configure {
         'org.bouncycastle.openssl.jcajce.JcaPEMWriter',
         'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
         'org.bouncycastle.util.Arrays',
-        'org.bouncycastle.util.io.Streams',
-        // SLF4j
-        'org.slf4j.ext.EventData'
+        'org.bouncycastle.util.io.Streams'
     )
 
   ignoreViolations(

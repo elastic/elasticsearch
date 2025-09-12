@@ -861,7 +861,7 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value, allowDuplicates);
+                    appendValues(list, value);
                     map.put(leafKey, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
@@ -879,7 +879,7 @@ public final class IngestDocument {
                 Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
-                    appendValues(list, value, allowDuplicates);
+                    appendValues(list, value);
                     map.put(leafKey, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
@@ -933,16 +933,15 @@ public final class IngestDocument {
             list.add(maybeList);
         }
         if (allowDuplicates) {
-            innerAppendValues(list, value);
+            appendValues(list, value);
             return list;
         } else {
             // if no values were appended due to duplication, return the original object so the ingest document remains unmodified
-            return innerAppendValuesWithoutDuplicates(list, value) ? list : maybeList;
+            return appendValuesWithoutDuplicates(list, value) ? list : maybeList;
         }
     }
 
-    // helper method for use in appendValues above, please do not call this directly except from that method
-    private static void innerAppendValues(List<Object> list, Object value) {
+    private static void appendValues(List<Object> list, Object value) {
         if (value instanceof List<?> l) {
             list.addAll(l);
         } else {
@@ -950,8 +949,7 @@ public final class IngestDocument {
         }
     }
 
-    // helper method for use in appendValues above, please do not call this directly except from that method
-    private static boolean innerAppendValuesWithoutDuplicates(List<Object> list, Object value) {
+    private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value) {
         boolean valuesWereAppended = false;
         if (value instanceof List<?> valueList) {
             for (Object val : valueList) {

@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -56,17 +55,15 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         Expression right,
         boolean leftDocValues,
         boolean rightDocValues,
-        boolean pointsOnly,
-        boolean supportsGrid
+        boolean pointsOnly
     ) {
         super(source, left, right);
         this.leftDocValues = leftDocValues;
         this.rightDocValues = rightDocValues;
-        this.spatialTypeResolver = new SpatialTypeResolver(this, pointsOnly, supportsGrid);
+        this.spatialTypeResolver = new SpatialTypeResolver(this, pointsOnly);
     }
 
-    protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly, boolean supportsGrid)
-        throws IOException {
+    protected BinarySpatialFunction(StreamInput in, boolean leftDocValues, boolean rightDocValues, boolean pointsOnly) throws IOException {
         // The doc-values fields are only used on data nodes local planning, and therefor never serialized
         this(
             in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
@@ -76,8 +73,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             in.readNamedWriteable(Expression.class),
             leftDocValues,
             rightDocValues,
-            pointsOnly,
-            supportsGrid
+            pointsOnly
         );
     }
 
@@ -123,12 +119,10 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     static class SpatialTypeResolver {
         private final SpatialEvaluatorFactory.SpatialSourceResolution supplier;
         private final boolean pointsOnly;
-        private final boolean supportsGrid;
 
-        SpatialTypeResolver(SpatialEvaluatorFactory.SpatialSourceResolution supplier, boolean pointsOnly, boolean supportsGrid) {
+        SpatialTypeResolver(SpatialEvaluatorFactory.SpatialSourceResolution supplier, boolean pointsOnly) {
             this.supplier = supplier;
             this.pointsOnly = pointsOnly;
-            this.supportsGrid = supportsGrid;
         }
 
         public Expression left() {
@@ -153,16 +147,10 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             }
         }
 
-        protected Expression.TypeResolution isCompatibleSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
+        protected Expression.TypeResolution isSpatial(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
             return pointsOnly
                 ? EsqlTypeResolutions.isSpatialPoint(e, sourceText(), paramOrd)
-                : (supportsGrid
-                    ? EsqlTypeResolutions.isSpatialOrGrid(e, sourceText(), paramOrd)
-                    : EsqlTypeResolutions.isSpatial(e, sourceText(), paramOrd));
-        }
-
-        protected Expression.TypeResolution isGeoPoint(Expression e, TypeResolutions.ParamOrdinal paramOrd) {
-            return isType(e, GEO_POINT::equals, sourceText(), paramOrd, GEO_POINT.typeName());
+                : EsqlTypeResolutions.isSpatial(e, sourceText(), paramOrd);
         }
 
         private TypeResolution resolveType(
@@ -171,8 +159,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             TypeResolutions.ParamOrdinal leftOrdinal,
             TypeResolutions.ParamOrdinal rightOrdinal
         ) {
-            TypeResolution leftResolution = isCompatibleSpatial(leftExpression, leftOrdinal);
-            TypeResolution rightResolution = isCompatibleSpatial(rightExpression, rightOrdinal);
+            TypeResolution leftResolution = isSpatial(leftExpression, leftOrdinal);
+            TypeResolution rightResolution = isSpatial(rightExpression, rightOrdinal);
             if (leftResolution.resolved()) {
                 return resolveType(leftExpression, rightExpression, rightOrdinal);
             } else if (rightResolution.resolved()) {
@@ -188,17 +176,9 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             TypeResolutions.ParamOrdinal otherParamOrdinal
         ) {
             if (isNull(spatialExpression.dataType())) {
-                return isCompatibleSpatial(otherExpression, otherParamOrdinal);
+                return isSpatial(otherExpression, otherParamOrdinal);
             }
             TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
-            // TODO Remove these grid checks once we support geo_shape relation to geoGrid
-            // but retain a rule to disallow grid-grid relations
-            if (resolution.resolved() && DataType.isGeoGrid(spatialExpression.dataType())) {
-                resolution = isGeoPoint(otherExpression, otherParamOrdinal);
-            }
-            if (resolution.resolved() && DataType.isGeoGrid(otherExpression.dataType())) {
-                resolution = isGeoPoint(spatialExpression, otherParamOrdinal == FIRST ? SECOND : FIRST);
-            }
             if (resolution.unresolved()) {
                 return resolution;
             }
@@ -212,12 +192,15 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             String operationName,
             TypeResolutions.ParamOrdinal paramOrd
         ) {
-            Predicate<DataType> isSpatialType = pointsOnly
-                ? dt -> dt == spatialDataType
-                : (supportsGrid
-                    ? dt -> DataType.isSpatialOrGrid(dt) && spatialCRSCompatible(spatialDataType, dt)
-                    : dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt));
-            return isType(expression, isSpatialType, operationName, paramOrd, compatibleTypeNames(spatialDataType));
+            return pointsOnly
+                ? isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType))
+                : isType(
+                    expression,
+                    dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt),
+                    operationName,
+                    paramOrd,
+                    compatibleTypeNames(spatialDataType)
+                );
         }
     }
 
@@ -265,7 +248,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
         public static SpatialCrsType fromDataType(DataType dataType) {
             return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : DataType.isSpatialOrGrid(dataType) ? SpatialCrsType.CARTESIAN
+                : DataType.isSpatial(dataType) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }
     }
@@ -295,8 +278,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         // The use of foldable here instead of SpatialEvaluatorFieldKey.isConstant is intentional to match the behavior of the
         // Lucene pushdown code in EsqlTranslationHandler::SpatialRelatesTranslator
         // We could enhance both places to support ReferenceAttributes that refer to constants, but that is a larger change
-        return isPushableSpatialAttribute(left(), pushdownPredicates) && isPushableLiteralAttribute(right())
-            || isPushableSpatialAttribute(right(), pushdownPredicates) && isPushableLiteralAttribute(left())
+        return isPushableSpatialAttribute(left(), pushdownPredicates) && right().foldable()
+            || isPushableSpatialAttribute(right(), pushdownPredicates) && left().foldable()
                 ? TranslationAware.Translatable.YES
                 : TranslationAware.Translatable.NO;
 
@@ -304,10 +287,5 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
     private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
         return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
-    }
-
-    private static boolean isPushableLiteralAttribute(Expression exp) {
-        // TODO: Support pushdown of geo-grid queries where the constant is a geo-grid-id literal
-        return DataType.isSpatial(exp.dataType()) && exp.foldable();
     }
 }

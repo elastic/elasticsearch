@@ -71,7 +71,6 @@ public class SyntheticSourceRollingUpgradeIT extends AbstractRollingUpgradeWithS
     }
 
     public void testIndexing() throws Exception {
-        assumeTrue("requires storing leaf array offsets", oldClusterHasFeature("gte_v9.1.0"));
         String dataStreamName = "logs-bwc-test";
         if (isOldCluster()) {
             startTrial();

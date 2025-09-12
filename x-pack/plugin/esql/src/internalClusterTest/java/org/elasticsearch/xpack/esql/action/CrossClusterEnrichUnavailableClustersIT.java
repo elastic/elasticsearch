@@ -78,10 +78,18 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSkipped(cluster1);
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster1.getTotalShards(), equalTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                    assertClusterInfoSuccess(cluster2, cluster2.getSuccessfulShards());
+                    assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster2.getTotalShards(), greaterThanOrEqualTo(0));
+                    assertThat(cluster2.getSuccessfulShards(), equalTo(cluster2.getSuccessfulShards()));
+                    assertThat(cluster2.getSkippedShards(), equalTo(0));
+                    assertThat(cluster2.getFailedShards(), equalTo(0));
                 }
             }
 
@@ -108,10 +116,18 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSkipped(cluster1);
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster1.getTotalShards(), equalTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                    assertClusterInfoSkipped(cluster2);
+                    assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster2.getTotalShards(), equalTo(0));
+                    assertThat(cluster2.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster2.getSkippedShards(), equalTo(0));
+                    assertThat(cluster2.getFailedShards(), equalTo(0));
                 }
             }
         } finally {
@@ -144,10 +160,18 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSkipped(cluster1);
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster1.getTotalShards(), equalTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                    assertClusterInfoSuccess(cluster2, cluster2.getSuccessfulShards());
+                    assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster2.getTotalShards(), greaterThanOrEqualTo(0));
+                    assertThat(cluster2.getSuccessfulShards(), equalTo(cluster2.getSuccessfulShards()));
+                    assertThat(cluster2.getSkippedShards(), equalTo(0));
+                    assertThat(cluster2.getFailedShards(), equalTo(0));
                 }
             }
 
@@ -194,13 +218,25 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertCCSExecutionInfoDetails(executionInfo);
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSuccess(cluster1, cluster1.getSuccessfulShards());
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster1.getTotalShards(), greaterThanOrEqualTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(cluster1.getSuccessfulShards()));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                    assertClusterInfoSkipped(cluster2);
+                    assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster2.getTotalShards(), equalTo(0));
+                    assertThat(cluster2.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster2.getSkippedShards(), equalTo(0));
+                    assertThat(cluster2.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                    assertClusterInfoSuccess(localCluster, localCluster.getSuccessfulShards());
+                    assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(localCluster.getTotalShards(), greaterThan(0));
+                    assertThat(localCluster.getSuccessfulShards(), equalTo(localCluster.getTotalShards()));
+                    assertThat(localCluster.getSkippedShards(), equalTo(0));
+                    assertThat(localCluster.getFailedShards(), equalTo(0));
                 }
             }
 
@@ -228,13 +264,26 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                         assertCCSExecutionInfoDetails(executionInfo);
 
                         EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                        assertClusterInfoSkipped(cluster1);
+                        assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                        assertThat(cluster1.getTotalShards(), equalTo(0));
+                        assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                        assertThat(cluster1.getSkippedShards(), equalTo(0));
+                        assertThat(cluster1.getFailedShards(), equalTo(0));
+                        assertThat(cluster1.getTook().millis(), greaterThanOrEqualTo(0L));
 
                         EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                        assertClusterInfoSkipped(cluster2);
+                        assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                        assertThat(cluster2.getTotalShards(), equalTo(0));
+                        assertThat(cluster2.getSuccessfulShards(), equalTo(0));
+                        assertThat(cluster2.getSkippedShards(), equalTo(0));
+                        assertThat(cluster2.getFailedShards(), equalTo(0));
 
                         EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                        assertClusterInfoSuccess(localCluster, localCluster.getSuccessfulShards());
+                        assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                        assertThat(localCluster.getTotalShards(), greaterThan(0));
+                        assertThat(localCluster.getSuccessfulShards(), equalTo(localCluster.getTotalShards()));
+                        assertThat(localCluster.getSkippedShards(), equalTo(0));
+                        assertThat(localCluster.getFailedShards(), equalTo(0));
                     }
                 }
             }
@@ -277,10 +326,18 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertCCSExecutionInfoDetails(executionInfo);
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSkipped(cluster1);
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster1.getTotalShards(), equalTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                    assertClusterInfoSuccess(localCluster, localCluster.getSuccessfulShards());
+                    assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(localCluster.getTotalShards(), greaterThan(0));
+                    assertThat(localCluster.getSuccessfulShards(), equalTo(localCluster.getTotalShards()));
+                    assertThat(localCluster.getSkippedShards(), equalTo(0));
+                    assertThat(localCluster.getFailedShards(), equalTo(0));
                 }
             }
         } finally {
@@ -325,7 +382,11 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertCCSExecutionInfoDetails(executionInfo);
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSkipped(cluster1);
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster1.getTotalShards(), equalTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
                 }
             }
         } finally {
@@ -366,13 +427,26 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                     assertCCSExecutionInfoDetails(executionInfo);
 
                     EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                    assertClusterInfoSkipped(cluster1);
+                    assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(cluster1.getTotalShards(), equalTo(0));
+                    assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                    assertThat(cluster1.getSkippedShards(), equalTo(0));
+                    assertThat(cluster1.getFailedShards(), equalTo(0));
+                    assertThat(cluster1.getTook().millis(), greaterThanOrEqualTo(0L));
 
                     EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                    assertClusterInfoSuccess(cluster2, cluster2.getSuccessfulShards());
+                    assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(cluster2.getTotalShards(), greaterThan(0));
+                    assertThat(cluster2.getSuccessfulShards(), equalTo(cluster2.getSuccessfulShards()));
+                    assertThat(cluster2.getSkippedShards(), equalTo(0));
+                    assertThat(cluster2.getFailedShards(), equalTo(0));
 
                     EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                    assertClusterInfoSuccess(localCluster, localCluster.getSuccessfulShards());
+                    assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(localCluster.getTotalShards(), greaterThan(0));
+                    assertThat(localCluster.getSuccessfulShards(), equalTo(localCluster.getTotalShards()));
+                    assertThat(localCluster.getSkippedShards(), equalTo(0));
+                    assertThat(localCluster.getFailedShards(), equalTo(0));
                 }
             }
 
@@ -404,13 +478,26 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
                         assertCCSExecutionInfoDetails(executionInfo);
 
                         EsqlExecutionInfo.Cluster cluster1 = executionInfo.getCluster(REMOTE_CLUSTER_1);
-                        assertClusterInfoSkipped(cluster1);
+                        assertThat(cluster1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                        assertThat(cluster1.getTotalShards(), equalTo(0));
+                        assertThat(cluster1.getSuccessfulShards(), equalTo(0));
+                        assertThat(cluster1.getSkippedShards(), equalTo(0));
+                        assertThat(cluster1.getFailedShards(), equalTo(0));
+                        assertThat(cluster1.getTook().millis(), greaterThanOrEqualTo(0L));
 
                         EsqlExecutionInfo.Cluster cluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
-                        assertClusterInfoSkipped(cluster2);
+                        assertThat(cluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                        assertThat(cluster2.getTotalShards(), equalTo(0));
+                        assertThat(cluster2.getSuccessfulShards(), equalTo(0));
+                        assertThat(cluster2.getSkippedShards(), equalTo(0));
+                        assertThat(cluster2.getFailedShards(), equalTo(0));
 
                         EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-                        assertClusterInfoSuccess(localCluster, localCluster.getSuccessfulShards());
+                        assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                        assertThat(localCluster.getTotalShards(), greaterThan(0));
+                        assertThat(localCluster.getSuccessfulShards(), equalTo(localCluster.getTotalShards()));
+                        assertThat(localCluster.getSkippedShards(), equalTo(0));
+                        assertThat(localCluster.getFailedShards(), equalTo(0));
                     }
                 }
             }

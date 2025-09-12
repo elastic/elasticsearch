@@ -16,7 +16,6 @@ import org.elasticsearch.script.field.Field;
 
 import java.util.Iterator;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 
 public abstract class DenseVectorDocValuesField extends AbstractScriptFieldFactory<DenseVector>
@@ -39,10 +38,6 @@ public abstract class DenseVectorDocValuesField extends AbstractScriptFieldFacto
 
     public ElementType getElementType() {
         return elementType;
-    }
-
-    public Element getElement() {
-        return Element.getElement(elementType);
     }
 
     @Override

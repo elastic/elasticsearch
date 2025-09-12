@@ -64,7 +64,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
             var expected = Double.isFinite(result) ? result : null;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                standardAggregatorName("StdDev", fieldSupplier.type()),
+                "StdDev[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
                 equalTo(expected)
             );

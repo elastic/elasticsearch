@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
@@ -18,20 +19,19 @@ import org.elasticsearch.search.ErrorTraceHelper;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 
-@TestLogging(
-    reason = "testing debug log output to identify race condition",
-    value = "org.elasticsearch.xpack.search.MutableSearchResponse:DEBUG,org.elasticsearch.xpack.search.AsyncSearchTask:DEBUG"
-)
 public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
+    private BooleanSupplier transportMessageHasStackTrace;
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -47,6 +47,18 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     @BeforeClass
     public static void setDebugLogLevel() {
         Configurator.setLevel(SearchService.class, Level.DEBUG);
+    }
+
+    @Before
+    public void setupMessageListener() {
+        transportMessageHasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
+        // TODO: make this test work with batched query execution by enhancing ErrorTraceHelper.setupErrorTraceListener
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
+    }
+
+    @After
+    public void resetSettings() {
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     private void setupIndexWithDocs() {
@@ -82,7 +94,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             awaitAsyncRequestDoneRunning(getAsyncRequest);
         }
         // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrue() throws Exception {
@@ -110,7 +122,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             awaitAsyncRequestDoneRunning(getAsyncRequest);
         }
         // check that the stack trace was sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
+        assertTrue(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceFalse() throws Exception {
@@ -138,7 +150,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             awaitAsyncRequestDoneRunning(getAsyncRequest);
         }
         // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testDataNodeLogsStackTrace() throws Exception {
@@ -213,7 +225,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             awaitAsyncRequestDoneRunning(getAsyncRequest);
         }
         // check that the stack trace was not sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceCleared(internalCluster());
+        assertFalse(transportMessageHasStackTrace.getAsBoolean());
     }
 
     public void testAsyncSearchFailingQueryErrorTraceTrueOnSubmitAndFalseOnGet() throws Exception {
@@ -241,7 +253,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
             awaitAsyncRequestDoneRunning(getAsyncRequest);
         }
         // check that the stack trace was sent from the data node to the coordinating node
-        ErrorTraceHelper.assertStackTraceObserved(internalCluster());
+        assertTrue(transportMessageHasStackTrace.getAsBoolean());
     }
 
     private Map<String, Object> performRequestAndGetResponseEntity(Request r) throws IOException {

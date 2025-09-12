@@ -55,32 +55,38 @@ public class TransportUpdateDataStreamMappingsActionIT extends ESIntegTestCase {
         createDataStream(dataStreamName);
 
         Map<String, Object> originalMappings = Map.of(
-            "dynamic",
-            "strict",
-            "_data_stream_timestamp",
-            Map.of("enabled", true),
-            "properties",
-            Map.of("@timestamp", Map.of("type", "date"), "foo1", Map.of("type", "text"), "foo2", Map.of("type", "text"))
+            "_doc",
+            Map.of(
+                "dynamic",
+                "strict",
+                "_data_stream_timestamp",
+                Map.of("enabled", true),
+                "properties",
+                Map.of("@timestamp", Map.of("type", "date"), "foo1", Map.of("type", "text"), "foo2", Map.of("type", "text"))
+            )
         );
         Map<String, Object> mappingOverrides = Map.of(
             "properties",
             Map.of("foo2", Map.of("type", "keyword"), "foo3", Map.of("type", "text"))
         );
         Map<String, Object> expectedEffectiveMappings = Map.of(
-            "dynamic",
-            "strict",
-            "_data_stream_timestamp",
-            Map.of("enabled", true),
-            "properties",
+            "_doc",
             Map.of(
-                "@timestamp",
-                Map.of("type", "date"),
-                "foo1",
-                Map.of("type", "text"),
-                "foo2",
-                Map.of("type", "keyword"),
-                "foo3",
-                Map.of("type", "text")
+                "dynamic",
+                "strict",
+                "_data_stream_timestamp",
+                Map.of("enabled", true),
+                "properties",
+                Map.of(
+                    "@timestamp",
+                    Map.of("type", "date"),
+                    "foo1",
+                    Map.of("type", "text"),
+                    "foo2",
+                    Map.of("type", "keyword"),
+                    "foo3",
+                    Map.of("type", "text")
+                )
             )
         );
         assertExpectedMappings(dataStreamName, Map.of(), originalMappings);
@@ -131,13 +137,15 @@ public class TransportUpdateDataStreamMappingsActionIT extends ESIntegTestCase {
     private void createDataStream(String dataStreamName) throws IOException {
         String mappingString = """
             {
-              "dynamic":"strict",
-              "properties":{
-                "foo1":{
-                  "type":"text"
-                },
-                "foo2":{
-                  "type":"text"
+              "_doc":{
+                "dynamic":"strict",
+                "properties":{
+                  "foo1":{
+                    "type":"text"
+                  },
+                  "foo2":{
+                    "type":"text"
+                  }
                 }
               }
             }

@@ -81,7 +81,7 @@ public class FirstTests extends AbstractAggregationTestCase {
                 }
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
-                    standardAggregatorName(first ? "First" : "Last", values.type()) + "ByTimestamp",
+                    "unused",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );

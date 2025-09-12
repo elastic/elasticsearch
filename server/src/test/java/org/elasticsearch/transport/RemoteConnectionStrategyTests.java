@@ -9,26 +9,13 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Level;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EnumSerializationTestUtils;
-import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.transport.RemoteClusterSettings.ProxyConnectionStrategySettings.PROXY_ADDRESS;
 import static org.elasticsearch.transport.RemoteClusterSettings.REMOTE_CONNECTION_MODE;
 import static org.elasticsearch.transport.RemoteClusterSettings.SniffConnectionStrategySettings.REMOTE_CLUSTER_SEEDS;
@@ -184,148 +171,21 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         );
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.transport.RemoteConnectionStrategyTests.FakeConnectionStrategy:DEBUG",
-        reason = "logging verification"
-    )
-    public void testConnectionAttemptLogging() {
-        final var originProjectId = randomUniqueProjectId();
-        final var linkedProjectId = randomUniqueProjectId();
-        final var alias = randomAlphanumericOfLength(10);
-
-        try (
-            var threadPool = new TestThreadPool(getClass().getName());
-            var transportService = startTransport(threadPool);
-            var connectionManager = new RemoteConnectionManager(
-                alias,
-                RemoteClusterCredentialsManager.EMPTY,
-                new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class), threadContext)
-            )
-        ) {
-            for (boolean shouldConnectFail : new boolean[] { true, false }) {
-                for (boolean isIntialConnectAttempt : new boolean[] { true, false }) {
-                    final var strategy = new FakeConnectionStrategy(
-                        originProjectId,
-                        linkedProjectId,
-                        alias,
-                        transportService,
-                        connectionManager
-                    );
-                    if (isIntialConnectAttempt == false) {
-                        waitForConnect(strategy);
-                    }
-                    strategy.setShouldConnectFail(shouldConnectFail);
-                    final var expectedLogLevel = shouldConnectFail ? Level.WARN : Level.DEBUG;
-                    final var expectedLogMessage = Strings.format(
-                        "Origin project [%s] %s to linked project [%s] with alias [%s] on %s attempt",
-                        originProjectId,
-                        shouldConnectFail ? "failed to connect" : "successfully connected",
-                        linkedProjectId,
-                        alias,
-                        isIntialConnectAttempt ? "the initial connection" : "a reconnection"
-                    );
-                    assertThatLogger(() -> {
-                        if (shouldConnectFail) {
-                            assertThrows(RuntimeException.class, () -> waitForConnect(strategy));
-                        } else {
-                            waitForConnect(strategy);
-                        }
-                    },
-                        strategy.getClass(),
-                        new MockLog.SeenEventExpectation(
-                            "connection strategy should log at "
-                                + expectedLogLevel
-                                + " after a "
-                                + (shouldConnectFail ? "failed" : "successful")
-                                + (isIntialConnectAttempt ? " initial connection attempt" : " reconnection attempt"),
-                            strategy.getClass().getCanonicalName(),
-                            expectedLogLevel,
-                            expectedLogMessage
-                        )
-                    );
-                }
-            }
-        }
-    }
-
-    private MockTransportService startTransport(ThreadPool threadPool) {
-        boolean success = false;
-        final Settings s = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "cluster1").put("node.name", "node1").build();
-        MockTransportService newService = MockTransportService.createNewService(
-            s,
-            VersionInformation.CURRENT,
-            TransportVersion.current(),
-            threadPool
-        );
-        try {
-            newService.start();
-            newService.acceptIncomingRequests();
-            success = true;
-            return newService;
-        } finally {
-            if (success == false) {
-                newService.close();
-            }
-        }
-    }
-
-    private static void waitForConnect(RemoteConnectionStrategy strategy) {
-        PlainActionFuture<Void> connectFuture = new PlainActionFuture<>();
-        strategy.connect(connectFuture);
-        connectFuture.actionGet();
-    }
-
     private static class FakeConnectionStrategy extends RemoteConnectionStrategy {
 
         private final ConnectionStrategy strategy;
-        private boolean shouldConnectFail;
 
         FakeConnectionStrategy(
-            ProjectId originProjectId,
-            ProjectId linkedProjectId,
-            String clusterAlias,
-            TransportService transportService,
-            RemoteConnectionManager connectionManager
-        ) {
-            this(
-                originProjectId,
-                linkedProjectId,
-                clusterAlias,
-                transportService,
-                connectionManager,
-                randomFrom(RemoteConnectionStrategy.ConnectionStrategy.values())
-            );
-        }
-
-        FakeConnectionStrategy(
-            String clusterAlias,
-            TransportService transportService,
-            RemoteConnectionManager connectionManager,
-            RemoteConnectionStrategy.ConnectionStrategy strategy
-        ) {
-            this(ProjectId.DEFAULT, ProjectId.DEFAULT, clusterAlias, transportService, connectionManager, strategy);
-        }
-
-        FakeConnectionStrategy(
-            ProjectId originProjectId,
-            ProjectId linkedProjectId,
             String clusterAlias,
             TransportService transportService,
             RemoteConnectionManager connectionManager,
             RemoteConnectionStrategy.ConnectionStrategy strategy
         ) {
             super(switch (strategy) {
-                case PROXY -> new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
-                    .build();
-                case SNIFF -> new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(originProjectId, linkedProjectId, clusterAlias)
-                    .build();
+                case PROXY -> new LinkedProjectConfig.ProxyLinkedProjectConfigBuilder(clusterAlias).build();
+                case SNIFF -> new LinkedProjectConfig.SniffLinkedProjectConfigBuilder(clusterAlias).build();
             }, transportService, connectionManager);
             this.strategy = strategy;
-            this.shouldConnectFail = false;
-        }
-
-        void setShouldConnectFail(boolean shouldConnectFail) {
-            this.shouldConnectFail = shouldConnectFail;
         }
 
         @Override
@@ -345,11 +205,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
 
         @Override
         protected void connectImpl(ActionListener<Void> listener) {
-            if (shouldConnectFail) {
-                listener.onFailure(new RuntimeException("simulated failure"));
-            } else {
-                listener.onResponse(null);
-            }
+
         }
 
         @Override

@@ -18,7 +18,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -1848,25 +1847,11 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(
         LongSupplier nowInMillis,
-        TransportVersion minTransportVersion,
-        String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain
     ) {
-        return new QueryRewriteContext(
-            parserConfig,
-            client,
-            nowInMillis,
-            minTransportVersion,
-            clusterAlias,
-            resolvedIndices,
-            pit,
-            queryRewriteInterceptor,
-            ccsMinimizeRoundTrips,
-            isExplain
-        );
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, isExplain);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

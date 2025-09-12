@@ -14,13 +14,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,8 +38,8 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
         HashMap<String, Set<String>> potentialFieldsInIgnoreSource = new HashMap<>();
         for (String requiredIgnoredField : spec.ignoredFieldsSpec().requiredIgnoredFields()) {
-            for (String potentialIgnoredField : FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(requiredIgnoredField)) {
-                potentialFieldsInIgnoreSource.computeIfAbsent(potentialIgnoredField, k -> new HashSet<>()).add(requiredIgnoredField);
+            for (String potentialStoredField : spec.ignoredFieldsSpec().format().requiredStoredFields(requiredIgnoredField)) {
+                potentialFieldsInIgnoreSource.computeIfAbsent(potentialStoredField, k -> new HashSet<>()).add(requiredIgnoredField);
             }
         }
         this.potentialFieldsInIgnoreSource = potentialFieldsInIgnoreSource;
@@ -84,7 +82,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
             @Override
             public Map<String, List<Object>> storedFields() {
-                return Map.of(IgnoredSourceFieldMapper.NAME, Collections.unmodifiableList(visitor.values));
+                return visitor.values;
             }
         };
     }
@@ -95,7 +93,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
     }
 
     static class SFV extends StoredFieldVisitor {
-        List<List<IgnoredSourceFieldMapper.NameValue>> values = new ArrayList<>();
+        final Map<String, List<Object>> values = new HashMap<>();
         final Set<String> fieldNames;
         private final Set<String> unvisitedFields;
         final Map<String, Set<String>> potentialFieldsInIgnoreSource;
@@ -112,26 +110,18 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
                 return Status.STOP;
             }
 
-            if (fieldInfo.name.equals(IgnoredSourceFieldMapper.NAME)) {
-                return Status.YES;
+            Set<String> foundFields = potentialFieldsInIgnoreSource.get(fieldInfo.name);
+            if (foundFields == null) {
+                return Status.NO;
             }
 
-            return Status.NO;
+            unvisitedFields.removeAll(foundFields);
+            return Status.YES;
         }
 
         @Override
         public void binaryField(FieldInfo fieldInfo, byte[] value) {
-            var nameValues = IgnoredSourceFieldMapper.CoalescedIgnoredSourceEncoding.decode(new BytesRef(value));
-            assert nameValues.isEmpty() == false;
-            String fieldPath = nameValues.getFirst().name();
-
-            Set<String> foundValues = potentialFieldsInIgnoreSource.get(fieldPath);
-            if (foundValues == null) {
-                return;
-            }
-
-            unvisitedFields.removeAll(foundValues);
-            values.add(nameValues);
+            values.computeIfAbsent(fieldInfo.name, k -> new ArrayList<>()).add(new BytesRef(value));
         }
 
         void reset() {
@@ -143,6 +133,6 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
     static boolean supports(StoredFieldsSpec spec) {
         return spec.onlyRequiresIgnoredFields()
-            && spec.ignoredFieldsSpec().format() == IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE;
+            && spec.ignoredFieldsSpec().format() == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE;
     }
 }

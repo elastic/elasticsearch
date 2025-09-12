@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Updates the score column with new scores using the RRF formula.
@@ -24,12 +23,10 @@ import java.util.Map;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights)
-        implements
-            OperatorFactory {
+    public record Factory(int forkPosition, int scorePosition) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(forkPosition, scorePosition, rankConstant, weights);
+            return new RrfScoreEvalOperator(forkPosition, scorePosition);
         }
 
         @Override
@@ -41,33 +38,26 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
     private final int scorePosition;
     private final int forkPosition;
-    private final double rankConstant;
-    private final Map<String, Double> weights;
 
     private HashMap<String, Integer> counters = new HashMap<>();
 
-    public RrfScoreEvalOperator(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights) {
+    public RrfScoreEvalOperator(int forkPosition, int scorePosition) {
         this.scorePosition = scorePosition;
         this.forkPosition = forkPosition;
-        this.rankConstant = rankConstant;
-        this.weights = weights;
     }
 
     @Override
     protected Page process(Page page) {
-        BytesRefBlock discriminatorBlock = (BytesRefBlock) page.getBlock(forkPosition);
+        BytesRefBlock forkBlock = (BytesRefBlock) page.getBlock(forkPosition);
 
-        DoubleVector.Builder scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
+        DoubleVector.Builder scores = forkBlock.blockFactory().newDoubleVectorBuilder(forkBlock.getPositionCount());
 
         for (int i = 0; i < page.getPositionCount(); i++) {
-            String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
+            String fork = forkBlock.getBytesRef(i, new BytesRef()).utf8ToString();
 
-            int rank = counters.getOrDefault(discriminator, 1);
-            counters.put(discriminator, rank + 1);
-
-            var weight = weights.getOrDefault(discriminator, 1.0);
-
-            scores.appendDouble(1.0 / (this.rankConstant + rank) * weight);
+            int rank = counters.getOrDefault(fork, 1);
+            counters.put(fork, rank + 1);
+            scores.appendDouble(1.0 / (60 + rank));
         }
 
         Block scoreBlock = scores.build().asBlock();

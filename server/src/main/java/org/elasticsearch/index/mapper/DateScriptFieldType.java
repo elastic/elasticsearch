@@ -148,8 +148,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta,
-            scriptFactory.isParsedFromSource()
+            meta
         );
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();

@@ -14,7 +14,6 @@ import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.TaskOutcome
 
 class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
-
     def javaResource(String project, String path, String content) {
         file("${project}/src/main/resources/${path}").withWriter { writer ->
             writer << content
@@ -46,18 +45,10 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         return referableAndReferencedTransportVersion(name, ids, "Test${name.capitalize()}")
     }
 
-    def referencedTransportVersion(String name) {
-        referencedTransportVersion(name, "Test${name.capitalize()}")
-    }
-
-    def referencedTransportVersion(String name, String classname) {
+    def referableAndReferencedTransportVersion(String name, String ids, String classname) {
         javaSource("myserver", "org.elasticsearch", classname, "", """
             static final TransportVersion usage = TransportVersion.fromName("${name}");
         """)
-    }
-
-    def referableAndReferencedTransportVersion(String name, String ids, String classname) {
-        referencedTransportVersion(name, classname)
         referableTransportVersion(name, ids)
     }
 
@@ -83,31 +74,6 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         assertOutputContains(result.output, expectedOutput)
     }
 
-    void assertReferableDefinition(String name, String content) {
-        File definitionFile = file("myserver/src/main/resources/transport/definitions/referable/${name}.csv")
-        assert definitionFile.exists()
-        assert definitionFile.text.strip() == content
-    }
-
-    void assertReferableDefinitionDoesNotExist(String name) {
-        assert file("myserver/src/main/resources/transport/definitions/referable/${name}.csv").exists() == false
-    }
-
-    void assertUnreferableDefinition(String name, String content) {
-        File definitionFile = file("myserver/src/main/resources/transport/definitions/unreferable/${name}.csv")
-        assert definitionFile.exists()
-        assert definitionFile.text.strip() == content
-    }
-
-    void assertUpperBound(String name, String content) {
-        assert file("myserver/src/main/resources/transport/upper_bounds/${name}.csv").text.strip() == content
-    }
-
-    void assertNoChanges() {
-        String output = execute("git diff")
-        assert output.strip().isEmpty() : "Expected no local git changes, but found:${System.lineSeparator()}${output}"
-    }
-
     def setup() {
         configurationCacheCompatible = false
         internalBuild()
@@ -115,25 +81,17 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             include ':myserver'
             include ':myplugin'
         """
-        versionPropertiesFile.text = versionPropertiesFile.text.replace("9.1.0", "9.2.0")
 
         file("myserver/build.gradle") << """
             apply plugin: 'java-library'
             apply plugin: 'elasticsearch.transport-version-references'
             apply plugin: 'elasticsearch.transport-version-resources'
-
-            tasks.named('generateTransportVersionDefinition') {
-                currentUpperBoundName = '9.2'
-            }
         """
         referableTransportVersion("existing_91", "8012000")
         referableTransportVersion("existing_92", "8123000,8012001")
-        unreferableTransportVersion("initial_9.0.0", "8000000")
-        unreferableTransportVersion("initial_8.19.7", "7123001")
+        unreferableTransportVersion("initial_9_0_0", "8000000")
         transportVersionUpperBound("9.2", "existing_92", "8123000")
         transportVersionUpperBound("9.1", "existing_92", "8012001")
-        transportVersionUpperBound("9.0", "initial_9.0.0", "8000000")
-        transportVersionUpperBound("8.19", "initial_8.19.7", "7123001")
         // a mock version of TransportVersion, just here so we can compile Dummy.java et al
         javaSource("myserver", "org.elasticsearch", "TransportVersion", "", """
             public static TransportVersion fromName(String name) {

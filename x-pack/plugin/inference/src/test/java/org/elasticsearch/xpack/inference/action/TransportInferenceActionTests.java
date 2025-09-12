@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.RateLimitAssignment;
-import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.List;
 
@@ -49,7 +49,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         TransportService transportService,
         ActionFilters actionFilters,
         MockLicenseState licenseState,
-        InferenceEndpointRegistry inferenceEndpointRegistry,
+        ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
@@ -61,7 +61,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
             transportService,
             actionFilters,
             licenseState,
-            inferenceEndpointRegistry,
+            modelRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,

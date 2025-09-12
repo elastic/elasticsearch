@@ -142,14 +142,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public boolean isDimension() {
-        // We don't want to use this during the analysis phase, and this class does not exist after analysis
-        throw new UnsupportedOperationException("This should never be called before the attribute is resolved");
-    }
-
-    @Override
-    public boolean isMetric() {
-        // We don't want to use this during the analysis phase, and this class does not exist after analysis
-        throw new UnsupportedOperationException("This should never be called before the attribute is resolved");
+        return false;
     }
 
     @Override

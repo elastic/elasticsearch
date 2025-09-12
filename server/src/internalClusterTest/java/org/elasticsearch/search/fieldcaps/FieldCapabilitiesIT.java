@@ -47,7 +47,7 @@ import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -59,7 +59,6 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -79,7 +78,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -89,6 +87,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -194,7 +193,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestMapperPlugin.class, BlockingOnRewriteQueryPlugin.class);
+        return List.of(TestMapperPlugin.class, ExceptionOnRewriteQueryPlugin.class, BlockingOnRewriteQueryPlugin.class);
     }
 
     @Override
@@ -446,36 +445,30 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.get().get("some_dimension").get("keyword").nonDimensionIndices(), array(equalTo("new_index")));
     }
 
-    public void testFailures() throws IOException {
+    public void testFailures() throws InterruptedException {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
         assertAcked(prepareCreate("index1-error"), prepareCreate("index2-error"));
         ensureGreen("index1-error", "index2-error");
-
-        // Closed shards will result to index error because shards must be in readable state
-        closeShards(internalCluster(), "index1-error", "index2-error");
-
-        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index", "index1-error", "index2-error")
+        FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
+            .setIndexFilter(new ExceptionOnRewriteQueryBuilder())
             .get();
         assertEquals(1, response.getFailures().size());
         assertEquals(2, response.getFailedIndicesCount());
         assertThat(response.getFailures().get(0).getIndices(), arrayContainingInAnyOrder("index1-error", "index2-error"));
         Exception failure = response.getFailures().get(0).getException();
-        assertEquals(IllegalIndexShardStateException.class, failure.getClass());
-        assertEquals(
-            "CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]",
-            failure.getMessage()
-        );
+        assertEquals(IllegalArgumentException.class, failure.getClass());
+        assertEquals("I throw because I choose to.", failure.getMessage());
 
         // the "indices" section should not include failed ones
         assertThat(Arrays.asList(response.getIndices()), containsInAnyOrder("old_index", "new_index"));
 
         // if all requested indices failed, we fail the request by throwing the exception
-        IllegalIndexShardStateException ex = expectThrows(
-            IllegalIndexShardStateException.class,
-            client().prepareFieldCaps("index1-error", "index2-error").setFields("*")
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            client().prepareFieldCaps("index1-error", "index2-error").setFields("*").setIndexFilter(new ExceptionOnRewriteQueryBuilder())
         );
-        assertEquals("CurrentState[CLOSED] operations only allowed when shard state is one of [POST_RECOVERY, STARTED]", ex.getMessage());
+        assertEquals("I throw because I choose to.", ex.getMessage());
     }
 
     private void populateTimeRangeIndices() throws Exception {
@@ -920,17 +913,45 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertArrayEquals(indices, response.getIndices());
     }
 
-    static void closeShards(InternalTestCluster cluster, String... indices) throws IOException {
-        final Set<String> indicesToClose = Set.of(indices);
-        for (String node : cluster.getNodeNames()) {
-            final IndicesService indicesService = cluster.getInstance(IndicesService.class, node);
-            for (IndexService indexService : indicesService) {
-                if (indicesToClose.contains(indexService.getMetadata().getIndex().getName())) {
-                    for (IndexShard indexShard : indexService) {
-                        closeShardNoCheck(indexShard);
-                    }
+    /**
+     * Adds an "exception" query that  throws on rewrite if the index name contains the string "error"
+     */
+    public static class ExceptionOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
+
+        public ExceptionOnRewriteQueryPlugin() {}
+
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return singletonList(
+                new QuerySpec<>("exception", ExceptionOnRewriteQueryBuilder::new, p -> new ExceptionOnRewriteQueryBuilder())
+            );
+        }
+    }
+
+    static class ExceptionOnRewriteQueryBuilder extends DummyQueryBuilder {
+
+        public static final String NAME = "exception";
+
+        ExceptionOnRewriteQueryBuilder() {}
+
+        ExceptionOnRewriteQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            SearchExecutionContext searchExecutionContext = queryRewriteContext.convertToSearchExecutionContext();
+            if (searchExecutionContext != null) {
+                if (searchExecutionContext.indexMatches("*error*")) {
+                    throw new IllegalArgumentException("I throw because I choose to.");
                 }
             }
+            return this;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 

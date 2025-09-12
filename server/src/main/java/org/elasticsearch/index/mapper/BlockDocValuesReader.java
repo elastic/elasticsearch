@@ -542,12 +542,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                         return new ByteDenseVectorValuesBlockReader(byteVectorValues, dimensions);
                     }
                 }
-                case BIT -> {
-                    ByteVectorValues byteVectorValues = context.reader().getByteVectorValues(fieldName);
-                    if (byteVectorValues != null) {
-                        return new BitDenseVectorValuesBlockReader(byteVectorValues, dimensions);
-                    }
-                }
             }
 
             return new ConstantNullsReader();
@@ -583,7 +577,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
-            assertDimensions();
+            assert vectorValues.dimension() == dimensions
+                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
 
             if (iterator.docID() > doc) {
                 builder.appendNull();
@@ -601,11 +596,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public int docId() {
             return iterator.docID();
-        }
-
-        protected void assertDimensions() {
-            assert vectorValues.dimension() == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension();
         }
     }
 
@@ -675,24 +665,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.ByteDenseVectorValuesBlockReader";
-        }
-    }
-
-    private static class BitDenseVectorValuesBlockReader extends ByteDenseVectorValuesBlockReader {
-
-        BitDenseVectorValuesBlockReader(ByteVectorValues floatVectorValues, int dimensions) {
-            super(floatVectorValues, dimensions);
-        }
-
-        @Override
-        protected void assertDimensions() {
-            assert vectorValues.dimension() * Byte.SIZE == dimensions
-                : "unexpected dimensions for vector value; expected " + dimensions + " but got " + vectorValues.dimension() * Byte.SIZE;
-        }
-
-        @Override
-        public String toString() {
-            return "BlockDocValuesReader.BitDenseVectorValuesBlockReader";
         }
     }
 
@@ -892,10 +864,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    public static class BytesRefsFromCustomBinaryBlockLoader extends DocValuesBlockLoader {
+    public static class BytesRefsFromBinaryBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
 
-        public BytesRefsFromCustomBinaryBlockLoader(String fieldName) {
+        public BytesRefsFromBinaryBlockLoader(String fieldName) {
             this.fieldName = fieldName;
         }
 
@@ -910,14 +882,16 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues == null) {
                 return new ConstantNullsReader();
             }
-            return new BytesRefsFromCustomBinary(docValues);
+            return new BytesRefsFromBinary(docValues);
         }
     }
 
-    abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader {
-        protected final BinaryDocValues docValues;
+    private static class BytesRefsFromBinary extends BlockDocValuesReader {
+        private final BinaryDocValues docValues;
+        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
+        private final BytesRef scratch = new BytesRef();
 
-        AbstractBytesRefsFromBinary(BinaryDocValues docValues) {
+        BytesRefsFromBinary(BinaryDocValues docValues) {
             this.docValues = docValues;
         }
 
@@ -937,27 +911,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             read(docId, (BytesRefBuilder) builder);
         }
 
-        @Override
-        public int docId() {
-            return docValues.docID();
-        }
-
-        abstract void read(int docId, BytesRefBuilder builder) throws IOException;
-    }
-
-    /**
-     * Read BinaryDocValues encoded by {@link BinaryFieldMapper.CustomBinaryDocValuesField}
-     */
-    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
-        private final ByteArrayStreamInput in = new ByteArrayStreamInput();
-        private final BytesRef scratch = new BytesRef();
-
-        BytesRefsFromCustomBinary(BinaryDocValues docValues) {
-            super(docValues);
-        }
-
-        @Override
-        void read(int doc, BytesRefBuilder builder) throws IOException {
+        private void read(int doc, BytesRefBuilder builder) throws IOException {
             if (false == docValues.advanceExact(doc)) {
                 builder.appendNull();
                 return;
@@ -985,28 +939,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public String toString() {
-            return "BlockDocValuesReader.BytesCustom";
-        }
-    }
-
-    /**
-     * Read BinaryDocValues with no additional structure in the BytesRefs.
-     * Each BytesRef from the doc values maps directly to a value in the block loader.
-     */
-    public static class BytesRefsFromBinary extends AbstractBytesRefsFromBinary {
-        public BytesRefsFromBinary(BinaryDocValues docValues) {
-            super(docValues);
-        }
-
-        @Override
-        void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
-                builder.appendNull();
-                return;
-            }
-            BytesRef bytes = docValues.binaryValue();
-            builder.appendBytesRef(bytes);
+        public int docId() {
+            return docValues.docID();
         }
 
         @Override
@@ -1039,11 +973,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues == null) {
                 return new ConstantNullsReader();
             }
-            return switch (elementType) {
-                case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
-                case BYTE -> new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
-                case BIT -> new BitDenseVectorFromBinary(docValues, dims, indexVersion);
-            };
+            switch (elementType) {
+                case FLOAT:
+                    return new FloatDenseVectorFromBinary(docValues, dims, indexVersion);
+                case BYTE:
+                    return new ByteDenseVectorFromBinary(docValues, dims, indexVersion);
+                default:
+                    throw new IllegalArgumentException("Unknown element type [" + elementType + "]");
+            }
         }
     }
 
@@ -1126,11 +1063,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     private static class ByteDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
         ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            this(docValues, dims, indexVersion, dims);
-        }
-
-        protected ByteDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion, int readScratchSize) {
-            super(docValues, dims, indexVersion, new byte[readScratchSize]);
+            super(docValues, dims, indexVersion, new byte[dims]);
         }
 
         @Override
@@ -1146,17 +1079,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         protected void decodeDenseVector(BytesRef bytesRef, byte[] scratch) {
             VectorEncoderDecoder.decodeDenseVector(indexVersion, bytesRef, scratch);
-        }
-    }
-
-    private static class BitDenseVectorFromBinary extends ByteDenseVectorFromBinary {
-        BitDenseVectorFromBinary(BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            super(docValues, dims, indexVersion, dims / Byte.SIZE);
-        }
-
-        @Override
-        public String toString() {
-            return "BitDenseVectorFromBinary.Bytes";
         }
     }
 

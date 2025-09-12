@@ -51,7 +51,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -109,8 +108,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.allowAll;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
@@ -174,7 +173,7 @@ public class AuthorizationService {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
         this.restrictedIndices = restrictedIndices;
-        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, linkedProjectConfigService, resolver);
+        this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = new SecurityContext(settings, this.threadContext);
@@ -249,7 +248,7 @@ public class AuthorizationService {
 
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
         // AuthZ info can be null for persistent tasks
-        if (AUTHORIZATION_INFO_VALUE.exists(threadContext) == false) {
+        if (threadContext.<AuthorizationInfo>getTransient(AUTHORIZATION_INFO_KEY) == null) {
             logger.debug("authorization info not available in thread context, resolving it for subject [{}]", subject);
         }
         authorizationEngine.resolveAuthorizationInfo(
@@ -305,7 +304,7 @@ public class AuthorizationService {
             // prior to doing any authorization lets set the originating action in the thread context
             // the originating action is the current action if no originating action has yet been set in the current thread context
             // if there is already an original action, that stays put (eg. the current action is a child action)
-            ORIGINATING_ACTION_VALUE.setIfEmpty(threadContext, action);
+            putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
             final String auditId;
             try {
@@ -339,7 +338,7 @@ public class AuthorizationService {
                 );
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
-                    AUTHORIZATION_INFO_VALUE.set(threadContext, authorizationInfo);
+                    threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                     maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
                 }, e -> {
                     if (e instanceof ElasticsearchRoleRestrictionException) {
@@ -363,12 +362,12 @@ public class AuthorizationService {
 
     @Nullable
     private static AuthorizationContext extractAuthorizationContext(ThreadContext threadContext, String childAction) {
-        final String originatingAction = ORIGINATING_ACTION_VALUE.get(threadContext);
+        final String originatingAction = threadContext.getTransient(ORIGINATING_ACTION_KEY);
         if (Strings.isNullOrEmpty(originatingAction)) {
             // No parent action
             return null;
         }
-        AuthorizationInfo authorizationInfo = AUTHORIZATION_INFO_VALUE.get(threadContext);
+        AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
         if (authorizationInfo == null) {
             throw internalError(
                 "While attempting to authorize action ["
@@ -379,7 +378,7 @@ public class AuthorizationService {
             );
         }
 
-        final IndicesAccessControl parentAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
+        final IndicesAccessControl parentAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         return new AuthorizationContext(originatingAction, authorizationInfo, parentAccessControl);
     }
 
@@ -717,7 +716,7 @@ public class AuthorizationService {
         final AuditTrail auditTrail = auditTrailService.get();
         if (SystemUser.isAuthorized(action)) {
             securityContext.putIndicesAccessControl(allowAll());
-            AUTHORIZATION_INFO_VALUE.set(threadContext, SYSTEM_AUTHZ_INFO);
+            threadContext.putTransient(AUTHORIZATION_INFO_KEY, SYSTEM_AUTHZ_INFO);
             auditTrail.accessGranted(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
             listener.onResponse(null);
         } else {
@@ -973,7 +972,7 @@ public class AuthorizationService {
     }
 
     public ElasticsearchSecurityException remoteActionDenied(Authentication authentication, String action, String clusterAlias) {
-        final AuthorizationInfo authorizationInfo = AUTHORIZATION_INFO_VALUE.get(threadContext);
+        final AuthorizationInfo authorizationInfo = threadContext.getTransient(AUTHORIZATION_INFO_KEY);
         return denialException(
             authentication,
             action,

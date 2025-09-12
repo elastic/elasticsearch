@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
-import org.elasticsearch.xpack.ilm.PutLifecycleMetadataService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,7 +86,7 @@ public class ReservedLifecycleAction implements ReservedProjectStateHandler<List
         ClusterState state = prevState.state();
 
         for (var request : requests) {
-            PutLifecycleMetadataService.UpdateLifecyclePolicyTask task = new PutLifecycleMetadataService.UpdateLifecyclePolicyTask(
+            TransportPutLifecycleAction.UpdateLifecyclePolicyTask task = new TransportPutLifecycleAction.UpdateLifecyclePolicyTask(
                 state.metadata().getProject(projectId).id(),
                 request,
                 licenseState,

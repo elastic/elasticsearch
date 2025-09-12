@@ -19,9 +19,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -46,11 +44,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN).
- * <p>
- *     Makes {@link Page}s of the shape {@code (docBlock)} or {@code (docBlock, score)}.
- *     Lucene loads the sort keys, but we don't read them from lucene. Yet. We should.
- * </p>
+ * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
 
@@ -58,7 +52,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         private final List<? extends ShardContext> contexts;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
-        private final long estimatedPerRowSortSize;
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -68,7 +61,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             int maxPageSize,
             int limit,
             List<SortBuilder<?>> sorts,
-            long estimatedPerRowSortSize,
             boolean needsScore
         ) {
             super(
@@ -84,22 +76,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
             this.sorts = sorts;
-            this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneTopNSourceOperator(
-                contexts,
-                driverContext.breaker(),
-                driverContext.blockFactory(),
-                maxPageSize,
-                sorts,
-                estimatedPerRowSortSize,
-                limit,
-                sliceQueue,
-                needsScore
-            );
+            return new LuceneTopNSourceOperator(contexts, driverContext.blockFactory(), maxPageSize, sorts, limit, sliceQueue, needsScore);
         }
 
         public int maxPageSize() {
@@ -123,16 +104,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private final CircuitBreaker breaker;
-    private final List<SortBuilder<?>> sorts;
-    private final long estimatedPerRowSortSize;
-    private final int limit;
-    private final boolean needsScore;
-
     /**
-     * Collected docs. {@code null} until we're ready to {@link #emit()}.
+     * Collected docs. {@code null} until we're {@link #emit(boolean)}.
      */
-    private ScoreDoc[] topDocs;
+    private ScoreDoc[] scoreDocs;
 
     /**
      * {@link ShardRefCounted} for collected docs.
@@ -140,30 +115,28 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private ShardRefCounted shardRefCounted;
 
     /**
-     * The offset in {@link #topDocs} of the next page.
+     * The offset in {@link #scoreDocs} of the next page.
      */
     private int offset = 0;
 
     private PerShardCollector perShardCollector;
+    private final List<SortBuilder<?>> sorts;
+    private final int limit;
+    private final boolean needsScore;
 
     public LuceneTopNSourceOperator(
         List<? extends ShardContext> contexts,
-        CircuitBreaker breaker,
         BlockFactory blockFactory,
         int maxPageSize,
         List<SortBuilder<?>> sorts,
-        long estimatedPerRowSortSize,
         int limit,
         LuceneSliceQueue sliceQueue,
         boolean needsScore
     ) {
         super(contexts, blockFactory, maxPageSize, sliceQueue);
-        this.breaker = breaker;
         this.sorts = sorts;
-        this.estimatedPerRowSortSize = estimatedPerRowSortSize;
         this.limit = limit;
         this.needsScore = needsScore;
-        breaker.addEstimateBytesAndMaybeBreak(reserveSize(), "esql lucene topn");
     }
 
     @Override
@@ -174,7 +147,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     @Override
     public void finish() {
         doneCollecting = true;
-        topDocs = null;
+        scoreDocs = null;
         shardRefCounted = null;
         assert isFinished();
     }
@@ -187,7 +160,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         long start = System.nanoTime();
         try {
             if (isEmitting()) {
-                return emit();
+                return emit(false);
             } else {
                 return collect();
             }
@@ -201,8 +174,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         var scorer = getCurrentOrLoadNextScorer();
         if (scorer == null) {
             doneCollecting = true;
-            startEmitting();
-            return emit();
+            return emit(true);
         }
         try {
             if (scorer.tags().isEmpty() == false) {
@@ -221,47 +193,32 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         if (scorer.isDone()) {
             var nextScorer = getCurrentOrLoadNextScorer();
             if (nextScorer == null || nextScorer.shardContext().index() != scorer.shardContext().index()) {
-                startEmitting();
-                return emit();
+                return emit(true);
             }
         }
         return null;
     }
 
     private boolean isEmitting() {
-        return topDocs != null;
+        return scoreDocs != null && offset < scoreDocs.length;
     }
 
-    private void startEmitting() {
-        assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(topDocs);
-        offset = 0;
-        if (perShardCollector != null) {
-            /*
-             * Important note for anyone who looks at this and has bright ideas:
-             * There *is* a method in lucene to return topDocs with an offset
-             * and a limit. So you'd *think* you can scroll the top docs there.
-             * But you can't. It's expressly forbidden to call any of the `topDocs`
-             * methods more than once. You *must* call `topDocs` once and use the
-             * array.
-             */
-            topDocs = perShardCollector.collector.topDocs().scoreDocs;
-            int shardId = perShardCollector.shardContext.index();
-            shardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
-        } else {
-            topDocs = new ScoreDoc[0];
+    private Page emit(boolean startEmitting) {
+        if (startEmitting) {
+            assert isEmitting() == false : "offset=" + offset + " score_docs=" + Arrays.toString(scoreDocs);
+            offset = 0;
+            if (perShardCollector != null) {
+                scoreDocs = perShardCollector.collector.topDocs().scoreDocs;
+                int shardId = perShardCollector.shardContext.index();
+                shardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
+            } else {
+                scoreDocs = new ScoreDoc[0];
+            }
         }
-    }
-
-    private void stopEmitting() {
-        topDocs = null;
-    }
-
-    private Page emit() {
-        if (offset >= topDocs.length) {
-            stopEmitting();
+        if (offset >= scoreDocs.length) {
             return null;
         }
-        int size = Math.min(maxPageSize, topDocs.length - offset);
+        int size = Math.min(maxPageSize, scoreDocs.length - offset);
         IntBlock shard = null;
         IntVector segments = null;
         IntVector docs = null;
@@ -277,16 +234,14 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             offset += size;
             List<LeafReaderContext> leafContexts = perShardCollector.shardContext.searcher().getLeafContexts();
             for (int i = start; i < offset; i++) {
-                int doc = topDocs[i].doc;
+                int doc = scoreDocs[i].doc;
                 int segment = ReaderUtil.subIndex(doc, leafContexts);
                 currentSegmentBuilder.appendInt(segment);
                 currentDocsBuilder.appendInt(doc - leafContexts.get(segment).docBase); // the offset inside the segment
                 if (currentScoresBuilder != null) {
-                    float score = getScore(topDocs[i]);
+                    float score = getScore(scoreDocs[i]);
                     currentScoresBuilder.appendDouble(score);
                 }
-                // Null the top doc so it can be GCed early, just in case.
-                topDocs[i] = null;
             }
 
             int shardId = perShardCollector.shardContext.index();
@@ -343,20 +298,9 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         sb.append(", sorts = [").append(notPrettySorts).append("]");
     }
 
-    @Override
-    protected void additionalClose() {
-        Releasables.close(() -> breaker.addWithoutBreaking(-reserveSize()));
-    }
-
-    private long reserveSize() {
-        long perRowSize = FIELD_DOC_SIZE + estimatedPerRowSortSize;
-        return limit * perRowSize;
-    }
-
     abstract static class PerShardCollector {
         private final ShardContext shardContext;
         private final TopDocsCollector<?> collector;
-
         private int leafIndex;
         private LeafCollector leafCollector;
         private Thread currentThread;
@@ -422,6 +366,4 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         sort = new Sort(l.toArray(SortField[]::new));
         return new ScoringPerShardCollector(context, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
     }
-
-    private static final int FIELD_DOC_SIZE = Math.toIntExact(RamUsageEstimator.shallowSizeOf(FieldDoc.class));
 }

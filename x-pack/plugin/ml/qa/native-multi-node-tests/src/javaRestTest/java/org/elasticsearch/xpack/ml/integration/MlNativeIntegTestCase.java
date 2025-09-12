@@ -20,7 +20,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
@@ -100,7 +99,6 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
@@ -438,24 +436,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
             );
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
-            entries.add(
-                new NamedWriteableRegistry.Entry(
-                    Metadata.ProjectCustom.class,
-                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
-                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata::new
-                )
-            );
-            entries.add(
-                new NamedWriteableRegistry.Entry(
-                    NamedDiff.class,
-                    ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
-                    in -> AbstractNamedDiffable.readDiffFrom(
-                        Metadata.ProjectCustom.class,
-                        ClearInferenceEndpointCacheAction.InvalidateCacheMetadata.NAME,
-                        in
-                    )
-                )
-            );
 
             // Retrieve the cluster state from a random node, and serialize and deserialize it.
             final ClusterStateResponse clusterStateResponse = client().admin()

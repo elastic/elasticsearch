@@ -3,7 +3,7 @@
 **Parameters**
 
 `field`
-:   Field that the query will target. knn function can be used with dense_vector or semantic_text fields. Other text fields are not allowed
+:   Field that the query will target.
 
 `query`
 :   Vector value to find top nearest neighbours for.

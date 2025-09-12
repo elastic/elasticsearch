@@ -67,7 +67,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxBoolean",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.BOOLEAN,
                         equalTo(true)
                     )
@@ -80,7 +80,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxInt",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.INTEGER,
                         equalTo(200)
                     )
@@ -93,7 +93,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxLong",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.LONG,
                         equalTo(200L)
                     )
@@ -106,7 +106,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxDouble",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -119,7 +119,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxLong",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.DATETIME,
                         equalTo(200L)
                     )
@@ -141,7 +141,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxIp",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("ffff::"))))
                     )
@@ -156,7 +156,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxBoolean",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.BOOLEAN,
                         equalTo(true)
                     )
@@ -169,7 +169,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxInt",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.INTEGER,
                         equalTo(200)
                     )
@@ -182,7 +182,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxLong",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.LONG,
                         equalTo(200L)
                     )
@@ -195,7 +195,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxDouble",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -208,7 +208,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxLong",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.DATETIME,
                         equalTo(200L)
                     )
@@ -225,7 +225,7 @@ public class TopTests extends AbstractAggregationTestCase {
                             new TestCaseSupplier.TypedData(1, DataType.INTEGER, "limit").forceLiteral(),
                             new TestCaseSupplier.TypedData(new BytesRef("desc"), DataType.KEYWORD, "order").forceLiteral()
                         ),
-                        "MaxIp",
+                        "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
@@ -304,25 +304,13 @@ public class TopTests extends AbstractAggregationTestCase {
                 .limit(limit)
                 .toList();
 
-            String baseName;
-            if (limit != 1) {
-                baseName = "Top";
-            } else {
-                // If the limit is 1 we rewrite TOP into MIN or MAX and never run our lovely TOP code.
-                if (order.equals("asc")) {
-                    baseName = "Min";
-                } else {
-                    baseName = "Max";
-                }
-            }
-
             return new TestCaseSupplier.TestCase(
                 List.of(
                     fieldTypedData,
                     limitTypedData,
                     new TestCaseSupplier.TypedData(new BytesRef(order), DataType.KEYWORD, order + " order").forceLiteral()
                 ),
-                standardAggregatorName(baseName, fieldTypedData.type()),
+                "Top[field=Attribute[channel=0], limit=Attribute[channel=1], order=Attribute[channel=2]]",
                 fieldSupplier.type(),
                 equalTo(expected.size() == 1 ? expected.get(0) : expected)
             );

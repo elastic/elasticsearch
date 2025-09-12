@@ -29,13 +29,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.optimizer.TestPlannerOptimizer;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -297,24 +295,7 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
         }
     }
 
-    /**
-     * ReplaceRoundToWithQueryAndTags does not support lookup joins yet
-     * LimitExec[1000[INTEGER],16]
-     * \_AggregateExec[[x{r}#8],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*)#9, x{r}#8],FINAL,[x{r}#8, $$count(*)$count{r}#34, $$count(*
-     * )$seen{r}#35],16]
-     *   \_ExchangeExec[[x{r}#8, $$count(*)$count{r}#34, $$count(*)$seen{r}#35],true]
-     *     \_AggregateExec[[x{r}#8],[COUNT(*[KEYWORD],true[BOOLEAN]) AS count(*)#9, x{r}#8],INITIAL,[x{r}#8, $$count(*)$count{r}#36, $$count
-     * (*)$seen{r}#37],16]
-     *       \_EvalExec[[ROUNDTO(date{f}#15,1697760000000[DATETIME],1697846400000[DATETIME],1697932800000[DATETIME],1698019200000[DATE
-     * TIME]) AS x#8]]
-     *         \_FieldExtractExec[date{f}#15]
-     *           \_LookupJoinExec[[integer{f}#21],[language_code{f}#32],[]]
-     *             |_FieldExtractExec[integer{f}#21]
-     *             | \_EsQueryExec[test], indexMode[standard], [_doc{f}#38], limit[], sort[] estimatedRowSize[24]
-     *             queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
-     *             \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[
-     * EsRelation[languages_lookup][LOOKUP][language_code{f}#32]]]
-     */
+    // ReplaceRoundToWithQueryAndTags does not support lookup joins yet
     public void testDateTruncBucketNotTransformToQueryAndTagsWithLookupJoin() {
         for (String dateHistogram : dateHistograms) {
             String query = LoggerMessageFormat.format(null, """
@@ -360,9 +341,14 @@ public class ReplaceRoundToWithQueryAndTagsTests extends LocalPhysicalPlanOptimi
             assertTrue(queryBuilder.tags().isEmpty());
             assertNull(esQueryExec.query());
             // rhs of lookup join
-            FragmentExec fragmentExec = as(lookupJoinExec.right(), FragmentExec.class);
-            EsRelation esRelation = as(fragmentExec.fragment(), EsRelation.class);
-            assertTrue(esRelation.toString().contains("EsRelation[languages_lookup][LOOKUP]"));
+            esQueryExec = as(lookupJoinExec.right(), EsQueryExec.class);
+            assertEquals("languages_lookup", esQueryExec.indexPattern());
+            queryBuilderAndTags = esQueryExec.queryBuilderAndTags();
+            assertEquals(1, queryBuilderAndTags.size());
+            queryBuilder = queryBuilderAndTags.get(0);
+            assertNull(queryBuilder.query());
+            assertTrue(queryBuilder.tags().isEmpty());
+            assertNull(esQueryExec.query());
         }
     }
 

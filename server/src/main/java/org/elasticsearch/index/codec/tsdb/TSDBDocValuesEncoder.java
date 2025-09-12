@@ -346,10 +346,8 @@ public final class TSDBDocValuesEncoder {
     }
 
     private void deltaDecode(long[] arr) {
-        long sum = 0;
-        for (int i = 0; i < numericBlockSize; ++i) {
-            sum += arr[i];
-            arr[i] = sum;
+        for (int i = 1; i < numericBlockSize; ++i) {
+            arr[i] += arr[i - 1];
         }
     }
 }

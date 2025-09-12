@@ -87,7 +87,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
-    public void testSimpleDescription() {
+    public final void testSimpleDescription() {
         Operator.OperatorFactory factory = simple();
         String description = factory.describe();
         assertThat(description, expectedDescriptionOfSimple());

@@ -26,7 +26,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
             "id",
             TaskType.SPARSE_EMBEDDING,
             "service",
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),

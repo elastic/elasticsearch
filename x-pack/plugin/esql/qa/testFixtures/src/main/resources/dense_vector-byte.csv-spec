@@ -35,7 +35,7 @@ required_capability: dense_vector_field_type_byte_elements
 FROM dense_vector 
 | EVAL v = byte_vector 
 | RENAME v AS new_vector 
-| DROP float_vector, byte_vector, bit_vector
+| DROP float_vector, byte_vector
 | SORT id
 ;
 

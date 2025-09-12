@@ -293,9 +293,16 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             TransportVersionDefinition secondHighestDefinition = sortedDefinitions.get(1);
             TransportVersionId secondHighestId = secondHighestDefinition.ids().getFirst();
             if (highestId.complete() > secondHighestId.complete() + 1000) {
-                throwDefinitionFailure(highestDefinition, "has primary id " + highestId +
-                    " which is more than maximum increment 1000 from id " + secondHighestId +
-                    " in definition [" + resources.getDefinitionPath(secondHighestDefinition) + "]");
+                throwDefinitionFailure(
+                    highestDefinition,
+                    "has primary id "
+                        + highestId
+                        + " which is more than maximum increment 1000 from id "
+                        + secondHighestId
+                        + " in definition ["
+                        + resources.getDefinitionPath(secondHighestDefinition)
+                        + "]"
+                );
             }
         }
 

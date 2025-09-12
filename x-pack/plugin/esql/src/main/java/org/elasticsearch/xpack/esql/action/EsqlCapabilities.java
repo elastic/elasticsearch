@@ -1484,7 +1484,17 @@ public class EsqlCapabilities {
          */
         QUERY_PARAMS_MULTI_VALUES(),
 
-        FIX_PERCENTILE_PRECISION();
+        FIX_PERCENTILE_PRECISION(),
+
+        /**
+         * Support for the Absent function
+         */
+        FN_ABSENT,
+
+        /**
+         * Support absent_over_time aggregation that gets evaluated per time-series
+         */
+        ABSENT_OVER_TIME(Build.current().isSnapshot());
 
         private final boolean enabled;
 

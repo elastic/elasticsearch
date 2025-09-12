@@ -44,7 +44,9 @@ public class AggregateWritables {
             CountDistinctOverTime.ENTRY,
             WeightedAvg.ENTRY,
             Present.ENTRY,
-            PresentOverTime.ENTRY
+            PresentOverTime.ENTRY,
+            Absent.ENTRY,
+            AbsentOverTime.ENTRY
         );
     }
 }

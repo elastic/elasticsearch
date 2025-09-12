@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -37,8 +39,15 @@ public class CompletionExec extends InferenceExec {
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
 
-    public CompletionExec(Source source, PhysicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
-        super(source, child, inferenceId);
+    public CompletionExec(
+        Source source,
+        PhysicalPlan child,
+        Expression inferenceId,
+        TaskType taskType,
+        Expression prompt,
+        Attribute targetField
+    ) {
+        super(source, child, inferenceId, taskType);
         this.prompt = prompt;
         this.targetField = targetField;
     }
@@ -48,6 +57,9 @@ public class CompletionExec extends InferenceExec {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CHAT_COMPLETION_SUPPORT)
+                ? TaskType.fromString(in.readString())
+                : TaskType.COMPLETION,
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class)
         );
@@ -61,6 +73,9 @@ public class CompletionExec extends InferenceExec {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CHAT_COMPLETION_SUPPORT)) {
+            out.writeString(taskType().toString());
+        }
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
     }
@@ -75,12 +90,12 @@ public class CompletionExec extends InferenceExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, CompletionExec::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, CompletionExec::new, child(), inferenceId(), taskType(), prompt, targetField);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new CompletionExec(source(), newChild, inferenceId(), prompt, targetField);
+        return new CompletionExec(source(), newChild, inferenceId(), taskType(), prompt, targetField);
     }
 
     @Override

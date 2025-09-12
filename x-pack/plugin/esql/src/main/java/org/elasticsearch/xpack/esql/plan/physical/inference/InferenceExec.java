@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -18,14 +19,20 @@ import java.util.Objects;
 
 public abstract class InferenceExec extends UnaryExec {
     private final Expression inferenceId;
+    private final TaskType taskType;
 
-    protected InferenceExec(Source source, PhysicalPlan child, Expression inferenceId) {
+    protected InferenceExec(Source source, PhysicalPlan child, Expression inferenceId, TaskType taskType) {
         super(source, child);
         this.inferenceId = inferenceId;
+        this.taskType = taskType;
     }
 
     public Expression inferenceId() {
         return inferenceId;
+    }
+
+    public TaskType taskType() {
+        return taskType;
     }
 
     @Override
@@ -41,11 +48,11 @@ public abstract class InferenceExec extends UnaryExec {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         InferenceExec that = (InferenceExec) o;
-        return inferenceId.equals(that.inferenceId);
+        return inferenceId.equals(that.inferenceId) && taskType == that.taskType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId());
+        return Objects.hash(super.hashCode(), inferenceId(), taskType);
     }
 }

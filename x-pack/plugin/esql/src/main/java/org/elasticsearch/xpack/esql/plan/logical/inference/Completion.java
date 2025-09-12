@@ -86,7 +86,6 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CHAT_COMPLETION_SUPPORT)) {
             out.writeOptional((output, taskType) -> output.writeString(taskType.toString()), taskType());
         }
-
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
     }

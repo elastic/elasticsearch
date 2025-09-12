@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -20,7 +22,14 @@ import java.io.IOException;
 public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerializationTests<CompletionExec> {
     @Override
     protected CompletionExec createTestInstance() {
-        return new CompletionExec(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
+        return new CompletionExec(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            randomFrom(Completion.SUPPORTED_TASK_TYPES),
+            randomPrompt(),
+            randomAttribute()
+        );
     }
 
     @Override
@@ -29,14 +38,16 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
         Expression inferenceId = instance.inferenceId();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
+        TaskType taskType = instance.taskType();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
-            case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
-            case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 2 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(Completion.SUPPORTED_TASK_TYPES));
+            case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
+            case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
         }
-        return new CompletionExec(instance.source(), child, inferenceId, prompt, targetField);
+        return new CompletionExec(instance.source(), child, inferenceId, taskType, prompt, targetField);
     }
 
     private Literal randomInferenceId() {

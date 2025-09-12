@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical.inference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -48,7 +49,7 @@ public class RerankExec extends InferenceExec {
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        super(source, child, inferenceId);
+        super(source, child, inferenceId, TaskType.RERANK);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;

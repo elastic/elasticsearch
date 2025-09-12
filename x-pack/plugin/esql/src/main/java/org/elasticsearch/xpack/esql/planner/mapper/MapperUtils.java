@@ -103,7 +103,14 @@ public class MapperUtils {
         }
 
         if (p instanceof Completion completion) {
-            return new CompletionExec(completion.source(), child, completion.inferenceId(), completion.prompt(), completion.targetField());
+            return new CompletionExec(
+                completion.source(),
+                child,
+                completion.inferenceId(),
+                completion.taskType(),
+                completion.prompt(),
+                completion.targetField()
+            );
         }
 
         if (p instanceof Enrich enrich) {

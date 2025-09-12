@@ -27,19 +27,19 @@ import java.util.Set;
  */
 public class PatternedTextCompositeValues extends BinaryDocValues {
     private final LeafStoredFieldLoader storedTemplateLoader;
-    private final String storedTemplateFieldName;
+    private final String storedMessageFieldName;
     private final BinaryDocValues patternedTextDocValues;
     private final SortedSetDocValues templateIdDocValues;
     private boolean hasDocValue = false;
 
     PatternedTextCompositeValues(
         LeafStoredFieldLoader storedTemplateLoader,
-        String storedTemplateFieldName,
+        String storedMessageFieldName,
         BinaryDocValues patternedTextDocValues,
         SortedSetDocValues templateIdDocValues
     ) {
         this.storedTemplateLoader = storedTemplateLoader;
-        this.storedTemplateFieldName = storedTemplateFieldName;
+        this.storedMessageFieldName = storedMessageFieldName;
         this.patternedTextDocValues = patternedTextDocValues;
         this.templateIdDocValues = templateIdDocValues;
     }
@@ -68,7 +68,7 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
 
         // If there is no doc value, the value was too large and was put in a stored field
         var storedFields = storedTemplateLoader.storedFields();
-        List<Object> storedValues = storedFields.get(storedTemplateFieldName);
+        List<Object> storedValues = storedFields.get(storedMessageFieldName);
         assert storedValues != null && storedValues.size() == 1 && storedValues.getFirst() instanceof BytesRef;
         return (BytesRef) storedValues.getFirst();
     }
@@ -87,12 +87,12 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
     }
 
     @Override
-    public int nextDoc() throws IOException {
+    public int nextDoc() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public int advance(int i) throws IOException {
+    public int advance(int i) {
         throw new UnsupportedOperationException();
 
     }

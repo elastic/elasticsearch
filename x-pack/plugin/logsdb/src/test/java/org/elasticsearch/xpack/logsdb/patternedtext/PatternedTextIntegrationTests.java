@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
@@ -39,6 +40,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -91,6 +93,42 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     @After
     public void cleanup() {
         assertAcked(admin().indices().prepareDelete(INDEX));
+    }
+
+    public void testSourceMatchAllManyValues() throws IOException {
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = new CreateIndexRequest(INDEX)
+            .settings(LOGSDB_SETTING)
+            .mapping(mapping);
+
+        assertAcked(admin().indices().create(createRequest));
+
+        int numDocs = randomIntBetween(1, 100);
+        List<String> messages = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            String message = randomFrom(random(),
+                // no value for message
+                () -> null,
+                // regular small message, stored in doc values
+                PatternedTextIntegrationTests::randomMessage,
+                // large value, needs to be put in stored field
+                () -> randomMessage(8 * 1024)
+            );
+            messages.add(message);
+        }
+
+        indexDocs(messages);
+        var request = client().prepareSearch(INDEX).setSize(100).setFetchSource(true);
+
+        assertNoFailuresAndResponse(request, response -> {
+            assertEquals(messages.size(), response.getHits().getHits().length);
+            var values = new HashSet<>(Arrays.stream(response.getHits().getHits())
+                .map(SearchHit::getSourceAsMap)
+                .map(m -> m.get(PATTERNED_TEXT_FIELD))
+                .toList());
+
+            assertEquals(new HashSet<>(messages), values);
+        });
     }
 
     public void testValueLargerThan32k() throws IOException {
@@ -221,15 +259,21 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         long timestamp = System.currentTimeMillis();
         for (var msg : logMessages) {
             timestamp += TimeUnit.SECONDS.toMillis(1);
+
+            final XContentBuilder xContentBuilder;
+            if (msg == null) {
+                xContentBuilder = JsonXContent.contentBuilder().startObject().field("@timestamp", timestamp).endObject();
+            } else {
+                xContentBuilder = JsonXContent.contentBuilder()
+                .startObject()
+                .field("@timestamp", timestamp)
+                .field("field_patterned_text", msg)
+                .field("field_match_only_text", msg)
+                .endObject();
+            }
+
             var indexRequest = new IndexRequest(INDEX).opType(DocWriteRequest.OpType.CREATE)
-                .source(
-                    JsonXContent.contentBuilder()
-                        .startObject()
-                        .field("@timestamp", timestamp)
-                        .field("field_patterned_text", msg)
-                        .field("field_match_only_text", msg)
-                        .endObject()
-                );
+                .source(xContentBuilder);
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();

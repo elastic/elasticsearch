@@ -251,6 +251,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         return (PatternedTextFieldType) super.fieldType();
     }
 
+    @FunctionalInterface
     interface DocValuesSupplier {
         BinaryDocValues get(LeafReader leafReader) throws IOException;
     }

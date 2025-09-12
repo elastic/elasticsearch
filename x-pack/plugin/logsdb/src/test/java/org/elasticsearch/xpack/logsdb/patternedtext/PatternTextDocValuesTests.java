@@ -226,8 +226,14 @@ public class PatternTextDocValuesTests extends ESTestCase {
 
         @Override
         public boolean advanceExact(int target) {
-            return advance(target) == target;
+            for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
+                if (docToOrds.get(currDoc) != null) {
+                    return true;
+                }
+            }
+            return false;
         }
+
 
         @Override
         public int docID() {
@@ -236,17 +242,12 @@ public class PatternTextDocValuesTests extends ESTestCase {
 
         @Override
         public int nextDoc() throws IOException {
-            return advance(currDoc + 1);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public int advance(int target) {
-            for (currDoc = target; currDoc < docToOrds.size(); currDoc++) {
-                if (docToOrds.get(currDoc) != null) {
-                    return currDoc;
-                }
-            }
-            return NO_MORE_DOCS;
+            throw new UnsupportedOperationException();
         }
 
         @Override

@@ -22,7 +22,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.FieldArrayContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -262,7 +261,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(fieldType().name(), leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType()))
+                new PatternedTextSyntheticFieldLoaderLayer(
+                    fieldType().name(),
+                    leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType())
+                )
             )
         );
     }

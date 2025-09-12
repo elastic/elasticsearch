@@ -54,9 +54,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder()
-            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .build();
+        return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
     }
 
     @Override
@@ -97,9 +95,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     public void testValueLargerThan32k() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
-        var createRequest = new CreateIndexRequest(INDEX)
-            .settings(LOGSDB_SETTING)
-            .mapping(mapping);
+        var createRequest = new CreateIndexRequest(INDEX).settings(LOGSDB_SETTING).mapping(mapping);
 
         assertAcked(admin().indices().create(createRequest));
 
@@ -120,8 +116,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     public void testQueryResultsSameAsMatchOnlyText() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
-        var createRequest = new CreateIndexRequest(INDEX)
-            .mapping(mapping);
+        var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
 
         if (randomBoolean()) {
             createRequest.settings(LOGSDB_SETTING);

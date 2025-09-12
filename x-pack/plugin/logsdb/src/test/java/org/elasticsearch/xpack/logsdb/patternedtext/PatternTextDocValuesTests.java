@@ -52,12 +52,15 @@ public class PatternTextDocValuesTests extends ESTestCase {
         static Message stored(String message) {
             return new Message(Storage.STORED_FIELD, false, message);
         }
+
         static Message withArg(String message) {
             return new Message(Storage.DOC_VALUE, true, message);
         }
+
         static Message noArg(String message) {
             return new Message(Storage.DOC_VALUE, false, message);
         }
+
         static Message empty() {
             return new Message(Storage.EMPTY, false, null);
         }
@@ -84,7 +87,12 @@ public class PatternTextDocValuesTests extends ESTestCase {
 
     private static BinaryDocValues makeCompositeDocValues(List<Message> messages) throws IOException {
         var patternedTextDocValues = makeDocValues(messages);
-        var templateId = new SimpleSortedSetDocValues(IntStream.range(0, messages.size()).mapToObj(i -> messages.get(i).storage == Storage.EMPTY ? null : "id" + i).toList().toArray(new String[0]));
+        var templateId = new SimpleSortedSetDocValues(
+            IntStream.range(0, messages.size())
+                .mapToObj(i -> messages.get(i).storage == Storage.EMPTY ? null : "id" + i)
+                .toList()
+                .toArray(new String[0])
+        );
         String storedFieldName = "message.stored";
         var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
         var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
@@ -92,50 +100,22 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     private static BinaryDocValues makeDocValuesDense() throws IOException {
-        return makeDocValues(
-            List.of(
-                Message.withArg("1 a"),
-                Message.noArg("2 b"),
-                Message.withArg("3 c"),
-                Message.noArg("4 d")
-            )
-        );
+        return makeDocValues(List.of(Message.withArg("1 a"), Message.noArg("2 b"), Message.withArg("3 c"), Message.noArg("4 d")));
     }
 
     private static BinaryDocValues makeDocValueMissingValues() throws IOException {
         return makeDocValues(
-            List.of(
-                Message.noArg("1 a"),
-                Message.empty(),
-                Message.withArg("3 c"),
-                Message.empty(),
-                Message.noArg("5 e"),
-                Message.empty()
-            )
+            List.of(Message.noArg("1 a"), Message.empty(), Message.withArg("3 c"), Message.empty(), Message.noArg("5 e"), Message.empty())
         );
     }
 
     private static BinaryDocValues makeCompositeDense() throws IOException {
-        return makeCompositeDocValues(
-            List.of(
-                Message.stored("1 a"),
-                Message.withArg("2 b"),
-                Message.stored("3 c"),
-                Message.noArg("4 d")
-            )
-        );
+        return makeCompositeDocValues(List.of(Message.stored("1 a"), Message.withArg("2 b"), Message.stored("3 c"), Message.noArg("4 d")));
     }
 
     private static BinaryDocValues makeCompositeMissingValues() throws IOException {
         return makeCompositeDocValues(
-            List.of(
-                Message.stored("1 a"),
-                Message.empty(),
-                Message.withArg("3 c"),
-                Message.empty(),
-                Message.noArg("5 e"),
-                Message.empty()
-            )
+            List.of(Message.stored("1 a"), Message.empty(), Message.withArg("3 c"), Message.empty(), Message.noArg("5 e"), Message.empty())
         );
     }
 

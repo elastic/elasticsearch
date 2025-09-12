@@ -25,6 +25,7 @@ public class PatternedTextValueProcessor {
         Parts(String template, List<String> args, List<Arg.Info> argsInfo) {
             this(template, PatternedTextValueProcessor.templateId(template), args, argsInfo, false);
         }
+
         static Parts lengthExceeded(String template) {
             return new Parts(template, PatternedTextValueProcessor.templateId(template), null, null, true);
         }

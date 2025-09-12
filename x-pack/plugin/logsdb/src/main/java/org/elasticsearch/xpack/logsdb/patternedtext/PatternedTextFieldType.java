@@ -292,6 +292,7 @@ public class PatternedTextFieldType extends StringFieldType {
     String argsInfoFieldName() {
         return name() + ARGS_INFO_SUFFIX;
     }
+
     String storedNamed() {
         return name() + STORED_SUFFIX;
     }

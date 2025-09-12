@@ -15,6 +15,7 @@ import java.io.IOException;
 public class PatternedTextBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
     private final PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier;
+
     PatternedTextBlockLoader(PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier) {
         this.docValuesSupplier = docValuesSupplier;
     }

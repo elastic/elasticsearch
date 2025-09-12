@@ -32,7 +32,12 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
     private final SortedSetDocValues templateIdDocValues;
     private boolean hasDocValue = false;
 
-    PatternedTextCompositeValues(LeafStoredFieldLoader storedTemplateLoader, String storedTemplateFieldName, BinaryDocValues patternedTextDocValues, SortedSetDocValues templateIdDocValues) {
+    PatternedTextCompositeValues(
+        LeafStoredFieldLoader storedTemplateLoader,
+        String storedTemplateFieldName,
+        BinaryDocValues patternedTextDocValues,
+        SortedSetDocValues templateIdDocValues
+    ) {
         this.storedTemplateLoader = storedTemplateLoader;
         this.storedTemplateFieldName = storedTemplateFieldName;
         this.patternedTextDocValues = patternedTextDocValues;
@@ -45,7 +50,12 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
             return null;
         }
 
-        var docValues = PatternedTextDocValues.from(leafReader, fieldType.templateFieldName(), fieldType.argsFieldName(), fieldType.argsInfoFieldName());
+        var docValues = PatternedTextDocValues.from(
+            leafReader,
+            fieldType.templateFieldName(),
+            fieldType.argsFieldName(),
+            fieldType.argsInfoFieldName()
+        );
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
         LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
         return new PatternedTextCompositeValues(storedTemplateLoader, fieldType.storedNamed(), docValues, templateIdDocValues);

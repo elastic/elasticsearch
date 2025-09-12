@@ -80,8 +80,7 @@ public class MockInferenceClient extends NoOpClient {
             } catch (Exception e) {
                 inferenceListener.onFailure(e);
             }
-        }
-        else {
+        } else {
             super.doExecute(action, request, listener);
         }
     }
@@ -98,11 +97,7 @@ public class MockInferenceClient extends NoOpClient {
             inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
         } else {
             throw new IllegalArgumentException(
-                "Invalid task type ["
-                    + inferenceEndpointSettings.taskType()
-                    + "] for inference endpoint ["
-                    + inferenceId
-                    + "]"
+                "Invalid task type [" + inferenceEndpointSettings.taskType() + "] for inference endpoint [" + inferenceId + "]"
             );
         }
 

@@ -21,7 +21,7 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
         List<TransportVersionId> ids = new ArrayList<>();
 
         if (contents.isEmpty() == false) {
-            for (String rawId : contents.split(",")) {
+            for (String rawId : contents.strip().split(",")) {
                 try {
                     ids.add(TransportVersionId.fromString(rawId));
                 } catch (NumberFormatException e) {

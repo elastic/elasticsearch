@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -158,27 +157,11 @@ public class EsField implements Writeable {
 
     public EsField(StreamInput in) throws IOException {
         this.name = readCachedStringWithVersionCheck(in);
-        this.esDataType = readDataType(in);
+        this.esDataType = DataType.readFrom(in);
         this.properties = in.readImmutableMap(EsField::readFrom);
         this.aggregatable = in.readBoolean();
         this.isAlias = in.readBoolean();
         this.timeSeriesFieldType = readTimeSeriesFieldType(in);
-    }
-
-    private DataType readDataType(StreamInput in) throws IOException {
-        String name = readCachedStringWithVersionCheck(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0) && name.equalsIgnoreCase("NESTED")) {
-            /*
-             * The "nested" data type existed in older versions of ESQL but was
-             * entirely used to filter mappings away. Those versions will still
-             * sometimes send it inside EsField when hitting `nested` fields in
-             * indices. But the rest of ESQL will never see that type. Thus, we
-             * translate it here. We translate to UNSUPPORTED because that seems
-             * to work. We've already performed any required filtering.
-             */
-            return DataType.UNSUPPORTED;
-        }
-        return DataType.readFrom(name);
     }
 
     public static <A extends EsField> A readFrom(StreamInput in) throws IOException {
@@ -289,7 +272,7 @@ public class EsField implements Writeable {
 
     @Override
     public String toString() {
-        return name + "@" + esDataType.typeName() + "=" + properties;
+        return name + "@" + esDataType + "=" + properties;
     }
 
     @Override

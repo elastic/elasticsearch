@@ -32,13 +32,12 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
-import static org.elasticsearch.xpack.esql.core.util.TestUtils.of;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class OptimizerRulesTests extends ESTestCase {
 
-    private static final Literal FIVE = of(5);
-    private static final Literal SIX = of(6);
+    private static final Literal FIVE = Literal.integer(Source.EMPTY, 5);
+    private static final Literal SIX = Literal.integer(Source.EMPTY, 6);
 
     public static final class DummyBooleanExpression extends Expression {
 
@@ -112,7 +111,7 @@ public class OptimizerRulesTests extends ESTestCase {
     public void testFoldExcludingRangeWithDifferentTypesToFalse() {
         FieldAttribute fa = getFieldAttribute("a");
 
-        Range r = rangeOf(fa, SIX, false, of(5.5d), true);
+        Range r = rangeOf(fa, SIX, false, Literal.fromDouble(Source.EMPTY, 5.5d), true);
         assertTrue(r.foldable());
         assertEquals(Boolean.FALSE, r.fold(FoldContext.small()));
     }

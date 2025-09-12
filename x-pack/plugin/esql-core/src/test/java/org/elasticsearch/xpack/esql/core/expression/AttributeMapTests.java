@@ -19,8 +19,8 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.fieldAttribute;
-import static org.elasticsearch.xpack.esql.core.util.TestUtils.of;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
@@ -69,23 +69,23 @@ public class AttributeMapTests extends ESTestCase {
     public void testResolve() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
         Attribute one = a("one");
-        Attribute two = fieldAttribute("two", DataType.INTEGER);
-        Attribute three = fieldAttribute("three", DataType.INTEGER);
+        Attribute two = fieldAttribute("two", DataType.atom(INTEGER));
+        Attribute three = fieldAttribute("three", DataType.atom(INTEGER));
         Alias threeAlias = new Alias(Source.EMPTY, "three_alias", three);
         Alias threeAliasAlias = new Alias(Source.EMPTY, "three_alias_alias", threeAlias);
-        builder.put(one, of("one"));
+        builder.put(one, Literal.keyword(Source.EMPTY, "one"));
         builder.put(two, "two");
-        builder.put(three, of("three"));
+        builder.put(three, Literal.keyword(Source.EMPTY, ("three")));
         builder.put(threeAlias.toAttribute(), threeAlias.child());
         builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
         AttributeMap<Object> map = builder.build();
 
-        assertEquals(of("one"), map.resolve(one));
+        assertEquals(Literal.keyword(Source.EMPTY, "one"), map.resolve(one));
         assertEquals("two", map.resolve(two));
-        assertEquals(of("three"), map.resolve(three));
-        assertEquals(of("three"), map.resolve(threeAlias));
-        assertEquals(of("three"), map.resolve(threeAliasAlias));
-        assertEquals(of("three"), map.resolve(threeAliasAlias, threeAlias));
+        assertEquals(Literal.keyword(Source.EMPTY, "three"), map.resolve(three));
+        assertEquals(Literal.keyword(Source.EMPTY, "three"), map.resolve(threeAlias));
+        assertEquals(Literal.keyword(Source.EMPTY, "three"), map.resolve(threeAliasAlias));
+        assertEquals(Literal.keyword(Source.EMPTY, "three"), map.resolve(threeAliasAlias, threeAlias));
         Attribute four = a("four");
         assertEquals("not found", map.resolve(four, "not found"));
         assertNull(map.resolve(four));
@@ -94,8 +94,8 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testResolveOneHopCycle() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
-        Attribute a = fieldAttribute("a", DataType.INTEGER);
-        Attribute b = fieldAttribute("b", DataType.INTEGER);
+        Attribute a = fieldAttribute("a", DataType.atom(INTEGER));
+        Attribute b = fieldAttribute("b", DataType.atom(INTEGER));
         builder.put(a, a);
         builder.put(b, a);
         AttributeMap<Object> map = builder.build();
@@ -107,10 +107,10 @@ public class AttributeMapTests extends ESTestCase {
 
     public void testResolveMultiHopCycle() {
         AttributeMap.Builder<Object> builder = AttributeMap.builder();
-        Attribute a = fieldAttribute("a", DataType.INTEGER);
-        Attribute b = fieldAttribute("b", DataType.INTEGER);
-        Attribute c = fieldAttribute("c", DataType.INTEGER);
-        Attribute d = fieldAttribute("d", DataType.INTEGER);
+        Attribute a = fieldAttribute("a", DataType.atom(INTEGER));
+        Attribute b = fieldAttribute("b", DataType.atom(INTEGER));
+        Attribute c = fieldAttribute("c", DataType.atom(INTEGER));
+        Attribute d = fieldAttribute("d", DataType.atom(INTEGER));
         builder.put(a, b);
         builder.put(b, c);
         builder.put(c, d);
@@ -124,7 +124,7 @@ public class AttributeMapTests extends ESTestCase {
 
     private Alias createIntParameterAlias(int index, int value) {
         Source source = new Source(1, index * 5, "?");
-        Literal literal = new Literal(source, value, DataType.INTEGER);
+        Literal literal = new Literal(source, value, DataType.atom(INTEGER));
         Alias alias = new Alias(literal.source(), literal.source().text(), literal);
         return alias;
     }

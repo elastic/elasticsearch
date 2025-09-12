@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 
 /**
  * Represent a collect of key-value pairs.
@@ -107,7 +107,7 @@ public class MapExpression extends Expression {
 
     @Override
     public DataType dataType() {
-        return UNSUPPORTED;
+        return DataType.atom(UNSUPPORTED);
     }
 
     @Override

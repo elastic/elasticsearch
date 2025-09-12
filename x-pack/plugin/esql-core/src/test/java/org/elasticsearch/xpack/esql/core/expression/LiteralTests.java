@@ -25,14 +25,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SHORT;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
@@ -55,14 +55,58 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
      * after a generators is its "native" type.
      */
     private static final List<ValueAndCompatibleTypes> GENERATORS = Arrays.asList(
-        new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomByte, BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomShort, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomInt, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomLong, LONG, FLOAT, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomFloat, FLOAT, LONG, DOUBLE, BOOLEAN),
-        new ValueAndCompatibleTypes(ESTestCase::randomDouble, DOUBLE, LONG, FLOAT, BOOLEAN),
-        new ValueAndCompatibleTypes(() -> BytesRefs.toBytesRef(randomAlphaOfLength(5)), KEYWORD)
+        new ValueAndCompatibleTypes(() -> randomBoolean() ? randomBoolean() : randomFrom("true", "false"), DataType.atom(BOOLEAN)),
+        new ValueAndCompatibleTypes(
+            ESTestCase::randomByte,
+            DataType.atom(BYTE),
+            DataType.atom(SHORT),
+            DataType.atom(INTEGER),
+            DataType.atom(LONG),
+            DataType.atom(FLOAT),
+            DataType.atom(DOUBLE),
+            DataType.atom(BOOLEAN)
+        ),
+        new ValueAndCompatibleTypes(
+            ESTestCase::randomShort,
+            DataType.atom(SHORT),
+            DataType.atom(INTEGER),
+            DataType.atom(LONG),
+            DataType.atom(FLOAT),
+            DataType.atom(DOUBLE),
+            DataType.atom(BOOLEAN)
+        ),
+        new ValueAndCompatibleTypes(
+            ESTestCase::randomInt,
+            DataType.atom(INTEGER),
+            DataType.atom(LONG),
+            DataType.atom(FLOAT),
+            DataType.atom(DOUBLE),
+            DataType.atom(BOOLEAN)
+        ),
+        new ValueAndCompatibleTypes(
+            ESTestCase::randomLong,
+            DataType.atom(LONG),
+            DataType.atom(FLOAT),
+            DataType.atom(DOUBLE),
+            DataType.atom(BOOLEAN)
+        ),
+        new ValueAndCompatibleTypes(
+            ESTestCase::randomFloat,
+            DataType.atom(FLOAT),
+            DataType.atom(LONG),
+            DataType.atom(DOUBLE),
+            DataType.atom(BOOLEAN)
+        ),
+        new ValueAndCompatibleTypes(
+            ESTestCase::randomDouble,
+            DataType.atom(DOUBLE),
+            DataType.atom(LONG),
+            DataType.atom(FLOAT),
+            DataType.atom(BOOLEAN)
+        ),
+        new ValueAndCompatibleTypes(() -> BytesRefs.toBytesRef(randomAlphaOfLength(5)), DataType.atom(KEYWORD))
+
+        // NOCOMMIT ObjectType
     );
 
     public static Literal randomLiteral() {
@@ -128,11 +172,14 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
     }
 
     public void testToString() {
-        assertThat(new Literal(Source.EMPTY, 1, LONG).toString(), equalTo("1"));
-        assertThat(new Literal(Source.EMPTY, BytesRefs.toBytesRef("short"), KEYWORD).toString(), equalTo("short"));
+        assertThat(new Literal(Source.EMPTY, 1, DataType.atom(LONG)).toString(), equalTo("1"));
+        assertThat(new Literal(Source.EMPTY, BytesRefs.toBytesRef("short"), DataType.atom(KEYWORD)).toString(), equalTo("short"));
         // toString should limit it's length
         String tooLong = Strings.repeat('a', 510);
-        assertThat(new Literal(Source.EMPTY, BytesRefs.toBytesRef(tooLong), KEYWORD).toString(), equalTo(Strings.repeat('a', 500) + "..."));
+        assertThat(
+            new Literal(Source.EMPTY, BytesRefs.toBytesRef(tooLong), DataType.atom(KEYWORD)).toString(),
+            equalTo(Strings.repeat('a', 500) + "...")
+        );
 
         for (ValueAndCompatibleTypes g : GENERATORS) {
             Literal lit = new Literal(Source.EMPTY, g.valueSupplier.get(), randomFrom(g.validDataTypes));
@@ -142,7 +189,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     private static Object randomValueOfTypeOtherThan(Object original, DataType type) {
         for (ValueAndCompatibleTypes gen : GENERATORS) {
-            if (gen.validDataTypes.get(0) == type) {
+            if (gen.validDataTypes.get(0).equals(type)) {
                 return randomValueOtherThan(original, () -> DataTypeConverter.convert(gen.valueSupplier.get(), type));
             }
         }
@@ -151,7 +198,15 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     private static List<DataType> validReplacementDataTypes(Object value, DataType type) {
         List<DataType> validDataTypes = new ArrayList<>();
-        List<DataType> options = Arrays.asList(BYTE, SHORT, INTEGER, LONG, FLOAT, DOUBLE, BOOLEAN);
+        List<DataType> options = Arrays.asList(
+            DataType.atom(BYTE),
+            DataType.atom(SHORT),
+            DataType.atom(INTEGER),
+            DataType.atom(LONG),
+            DataType.atom(FLOAT),
+            DataType.atom(DOUBLE),
+            DataType.atom(BOOLEAN)
+        );
         for (DataType candidate : options) {
             try {
                 Converter c = DataTypeConverter.converterFor(type, candidate);

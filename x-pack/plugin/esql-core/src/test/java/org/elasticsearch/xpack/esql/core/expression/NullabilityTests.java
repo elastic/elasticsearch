@@ -19,6 +19,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Nullability.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.TRUE;
 import static org.elasticsearch.xpack.esql.core.expression.Nullability.UNKNOWN;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 public class NullabilityTests extends ESTestCase {
 
@@ -48,7 +49,7 @@ public class NullabilityTests extends ESTestCase {
 
         @Override
         public DataType dataType() {
-            return DataType.BOOLEAN;
+            return DataType.atom(BOOLEAN);
         }
 
         @Override

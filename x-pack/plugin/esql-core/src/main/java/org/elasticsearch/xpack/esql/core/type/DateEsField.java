@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -21,7 +22,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
 public class DateEsField extends EsField {
 
     public static DateEsField dateEsField(String name, Map<String, EsField> properties, boolean hasDocValues, TimeSeriesFieldType tsType) {
-        return new DateEsField(name, DataType.DATETIME, properties, hasDocValues, tsType);
+        return new DateEsField(name, DataType.atom(DATETIME), properties, hasDocValues, tsType);
     }
 
     private DateEsField(
@@ -37,7 +38,7 @@ public class DateEsField extends EsField {
     protected DateEsField(StreamInput in) throws IOException {
         this(
             readCachedStringWithVersionCheck(in),
-            DataType.DATETIME,
+            DataType.atom(DATETIME),
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             readTimeSeriesFieldType(in)

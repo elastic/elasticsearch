@@ -23,20 +23,20 @@ import java.util.Locale;
 import java.util.function.DoubleFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isString;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.UNSIGNED_LONG_MAX;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.inUnsignedLongRange;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.isUnsignedLong;
@@ -52,231 +52,231 @@ public final class DataTypeConverter {
      * Get the conversion from one type to another.
      */
     public static Converter converterFor(DataType from, DataType to) {
-        // Special handling for nulls and if conversion is not requires
-        if (from == to || (isDateTime(from) && isDateTime(to))) {
+        // Special handling for nulls and if conversion is not required
+        if (from.equals(to) || (isDateTime(from.atom()) && isDateTime(to.atom()))) {
             return DefaultConverter.IDENTITY;
         }
-        if (to == NULL || from == NULL) {
+        if (to.atom() == NULL || from.atom() == NULL) {
             return DefaultConverter.TO_NULL;
         }
         // proper converters
-        if (isString(to)) {
+        if (isString(to.atom())) {
             return conversionToString(from);
         }
-        if (to == LONG) {
+        if (to.atom() == LONG) {
             return conversionToLong(from);
         }
-        if (to == UNSIGNED_LONG) {
+        if (to.atom() == UNSIGNED_LONG) {
             return conversionToUnsignedLong(from);
         }
-        if (to == INTEGER) {
+        if (to.atom() == INTEGER) {
             return conversionToInt(from);
         }
-        if (to == SHORT) {
+        if (to.atom() == SHORT) {
             return conversionToShort(from);
         }
-        if (to == BYTE) {
+        if (to.atom() == BYTE) {
             return conversionToByte(from);
         }
-        if (to == FLOAT) {
+        if (to.atom() == FLOAT) {
             return conversionToFloat(from);
         }
-        if (to == DOUBLE) {
+        if (to.atom() == DOUBLE) {
             return conversionToDouble(from);
         }
-        if (isDateTime(to)) {
+        if (isDateTime(to.atom())) {
             return conversionToDateTime(from);
         }
-        if (to == BOOLEAN) {
+        if (to.atom() == BOOLEAN) {
             return conversionToBoolean(from);
         }
-        if (to == IP) {
+        if (to.atom() == IP) {
             return conversionToIp(from);
         }
-        if (to == VERSION) {
+        if (to.atom() == VERSION) {
             return conversionToVersion(from);
         }
         return null;
     }
 
     private static Converter conversionToString(DataType from) {
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_STRING;
         }
         return DefaultConverter.OTHER_TO_STRING;
     }
 
     private static Converter conversionToIp(DataType from) {
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_IP;
         }
         return null;
     }
 
     private static Converter conversionToVersion(DataType from) {
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_VERSION;
         }
         return null;
     }
 
     private static Converter conversionToUnsignedLong(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_UNSIGNED_LONG;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_UNSIGNED_LONG;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_UNSIGNED_LONG;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_UNSIGNED_LONG;
         }
-        if (from == DATETIME) {
+        if (from.atom() == DATETIME) {
             return DefaultConverter.DATETIME_TO_UNSIGNED_LONG;
         }
         return null;
     }
 
     private static Converter conversionToLong(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_LONG;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_LONG;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_LONG;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_LONG;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_LONG;
         }
         return null;
     }
 
     private static Converter conversionToInt(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_INT;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_INT;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_INT;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_INT;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_INT;
         }
         return null;
     }
 
     private static Converter conversionToShort(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_SHORT;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_SHORT;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_SHORT;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_SHORT;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_SHORT;
         }
         return null;
     }
 
     private static Converter conversionToByte(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_BYTE;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_BYTE;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_BYTE;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_BYTE;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_BYTE;
         }
         return null;
     }
 
     private static DefaultConverter conversionToFloat(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_FLOAT;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_FLOAT;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_FLOAT;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_FLOAT;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_FLOAT;
         }
         return null;
     }
 
     private static DefaultConverter conversionToDouble(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DOUBLE;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DOUBLE;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_DOUBLE;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_DOUBLE;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_DOUBLE;
         }
         return null;
     }
 
     private static DefaultConverter conversionToDateTime(DataType from) {
-        if (from.isRationalNumber()) {
+        if (from.atom().isRationalNumber()) {
             return DefaultConverter.RATIONAL_TO_DATETIME;
         }
-        if (from.isWholeNumber()) {
+        if (from.atom().isWholeNumber()) {
             return DefaultConverter.INTEGER_TO_DATETIME;
         }
-        if (from == BOOLEAN) {
+        if (from.atom() == BOOLEAN) {
             return DefaultConverter.BOOL_TO_DATETIME; // We emit an int here which is ok because of Java's casting rules
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_DATETIME;
         }
         return null;
     }
 
     private static DefaultConverter conversionToBoolean(DataType from) {
-        if (from.isNumeric()) {
+        if (from.atom().isNumeric()) {
             return DefaultConverter.NUMERIC_TO_BOOLEAN;
         }
-        if (isString(from)) {
+        if (isString(from.atom())) {
             return DefaultConverter.STRING_TO_BOOLEAN;
         }
-        if (isDateTime(from)) {
+        if (isDateTime(from.atom())) {
             return DefaultConverter.DATETIME_TO_BOOLEAN;
         }
         return null;
@@ -365,13 +365,13 @@ public final class DataTypeConverter {
     public static Number toInteger(double x, DataType dataType) {
         long l = safeDoubleToLong(x);
 
-        if (dataType == BYTE) {
+        if (dataType.atom() == BYTE) {
             return safeToByte(l);
         }
-        if (dataType == SHORT) {
+        if (dataType.atom() == SHORT) {
             return safeToShort(l);
         }
-        if (dataType == INTEGER) {
+        if (dataType.atom() == INTEGER) {
             return safeToInt(l);
         }
         return l;
@@ -391,19 +391,14 @@ public final class DataTypeConverter {
      * Throws InvalidArgumentException if such conversion is not possible
      */
     public static Object convert(Object value, DataType dataType) {
-        DataType detectedType = DataType.fromJava(value);
-        if (detectedType == dataType || value == null) {
+        AtomType detectedType = AtomType.fromJava(value);
+        if (detectedType == dataType.atom() || value == null) {
             return value;
         }
-        Converter converter = converterFor(detectedType, dataType);
+        Converter converter = converterFor(DataType.atom(detectedType), dataType);
 
         if (converter == null) {
-            throw new InvalidArgumentException(
-                "cannot convert from [{}], type [{}] to [{}]",
-                value,
-                detectedType.typeName(),
-                dataType.typeName()
-            );
+            throw new InvalidArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType.typeName(), dataType);
         }
 
         return converter.convert(value);
@@ -545,10 +540,10 @@ public final class DataTypeConverter {
     }
 
     public static DataType asInteger(DataType dataType) {
-        if (dataType.isNumeric() == false) {
+        if (dataType.atom().isNumeric() == false) {
             return dataType;
         }
 
-        return dataType.isWholeNumber() ? dataType : LONG;
+        return dataType.atom().isWholeNumber() ? dataType : DataType.atom(LONG);
     }
 }

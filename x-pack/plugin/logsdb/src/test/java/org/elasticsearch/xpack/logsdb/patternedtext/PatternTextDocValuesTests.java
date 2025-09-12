@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
@@ -44,6 +48,19 @@ public class PatternTextDocValuesTests extends ESTestCase {
             }
             return null;
         }
+
+        static Message stored(String message) {
+            return new Message(Storage.STORED_FIELD, false, message);
+        }
+        static Message withArg(String message) {
+            return new Message(Storage.DOC_VALUE, true, message);
+        }
+        static Message noArg(String message) {
+            return new Message(Storage.DOC_VALUE, false, message);
+        }
+        static Message empty() {
+            return new Message(Storage.EMPTY, false, null);
+        }
     }
 
     private static List<Message> makeRandomMessages(int numDocs, boolean includeStored) {
@@ -65,13 +82,22 @@ public class PatternTextDocValuesTests extends ESTestCase {
         return new PatternedTextDocValues(template, args, info);
     }
 
-    private static BinaryDocValues makeDocValueSparseArgs() throws IOException {
+    private static BinaryDocValues makeCompositeDocValues(List<Message> messages) throws IOException {
+        var patternedTextDocValues = makeDocValues(messages);
+        var templateId = new SimpleSortedSetDocValues(IntStream.range(0, messages.size()).mapToObj(i -> messages.get(i).storage == Storage.EMPTY ? null : "id" + i).toList().toArray(new String[0]));
+        String storedFieldName = "message.stored";
+        var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
+        var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
+        return new PatternedTextCompositeValues(storedLoader, storedFieldName, patternedTextDocValues, templateId);
+    }
+
+    private static BinaryDocValues makeDocValuesDense() throws IOException {
         return makeDocValues(
             List.of(
-                new Message(Storage.DOC_VALUE, true, "1 dog"),
-                new Message(Storage.DOC_VALUE, false, "mouse"),
-                new Message(Storage.DOC_VALUE, true, "3 cat"),
-                new Message(Storage.DOC_VALUE, false,"house")
+                Message.withArg("1 a"),
+                Message.noArg("2 b"),
+                Message.withArg("3 c"),
+                Message.noArg("4 d")
             )
         );
     }
@@ -79,35 +105,73 @@ public class PatternTextDocValuesTests extends ESTestCase {
     private static BinaryDocValues makeDocValueMissingValues() throws IOException {
         return makeDocValues(
             List.of(
-                new Message(Storage.DOC_VALUE, true, "1 dog"),
-                new Message(Storage.EMPTY, false, null),
-                new Message(Storage.DOC_VALUE, true, "3 cat"),
-                new Message(Storage.EMPTY, false, null)
+                Message.noArg("1 a"),
+                Message.empty(),
+                Message.withArg("3 c"),
+                Message.empty(),
+                Message.noArg("5 e"),
+                Message.empty()
             )
         );
     }
 
-    public void testValueAll() throws IOException {
-        var docValues = makeDocValueSparseArgs();
+    private static BinaryDocValues makeCompositeDense() throws IOException {
+        return makeCompositeDocValues(
+            List.of(
+                Message.stored("1 a"),
+                Message.withArg("2 b"),
+                Message.stored("3 c"),
+                Message.noArg("4 d")
+            )
+        );
+    }
+
+    private static BinaryDocValues makeCompositeMissingValues() throws IOException {
+        return makeCompositeDocValues(
+            List.of(
+                Message.stored("1 a"),
+                Message.empty(),
+                Message.withArg("3 c"),
+                Message.empty(),
+                Message.noArg("5 e"),
+                Message.empty()
+            )
+        );
+    }
+
+    private static BinaryDocValues denseValues() throws IOException {
+        return randomBoolean() ? makeDocValuesDense() : makeCompositeDense();
+    }
+
+    private static BinaryDocValues sparseValues() throws IOException {
+        return randomBoolean() ? makeDocValueMissingValues() : makeCompositeMissingValues();
+    }
+
+    public void testDenseValues() throws IOException {
+        var docValues = denseValues();
         assertEquals(0, docValues.nextDoc());
-        assertEquals("1 dog", docValues.binaryValue().utf8ToString());
+        assertEquals("1 a", docValues.binaryValue().utf8ToString());
         assertEquals(1, docValues.nextDoc());
-        assertEquals("mouse", docValues.binaryValue().utf8ToString());
+        assertEquals("2 b", docValues.binaryValue().utf8ToString());
         assertEquals(2, docValues.nextDoc());
-        assertEquals("3 cat", docValues.binaryValue().utf8ToString());
+        assertEquals("3 c", docValues.binaryValue().utf8ToString());
         assertEquals(3, docValues.nextDoc());
-        assertEquals("house", docValues.binaryValue().utf8ToString());
+        assertEquals("4 d", docValues.binaryValue().utf8ToString());
+        assertEquals(NO_MORE_DOCS, docValues.nextDoc());
     }
 
-    public void testValueMissing() throws IOException {
-        var docValues = makeDocValueMissingValues();
+    public void testSparseValues() throws IOException {
+        var docValues = sparseValues();
         assertEquals(0, docValues.nextDoc());
-        assertEquals("1 dog", docValues.binaryValue().utf8ToString());
+        assertEquals("1 a", docValues.binaryValue().utf8ToString());
         assertEquals(2, docValues.nextDoc());
-        assertEquals("3 cat", docValues.binaryValue().utf8ToString());
+        assertEquals("3 c", docValues.binaryValue().utf8ToString());
+        assertEquals(4, docValues.nextDoc());
+        assertEquals("5 e", docValues.binaryValue().utf8ToString());
+        assertEquals(NO_MORE_DOCS, docValues.nextDoc());
     }
 
-    public void testRandomMessages() throws IOException {
+    public void testRandomMessagesDocValues() throws IOException {
         List<Message> messages = makeRandomMessages(randomIntBetween(0, 100), false);
         BinaryDocValues docValues = makeDocValues(messages);
         for (int i = 0; i < messages.size(); i++) {
@@ -121,26 +185,22 @@ public class PatternTextDocValuesTests extends ESTestCase {
         }
     }
 
-    public void testNextDoc() throws IOException {
-        var docValues = makeDocValueSparseArgs();
-        assertEquals(-1, docValues.docID());
-        assertEquals(0, docValues.nextDoc());
-        assertEquals(1, docValues.nextDoc());
-        assertEquals(2, docValues.nextDoc());
-        assertEquals(3, docValues.nextDoc());
-        assertEquals(NO_MORE_DOCS, docValues.nextDoc());
-    }
-
-    public void testNextDocMissing() throws IOException {
-        var docValues = makeDocValueMissingValues();
-        assertEquals(-1, docValues.docID());
-        assertEquals(0, docValues.nextDoc());
-        assertEquals(2, docValues.nextDoc());
-        assertEquals(NO_MORE_DOCS, docValues.nextDoc());
+    public void testRandomMessagesComposite() throws IOException {
+        List<Message> messages = makeRandomMessages(randomIntBetween(0, 100), true);
+        BinaryDocValues docValues = makeCompositeDocValues(messages);
+        for (int i = 0; i < messages.size(); i++) {
+            Message message = messages.get(i);
+            if (message.storage == Storage.EMPTY) {
+                assertFalse(docValues.advanceExact(i));
+            } else {
+                assertTrue(docValues.advanceExact(i));
+                assertEquals(message.message, docValues.binaryValue().utf8ToString());
+            }
+        }
     }
 
     public void testAdvance1() throws IOException {
-        var docValues = makeDocValueSparseArgs();
+        var docValues = denseValues();
         assertEquals(-1, docValues.docID());
         assertEquals(0, docValues.nextDoc());
         assertEquals(1, docValues.advance(1));
@@ -150,19 +210,19 @@ public class PatternTextDocValuesTests extends ESTestCase {
     }
 
     public void testAdvanceFarther() throws IOException {
-        var docValues = makeDocValueSparseArgs();
+        var docValues = denseValues();
         assertEquals(2, docValues.advance(2));
         // repeats so stay on value
         assertEquals(2, docValues.advance(2));
     }
 
     public void testAdvanceSkipsValuesIfMissing() throws IOException {
-        var docValues = makeDocValueMissingValues();
+        var docValues = sparseValues();
         assertEquals(2, docValues.advance(1));
     }
 
     public void testAdvanceExactMissing() throws IOException {
-        var docValues = makeDocValueMissingValues();
+        var docValues = sparseValues();
         assertTrue(docValues.advanceExact(0));
         assertFalse(docValues.advanceExact(1));
         assertEquals(2, docValues.docID());
@@ -240,6 +300,42 @@ public class PatternTextDocValuesTests extends ESTestCase {
             return Arg.encodeInfo(argsInfo);
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    static class SimpleStoredFieldLoader implements LeafStoredFieldLoader {
+        private final List<BytesRef> values;
+        private final String fieldName;
+        private int doc = -1;
+
+        SimpleStoredFieldLoader(List<BytesRef> values, String fieldName) {
+            this.values = values;
+            this.fieldName = fieldName;
+        }
+
+        @Override
+        public void advanceTo(int doc) throws IOException {
+            this.doc = doc;
+        }
+
+        @Override
+        public BytesReference source() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String id() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String routing() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<String, List<Object>> storedFields() {
+            return Map.of(fieldName, List.of(values.get(doc)));
         }
     }
 }

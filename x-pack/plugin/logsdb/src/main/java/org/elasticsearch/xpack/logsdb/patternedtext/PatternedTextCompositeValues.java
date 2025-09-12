@@ -28,12 +28,11 @@ import java.util.Set;
 public class PatternedTextCompositeValues extends BinaryDocValues {
     private final LeafStoredFieldLoader storedTemplateLoader;
     private final String storedTemplateFieldName;
-    private final PatternedTextDocValues patternedTextDocValues;
+    private final BinaryDocValues patternedTextDocValues;
     private final SortedSetDocValues templateIdDocValues;
-    private boolean hasValue = false;
     private boolean hasDocValue = false;
 
-    PatternedTextCompositeValues(LeafStoredFieldLoader storedTemplateLoader, String storedTemplateFieldName, PatternedTextDocValues patternedTextDocValues, SortedSetDocValues templateIdDocValues) {
+    PatternedTextCompositeValues(LeafStoredFieldLoader storedTemplateLoader, String storedTemplateFieldName, BinaryDocValues patternedTextDocValues, SortedSetDocValues templateIdDocValues) {
         this.storedTemplateLoader = storedTemplateLoader;
         this.storedTemplateFieldName = storedTemplateFieldName;
         this.patternedTextDocValues = patternedTextDocValues;
@@ -57,7 +56,7 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
             return patternedTextDocValues.binaryValue();
         }
 
-        // If there is no doc value, the values was too large and was put in a stored field
+        // If there is no doc value, the value was too large and was put in a stored field
         var storedFields = storedTemplateLoader.storedFields();
         List<Object> storedValues = storedFields.get(storedTemplateFieldName);
         assert storedValues != null && storedValues.size() == 1 && storedValues.getFirst() instanceof BytesRef;
@@ -81,9 +80,9 @@ public class PatternedTextCompositeValues extends BinaryDocValues {
     @Override
     public int advance(int i) throws IOException {
         int templateIdPos = templateIdDocValues.advance(i);
-        hasValue = templateIdPos == i;
+        boolean hasValue = templateIdPos != NO_MORE_DOCS;
         int docValuePos = patternedTextDocValues.advance(i);
-        hasDocValue = docValuePos == i;
+        hasDocValue = docValuePos == templateIdPos;
         if (hasValue && hasDocValue == false) {
             storedTemplateLoader.advanceTo(i);
         }

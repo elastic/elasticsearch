@@ -515,8 +515,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
+     * Legacy index setting, kept for 7.x read-only BWC compatibility. This setting has no effect in 8.x. Do not use.
      */
     @Deprecated
     public static final Setting<String> INDEX_ROLLUP_SOURCE_UUID = Setting.simpleString(
@@ -527,8 +526,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
-     * TODO: Remove in 9.0
+     * Legacy index setting, kept for 7.x read-only BWC compatibility. This setting has no effect in 8.x. Do not use.
      */
     @Deprecated
     public static final Setting<String> INDEX_ROLLUP_SOURCE_NAME = Setting.simpleString(

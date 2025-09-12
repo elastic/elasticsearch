@@ -31,6 +31,7 @@ public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteC
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .version(OLD_CLUSTER_VERSION)
+            .detachedVersion(isOldClusterDetachedVersion())
             .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)

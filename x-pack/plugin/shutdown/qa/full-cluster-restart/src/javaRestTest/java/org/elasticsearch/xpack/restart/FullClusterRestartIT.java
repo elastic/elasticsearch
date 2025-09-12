@@ -47,6 +47,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(Version.fromString(OLD_CLUSTER_VERSION))
+        .detachedVersion(isOldClusterDetachedVersion())
         .nodes(2)
         // some tests rely on the translog not being flushed
         .setting("indices.memory.shard_inactive_time", "60m")

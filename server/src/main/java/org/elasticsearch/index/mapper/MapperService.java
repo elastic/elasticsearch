@@ -116,6 +116,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    // maximum allowed number of objects for an array field in a document
+    public static final Setting<Long> INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.array_objects.limit",
+        20000L,
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     public static final Setting<Long> INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.total_fields.limit",
         1000L,

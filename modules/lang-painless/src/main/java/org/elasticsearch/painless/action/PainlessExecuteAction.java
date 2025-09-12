@@ -21,6 +21,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -131,6 +132,7 @@ public class PainlessExecuteAction {
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject, IndicesRequest.SingleIndexNoWildcards {
 
+        private static final TransportVersion NEW_BOOLEAN_FLAG = TransportVersion.fromName("new_boolean_flag");
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
         private static final ParseField CONTEXT_SETUP_FIELD = new ParseField("context_setup");
@@ -376,6 +378,9 @@ public class PainlessExecuteAction {
             script = new Script(in);
             context = fromScriptContextName(in.readString());
             contextSetup = in.readOptionalWriteable(ContextSetup::new);
+            if (in.getTransportVersion().supports(NEW_BOOLEAN_FLAG)) {
+                in.readBoolean();
+            }
         }
 
         public Script getScript() {
@@ -413,6 +418,9 @@ public class PainlessExecuteAction {
             script.writeTo(out);
             out.writeString(context.name);
             out.writeOptionalWriteable(contextSetup);
+            if (out.getTransportVersion().supports(NEW_BOOLEAN_FLAG)) {
+                out.writeBoolean(true);
+            }
         }
 
         // For testing only:

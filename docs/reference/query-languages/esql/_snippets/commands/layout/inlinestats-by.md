@@ -51,9 +51,8 @@ aggregated values over the grouped rows. The output table contains the same
 number of rows as the input table. The command only adds new columns or overrides
 existing columns with the same name as the result.
 
-In case there are overlapping column names between the newly added columns and the
-existing ones, besides overriding the existing columns values, there can be a change in
-the column order. The new columns are added/moved so that they appear in the order
+If column names overlap, existing column values may be overridden and column order
+may change. The new columns are added/moved so that they appear in the order
 they are defined in the `INLINE STATS` command.
 
 For the calculation of each aggregated value, the rows in a group can be filtered with

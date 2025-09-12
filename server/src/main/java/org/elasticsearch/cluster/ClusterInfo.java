@@ -20,12 +20,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -63,6 +66,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
     final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
     final Map<ShardId, Double> shardWriteLoads;
+    private final Map<ShardId, Set<String>> shardToNodeIds;
 
     protected ClusterInfo() {
         this(Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
@@ -101,6 +105,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.estimatedHeapUsages = Map.copyOf(estimatedHeapUsages);
         this.nodeUsageStatsForThreadPools = Map.copyOf(nodeUsageStatsForThreadPools);
         this.shardWriteLoads = Map.copyOf(shardWriteLoads);
+        this.shardToNodeIds = computeShardToNodeIds(dataPath);
     }
 
     public ClusterInfo(StreamInput in) throws IOException {
@@ -125,6 +130,23 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         } else {
             this.shardWriteLoads = Map.of();
         }
+        this.shardToNodeIds = computeShardToNodeIds(dataPath);
+    }
+
+    private static Map<ShardId, Set<String>> computeShardToNodeIds(Map<NodeAndShard, String> dataPath) {
+        if (dataPath.isEmpty()) {
+            return Map.of();
+        }
+        final var shardToNodeIds = new HashMap<ShardId, Set<String>>();
+        for (NodeAndShard nodeAndShard : dataPath.keySet()) {
+            shardToNodeIds.computeIfAbsent(nodeAndShard.shardId, ignore -> new HashSet<>()).add(nodeAndShard.nodeId);
+        }
+        Maps.transformValues(shardToNodeIds, nodeIds -> Collections.unmodifiableSet(nodeIds));
+        return shardToNodeIds;
+    }
+
+    public Set<String> getNodeIdsForShard(ShardId shardId) {
+        return shardToNodeIds.getOrDefault(shardId, Set.of());
     }
 
     @Override

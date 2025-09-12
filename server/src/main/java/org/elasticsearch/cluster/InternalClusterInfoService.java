@@ -120,6 +120,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
+    private volatile ClusterInfo currentClusterInfo = ClusterInfo.EMPTY;
+
     @SuppressWarnings("this-escape")
     public InternalClusterInfoService(
         Settings settings,
@@ -453,7 +455,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void callListeners() {
             try {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                final ClusterInfo clusterInfo = getClusterInfo();
+                final ClusterInfo clusterInfo = updateAndGetCurrentClusterInfo();
                 boolean anyListeners = false;
                 for (final Consumer<ClusterInfo> listener : listeners) {
                     anyListeners = true;
@@ -537,6 +539,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     @Override
     public ClusterInfo getClusterInfo() {
+        return currentClusterInfo;
+    }
+
+    private ClusterInfo updateAndGetCurrentClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
         final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
         maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
@@ -545,7 +551,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }
         });
-        return new ClusterInfo(
+        final var newClusterInfo = new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
             indicesStatsSummary.shardSizes,
@@ -556,6 +562,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             nodeThreadPoolUsageStatsPerNode,
             indicesStatsSummary.shardWriteLoads()
         );
+        currentClusterInfo = newClusterInfo;
+        return newClusterInfo;
     }
 
     // allow tests to adjust the node stats on receipt

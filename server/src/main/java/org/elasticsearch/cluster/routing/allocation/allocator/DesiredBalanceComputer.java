@@ -12,7 +12,11 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoSimulator;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -45,6 +49,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 
 /**
  * Holds the desired balance and updates it as the cluster evolves.
@@ -139,6 +144,8 @@ public class DesiredBalanceComputer {
         if (routingNodes.size() == 0) {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of(), finishReason);
         }
+
+        simulateAlreadyStartedShards(desiredBalanceInput.routingAllocation().clusterInfo(), routingNodes, clusterInfoSimulator);
 
         // we assume that all ongoing recoveries will complete
         for (final var routingNode : routingNodes) {
@@ -481,6 +488,86 @@ public class DesiredBalanceComputer {
 
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
         return new DesiredBalance(lastConvergedIndex, assignments, routingNodes.getBalanceWeightStatsPerNode(), finishReason);
+    }
+
+    /**
+     * For shards started after initial polling of the ClusterInfo but before the next polling, we need to
+     * account for their impacts by simulating the events, either relocation or new shard start. This is done
+     * by comparing the current RoutingNodes against the shard allocation information from the ClusterInfo to
+     * find out the shard allocation changes. Note this approach is approximate in some edge cases:
+     * 1. If a shard is relocated twice from node A to B to C. It is considered as relocating from A to C directly
+     *    for simulation purpose.
+     * 2. If a shard has 2 replicas and they both relocate, replica 1 from A to X and replica 2 from B to Y. The
+     *    simulation may see them as relocations A->X and B->Y. But it may also see them as A->Y and B->X.
+     * In both cases, it should not really matter for simulation to account for resource changes.
+     */
+    private static void simulateAlreadyStartedShards(
+        ClusterInfo clusterInfo,
+        RoutingNodes routingNodes,
+        ClusterInfoSimulator clusterInfoSimulator
+    ) {
+        // Find all shards that are started in RoutingNodes but have no data on corresponding node in ClusterInfo
+        final var startedShards = new ArrayList<ShardRouting>();
+        for (var routingNode : routingNodes) {
+            for (var shardRouting : routingNode.started()) {
+                // We use dataPath to find out whether a shard is allocated on a node.
+                // TODO: DataPath is sent with disk usages but thread pool usage is sent separately so that local shard allocation
+                // may change between the two calls.
+                if (clusterInfo.getDataPath(shardRouting) == null) {
+                    startedShards.add(shardRouting);
+                }
+            }
+        }
+        if (startedShards.isEmpty()) {
+            return;
+        }
+
+        // For started shards, attempt to find its source node. If found, it is a relocation, otherwise it is a new shard.
+        // The same shard on the same source node cannot be relocated twice to different nodes. So we exclude it once used.
+        final Map<ShardId, Set<String>> alreadySeenSourceNodes = new HashMap<>();
+        for (var startedShard : startedShards) {
+            // The source node is found by checking whether the ClusterInfo has a node hosting a shard with the same ShardId
+            // and has compatible node role. If multiple nodes are found, simply pick the first one.
+            final var sourceNodeId = clusterInfo.getNodeIdsForShard(startedShard.shardId())
+                .stream()
+                // Do not use the same source node twice for the same shard
+                .filter(nodeId -> alreadySeenSourceNodes.getOrDefault(startedShard.shardId(), Set.of()).contains(nodeId) == false)
+                .map(routingNodes::node)
+                // The source node must not currently host the shard
+                .filter(routingNode -> routingNode != null && routingNode.getByShardId(startedShard.shardId()) == null)
+                .map(RoutingNode::node)
+                // The source node must have compatible node roles
+                .filter(node -> node != null && switch (startedShard.role()) {
+                    case DEFAULT -> node.canContainData();
+                    case INDEX_ONLY -> node.getRoles().contains(DiscoveryNodeRole.INDEX_ROLE);
+                    case SEARCH_ONLY -> node.getRoles().contains(DiscoveryNodeRole.SEARCH_ROLE);
+                })
+                .map(DiscoveryNode::getId)
+                .findFirst()
+                .orElse(null);
+
+            final long expectedShardSize = startedShard.getExpectedShardSize();
+            if (sourceNodeId != null) {
+                logger.trace(
+                    "simulating relocating shard {} from {} to {}",
+                    startedShard.shardId(),
+                    sourceNodeId,
+                    startedShard.currentNodeId()
+                );
+                alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
+                final var relocatingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
+                    .initialize(sourceNodeId, null, expectedShardSize)
+                    .moveToStarted(expectedShardSize)
+                    .relocate(startedShard.currentNodeId(), expectedShardSize)
+                    .getTargetRelocatingShard();
+                clusterInfoSimulator.simulateShardStarted(relocatingShard);
+            } else {
+                logger.trace("simulating starting of new shard {} on {}", startedShard.shardId(), startedShard.currentNodeId());
+                final var initializingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
+                    .initialize(startedShard.currentNodeId(), null, expectedShardSize);
+                clusterInfoSimulator.simulateShardStarted(initializingShard);
+            }
+        }
     }
 
     private void maybeLogAllocationExplainForUnassigned(

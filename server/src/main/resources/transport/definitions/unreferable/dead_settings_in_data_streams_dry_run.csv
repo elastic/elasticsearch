@@ -1,0 +1,6 @@
+# Two transports versions (this one and settings_in_data_streams)
+# shared the same 8.19 version. Since the 9.1 release would have
+# had both of these it is safe to use settings_in_data_streams
+# instead of this version. This once becomes "dead" to ensure
+# our validation checks remain correct.
+9081000

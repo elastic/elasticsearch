@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -93,12 +94,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
-        this.reshardSplitShardCount = reshardSplitShardCount;
-        /// if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
-        // this.reshardSplitShardCount = in.readInt();
-        // } else {
-        // this.reshardSplitShardCount = reshardSplitShardCount;
-        // }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
+            this.reshardSplitShardCount = in.readInt();
+        } else {
+            this.reshardSplitShardCount = reshardSplitShardCount;
+        }
     }
 
     /**
@@ -225,9 +225,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
-        // if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
-        // out.writeInt(reshardSplitShardCount);
-        // }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
+            out.writeInt(reshardSplitShardCount);
+        }
     }
 
     /**

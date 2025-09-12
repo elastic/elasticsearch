@@ -44,7 +44,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The idelta of a counter field. idelta is the absolute change between the last two data points ("
+        description = "The idelta of a gauge. idelta is the absolute change between the last two data points ("
             + "it ignores all but the last two data points in each time period). "
             + "This function is very similar to delta, but is more responsive to recent changes.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },

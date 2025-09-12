@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
@@ -92,7 +93,7 @@ public class AuthenticationService {
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
         OperatorPrivilegesService operatorPrivilegesService,
-        PluggableAuthenticatorChain pluggableAuthenticatorChain,
+        List<CustomAuthenticator> customAuthenticators,
         MeterRegistry meterRegistry
     ) {
         this.realms = realms;
@@ -115,7 +116,7 @@ public class AuthenticationService {
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
-            pluggableAuthenticatorChain,
+            new PluggableAuthenticatorChain(customAuthenticators),
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),

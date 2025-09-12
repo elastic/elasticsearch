@@ -194,6 +194,14 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
     }
 
+    //TODO test PIT (e.g. open PIT does not record took time
+
+    //TODO test resolve indices with data stream
+
+    //TODO test resolved indices (and alias) with security enabled
+
+    //TODO do we actually want the concrete indices? We should be fine either way with the starts with logic
+
     /**
      * Make sure that despite can match and query rewrite, we see the time range filter and record its corresponding attribute
      */

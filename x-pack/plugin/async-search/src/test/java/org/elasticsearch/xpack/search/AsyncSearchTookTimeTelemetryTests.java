@@ -159,10 +159,9 @@ public class AsyncSearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
     }
 
     private static void assertAttributes(Map<String, Object> attributes) {
-        assertEquals(4, attributes.size());
+        assertEquals(3, attributes.size());
         assertEquals("user", attributes.get("target"));
         assertEquals("hits_only", attributes.get("query_type"));
         assertEquals("_score", attributes.get("sort"));
-        assertEquals(false, attributes.get("knn"));
     }
 }

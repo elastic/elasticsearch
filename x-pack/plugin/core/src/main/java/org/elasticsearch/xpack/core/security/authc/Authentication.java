@@ -83,7 +83,6 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
-import static org.elasticsearch.xpack.core.security.authc.Subject.Type.USER;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.REMOTE_CLUSTER;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 
@@ -718,7 +717,7 @@ public final class Authentication implements ToXContentObject {
         assert EnumSet.of(
             Authentication.AuthenticationType.REALM,
             Authentication.AuthenticationType.API_KEY,
-            AuthenticationType.TOKEN,
+            Authentication.AuthenticationType.TOKEN,
             Authentication.AuthenticationType.ANONYMOUS,
             Authentication.AuthenticationType.INTERNAL
         ).containsAll(EnumSet.of(getAuthenticationType(), resourceCreatorAuthentication.getAuthenticationType()))
@@ -986,7 +985,7 @@ public final class Authentication implements ToXContentObject {
     }
 
     private void checkConsistencyForRealmAuthenticationType() {
-        if (USER != authenticatingSubject.getType()) {
+        if (Subject.Type.USER != authenticatingSubject.getType()) {
             throw new IllegalArgumentException("Realm authentication must have subject type of user");
         }
         if (isRunAs()) {
@@ -1029,7 +1028,7 @@ public final class Authentication implements ToXContentObject {
                 )
             );
         }
-        if (USER != effectiveSubject.getType()) {
+        if (Subject.Type.USER != effectiveSubject.getType()) {
             throw new IllegalArgumentException(Strings.format("Run-as subject type cannot be [%s]", effectiveSubject.getType()));
         }
         if (false == effectiveSubject.getMetadata().isEmpty()) {

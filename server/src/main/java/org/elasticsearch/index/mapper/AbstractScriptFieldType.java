@@ -49,7 +49,7 @@ public abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldTy
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
     private final boolean isResultDeterministic;
-    private final boolean isParsedFromSource;
+    protected final boolean isParsedFromSource;
 
     protected AbstractScriptFieldType(
         String name,

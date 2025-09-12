@@ -412,7 +412,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         def result = runGenerateTask("--backport-branches=9.1,8.13,7.17,6.0").buildAndFail()
 
         then:
-        assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [9.0, 9.1, 9.2]")
+        assertGenerateFailure(result, "Missing upper bounds files for branches [6.0, 7.17, 8.13], known branches are [8.19, 9.0, 9.1, 9.2]")
     }
 
     def "name can be found from committed definition"() {

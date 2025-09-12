@@ -19,7 +19,7 @@ while IFS= read -r file; do
       echo "Changes to transport definition [${file}] missing from main branch."
       echo "Transport changes must first be merged to main before being backported."
       echo ""
-      git diff --quiet origin/main -- "${file}"
+      git diff origin/main -- "${file}"
       exit 1
   fi
 done <<< "${changed_files}"

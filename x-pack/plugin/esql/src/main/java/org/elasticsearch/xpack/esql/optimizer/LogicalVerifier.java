@@ -34,8 +34,9 @@ public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<Log
 
     @Override
     boolean hasRemoteEnrich(LogicalPlan optimizedPlan) {
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
         var enriches = optimizedPlan.collectFirstChildren(Enrich.class::isInstance);
-        return enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE;
+        return enriches.stream().anyMatch(e -> ((Enrich) e).mode() == Enrich.Mode.REMOTE);
     }
 
     @Override

@@ -402,6 +402,33 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
             assertCCSExecutionInfoDetails(executionInfo);
         }
+
+        // No renames, no KEEP
+        query = """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | SORT timestamp, user, ip
+            | LIMIT 5
+            | ENRICH _remote:hosts
+            """;
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "192.168.1.2", "Windows", "192.168.1.2"),
+                        List.of("192.168.1.3", 1L, "matthew", "192.168.1.3", "MacOS", "192.168.1.3"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null, (String) null, "192.168.1.25"),
+                        List.of("192.168.1.5", 2L, "akio", "192.168.1.5", "Android", "192.168.1.5"),
+                        List.of("192.168.1.6", 2L, "sergio", "192.168.1.6", "iOS", "192.168.1.6")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testLimitThenEnrichRemote() {

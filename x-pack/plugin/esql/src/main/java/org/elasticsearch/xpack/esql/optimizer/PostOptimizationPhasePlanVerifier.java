@@ -41,7 +41,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
         Failures depFailures = new Failures();
         // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
         // This is a temporary workaround to skip verification when there is a remote enrich, due to a bug
-        if (isLocal && hasRemoteEnrich(optimizedPlan)) {
+        if (hasRemoteEnrich(optimizedPlan)) {
             return failures;
         }
 

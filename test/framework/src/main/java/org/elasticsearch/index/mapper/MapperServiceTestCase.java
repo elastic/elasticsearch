@@ -234,6 +234,18 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return new TestMapperServiceBuilder().indexVersion(version).settings(settings).idFieldDataEnabled(idFieldDataEnabled).build();
     }
 
+    public MapperService createMapperServiceWithNamespaceValidator(String mappings, RootObjectMapperNamespaceValidator validator)
+        throws IOException {
+        MapperService mapperService = new TestMapperServiceBuilder().indexVersion(getVersion())
+            .settings(getIndexSettings())
+            .idFieldDataEnabled(() -> true)
+            .namespaceValidator(validator)
+            .build();
+
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     protected final MapperService withMapping(MapperService mapperService, XContentBuilder mapping) throws IOException {
         merge(mapperService, mapping);
         return mapperService;
@@ -246,6 +258,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         private ScriptCompiler scriptCompiler;
         private MapperMetrics mapperMetrics;
         private boolean applyDefaultMapping;
+        private RootObjectMapperNamespaceValidator namespaceValidator;
 
         public TestMapperServiceBuilder() {
             indexVersion = getVersion();
@@ -281,11 +294,17 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             return this;
         }
 
+        public TestMapperServiceBuilder namespaceValidator(RootObjectMapperNamespaceValidator validator) {
+            this.namespaceValidator = validator;
+            return this;
+        }
+
         public MapperService build() {
             IndexSettings indexSettings = createIndexSettings(indexVersion, settings);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             MapperRegistry mapperRegistry = new IndicesModule(
-                getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+                getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList()),
+                namespaceValidator
             ).getMapperRegistry();
 
             BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);

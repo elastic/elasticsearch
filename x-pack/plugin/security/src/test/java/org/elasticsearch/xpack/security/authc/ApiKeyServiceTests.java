@@ -15,7 +15,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -78,7 +77,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -117,7 +115,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyDoc;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResult;
@@ -126,7 +123,6 @@ import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics.CacheType;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
 import org.junit.Before;
@@ -3285,24 +3281,13 @@ public class ApiKeyServiceTests extends ESTestCase {
                 true
             );
 
-            final BulkItemResponse itemResponse = BulkItemResponse.success(
-                0,
-                DocWriteRequest.OpType.CREATE,
-                indexResponse
-            );
+            final BulkItemResponse itemResponse = BulkItemResponse.success(0, DocWriteRequest.OpType.CREATE, indexResponse);
 
-            final BulkResponse bulkResponse = new BulkResponse(
-                new BulkItemResponse[]{itemResponse},
-                100L
-            );
+            final BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { itemResponse }, 100L);
 
             listener.onResponse(bulkResponse);
             return null;
-        }).when(client).execute(
-            eq(TransportBulkAction.TYPE),
-            any(BulkRequest.class),
-            anyActionListener()
-        );
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
 
         final Authentication authentication = AuthenticationTestHelper.builder()
             .user(new User("test-user", "superuser"))
@@ -3311,14 +3296,14 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final String certIdentity = "CN=host123";
         final String accessJson = """
-            {
-              "search": [
                 {
-                  "names": ["logs*"]
+                  "search": [
+                    {
+                      "names": ["logs*"]
+                    }
+                  ]
                 }
-              ]
-            }
-        """;
+            """;
 
         final CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder = CrossClusterApiKeyRoleDescriptorBuilder.parse(accessJson);
 
@@ -3336,18 +3321,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         CreateApiKeyResponse response = future.get();
         assertNotNull(response);
 
-        verify(client, times(1)).execute(
-            eq(TransportBulkAction.TYPE),
-            any(BulkRequest.class),
-            anyActionListener()
-        );
+        verify(client, times(1)).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), anyActionListener());
 
         ArgumentCaptor<BulkRequest> bulkRequestCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-        verify(client).execute(
-            eq(TransportBulkAction.TYPE),
-            bulkRequestCaptor.capture(),
-            anyActionListener()
-        );
+        verify(client).execute(eq(TransportBulkAction.TYPE), bulkRequestCaptor.capture(), anyActionListener());
 
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);

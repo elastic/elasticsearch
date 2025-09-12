@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.elasticsearch.xpack.security.metric.SecurityCacheMetrics;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
@@ -114,7 +115,7 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Featu
 import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
-import org.elasticsearch.xpack.security.SecurityFeatures;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -612,11 +613,14 @@ public class ApiKeyService implements Closeable {
                         )
                     );
             } catch (MapperParsingException e) {
-                logger.error("API key creation failed. The 'certificate_identity' field was provided, but the index " +
-                    "mapping is not yet in place on all nodes in the cluster", e);
+                logger.error(
+                    "API key creation failed. The 'certificate_identity' field was provided, but the index "
+                        + "mapping is not yet in place on all nodes in the cluster",
+                    e
+                );
                 throw new ElasticsearchException(
-                    "API key creation failed. The cluster is in a mixed-version state and does not yet " +
-                        "support the certificate_identity field. Please retry after the upgrade is complete."
+                    "API key creation failed. The cluster is in a mixed-version state and does not yet "
+                        + "support the certificate_identity field. Please retry after the upgrade is complete."
                 );
             } catch (IOException e) {
                 listener.onFailure(e);
@@ -629,15 +633,17 @@ public class ApiKeyService implements Closeable {
     private String getCertificateIdentityFromRequest(AbstractCreateApiKeyRequest request) {
         String certificateIdentity = null;
         if (request instanceof CreateCrossClusterApiKeyRequest) {
-            certificateIdentity =  ((CreateCrossClusterApiKeyRequest) request).getCertificateIdentity();
+            certificateIdentity = ((CreateCrossClusterApiKeyRequest) request).getCertificateIdentity();
 
             if (certificateIdentity != null
                 && securityFeatures.getFeatures().contains(SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE) == false) {
-                logger.error("API key creation failed. The 'certificate_identity' field was provided, but this feature " +
-                    "is not yet in place on all nodes in the cluster." );
+                logger.error(
+                    "API key creation failed. The 'certificate_identity' field was provided, but this feature "
+                        + "is not yet in place on all nodes in the cluster."
+                );
                 throw new ElasticsearchException(
-                    "API key creation failed. The cluster is in a mixed-version state and does not yet " +
-                        "support the certificate_identity field. Please retry after the upgrade is complete."
+                    "API key creation failed. The cluster is in a mixed-version state and does not yet "
+                        + "support the certificate_identity field. Please retry after the upgrade is complete."
                 );
             }
         }
@@ -1135,7 +1141,6 @@ public class ApiKeyService implements Closeable {
             // `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`, when we update a 7.x API key.
             false
         );
-
 
         return (userRoleDescriptors.size() == currentLimitedByRoleDescriptors.size()
             && userRoleDescriptors.containsAll(currentLimitedByRoleDescriptors));

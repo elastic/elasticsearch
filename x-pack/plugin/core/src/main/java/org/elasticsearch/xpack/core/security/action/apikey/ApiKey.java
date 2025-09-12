@@ -275,7 +275,9 @@ public final class ApiKey implements ToXContentObject {
         return limitedBy;
     }
 
-    public @Nullable String getCertificateIdentity() { return certificateIdentity; }
+    public @Nullable String getCertificateIdentity() {
+        return certificateIdentity;
+    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

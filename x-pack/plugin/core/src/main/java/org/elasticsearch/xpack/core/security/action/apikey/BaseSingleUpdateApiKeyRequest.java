@@ -23,9 +23,9 @@ public abstract class BaseSingleUpdateApiKeyRequest extends BaseUpdateApiKeyRequ
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration,
-        String id
-    ) {
-        super(roleDescriptors, metadata, expiration);
+        String id,
+        @Nullable String certificateIdentity) {
+        super(roleDescriptors, metadata, expiration, certificateIdentity);
         this.id = Objects.requireNonNull(id, "API key ID must not be null");
     }
 
@@ -42,11 +42,12 @@ public abstract class BaseSingleUpdateApiKeyRequest extends BaseUpdateApiKeyRequ
         return Objects.equals(getId(), that.getId())
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(expiration, that.expiration)
-            && Objects.equals(roleDescriptors, that.roleDescriptors);
+            && Objects.equals(roleDescriptors, that.roleDescriptors)
+            && Objects.equals(certificateIdentity, that.certificateIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getId(), expiration, metadata, roleDescriptors);
+        return Objects.hash(getId(), expiration, metadata, roleDescriptors, certificateIdentity);
     }
 }

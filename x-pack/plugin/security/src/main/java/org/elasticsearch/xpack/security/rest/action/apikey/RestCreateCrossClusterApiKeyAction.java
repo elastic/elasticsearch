@@ -43,7 +43,8 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
             (String) args[0],
             (CrossClusterApiKeyRoleDescriptorBuilder) args[1],
             TimeValue.parseTimeValue((String) args[2], null, "expiration"),
-            (Map<String, Object>) args[3]
+            (Map<String, Object>) args[3],
+            (String) args[4]
         )
     );
 
@@ -52,6 +53,7 @@ public final class RestCreateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
         PARSER.declareObject(constructorArg(), CrossClusterApiKeyRoleDescriptorBuilder.PARSER, new ParseField("access"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("expiration"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
+        PARSER.declareString(optionalConstructorArg(), new ParseField("certificate_identity"));
     }
 
     /**

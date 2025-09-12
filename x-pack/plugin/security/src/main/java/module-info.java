@@ -51,6 +51,7 @@ module org.elasticsearch.security {
     requires org.slf4j;
     requires unboundid.ldapsdk;
     requires org.elasticsearch.logging;
+    requires jsr305;
 
     exports org.elasticsearch.xpack.security.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.action.apikey to org.elasticsearch.server;

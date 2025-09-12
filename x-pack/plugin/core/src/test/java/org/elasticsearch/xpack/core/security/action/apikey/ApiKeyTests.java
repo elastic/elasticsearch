@@ -196,7 +196,8 @@ public class ApiKeyTests extends ESTestCase {
             realmType,
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
     }
 }

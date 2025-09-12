@@ -614,14 +614,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return buildComparison(source(ctx), left, right, op);
     }
 
-    @Override
-    public Expression visitJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx) {
-        Expression left = expression(ctx.left);
-        Expression right = expression(ctx.right);
-        TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
-        return buildComparison(source(ctx), left, right, op);
-    }
-
     private Expression buildComparison(Source source, Expression left, Expression right, TerminalNode op) {
         ZoneId zoneId = DateUtils.UTC;
 

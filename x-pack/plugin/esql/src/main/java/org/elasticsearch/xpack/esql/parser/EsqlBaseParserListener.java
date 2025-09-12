@@ -1278,47 +1278,13 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
   /**
-   * Enter a parse tree produced by the {@code fieldBasedLookupJoin}
-   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree
    */
-  void enterFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx);
+  void enterJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
   /**
-   * Exit a parse tree produced by the {@code fieldBasedLookupJoin}
-   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree
    */
-  void exitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code expressionBasedLookupJoin}
-   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
-   * @param ctx the parse tree
-   */
-  void enterExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code expressionBasedLookupJoin}
-   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
-   * @param ctx the parse tree
-   */
-  void exitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   */
-  void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   */
-  void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicateExpression}.
-   * @param ctx the parse tree
-   */
-  void enterJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicateExpression}.
-   * @param ctx the parse tree
-   */
-  void exitJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx);
+  void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
 }

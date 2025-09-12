@@ -18,16 +18,8 @@ joinTarget
     ;
 
 joinCondition
-    : ON qualifiedName (COMMA qualifiedName)*                                #fieldBasedLookupJoin
-    | ON joinPredicateExpression (AND joinPredicateExpression)*              #expressionBasedLookupJoin
+    : ON booleanExpression (COMMA booleanExpression)*
     ;
 
-joinPredicate
-    : valueExpression
-    ;
-
-joinPredicateExpression
-    : left=operatorExpression comparisonOperator right=operatorExpression
-    ;
 
 

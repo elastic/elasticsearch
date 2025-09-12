@@ -701,10 +701,25 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     private record JoinInfo(List<Attribute> joinFields, List<Expression> joinExpressions) {}
 
     @Override
-    public JoinInfo visitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx) {
-        var predicates = visitList(this, ctx.qualifiedName(), Expression.class);
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
-        for (var f : predicates) {
+    public JoinInfo visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) {
+        var expressions = visitList(this, ctx.booleanExpression(), Expression.class);
+        if (expressions.isEmpty()) {
+            throw new ParsingException(source(ctx), "JOIN ON clause cannot be empty");
+        }
+
+        // inspect the first expression to determine the type of join (field-based or expression-based)
+        boolean isFieldBased = expressions.get(0) instanceof UnresolvedAttribute;
+
+        if (isFieldBased) {
+            return processFieldBasedJoin(expressions);
+        } else {
+            return processExpressionBasedJoin(expressions, ctx);
+        }
+    }
+
+    private JoinInfo processFieldBasedJoin(List<Expression> expressions) {
+        List<Attribute> joinFields = new ArrayList<>(expressions.size());
+        for (var f : expressions) {
             // verify each field is an unresolved attribute
             if (f instanceof UnresolvedAttribute ua) {
                 if (ua.qualifier() != null) {
@@ -718,7 +733,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             } else {
                 throw new ParsingException(
                     f.source(),
-                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                    "JOIN ON clause must be a comma separated list of fields or a single expression found [{}]",
                     f.sourceText()
                 );
             }
@@ -727,31 +742,41 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return new JoinInfo(joinFields, emptyList());
     }
 
-    @Override
-    public JoinInfo visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx) {
+    private JoinInfo processExpressionBasedJoin(List<Expression> expressions, EsqlBaseParser.JoinConditionContext ctx) {
         if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
             throw new ParsingException(ctx.getText(), "JOIN ON clause only supports fields at the moment, found [{}]", ctx.getText());
         }
-        var predicates = visitList(this, ctx.joinPredicateExpression(), Expression.class);
-        List<Attribute> joinFields = new ArrayList<>(predicates.size());
-        List<Expression> joinExpressions = new ArrayList<>(predicates.size());
-        for (var f : predicates) {
-            f = handleNegationOfEquals(f);
-            if (f instanceof EsqlBinaryComparison comparison
-                && comparison.left() instanceof UnresolvedAttribute left
-                && comparison.right() instanceof UnresolvedAttribute right) {
-                joinFields.add(left);
-                joinFields.add(right);
-                joinExpressions.add(f);
-            } else {
-                throw new ParsingException(
-                    f.source(),
-                    "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
-                    f.sourceText()
-                );
-            }
+        List<Attribute> joinFields = new ArrayList<>();
+        List<Expression> joinExpressions = new ArrayList<>();
+        if (expressions.size() != 1) {
+            throw new ParsingException(
+                source(ctx),
+                "JOIN ON clause with expressions only supports a single expression, found [{}]",
+                expressions
+            );
+        }
+        expressions = Predicates.splitAnd(expressions.get(0));
+        for (var f : expressions) {
+            addJoinExpression(f, joinFields, joinExpressions);
         }
         return new JoinInfo(joinFields, joinExpressions);
+    }
+
+    private void addJoinExpression(Expression exp, List<Attribute> joinFields, List<Expression> joinExpressions) {
+        exp = handleNegationOfEquals(exp);
+        if (exp instanceof EsqlBinaryComparison comparison
+            && comparison.left() instanceof UnresolvedAttribute left
+            && comparison.right() instanceof UnresolvedAttribute right) {
+            joinFields.add(left);
+            joinFields.add(right);
+            joinExpressions.add(exp);
+        } else {
+            throw new ParsingException(
+                exp.source(),
+                "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found [{}]",
+                exp.sourceText()
+            );
+        }
     }
 
     private void validateJoinFields(List<Attribute> joinFields) {

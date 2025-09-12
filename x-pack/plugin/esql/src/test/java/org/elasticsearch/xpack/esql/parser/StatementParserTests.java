@@ -3373,8 +3373,56 @@ public class StatementParserTests extends AbstractStatementParserTests {
         testInvalidJoinPatterns(randomIdentifier());
     }
 
+    public void testInvalidJoinPatternsFieldJoinTwo() {
+        testInvalidJoinPatterns(randomIdentifier() + ", " + randomIdentifier());
+    }
+
     public void testInvalidJoinPatternsExpressionJoin() {
         testInvalidJoinPatterns(singleExpressionJoinClause());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoinTwo() {
+        testInvalidJoinPatterns(singleExpressionJoinClause() + " AND " + singleExpressionJoinClause());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoinMix() {
+        testInvalidJoinPatterns(randomIdentifier() + ", " + singleExpressionJoinClause());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoinMixTwo() {
+        testInvalidJoinPatterns(singleExpressionJoinClause() + " AND " + randomIdentifier());
+    }
+
+    public void testInvalidLookupJoinOnClause() {
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " , " + singleExpressionJoinClause(),
+            "JOIN ON clause must be a comma separated list of fields or a single expression found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " , " + randomIdentifier(),
+            "JOIN ON clause with expressions only supports a single expression, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " , " + singleExpressionJoinClause(),
+            "JOIN ON clause with expressions only supports a single expression, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " AND " + randomIdentifier(),
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + randomIdentifier(),
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + singleExpressionJoinClause(),
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found "
+        );
     }
 
     private String singleExpressionJoinClause() {
@@ -4777,11 +4825,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String param2 = randomBoolean() ? "?" : "??";
             String param3 = randomBoolean() ? "?" : "??";
             if (param1.equals("?") || param2.equals("?") || param3.equals("?")) {
-                expectError(
-                    LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
-                    List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                    "declared as a constant, cannot be used as an identifier"
-                );
+                if (command.contains("lookup join") == false) {
+                    expectError(
+                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                        "declared as a constant, cannot be used as an identifier"
+                    );
+                } else {
+                    expectError(
+                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                        "JOIN ON clause only supports fields or AND of Binary Expressions at the moment"
+                    );
+
+                }
             }
         }
     }

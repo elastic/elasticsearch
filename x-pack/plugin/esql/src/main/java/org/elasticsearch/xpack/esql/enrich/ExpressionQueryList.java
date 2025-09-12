@@ -37,6 +37,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
@@ -120,6 +121,9 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         AliasFilter aliasFilter,
         Warnings warnings
     ) {
+        if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
+            throw new UnsupportedOperationException("Lookup Join on Boolean Expression capability is not enabled");
+        }
         if (request.getJoinOnConditions() == null) {
             throw new IllegalStateException("expressionBasedJoin must have join conditions");
         }

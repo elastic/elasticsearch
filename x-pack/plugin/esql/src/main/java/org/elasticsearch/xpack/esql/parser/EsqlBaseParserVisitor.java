@@ -768,29 +768,9 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitJoinTarget(EsqlBaseParser.JoinTargetContext ctx);
   /**
-   * Visit a parse tree produced by the {@code fieldBasedLookupJoin}
-   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
+   * Visit a parse tree produced by {@link EsqlBaseParser#joinCondition}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitFieldBasedLookupJoin(EsqlBaseParser.FieldBasedLookupJoinContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code expressionBasedLookupJoin}
-   * labeled alternative in {@link EsqlBaseParser#joinCondition}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitExpressionBasedLookupJoin(EsqlBaseParser.ExpressionBasedLookupJoinContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicateExpression}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinPredicateExpression(EsqlBaseParser.JoinPredicateExpressionContext ctx);
+  T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
 }

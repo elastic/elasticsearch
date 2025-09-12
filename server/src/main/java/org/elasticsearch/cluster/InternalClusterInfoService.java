@@ -539,7 +539,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     public ClusterInfo getClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
         final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
-        maxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
+        final var currentMaxHeapPerNode = this.maxHeapPerNode; // Make sure we use a consistent view
+        currentMaxHeapPerNode.forEach((nodeId, maxHeapSize) -> {
             final Long estimatedHeapUsage = estimatedHeapUsagePerNode.get(nodeId);
             if (estimatedHeapUsage != null) {
                 estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
@@ -555,7 +556,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             estimatedHeapUsages,
             nodeThreadPoolUsageStatsPerNode,
             indicesStatsSummary.shardWriteLoads(),
-            maxHeapPerNode
+            currentMaxHeapPerNode
         );
     }
 

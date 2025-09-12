@@ -21,22 +21,27 @@ import org.elasticsearch.ingest.Processor;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import java.io.ByteArrayInputStream;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import javax.xml.namespace.NamespaceContext;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.xpath.XPath;
@@ -295,21 +300,30 @@ public final class XmlProcessor extends AbstractProcessor {
             Object result = compiledExpression.evaluate(xmlDocument, XPathConstants.NODESET);
 
             if (result instanceof NodeList nodeList) {
-                List<String> values = new ArrayList<>();
-
-                for (int i = 0; i < nodeList.getLength(); i++) {
-                    Node node = nodeList.item(i);
+                // separate the case for 1 vs multiple nodeList elements to avoid unnecessary array allocation, this optimization is only
+                // done because this is a per-document hot code path
+                if (nodeList.getLength() == 1) {
+                    Node node = nodeList.item(0);
                     String value = getNodeValue(node);
                     if (Strings.hasText(value)) {
-                        values.add(value);
+                        ingestDocument.setFieldValue(targetFieldName, value);
                     }
-                }
+                } else if (nodeList.getLength() > 1) {
+                    List<String> values = new ArrayList<>();
+                    for (int i = 0; i < nodeList.getLength(); i++) {
+                        Node node = nodeList.item(i);
+                        String value = getNodeValue(node);
+                        if (Strings.hasText(value)) {
+                            values.add(value);
+                        }
+                    }
 
-                if (values.isEmpty() == false) {
-                    if (values.size() == 1) {
-                        ingestDocument.setFieldValue(targetFieldName, values.get(0));
-                    } else {
-                        ingestDocument.setFieldValue(targetFieldName, values);
+                    if (values.isEmpty() == false) {
+                        if (values.size() == 1) {
+                            ingestDocument.setFieldValue(targetFieldName, values.get(0));
+                        } else {
+                            ingestDocument.setFieldValue(targetFieldName, values);
+                        }
                     }
                 }
             }
@@ -340,6 +354,13 @@ public final class XmlProcessor extends AbstractProcessor {
         // Set namespace context if namespaces are defined
         boolean hasNamespaces = namespaces.isEmpty() == false;
         if (hasNamespaces) {
+            // build a read-only reverse map for quick look up
+            Map<String, Set<String>> uriToPrefixes = new HashMap<>();
+            for (Map.Entry<String, String> entry : namespaces.entrySet()) {
+                uriToPrefixes.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey());
+            }
+            uriToPrefixes.replaceAll((k, v) -> Collections.unmodifiableSet(v));
+
             xpath.setNamespaceContext(new NamespaceContext() {
                 @Override
                 public String getNamespaceURI(String prefix) {
@@ -351,23 +372,22 @@ public final class XmlProcessor extends AbstractProcessor {
 
                 @Override
                 public String getPrefix(String namespaceURI) {
-                    for (Map.Entry<String, String> entry : namespaces.entrySet()) {
-                        if (entry.getValue().equals(namespaceURI)) {
-                            return entry.getKey();
-                        }
+                    if (namespaceURI == null) {
+                        throw new IllegalArgumentException("namespaceURI cannot be null");
                     }
-                    return null;
+                    if (uriToPrefixes.containsKey(namespaceURI)) {
+                        return uriToPrefixes.get(namespaceURI).iterator().next();
+                    } else {
+                        return null;
+                    }
                 }
 
                 @Override
                 public Iterator<String> getPrefixes(String namespaceURI) {
-                    List<String> prefixes = new ArrayList<>();
-                    for (Map.Entry<String, String> entry : namespaces.entrySet()) {
-                        if (entry.getValue().equals(namespaceURI)) {
-                            prefixes.add(entry.getKey());
-                        }
+                    if (namespaceURI == null) {
+                        throw new IllegalArgumentException("namespaceURI cannot be null");
                     }
-                    return prefixes.iterator();
+                    return uriToPrefixes.getOrDefault(namespaceURI, Set.of()).iterator();
                 }
             });
         }
@@ -493,24 +513,11 @@ public final class XmlProcessor extends AbstractProcessor {
             return;
         }
 
-        final SAXParser parser;
-        {
-            SAXParser innerParser;
-            final ThreadLocal<SoftReference<SAXParser>> threadLocal = PARSERS.get(factory);
-            final SoftReference<SAXParser> parserReference = threadLocal.get();
-            innerParser = parserReference != null ? parserReference.get() : null;
-            if (innerParser == null) {
-                innerParser = factory.newSAXParser();
-                threadLocal.set(new SoftReference<>(innerParser));
-            }
-            parser = innerParser;
-        }
-
+        final SAXParser parser = getParser(factory);
         final XmlStreamingWithDomHandler handler;
         try {
             // Use enhanced handler that can build DOM during streaming when needed
             handler = new XmlStreamingWithDomHandler(needsDom);
-
             parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
         } finally {
             parser.reset();
@@ -530,6 +537,21 @@ public final class XmlProcessor extends AbstractProcessor {
             assert domDocument != null : "DOM document should not be null when XPath processing is needed";
             processXPathExpressionsFromDom(document, domDocument);
         }
+    }
+
+    /**
+     * Gets the parser reference or creates a new one if the soft reference has been cleared.
+     */
+    private SAXParser getParser(SAXParserFactory factory) throws SAXException, ParserConfigurationException {
+        final ThreadLocal<SoftReference<SAXParser>> threadLocal = PARSERS.getOrDefault(factory, new ThreadLocal<>());
+        final SoftReference<SAXParser> parserReference = threadLocal.get();
+
+        SAXParser parser = parserReference != null ? parserReference.get() : null;
+        if (parser == null) {
+            parser = factory.newSAXParser();
+            threadLocal.set(new SoftReference<>(parser));
+        }
+        return parser;
     }
 
     /**

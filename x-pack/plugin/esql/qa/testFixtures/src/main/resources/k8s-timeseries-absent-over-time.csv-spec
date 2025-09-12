@@ -299,3 +299,25 @@ false              | three       | 2024-05-10T00:20:00.000Z | 0
 false              | two         | 2024-05-10T00:20:00.000Z | 0
 ;
 
+absent_over_time_events_received_as_integer
+required_capability: metrics_command
+required_capability: absent_over_time
+
+TS k8s 
+| WHERE cluster == "prod" AND pod == "two" 
+| STATS events_received = max(to_integer(absent_over_time(events_received))) BY pod, time_bucket = tbucket(2 minute) 
+| SORT time_bucket
+;
+ignoreOrder:true
+
+events_received:integer | pod:keyword | time_bucket:datetime
+0                       | two         | 2024-05-10T00:02:00.000Z
+0                       | two         | 2024-05-10T00:08:00.000Z
+1                       | two         | 2024-05-10T00:10:00.000Z
+1                       | two         | 2024-05-10T00:12:00.000Z
+0                       | two         | 2024-05-10T00:14:00.000Z
+0                       | two         | 2024-05-10T00:16:00.000Z
+1                       | two         | 2024-05-10T00:18:00.000Z
+0                       | two         | 2024-05-10T00:20:00.000Z
+0                       | two         | 2024-05-10T00:22:00.000Z
+;

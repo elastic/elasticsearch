@@ -223,7 +223,8 @@
   ],
   "examples" : [
     "FROM employees\n| WHERE emp_no == 10020\n| STATS is_absent = ABSENT(languages)",
-    "FROM employees\n| STATS is_absent = ABSENT(salary) BY languages"
+    "FROM employees\n| STATS is_absent = ABSENT(salary) BY languages",
+    "FROM employees\n| WHERE emp_no == 10020\n| STATS is_absent = TO_INTEGER(ABSENT(languages))"
   ],
   "preview" : false,
   "snapshot_only" : false

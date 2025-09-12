@@ -47,6 +47,11 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
                 description = "To check for the absence inside a group use `ABSENT()` and `BY` clauses",
                 file = "absent",
                 tag = "absent-by"
+            ),
+            @Example(
+                description = "To check for the absence and return 1 when it's true and 0 when it's false you can use to_integer()",
+                file = "absent",
+                tag = "absent-as-integer"
             ) }
     )
     public Absent(

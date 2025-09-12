@@ -99,3 +99,31 @@ FROM employees
 a_false:boolean    | a_true:boolean
 false              | true
 ;
+
+TO_INTEGER(ABSENT) with filter returns 0
+required_capability: fn_absent
+
+FROM employees
+| WHERE emp_no IN (10019, 10020)
+| STATS is_absent = TO_INTEGER(ABSENT(languages))
+;
+
+is_absent:integer
+0
+;
+
+TO_INTEGER(ABSENT) with filter returns 1
+required_capability: fn_absent
+
+// tag::absent-as-integer[]
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_absent = TO_INTEGER(ABSENT(languages))
+// end::absent-as-integer[]
+;
+
+// tag::absent-as-integer-result[]
+is_absent:integer
+1
+// end::absent-as-integer-result[]
+;

@@ -28,4 +28,16 @@ FROM employees
 | false | 5 |
 | false | null |
 
+To check for the absence and return 1 when it's true and 0 when it's false
+
+```esql
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_absent = TO_INTEGER(ABSENT(languages))
+```
+
+| is_absent:integer |
+| --- |
+| 1 |
+
 

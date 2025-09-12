@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.RerankRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -349,19 +350,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<Model> modelListener
     ) {
 
-        var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
+        var serviceSettings = ElasticRerankerServiceSettings.fromMap(serviceSettingsMap);
 
         throwIfNotEmptyMap(config, name());
         throwIfNotEmptyMap(serviceSettingsMap, name());
 
         modelListener.onResponse(
-            new ElasticRerankerModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                new ElasticRerankerServiceSettings(esServiceSettingsBuilder.build()),
-                RerankTaskSettings.fromMap(taskSettingsMap)
-            )
+            new ElasticRerankerModel(inferenceEntityId, taskType, NAME, serviceSettings, RerankTaskSettings.fromMap(taskSettingsMap))
         );
     }
 
@@ -535,7 +530,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 inferenceEntityId,
                 taskType,
                 NAME,
-                new ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(serviceSettingsMap)),
+                ElasticRerankerServiceSettings.fromMap(serviceSettingsMap),
                 RerankTaskSettings.fromMap(taskSettingsMap)
             );
         } else {
@@ -688,7 +683,25 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Map<String, Object> requestTaskSettings,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var request = buildInferenceRequest(model.mlNodeDeploymentId(), new TextSimilarityConfigUpdate(query), inputs, inputType, timeout);
+        var chunkedInputs = inputs;
+        var resultsListener = listener;
+        if (model instanceof ElasticRerankerModel elasticRerankerModel) {
+            var serviceSettings = elasticRerankerModel.getServiceSettings();
+            var longDocumentHandlingStrategy = serviceSettings.getLongDocumentHandlingStrategy();
+            if (longDocumentHandlingStrategy == ElasticRerankerServiceSettings.LongDocumentHandlingStrategy.CHUNK) {
+                var rerankChunker = new RerankRequestChunker(query, inputs, serviceSettings.getMaxChunksPerDoc());
+                chunkedInputs = rerankChunker.getChunkedInputs();
+                resultsListener = rerankChunker.parseChunkedRerankResultsListener(listener);
+            }
+
+        }
+        var request = buildInferenceRequest(
+            model.mlNodeDeploymentId(),
+            new TextSimilarityConfigUpdate(query),
+            chunkedInputs,
+            inputType,
+            timeout
+        );
 
         var returnDocs = Boolean.TRUE;
         if (returnDocuments != null) {
@@ -698,9 +711,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             returnDocs = RerankTaskSettings.of(modelSettings, requestSettings).returnDocuments();
         }
 
-        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? inputs::get : i -> null;
+        Function<Integer, String> inputSupplier = returnDocs == Boolean.TRUE ? chunkedInputs::get : i -> null;
 
-        ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
+        ActionListener<InferModelAction.Response> mlResultsListener = resultsListener.delegateFailureAndWrap(
             (l, inferenceResult) -> l.onResponse(
                 textSimilarityResultsToRankedDocs(inferenceResult.getInferenceResults(), inputSupplier, topN)
             )

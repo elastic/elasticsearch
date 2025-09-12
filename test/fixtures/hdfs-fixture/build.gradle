@@ -184,8 +184,6 @@ dependencies {
     hdfs3("org.eclipse.jetty:jetty-io:9.4.40.v20210413")
     hdfs3("javax.servlet:javax.servlet-api:3.1.0")
     hdfs3("com.sun.jersey:jersey-servlet:1.19")
-//      "org.apache.hadoop:hadoop-hdfs:3.3.1")
-//      "org.apache.hadoop:hadoop-yarn-api:3.3.1\n")
 }
 
 tasks.named("shadowJar").configure {

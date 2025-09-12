@@ -149,14 +149,6 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
         return System.getProperty("tests.bwc.main.version", OLD_CLUSTER_VERSION);
     }
 
-    /**
-     * Whether the old cluster version is not of the released versions, but a detached build.
-     * In that case the Git ref has to be specified via {@code tests.bwc.refspec.main} system property.
-     */
-    protected static boolean isOldClusterDetachedVersion() {
-        return System.getProperty("tests.bwc.refspec.main") != null;
-    }
-
     protected static boolean isOldClusterVersion(String nodeVersion, String buildHash) {
         if (isOldClusterDetachedVersion()) {
             return System.getProperty("tests.bwc.refspec.main").equals(buildHash);

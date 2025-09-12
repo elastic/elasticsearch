@@ -40,6 +40,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .detachedVersion(isOldClusterDetachedVersion())
             .module("constant-keyword")
             .module("data-streams")
             .module("mapper-extras")

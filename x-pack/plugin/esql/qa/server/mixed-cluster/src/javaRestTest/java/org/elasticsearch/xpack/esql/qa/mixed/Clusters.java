@@ -14,11 +14,12 @@ import org.elasticsearch.test.cluster.util.Version;
 public class Clusters {
     public static ElasticsearchCluster mixedVersionCluster() {
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+        boolean isDetachedVersion = System.getProperty("tests.bwc.refspec.main") != null;
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .withNode(node -> node.version(oldVersion))
+            .withNode(node -> node.version(oldVersion).detachedVersion(isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
-            .withNode(node -> node.version(oldVersion))
+            .withNode(node -> node.version(oldVersion).detachedVersion(isDetachedVersion))
             .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial");

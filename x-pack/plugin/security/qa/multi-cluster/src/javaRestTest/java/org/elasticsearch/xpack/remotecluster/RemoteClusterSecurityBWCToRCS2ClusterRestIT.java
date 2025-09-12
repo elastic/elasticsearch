@@ -35,6 +35,7 @@ public class RemoteClusterSecurityBWCToRCS2ClusterRestIT extends AbstractRemoteC
         fulfillingCluster = ElasticsearchCluster.local()
             .name("fulfilling-cluster")
             .version(OLD_CLUSTER_VERSION)
+            .detachedVersion(isOldClusterDetachedVersion())
             .distribution(DistributionType.DEFAULT)
             .apply(commonClusterConfig)
             .setting("xpack.ml.enabled", "false")

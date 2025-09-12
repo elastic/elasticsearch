@@ -102,6 +102,11 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
                 .getShard(shardRouting.shardId().id());
             indexShard.ensureMutable(l.map(unused -> indexShard), false);
         }).<EmptyResult>andThen((l, indexShard) -> {
+            boolean forceMergeIsNoOp = indexShard.withEngineException(engine -> engine.forceMergeIsNoOp(request.maxNumSegments()));
+            if (forceMergeIsNoOp) {
+                l.onResponse(EmptyResult.INSTANCE);
+                return;
+            }
             threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(l, () -> {
                 indexShard.forceMerge(request);
                 return EmptyResult.INSTANCE;

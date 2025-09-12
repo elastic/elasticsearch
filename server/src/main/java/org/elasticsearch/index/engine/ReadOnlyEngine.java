@@ -479,6 +479,19 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public boolean forceMergeIsNoOp(int maxNumSegments) throws IOException {
+        throw new UnsupportedOperationException(
+            "force merge is not supported on a read-only engine, "
+                + "target max number of segments["
+                + maxNumSegments
+                + "], "
+                + "current number of segments["
+                + lastCommittedSegmentInfos.size()
+                + "]."
+        );
+    }
+
+    @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
         store.incRef();
         return new IndexCommitRef(indexCommit, store::decRef);

@@ -25,6 +25,7 @@ import java.util.Objects;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
+import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
@@ -36,6 +37,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
     static final MethodHandle cosf32$mh;
     static final MethodHandle dotf32$mh;
     static final MethodHandle sqrf32$mh;
+    static final MethodHandle int4Bit$mh;
+    static final MethodHandle int4BitBulk$mh;
 
     public static final JdkVectorSimilarityFunctions INSTANCE;
 
@@ -100,6 +103,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         LinkerHelperUtil.critical()
                     );
                 }
+                int4Bit$mh = downcallHandle(
+                    "int4Bit",
+                    FunctionDescriptor.of(JAVA_LONG, ADDRESS, ADDRESS, JAVA_LONG, JAVA_INT),
+                    LinkerHelperUtil.critical()
+                );
+                int4BitBulk$mh = downcallHandle(
+                    "int4BitBulk",
+                    FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_LONG, ADDRESS, JAVA_INT, JAVA_INT),
+                    LinkerHelperUtil.critical()
+                );
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
                 if (caps < 0) {
@@ -112,6 +125,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 cosf32$mh = null;
                 dotf32$mh = null;
                 sqrf32$mh = null;
+                int4Bit$mh = null;
+                int4BitBulk$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -140,6 +155,34 @@ public final class JdkVectorLibrary implements VectorLibrary {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return dot7u(a, b, length);
+        }
+
+        static long int4BitDotProd(MemorySegment a, MemorySegment b, long offset, int length) {
+            if (a.byteSize() != 4L * length) {
+                throw new IllegalArgumentException("dimensions differ: " + a.byteSize() + "!=" + 4L * length);
+            }
+            return int4Bit(a, b, offset, length);
+        }
+
+        private static long int4Bit(MemorySegment a, MemorySegment b, long offset, int length) {
+            try {
+                return (long) JdkVectorLibrary.int4Bit$mh.invokeExact(a, b, offset, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
+        }
+
+        static int int4BitDotProdBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment s, int count, int length) {
+            assert length >= 0;
+            return int4BitBulk(a, b, offset, s, count, length);
+        }
+
+        private static int int4BitBulk(MemorySegment a, MemorySegment b, long offset, MemorySegment s, int count, int length) {
+            try {
+                return (int) JdkVectorLibrary.int4BitBulk$mh.invokeExact(a, b, offset, s, count, length);
+            } catch (Throwable t) {
+                throw new AssertionError(t);
+            }
         }
 
         /**
@@ -247,6 +290,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         static final MethodHandle COS_HANDLE_FLOAT32;
         static final MethodHandle DOT_HANDLE_FLOAT32;
         static final MethodHandle SQR_HANDLE_FLOAT32;
+        static final MethodHandle DOT_HANDLE_4BIT;
+        static final MethodHandle DOT_HANDLE_4BIT_BULK;
 
         static {
             try {
@@ -259,6 +304,19 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 COS_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "cosineF32", mt);
                 DOT_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "dotProductF32", mt);
                 SQR_HANDLE_FLOAT32 = lookup.findStatic(JdkVectorSimilarityFunctions.class, "squareDistanceF32", mt);
+                mt = MethodType.methodType(long.class, MemorySegment.class, MemorySegment.class, long.class, int.class);
+                DOT_HANDLE_4BIT = lookup.findStatic(JdkVectorSimilarityFunctions.class, "int4BitDotProd", mt);
+                mt = MethodType.methodType(
+                    int.class,
+                    MemorySegment.class,
+                    MemorySegment.class,
+                    long.class,
+                    MemorySegment.class,
+                    int.class,
+                    int.class
+                );
+
+                DOT_HANDLE_4BIT_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "int4BitDotProdBulk", mt);
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
@@ -287,6 +345,16 @@ public final class JdkVectorLibrary implements VectorLibrary {
         @Override
         public MethodHandle squareDistanceHandleFloat32() {
             return SQR_HANDLE_FLOAT32;
+        }
+
+        @Override
+        public MethodHandle int4BitDotProductHandle() {
+            return DOT_HANDLE_4BIT;
+        }
+
+        @Override
+        public MethodHandle int4BitDotProductBulkHandle() {
+            return DOT_HANDLE_4BIT_BULK;
         }
     }
 }

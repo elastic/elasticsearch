@@ -229,7 +229,7 @@ public class RedactProcessor extends AbstractProcessor {
         // document newly redacted
         if (alreadyRedacted == false && isRedacted) {
             // Set the field directly in the metadata map to avoid any access pattern related problems
-            HashMap<String, Object> redactObject = new HashMap<>();
+            Map<String, Object> redactObject = HashMap.newHashMap(1);
             redactObject.put(IS_REDACTED_KEY, true);
             ingestDocument.getIngestMetadata().put(REDACT_KEY, redactObject);
         }

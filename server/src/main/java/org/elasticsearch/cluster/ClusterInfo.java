@@ -63,6 +63,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
     final Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools;
     final Map<ShardId, Double> shardWriteLoads;
+    // max heap size per node ID
     final Map<String, ByteSizeValue> maxHeapSizePerNode;
 
     protected ClusterInfo() {
@@ -81,6 +82,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
      * @param estimatedHeapUsages estimated heap usage broken down by node
      * @param nodeUsageStatsForThreadPools node-level usage stats (operational load) broken down by node
      * @see #shardIdentifierFromRouting
+     * @param maxHeapSizePerNode node id to max heap size
      */
     public ClusterInfo(
         Map<String, DiskUsage> leastAvailableSpaceUsage,

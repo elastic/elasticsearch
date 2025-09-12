@@ -25,7 +25,7 @@ public interface CustomTokenAuthenticator extends CustomAuthenticator {
      * method, before creating a user profile.
      *
      * <p>
-     * To opt-out, implementors should return {@link null} if profile activation is not supported.
+     * To opt-out, implementors should return {@code null} if profile activation is not supported.
      *
      * @param grant grant that holds end-user credentials
      * @return an authentication token if grant holds credentials

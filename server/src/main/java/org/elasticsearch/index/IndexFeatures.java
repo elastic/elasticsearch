@@ -14,6 +14,8 @@ import org.elasticsearch.features.NodeFeature;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.reindex.ClientScrollableHitSource.REINDEX_SUPPORT_FROM_FIELDS;
+
 public class IndexFeatures implements FeatureSpecification {
 
     @Override
@@ -39,7 +41,8 @@ public class IndexFeatures implements FeatureSpecification {
             LOGSDB_NO_HOST_NAME_FIELD,
             SYNONYMS_SET_LENIENT_ON_NON_EXISTING,
             THROW_EXCEPTION_FOR_UNKNOWN_TOKEN_IN_REST_INDEX_PUT_ALIAS_ACTION,
-            THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS
+            THROW_EXCEPTION_ON_INDEX_CREATION_IF_UNSUPPORTED_VALUE_TYPE_IN_ALIAS,
+            REINDEX_SUPPORT_FROM_FIELDS
         );
     }
 }

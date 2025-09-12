@@ -975,4 +975,21 @@ tasks.named('stringTemplates').configure {
       }
     }
   }
+
+  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntGroupingAggregatorFunction.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleGroupingAggregatorFunction.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
+  }
 }

@@ -79,18 +79,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> CLUSTER_ROUTING_ALLOCATION_MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING =
-        Setting.memorySizeSetting(
-            "cluster.routing.allocation.min_heap_required_for_concurrent_primary_recoveries",
-            ByteSizeValue.ZERO,
-            Property.Dynamic,
-            Property.NodeScope
-        );
-
     private volatile int primariesInitialRecoveries;
     private volatile int concurrentIncomingRecoveries;
     private volatile int concurrentOutgoingRecoveries;
-    private volatile long minNodeHeapRequiredForNodeConcurrentRecoveries;
 
     public ThrottlingAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
@@ -104,10 +95,6 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         clusterSettings.initializeAndWatch(
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             this::setConcurrentOutgoingRecoverries
-        );
-        clusterSettings.initializeAndWatch(
-            CLUSTER_ROUTING_ALLOCATION_MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING,
-            value -> this.minNodeHeapRequiredForNodeConcurrentRecoveries = value.getBytes()
         );
         logger.debug(
             "using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], "
@@ -166,20 +153,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
 
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());
-            if (shardRouting.isPromotableToPrimary()
-                && shardRouting.isSearchable() == false
-                && currentInRecoveries > 0
-                && allowConcurrentRecoveries(allocation.clusterInfo(), node.nodeId()) == false) {
-                // In stateless, limit concurrent recoveries of indexing shards on small nodes
-                return allocation.decision(
-                    THROTTLE,
-                    NAME,
-                    "node is not large enough to do concurrent recoveries [incoming shard recoveries: %d], cluster setting [%s=%d]",
-                    currentInRecoveries,
-                    CLUSTER_ROUTING_ALLOCATION_MIN_HEAP_REQUIRED_FOR_CONCURRENT_PRIMARY_RECOVERIES_SETTING.getKey(),
-                    minNodeHeapRequiredForNodeConcurrentRecoveries
-                );
-            } else if (currentInRecoveries >= concurrentIncomingRecoveries) {
+           if (currentInRecoveries >= concurrentIncomingRecoveries) {
                 return allocation.decision(
                     THROTTLE,
                     NAME,
@@ -238,7 +212,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
      *
      * This method returns the corresponding initializing shard that would be allocated to this node.
      */
-    private static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
+    public static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
         final ShardRouting initializingShard;
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -261,15 +235,5 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         }
         assert initializingShard.initializing();
         return initializingShard;
-    }
-
-    // Whether a node is allowed to do concurrent recoveries based on its heap size
-    private boolean allowConcurrentRecoveries(ClusterInfo clusterInfo, String nodeId) {
-        ByteSizeValue nodeHeapSize = clusterInfo.getMaxHeapSizePerNode().get(nodeId);
-        if (nodeHeapSize == null) {
-            // Not enough information to decide!
-            return true;
-        }
-        return nodeHeapSize.getBytes() > minNodeHeapRequiredForNodeConcurrentRecoveries;
     }
 }

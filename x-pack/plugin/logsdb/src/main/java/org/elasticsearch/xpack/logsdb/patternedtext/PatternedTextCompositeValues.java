@@ -25,7 +25,7 @@ import java.util.Set;
  * larges values which are in stored fields. Despite being backed by stored
  * fields, this class implements a doc value interface.
  */
-public class PatternedTextCompositeValues extends BinaryDocValues {
+public final class PatternedTextCompositeValues extends BinaryDocValues {
     private final LeafStoredFieldLoader storedTemplateLoader;
     private final String storedMessageFieldName;
     private final BinaryDocValues patternedTextDocValues;

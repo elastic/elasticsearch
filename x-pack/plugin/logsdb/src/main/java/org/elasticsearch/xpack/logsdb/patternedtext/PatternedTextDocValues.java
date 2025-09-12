@@ -16,7 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import java.io.IOException;
 import java.util.List;
 
-public class PatternedTextDocValues extends BinaryDocValues {
+public final class PatternedTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
     private final SortedSetDocValues argsInfoDocValues;

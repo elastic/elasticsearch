@@ -832,7 +832,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
                             assert remainDecision.type() != Type.NOT_PREFERRED;
-                            assert bestDecision != Type.YES;
                             // If we don't ever find a YES decision, we'll settle for NOT_PREFERRED as preferable to NO.
                             targetNode = target;
                         }

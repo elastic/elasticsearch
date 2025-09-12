@@ -19,10 +19,10 @@ import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileReque
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.CustomTokenAuthenticator;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.PluggableAuthenticatorChain;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.profile.ProfileService;
 
@@ -41,7 +41,7 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
         AuthenticationService authenticationService,
         AuthorizationService authorizationService,
         ThreadPool threadPool,
-        List<CustomAuthenticator> customAuthenticators
+        PluggableAuthenticatorChain pluggableAuthenticatorChain
     ) {
         super(
             ActivateProfileAction.NAME,
@@ -52,8 +52,9 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
             threadPool.getThreadContext()
         );
         this.profileService = profileService;
-        this.customTokenAuthenticators = customAuthenticators.stream()
-            .filter(CustomTokenAuthenticator.class::isInstance)
+        this.customTokenAuthenticators = pluggableAuthenticatorChain.getCustomAuthenticators()
+            .stream()
+            .filter(a -> a instanceof CustomTokenAuthenticator)
             .map(CustomTokenAuthenticator.class::cast)
             .toList();
     }

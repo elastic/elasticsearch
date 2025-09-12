@@ -146,7 +146,6 @@ import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
 import org.elasticsearch.injection.guice.ModulesBuilder;
-import org.elasticsearch.injection.guice.TypeLiteral;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -1502,10 +1501,6 @@ class NodeConstruction {
                 @SuppressWarnings("unchecked")
                 Class<Object> clazz = (Class<Object>) pcb.inter();
                 b.bind(clazz).toInstance(pcb.impl());
-            } else if (p instanceof PluginComponentTypeLiteralBinding<?> plb) {
-                @SuppressWarnings("unchecked")
-                TypeLiteral<Object> type = (TypeLiteral<Object>) plb.type();
-                b.bind(type).toInstance(plb.component());
             } else {
                 @SuppressWarnings("unchecked")
                 Class<Object> clazz = (Class<Object>) p.getClass();

@@ -73,14 +73,12 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.injection.guice.TypeLiteral;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
-import org.elasticsearch.node.PluginComponentTypeLiteralBinding;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -303,6 +301,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
+import org.elasticsearch.xpack.security.authc.PluggableAuthenticatorChain;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -1089,8 +1088,9 @@ public class Security extends Plugin
         }
 
         final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
-        components.add(new PluginComponentTypeLiteralBinding<>(new TypeLiteral<List<CustomAuthenticator>>() {
-        }, customAuthenticators));
+        PluggableAuthenticatorChain pluggableAuthenticatorChain = new PluggableAuthenticatorChain(customAuthenticators);
+        components.add(pluggableAuthenticatorChain);
+        components.addAll(customAuthenticators);
 
         authcService.set(
             new AuthenticationService(
@@ -1104,7 +1104,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customAuthenticators,
+                pluggableAuthenticatorChain,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1232,38 +1232,9 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
-        extractAndSetReloadableAndClosableComponents(components);
-        return components;
-    }
-
-    private void extractAndSetReloadableAndClosableComponents(List<Object> components) {
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
         final List<Closeable> closableComponents = new ArrayList<>();
         for (Object component : components) {
-            if (component instanceof PluginComponentBinding<?, ?> pcb) {
-                extractReloadableAndClosableComponents(pcb.impl(), reloadableComponents, closableComponents);
-
-            } else if (component instanceof PluginComponentTypeLiteralBinding<?> ptlb) {
-                extractReloadableAndClosableComponents(ptlb.component(), reloadableComponents, closableComponents);
-
-            } else {
-                extractReloadableAndClosableComponents(component, reloadableComponents, closableComponents);
-            }
-        }
-
-        this.reloadableComponents.set(List.copyOf(reloadableComponents));
-        this.closableComponents.set(List.copyOf(closableComponents));
-    }
-
-    private static void extractReloadableAndClosableComponents(
-        Object component,
-        List<ReloadableSecurityComponent> reloadableComponents,
-        List<Closeable> closableComponents
-    ) {
-        if (component instanceof Collection<?> collection) {
-            collection.forEach(c -> extractReloadableAndClosableComponents(c, reloadableComponents, closableComponents));
-        } else {
-            // component can be reloadable and closeable at the same time
             if (component instanceof ReloadableSecurityComponent reloadable) {
                 reloadableComponents.add(reloadable);
             }
@@ -1271,6 +1242,10 @@ public class Security extends Plugin
                 closableComponents.add(closeable);
             }
         }
+
+        this.reloadableComponents.set(List.copyOf(reloadableComponents));
+        this.closableComponents.set(List.copyOf(closableComponents));
+        return components;
     }
 
     private List<CustomAuthenticator> getCustomAuthenticatorFromExtensions(SecurityExtension.SecurityComponents extensionComponents) {

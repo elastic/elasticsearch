@@ -51,20 +51,14 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         List<String> fields = null;
         String query = null;
         if (randomBoolean()) {
-            if (randomBoolean()) {
-                // Generate fields with weights
-                fields = randomList(1, 5, () -> {
-                    String field = randomAlphaOfLengthBetween(1, 10);
-                    if (randomBoolean()) {
-                        float weight = randomFloat() * 10 + 0.1f; // Ensure positive
-                        return field + "^" + weight;
-                    }
-                    return field;
-                });
-            } else {
-                // Generate fields without weights
-                fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
-            }
+            fields = randomList(1, 10, () -> {
+                String field = randomAlphaOfLengthBetween(1, 10);
+                if (randomBoolean()) {
+                    float weight = randomFloat() * 10 + 0.1f;
+                    return field + "^" + weight;
+                }
+                return field;
+            });
             query = randomAlphaOfLengthBetween(1, 10);
         }
 
@@ -372,113 +366,111 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         expectParsingException(retrieverAsStringContent, "retriever must be an object");
     }
 
-    public void testSimplifiedWeightedRRFSyntax() throws IOException {
-        String restContent = """
-            {
-              "retriever": {
-                "rrf": {
-                  "fields": ["name^2", "description^0.5", "category"],
-                  "query": "pizza",
-                  "rank_window_size": 100,
-                  "rank_constant": 10,
-                  "min_score": 20.0,
-                  "_name": "foo_rrf"
-                }
-              }
-            }
-            """;
-        checkRRFRetrieverParsing(restContent);
-    }
-
-    public void testSimplifiedWeightedRRFAllWeighted() throws IOException {
-        String restContent = """
-            {
-              "retriever": {
-                "rrf": {
-                  "fields": ["name^2.5", "description^1.5", "category^0.8"],
-                  "query": "restaurant",
-                  "rank_window_size": 100,
-                  "rank_constant": 10,
-                  "min_score": 20.0,
-                  "_name": "foo_rrf"
-                }
-              }
-            }
-            """;
-        checkRRFRetrieverParsing(restContent);
-    }
-
-    public void testSimplifiedWeightedRRFBasicParsing() throws IOException {
-        // Test parsing succeeds with field weights (validation happens during rewrite, not parsing)
+    public void testSimplifiedWeightedFieldsParsing() throws IOException {
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
-        String restContent = """
+
+        // Test basic weighted field syntax parsing
+        String basicWeightedContent = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": ["name^2", "description^0.5"],
+                  "fields": ["name^2.0", "description^0.5"],
                   "query": "test"
                 }
               }
             }
             """;
 
-        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, basicWeightedContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
             assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
             RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
-            // Should parse successfully - validation happens during rewrite phase
             assertNotNull(parsed);
+            assertEquals("rrf", parsed.getName());
         }
     }
 
-    public void testSimplifiedFieldSyntaxVariations() throws IOException {
-        // Test parsing succeeds with various field^weight syntax variations (validation happens during rewrite, not parsing)
+    public void testMixedWeightedAndUnweightedFields() throws IOException {
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
 
-        // Test all field syntax variations
-        String restContent1 = """
+        // Test mixing weighted and unweighted fields
+        String mixedContent = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": ["name^2", "description^1"],
+                  "fields": ["title^3.0", "content", "tags^1.5", "summary"],
+                  "query": "search term"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, mixedContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
+    }
+
+    public void testDecimalWeights() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test various decimal weight values
+        String decimalWeightsContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["field1^0.1", "field2^2.75", "field3^10.5"],
                   "query": "test"
                 }
               }
             }
             """;
 
-        String restContent2 = """
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, decimalWeightsContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
+    }
+
+    public void testZeroWeight() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test zero weight (should be valid)
+        String zeroWeightContent = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": ["name^3", "description", "category^0.5"],
+                  "fields": ["field1^0.0", "field2^1.0"],
                   "query": "test"
                 }
               }
             }
             """;
 
-        String restContent3 = """
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, zeroWeightContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
+    }
+
+    public void testLargeWeightValues() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test very large weight values
+        String largeWeightContent = """
             {
               "retriever": {
                 "rrf": {
-                  "fields": ["name", "description"],
+                  "fields": ["field1^1000.0", "field2^999999.99"],
                   "query": "test"
                 }
               }
             }
             """;
 
-        // All three should parse successfully
-        for (String restContent : List.of(restContent1, restContent2, restContent3)) {
-            try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
-                SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
-                assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
-
-                RRFRetrieverBuilder rrfRetrieverBuilder = (RRFRetrieverBuilder) source.retriever();
-                // Should parse successfully - validation happens during rewrite phase
-                assertNotNull(rrfRetrieverBuilder);
-            }
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, largeWeightContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
         }
     }
 

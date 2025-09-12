@@ -30,6 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils;
+import org.elasticsearch.xpack.rank.MultiFieldsInnerRetrieverUtils.WeightedRetrieverSource;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -267,33 +268,13 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 );
             }
 
-            List<RetrieverSource> fieldsInnerRetrievers;
-            try {
-                fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
-                    fields,
-                    query,
-                    localIndicesMetadata.values(),
-                    r -> {
-                        int size = r.size();
-                        List<RetrieverSource> retrievers = new ArrayList<>(size);
-                        float[] weights = new float[size];
-                        for (int i = 0; i < size; i++) {
-                            var retriever = r.get(i);
-                            retrievers.add(retriever.retrieverSource());
-                            weights[i] = retriever.weight();
-                        }
-                        return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
-                    },
-                    w -> {
-                        if (w < 0) {
-                            throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
-                        }
-                    }
-                ).stream().map(RetrieverSource::from).toList();
-            } catch (Exception e) {
-                // Clean up any partially created resources on exception
-                throw e;
-            }
+            List<RetrieverSource> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
+                fields,
+                query,
+                localIndicesMetadata.values(),
+                r -> createRRFFromWeightedRetrievers(r, rankWindowSize, rankConstant),
+                w -> validateNonNegativeWeight(w)
+            ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
@@ -349,5 +330,29 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     @Override
     public int doHashCode() {
         return Objects.hash(super.doHashCode(), fields, query, rankConstant, Arrays.hashCode(weights));
+    }
+
+    /**
+     * Creates an RRFRetrieverBuilder from a list of weighted retrievers for simplified syntax.
+     */
+    private RRFRetrieverBuilder createRRFFromWeightedRetrievers(List<WeightedRetrieverSource> r, int rankWindowSize, int rankConstant) {
+        int size = r.size();
+        List<RetrieverSource> retrievers = new ArrayList<>(size);
+        float[] weights = new float[size];
+        for (int i = 0; i < size; i++) {
+            var retriever = r.get(i);
+            retrievers.add(retriever.retrieverSource());
+            weights[i] = retriever.weight();
+        }
+        return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
+    }
+
+    /**
+     * Validates that field weights are non-negative for simplified syntax.
+     */
+    private void validateNonNegativeWeight(float w) {
+        if (w < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+        }
     }
 }

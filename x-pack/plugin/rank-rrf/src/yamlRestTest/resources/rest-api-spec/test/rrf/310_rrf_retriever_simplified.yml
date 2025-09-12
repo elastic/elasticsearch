@@ -226,8 +226,8 @@ setup:
 ---
 "Negative weight validation":
   - requires:
-      cluster_features: ["rrf_retriever.weighted_support"]
-      reason: "Weighted fields syntax support"
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
 
   - do:
       catch: bad_request
@@ -244,8 +244,8 @@ setup:
 ---
 "Zero weight handling":
   - requires:
-      cluster_features: ["rrf_retriever.weighted_support"]
-      reason: "Weighted fields syntax support"
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
 
   - do:
       search:
@@ -596,8 +596,8 @@ setup:
 ---
 "Semantic field weighting":
   - requires:
-      cluster_features: ["rrf_retriever.weighted_support"]
-      reason: "Weighted fields syntax support"
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
 
   - do:
       search:
@@ -614,8 +614,8 @@ setup:
 ---
 "Large weight values":
   - requires:
-      cluster_features: ["rrf_retriever.weighted_support"]
-      reason: "Weighted fields syntax support"
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
 
   - do:
       search:

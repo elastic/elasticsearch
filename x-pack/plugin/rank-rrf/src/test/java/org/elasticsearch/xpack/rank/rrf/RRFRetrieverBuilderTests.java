@@ -156,7 +156,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // No wildcards, no per-field boosting
-        RRFRetrieverBuilder retriever = new RRFRetrieverBuilder(
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo",
@@ -165,7 +165,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewrite(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
@@ -173,7 +173,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // Non-default rank window size
-        retriever = new RRFRetrieverBuilder(
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
@@ -182,7 +182,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewrite(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
@@ -204,7 +204,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // Simple per-field boosting
-        RRFRetrieverBuilder retriever = new RRFRetrieverBuilder(
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
             "bar",
@@ -213,7 +213,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewriteWithWeights(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.5f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 2.0f),
@@ -221,7 +221,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // Glob matching on inference and non-inference fields with per-field boosting
-        retriever = new RRFRetrieverBuilder(
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_*^1.5", "*_field_1^2.5"),
             "baz",
@@ -230,7 +230,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewriteWithWeights(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_*", 1.5f, "*_field_1", 2.5f),
             Map.of("semantic_field_1", 2.5f),
@@ -238,7 +238,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // Multiple boosts defined on the same field
-        retriever = new RRFRetrieverBuilder(
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
             "baz2",
@@ -247,7 +247,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewriteWithWeights(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f),
             Map.of("semantic_field_1", 3.75f, "semantic_field_2", 1.5f),
@@ -255,7 +255,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // All-fields wildcard with weights
-        retriever = new RRFRetrieverBuilder(
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("*^2.0"),
             "qux",
@@ -264,7 +264,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewriteWithWeights(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("*", 2.0f),
             Map.of("semantic_field_1", 2.0f, "semantic_field_2", 2.0f),
@@ -272,7 +272,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // Zero weights (testing that zero is allowed as non-negative)
-        retriever = new RRFRetrieverBuilder(
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1^0", "field_2^1.0"),
             "zero_test",
@@ -281,7 +281,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
         assertMultiFieldsParamsRewriteWithWeights(
-            retriever,
+            rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field_1", 0.0f, "field_2", 1.0f),
             Map.of(),
@@ -303,7 +303,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // Test negative weight validation
-        RRFRetrieverBuilder retriever = new RRFRetrieverBuilder(
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1^-1.0"),
             "negative_test",
@@ -312,7 +312,10 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             new float[0]
         );
 
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> retriever.doRewrite(queryRewriteContext));
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> rrfRetrieverBuilder.doRewrite(queryRewriteContext)
+        );
         assertEquals("[rrf] per-field weights must be non-negative", iae.getMessage());
     }
 
@@ -540,6 +543,90 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
 
         // This should not throw an exception
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
+    public void testMixedWeightedAndUnweightedFields() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // Test mixing weighted and unweighted fields in simplified syntax
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("title^2.5", "content", "tags^1.5", "description"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // Should successfully rewrite mixed weighted/unweighted fields
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
+    public void testDecimalWeightPrecision() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // Test various decimal weight precisions
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field1^0.1", "field2^2.75", "field3^10.999"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // Should handle decimal precision correctly
+        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
+        assertNotSame(rrfRetrieverBuilder, rewritten);
+        assertTrue(rewritten instanceof RRFRetrieverBuilder);
+    }
+
+    public void testSimplifiedSyntaxWithGlobPatterns() {
+        final String indexName = "test-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null
+        );
+
+        // Test glob patterns with weights in simplified syntax
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("title_*^2.0", "content_*^1.5", "meta_*"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        // Should handle glob patterns with weights correctly
         RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
         assertNotSame(rrfRetrieverBuilder, rewritten);
         assertTrue(rewritten instanceof RRFRetrieverBuilder);

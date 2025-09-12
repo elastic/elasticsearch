@@ -326,7 +326,7 @@ public class TransportVersions {
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
     public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
-    public static final TransportVersion RANDOM_SAMPLING = def(9_160_0_00);
+    public static final TransportVersion RANDOM_SAMPLING = def(9_161_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

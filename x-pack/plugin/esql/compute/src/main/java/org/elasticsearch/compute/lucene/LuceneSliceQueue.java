@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -84,12 +83,20 @@ public final class LuceneSliceQueue {
 
     private final AtomicReferenceArray<LuceneSlice> slices;
     /**
+     * Queue of slice IDs that are the primary entry point for a new query.
+     * A driver should prioritize polling from this queue after failing to get a sequential
+     * slice (the query/segment affinity). This ensures that threads start work on fresh,
+     * independent query before stealing segments from other queries.
+     */
+    private final Queue<Integer> queryHeads;
+
+    /**
      * Queue of slice IDs that are the primary entry point for a new group of segments.
      * A driver should prioritize polling from this queue after failing to get a sequential
      * slice (the segment affinity). This ensures that threads start work on fresh,
      * independent segment groups before resorting to work stealing.
      */
-    private final Queue<Integer> sliceHeads;
+    private final Queue<Integer> segmentHeads;
 
     /**
      * Queue of slice IDs that are not the primary entry point for a segment group.
@@ -106,11 +113,14 @@ public final class LuceneSliceQueue {
             slices.set(i, sliceList.get(i));
         }
         this.partitioningStrategies = partitioningStrategies;
-        this.sliceHeads = ConcurrentCollections.newQueue();
+        this.queryHeads = ConcurrentCollections.newQueue();
+        this.segmentHeads = ConcurrentCollections.newQueue();
         this.stealableSlices = ConcurrentCollections.newQueue();
         for (LuceneSlice slice : sliceList) {
-            if (slice.getLeaf(0).minDoc() == 0) {
-                sliceHeads.add(slice.slicePosition());
+            if (slice.queryHead()) {
+                queryHeads.add(slice.slicePosition());
+            } else if (slice.getLeaf(0).minDoc() == 0) {
+                segmentHeads.add(slice.slicePosition());
             } else {
                 stealableSlices.add(slice.slicePosition());
             }
@@ -120,12 +130,14 @@ public final class LuceneSliceQueue {
     /**
      * Retrieves the next available {@link LuceneSlice} for processing.
      * <p>
-     * This method implements a three-tiered strategy to minimize the overhead of switching between segments:
+     * This method implements a four-tiered strategy to minimize the overhead of switching between queries/segments:
      * 1. If a previous slice is provided, it first attempts to return the next sequential slice.
-     * This keeps a thread working on the same segments, minimizing the overhead of segment switching.
-     * 2. If affinity fails, it returns a slice from the {@link #sliceHeads} queue, which is an entry point for
-     * a new, independent group of segments, allowing the calling Driver to work on a fresh set of segments.
-     * 3. If the {@link #sliceHeads} queue is exhausted, it "steals" a slice
+     * This keeps a thread working on the same query and same segment, minimizing the overhead of query/segment switching.
+     * 2. If affinity fails, it returns a slice from the {@link #queryHeads} queue, which is an entry point for
+     * a new query, allowing the calling Driver to work on a fresh query with a new set of segments.
+     * 3. If the {@link #queryHeads} queue is exhausted, it returns a slice from the {@link #segmentHeads} queue of other queries,
+     * which is an entry point for a new, independent group of segments, allowing the calling Driver to work on a fresh set of segments.
+     * 4. If the {@link #segmentHeads} queue is exhausted, it "steals" a slice
      * from the {@link #stealableSlices} queue. This fallback ensures all threads remain utilized.
      *
      * @param prev the previously returned {@link LuceneSlice}, or {@code null} if starting
@@ -142,7 +154,7 @@ public final class LuceneSliceQueue {
                 }
             }
         }
-        for (var ids : List.of(sliceHeads, stealableSlices)) {
+        for (var ids : List.of(queryHeads, segmentHeads, stealableSlices)) {
             Integer nextId;
             while ((nextId = ids.poll()) != null) {
                 var slice = slices.getAndSet(nextId, null);
@@ -163,17 +175,6 @@ public final class LuceneSliceQueue {
      */
     public Map<String, PartitioningStrategy> partitioningStrategies() {
         return partitioningStrategies;
-    }
-
-    public Collection<String> remainingShardsIdentifiers() {
-        List<String> remaining = new ArrayList<>(slices.length());
-        for (int i = 0; i < slices.length(); i++) {
-            LuceneSlice slice = slices.get(i);
-            if (slice != null) {
-                remaining.add(slice.shardContext().shardIdentifier());
-            }
-        }
-        return remaining;
     }
 
     public static LuceneSliceQueue create(
@@ -209,9 +210,12 @@ public final class LuceneSliceQueue {
                 partitioningStrategies.put(ctx.shardIdentifier(), partitioning);
                 List<List<PartialLeafReaderContext>> groups = partitioning.groups(ctx.searcher(), taskConcurrency);
                 Weight weight = weight(ctx, query, scoreMode);
+                boolean queryHead = true;
                 for (List<PartialLeafReaderContext> group : groups) {
                     if (group.isEmpty() == false) {
-                        slices.add(new LuceneSlice(nextSliceId++, ctx, group, weight, queryAndExtra.tags));
+                        final int slicePosition = nextSliceId++;
+                        slices.add(new LuceneSlice(slicePosition, queryHead, ctx, group, weight, queryAndExtra.tags));
+                        queryHead = false;
                     }
                 }
             }

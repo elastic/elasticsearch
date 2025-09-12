@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -64,7 +65,6 @@ public enum IndexMode {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             validateRoutingPathSettings(settings);
-            validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -238,7 +238,6 @@ public enum IndexMode {
     LOGSDB("logsdb") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            validateTimeSeriesSettings(settings);
             var setting = settings.get(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS);
             if (setting.equals(Boolean.FALSE)) {
                 validateRoutingPathSettings(settings);
@@ -398,11 +397,6 @@ public enum IndexMode {
 
     private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-    }
-
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
 
     private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
@@ -615,14 +609,16 @@ public enum IndexMode {
      */
     public static final class IndexModeSettingsProvider implements IndexSettingProvider {
         @Override
-        public Settings getAdditionalIndexSettings(
+        public void provideAdditionalMetadata(
             String indexName,
             String dataStreamName,
             IndexMode templateIndexMode,
             ProjectMetadata projectMetadata,
             Instant resolvedAt,
             Settings indexTemplateAndCreateRequestSettings,
-            List<CompressedXContent> combinedTemplateMappings
+            List<CompressedXContent> combinedTemplateMappings,
+            Settings.Builder additionalSettings,
+            BiConsumer<String, Map<String, String>> additionalCustomMetadata
         ) {
             IndexMode indexMode = templateIndexMode;
             if (indexMode == null) {
@@ -632,9 +628,7 @@ public enum IndexMode {
                 }
             }
             if (indexMode == LOOKUP) {
-                return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
-            } else {
-                return Settings.EMPTY;
+                additionalSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
             }
         }
     }

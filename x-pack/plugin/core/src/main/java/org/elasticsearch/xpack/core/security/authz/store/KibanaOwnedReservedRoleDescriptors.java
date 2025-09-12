@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*")
+                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -327,6 +327,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
                         "logs-osquery_manager.action.responses-*",
+                        "logs-osquery_manager.result-*",
                         "profiling-*"
                     )
                     .privileges(
@@ -368,6 +369,11 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "create_index", "read", "index", "write", "delete")
+                    .build(),
+                // Osquery manager specific results. Kibana reads from these to display results to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-osquery_manager.result-*")
+                    .privileges("read", "view_index_metadata")
                     .build(),
 
                 // Third party agent (that use non-Elastic Defend integrations) info logs
@@ -530,7 +536,12 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For source indices of the Cloud Detection & Response (CDR) packages
                 // that ships a transform and has ILM policy
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-m365_defender.vulnerability-*", "logs-microsoft_defender_endpoint.vulnerability-*")
+                    .indices(
+                        "logs-m365_defender.vulnerability-*",
+                        "logs-microsoft_defender_endpoint.vulnerability-*",
+                        "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-sentinel_one.application_risk-*"
+                    )
                     .privileges(
                         "read",
                         "view_index_metadata",
@@ -538,10 +549,11 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop and QualysGAV specific actions. Kibana reads, writes and manages this index
+                // For ExtraHop, QualysGAV, and SentinelOne Application Dataset specific actions. Kibana reads, writes and manages this
+                // index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*")
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*", "logs-sentinel_one.application-*")
                     .privileges(
                         "manage",
                         "create_index",

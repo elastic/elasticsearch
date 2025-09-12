@@ -77,7 +77,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1453,7 +1452,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(XContentParserDecorator.NOOP)
+            request.sourceAsMap()
         );
     }
 
@@ -1562,7 +1561,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     processorFactories,
                     scriptService,
                     projectId,
-                    (nodeFeature) -> featureService.clusterHasFeature(clusterService.state(), nodeFeature)
+                    (nodeFeature) -> featureService.clusterHasFeature(state, nodeFeature)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 

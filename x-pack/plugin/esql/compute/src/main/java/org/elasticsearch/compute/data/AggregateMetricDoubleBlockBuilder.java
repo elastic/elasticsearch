@@ -59,6 +59,11 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
+    public long estimatedBytes() {
+        return minBuilder.estimatedBytes() + maxBuilder.estimatedBytes() + sumBuilder.estimatedBytes() + countBuilder.estimatedBytes();
+    }
+
+    @Override
     public AggregateMetricDoubleBlockBuilder copyFrom(Block b, int beginInclusive, int endExclusive) {
         Block minBlock;
         Block maxBlock;
@@ -80,6 +85,35 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         maxBuilder.copyFrom(maxBlock, beginInclusive, endExclusive);
         sumBuilder.copyFrom(sumBlock, beginInclusive, endExclusive);
         countBuilder.copyFrom(countBlock, beginInclusive, endExclusive);
+        return this;
+    }
+
+    public AggregateMetricDoubleBlockBuilder copyFrom(AggregateMetricDoubleBlock block, int position) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+
+        if (block.minBlock().isNull(position)) {
+            min().appendNull();
+        } else {
+            min().appendDouble(block.minBlock().getDouble(position));
+        }
+        if (block.maxBlock().isNull(position)) {
+            max().appendNull();
+        } else {
+            max().appendDouble(block.maxBlock().getDouble(position));
+        }
+        if (block.sumBlock().isNull(position)) {
+            sum().appendNull();
+        } else {
+            sum().appendDouble(block.sumBlock().getDouble(position));
+        }
+        if (block.countBlock().isNull(position)) {
+            count().appendNull();
+        } else {
+            count().appendInt(block.countBlock().getInt(position));
+        }
         return this;
     }
 

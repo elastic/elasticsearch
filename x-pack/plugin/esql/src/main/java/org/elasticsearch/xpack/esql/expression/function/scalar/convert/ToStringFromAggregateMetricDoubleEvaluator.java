@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -20,6 +21,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 
 public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
+        ToStringFromAggregateMetricDoubleEvaluator.class
+    );
+
     private final EvalOperator.ExpressionEvaluator field;
 
     public ToStringFromAggregateMetricDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {
@@ -60,6 +65,11 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
     @Override
     public String toString() {
         return "ToStringFromAggregateMetricDoubleEvaluator[field=" + field + ']';
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
     }
 
     @Override

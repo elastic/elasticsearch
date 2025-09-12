@@ -92,17 +92,7 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "queue_latency_threshold",
-        TimeValue.timeValueSeconds(30),
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * How often the data node calculates the write-loads for the individual shards
-     */
-    public static final Setting<TimeValue> WRITE_LOAD_DECIDER_SHARD_WRITE_LOAD_POLLING_INTERVAL_SETTING = Setting.timeSetting(
-        SETTING_PREFIX + "shard_write_load_polling_interval",
-        TimeValue.timeValueSeconds(60),
+        TimeValue.timeValueSeconds(10),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -112,46 +102,45 @@ public class WriteLoadConstraintSettings {
      */
     public static final Setting<TimeValue> WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING = Setting.timeSetting(
         SETTING_PREFIX + "reroute_interval",
-        TimeValue.timeValueSeconds(60),
+        TimeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    WriteLoadDeciderStatus writeLoadDeciderStatus;
-    TimeValue writeLoadDeciderRerouteIntervalSetting;
-    double writeThreadPoolHighUtilizationThresholdSetting;
+    private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
+    private volatile TimeValue minimumRerouteInterval;
+    private volatile double highUtilizationThreshold;
+    private volatile TimeValue queueLatencyThreshold;
 
     public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
-        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING, this::setWriteLoadDeciderRerouteIntervalSetting);
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, status -> this.writeLoadDeciderStatus = status);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING,
+            timeValue -> this.minimumRerouteInterval = timeValue
+        );
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
-            this::setWriteThreadPoolHighUtilizationThresholdSetting
+            value -> highUtilizationThreshold = value.getAsRatio()
         );
-
-    };
-
-    private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus status) {
-        this.writeLoadDeciderStatus = status;
+        clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_QUEUE_LATENCY_THRESHOLD_SETTING, value -> queueLatencyThreshold = value);
     }
 
     public WriteLoadDeciderStatus getWriteLoadConstraintEnabled() {
         return this.writeLoadDeciderStatus;
     }
 
-    public TimeValue getWriteLoadDeciderRerouteIntervalSetting() {
-        return this.writeLoadDeciderRerouteIntervalSetting;
+    public TimeValue getMinimumRerouteInterval() {
+        return this.minimumRerouteInterval;
     }
 
-    public double getWriteThreadPoolHighUtilizationThresholdSetting() {
-        return this.writeThreadPoolHighUtilizationThresholdSetting;
+    public TimeValue getQueueLatencyThreshold() {
+        return this.queueLatencyThreshold;
     }
 
-    private void setWriteLoadDeciderRerouteIntervalSetting(TimeValue timeValue) {
-        this.writeLoadDeciderRerouteIntervalSetting = timeValue;
-    }
-
-    private void setWriteThreadPoolHighUtilizationThresholdSetting(RatioValue percent) {
-        this.writeThreadPoolHighUtilizationThresholdSetting = percent.getAsRatio();
+    /**
+     * @return The threshold as a ratio - i.e. in [0, 1]
+     */
+    public double getHighUtilizationThreshold() {
+        return this.highUtilizationThreshold;
     }
 }

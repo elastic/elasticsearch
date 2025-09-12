@@ -311,11 +311,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
             this.withinMultiField = withinMultiField;
 
-            // don't enable norms by default if the index is LOGSDB or TSDB based
-            this.norms = Parameter.normsParam(
-                m -> ((TextFieldMapper) m).norms,
-                () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES
-            );
+            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, this::normsDefault);
 
             // If synthetic source is used we need to either store this field
             // to recreate the source or use keyword multi-fields for that.
@@ -339,6 +335,15 @@ public final class TextFieldMapper extends FieldMapper {
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexCreatedVersion
             );
+        }
+
+        private boolean normsDefault() {
+            if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                // don't enable norms by default if the index is LOGSDB or TSDB based
+                return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+            }
+            // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
+            return true;
         }
 
         public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(IndexVersion indexCreatedVersion) {
@@ -1016,7 +1021,7 @@ public final class TextFieldMapper extends FieldMapper {
          * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE;
+            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove().isSet() == false;
         }
 
         /**
@@ -1024,7 +1029,7 @@ public final class TextFieldMapper extends FieldMapper {
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate != null
-                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && syntheticSourceDelegate.ignoreAbove().isSet() == false
                 && syntheticSourceDelegate.isIndexed();
         }
 
@@ -1040,7 +1045,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return false;
             }
             // Can't push equality if the field we're checking for is so big we'd ignore it.
-            return str.length() <= syntheticSourceDelegate.ignoreAbove();
+            return syntheticSourceDelegate.ignoreAbove().isIgnored(str) == false;
         }
 
         @Override

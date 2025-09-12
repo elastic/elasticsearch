@@ -490,18 +490,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
             ClusterSettings.createBuiltInClusterSettings(),
             dataStreamGlobalRetentionSettings,
             emptyDataStreamFailureStoreSettings,
-            new IndexSettingProviders(
-                Set.of(
-                    (
-                        indexName,
-                        dataStreamName,
-                        templateIndexMode,
-                        metadata,
-                        resolvedAt,
-                        indexTemplateAndCreateRequestSettings,
-                        combinedTemplateMappings) -> Settings.builder().put("index.mode", IndexMode.LOOKUP).build()
-                )
-            ),
+            IndexSettingProviders.of((additionalSettings) -> additionalSettings.put("index.mode", IndexMode.LOOKUP)),
             null
         );
         assertThat(response.getDataStreams().getFirst().getIndexModeName(), equalTo("lookup"));

@@ -30,6 +30,7 @@ import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -109,7 +110,35 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        var indexSettings = blContext.indexSettings();
+        if (isParsedFromSource && indexSettings.getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC
+            // A runtime and normal field can share the same name.
+            // In that case there is no ignored source entry, and so we need to fail back to LongScriptBlockLoader.
+            // We could optimize this, but at this stage feels like a rare scenario.
+            && blContext.lookup().onlyMappedAsRuntimeField(name())) {
+            var reader = new NumberType.NumberFallbackSyntheticSourceReader(NumberType.DOUBLE, null, true) {
+                @Override
+                public void writeToBlock(List<Number> values, BlockLoader.Builder blockBuilder) {
+                    var builder = (BlockLoader.DoubleBuilder) blockBuilder;
+                    for (var value : values) {
+                        builder.appendDouble(value.doubleValue());
+                    }
+                }
+            };
+
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
+            ) {
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.doubles(expectedCount);
+                }
+            };
+        } else {
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
     }
 
     @Override

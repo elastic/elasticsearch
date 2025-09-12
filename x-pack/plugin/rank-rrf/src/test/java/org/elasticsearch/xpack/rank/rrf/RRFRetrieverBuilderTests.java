@@ -68,8 +68,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             parserConfig(),
                             null,
                             null,
+                            TransportVersion.current(),
+                            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                             null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
                             null,
                             false
                         )
@@ -94,8 +97,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             parserConfig(),
                             null,
                             null,
+                            TransportVersion.current(),
+                            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                             null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
                             null,
                             false
                         )
@@ -219,8 +225,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -319,8 +328,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -385,8 +397,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -414,8 +429,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -460,8 +478,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -501,8 +522,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -530,8 +554,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -558,8 +585,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -587,8 +617,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -616,8 +649,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -645,8 +681,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );
@@ -674,8 +713,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null,
             false
         );

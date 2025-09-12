@@ -59,7 +59,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-
 public class MergeWithFailureIT extends ESIntegTestCase {
 
     private static final String FAILING_MERGE_ON_PURPOSE = "Failing merge on purpose";
@@ -306,8 +305,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             for (int request = 0; request < 10; request++) {
                 var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 for (int doc = 0; doc < 10; doc++) {
-                    bulkRequest.add(client.prepareIndex(indexName).setCreate(true)
-                        .setSource("value", randomIntBetween(0, 1024)));
+                    bulkRequest.add(client.prepareIndex(indexName).setCreate(true).setSource("value", randomIntBetween(0, 1024)));
                 }
                 bulkRequest.get();
             }

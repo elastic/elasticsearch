@@ -389,7 +389,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     private void abortMergeTasks(Collection<MergeTask> mergeTasks) {
-        if (mergeTasks!= null && mergeTasks.isEmpty() == false) {
+        if (mergeTasks != null && mergeTasks.isEmpty() == false) {
             for (var mergeTask : mergeTasks) {
                 abortMergeTask(mergeTask);
             }

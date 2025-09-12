@@ -78,8 +78,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final AtomicLong submittedMergeTaskCount = new AtomicLong();
     private final AtomicLong doneMergeTaskCount = new AtomicLong();
     private final MergeMemoryEstimateProvider mergeMemoryEstimateProvider;
+
     // Merge pulled from Lucene that is not yet submitted to the merge thread pool tasks queue
     record PendingMerge(MergeSource source, MergePolicy.OneMerge merge, MergeTrigger trigger) {}
+
     // List of pending merges
     private final LinkedList<PendingMerge> pendingMerges = new LinkedList<>();
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
@@ -454,7 +456,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         while ((backlogged = backloggedMergeTasks.poll()) != null) {
             try {
                 backlogged.abort();
-                count +=1;
+                count += 1;
             } catch (Exception e) {
                 assert false : e;
                 if (firstException != null && maxExceptions-- >= 0) {

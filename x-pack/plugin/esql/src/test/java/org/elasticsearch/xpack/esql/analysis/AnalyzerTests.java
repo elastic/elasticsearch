@@ -15,6 +15,7 @@ import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.logging.LogManager;
@@ -169,6 +170,9 @@ public class AnalyzerTests extends ESTestCase {
 
     private static final int MAX_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY);
     private static final int DEFAULT_LIMIT = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY);
+    private static final int DEFAULT_TIMESERIES_LIMIT = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(
+        Settings.EMPTY
+    );
 
     public void testIndexResolution() {
         EsIndex idx = new EsIndex("idx", Map.of());
@@ -2579,6 +2583,28 @@ public class AnalyzerTests extends ESTestCase {
         var child = as(scalar.field(), ToDenseVector.class);
         var literal = as(child.field(), Literal.class);
         assertThat(literal.value(), equalTo(List.of(1, 2, 3)));
+    }
+
+    public void testTimeseriesDefaultLimitIs1B() {
+        assumeTrue("timeseries requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        // Tuples of (query, isTimeseries)
+        for (var queryExp : List.of(
+            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in))", true),
+            Tuple.tuple("TS test", false),
+            Tuple.tuple("TS test | STATS avg(rate(network.bytes_in)) BY tbucket=bucket(@timestamp, 1 minute)| sort tbucket", true),
+            Tuple.tuple("FROM test | STATS avg(to_long(network.bytes_in))", false)
+        )) {
+            var query = queryExp.v1();
+            var expectedLimit = queryExp.v2() ? DEFAULT_TIMESERIES_LIMIT : DEFAULT_LIMIT;
+            var plan = analyze(query, analyzer);
+            var limit = as(plan, Limit.class);
+            try {
+                assertThat(as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
+            } catch (AssertionError e) {
+                throw new AssertionError("Failed for query: " + query, e);
+            }
+        }
     }
 
     public void testRateRequiresCounterTypes() {

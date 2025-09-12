@@ -7,7 +7,6 @@ setup:
         index: index1
         body:
           settings:
-            refresh_interval: "3s"
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
@@ -21,6 +20,10 @@ setup:
                 index_options:
                   type: int8_hnsw
                 similarity: l2_norm
+  - do:
+      indices.forcemerge:
+        index: index1
+        max_num_segments: 1
 
   - do:
       bulk:

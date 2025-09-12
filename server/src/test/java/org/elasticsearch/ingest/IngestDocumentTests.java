@@ -9,13 +9,11 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
-import org.junit.Assume;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -187,6 +185,90 @@ public class IngestDocumentTests extends ESTestCase {
      */
     private void doWithRandomAccessPattern(Consumer<IngestDocument> action) throws Exception {
         doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), action);
+    }
+
+    private void assertPathValid(IngestDocument doc, String path) {
+        // The fields being checked do not exist, so they all return false when running hasField
+        assertFalse(doc.hasField(path));
+    }
+
+    private void assertPathInvalid(IngestDocument doc, String path, String errorMessage) {
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> doc.hasField(path));
+        assertThat(expected.getMessage(), equalTo(errorMessage));
+    }
+
+    public void testPathParsingLogic() throws Exception {
+        // Force a blank document for this test
+        document = new IngestDocument("index", "id", 1, null, null, new HashMap<>());
+
+        doWithRandomAccessPattern((doc) -> {
+            assertPathInvalid(doc, null, "path cannot be null nor empty");
+            assertPathInvalid(doc, "", "path cannot be null nor empty");
+            assertPathValid(doc, "a");
+            assertPathValid(doc, "ab");
+            assertPathValid(doc, "abc");
+            assertPathValid(doc, "a.b");
+            assertPathValid(doc, "a.b.c");
+            // Trailing empty strings are trimmed by field path parsing logic
+            assertPathValid(doc, "a.");
+            assertPathValid(doc, "a..");
+            assertPathValid(doc, "a...");
+            // Empty field names are not allowed in the beginning or middle of the path though
+            assertPathInvalid(doc, ".a.b", "path [.a.b] is not valid");
+            assertPathInvalid(doc, "a..b", "path [a..b] is not valid");
+        });
+
+        doWithAccessPattern(CLASSIC, (doc) -> {
+            // Classic allows number fields because they are treated as either field names or array indices depending on context
+            assertPathValid(doc, "a.0");
+            // Classic allows square brackets because it is not part of it's syntax
+            assertPathValid(doc, "a[0]");
+            assertPathValid(doc, "a[]");
+            assertPathValid(doc, "a][");
+            assertPathValid(doc, "[");
+            assertPathValid(doc, "a[");
+            assertPathValid(doc, "[a");
+            assertPathValid(doc, "]");
+            assertPathValid(doc, "a]");
+            assertPathValid(doc, "]a");
+            assertPathValid(doc, "[]");
+            assertPathValid(doc, "][");
+            assertPathValid(doc, "[a]");
+            assertPathValid(doc, "]a[");
+            assertPathValid(doc, "[]a");
+            assertPathValid(doc, "][a");
+        });
+
+        doWithAccessPattern(FLEXIBLE, (doc) -> {
+            // Flexible has specific handling of square brackets
+            assertPathInvalid(doc, "a[0]", "path [a[0]] is not valid");
+            assertPathInvalid(doc, "a[]", "path [a[]] is not valid");
+            assertPathInvalid(doc, "a][", "path [a][] is not valid");
+            assertPathInvalid(doc, "[", "path [[] is not valid");
+            assertPathInvalid(doc, "a[", "path [a[] is not valid");
+            assertPathInvalid(doc, "[a", "path [[a] is not valid");
+            assertPathInvalid(doc, "]", "path []] is not valid");
+            assertPathInvalid(doc, "a]", "path [a]] is not valid");
+            assertPathInvalid(doc, "]a", "path []a] is not valid");
+            assertPathInvalid(doc, "[]", "path [[]] is not valid");
+            assertPathInvalid(doc, "][", "path [][] is not valid");
+            assertPathInvalid(doc, "[a]", "path [[a]] is not valid");
+            assertPathInvalid(doc, "]a[", "path []a[] is not valid");
+            assertPathInvalid(doc, "[]a", "path [[]a] is not valid");
+            assertPathInvalid(doc, "][a", "path [][a] is not valid");
+
+            assertPathInvalid(doc, "a[0].b", "path [a[0].b] is not valid");
+            assertPathInvalid(doc, "a[0].b[1]", "path [a[0].b[1]] is not valid");
+            assertPathInvalid(doc, "a[0].b[1].c", "path [a[0].b[1].c] is not valid");
+            assertPathInvalid(doc, "a[0].b[1].c[2]", "path [a[0].b[1].c[2]] is not valid");
+            assertPathInvalid(doc, "a[0][1].c[2]", "path [a[0][1].c[2]] is not valid");
+            assertPathInvalid(doc, "a[0].b[1][2]", "path [a[0].b[1][2]] is not valid");
+            assertPathInvalid(doc, "a[0][1][2]", "path [a[0][1][2]] is not valid");
+
+            assertPathInvalid(doc, "a[0][", "path [a[0][] is not valid");
+            assertPathInvalid(doc, "a[0]]", "path [a[0]]] is not valid");
+            assertPathInvalid(doc, "a[0]blahblah", "path [a[0]blahblah] is not valid");
+        });
     }
 
     public void testSimpleGetFieldValue() throws Exception {
@@ -2024,8 +2106,6 @@ public class IngestDocumentTests extends ESTestCase {
      * restore the previous pipeline's access pattern.
      */
     public void testNestedAccessPatternPropagation() {
-        Assume.assumeTrue(DataStream.LOGS_STREAM_FEATURE_FLAG);
-
         Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 
@@ -2034,7 +2114,7 @@ public class IngestDocumentTests extends ESTestCase {
 
         // At the end of the test, there should be neither pipeline ids nor access patterns left in the stack.
         assertThat(document.getPipelineStack(), is(empty()));
-        assertThat(document.getCurrentAccessPattern(), is(nullValue()));
+        assertThat(document.getCurrentAccessPattern().isEmpty(), is(true));
     }
 
     /**
@@ -2082,7 +2162,8 @@ public class IngestDocumentTests extends ESTestCase {
 
             // Assert expected state
             assertThat(document.getPipelineStack().getFirst(), is(expectedPipelineId));
-            assertThat(document.getCurrentAccessPattern(), is(expectedAccessPattern));
+            assertThat(document.getCurrentAccessPattern().isPresent(), is(true));
+            assertThat(document.getCurrentAccessPattern().get(), is(expectedAccessPattern));
 
             // Randomly recurse: We recurse only one time per level to avoid hogging test time, but we randomize which
             // pipeline to recurse on, eventually requiring a recursion on the last pipeline run if one hasn't happened yet.
@@ -2099,11 +2180,11 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(document.getPipelineStack().size(), is(equalTo(level)));
             if (level == 0) {
                 // Top level means access pattern should be empty
-                assertThat(document.getCurrentAccessPattern(), is(nullValue()));
+                assertThat(document.getCurrentAccessPattern().isEmpty(), is(true));
             } else {
                 // If we're nested below the top level we should still have an access
                 // pattern on the document for the pipeline above us
-                assertThat(document.getCurrentAccessPattern(), is(not(nullValue())));
+                assertThat(document.getCurrentAccessPattern().isPresent(), is(true));
             }
         }
         logger.debug("LEVEL {}/{}: COMPLETE", level, maxCallDepth);

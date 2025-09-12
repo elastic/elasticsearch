@@ -418,6 +418,9 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -1180,6 +1183,18 @@ public class Security extends Plugin
             crossClusterAccessAuthcService.get(),
             getLicenseState()
         );
+
+        var crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
+            environment,
+            resourceWatcherService,
+            clusterService.getClusterSettings()
+        );
+        components.add(crossClusterApiKeySignerReloader);
+
+        var crossClusterApiKeySigner = new CrossClusterApiKeySigner(environment);
+        crossClusterApiKeySignerReloader.setApiKeySigner(crossClusterApiKeySigner);
+        components.add(crossClusterApiKeySigner);
+
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1557,6 +1572,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
+        settingsList.addAll(CrossClusterApiKeySignerSettings.getSettings());
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));

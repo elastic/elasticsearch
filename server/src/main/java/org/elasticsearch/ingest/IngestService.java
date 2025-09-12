@@ -101,6 +101,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -1197,7 +1198,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 listener.onFailure(e);
             }
         };
-
+        AtomicBoolean haveAttemptedSampling = new AtomicBoolean(false);
         try {
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
@@ -1360,6 +1361,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                          * We need both the original document and the fully updated document for sampling, so we make a copy of the original
                          * before overwriting it here. We can discard it after sampling.
                          */
+                        haveAttemptedSampling.set(true);
                         IndexRequest original = copyIndexRequest(indexRequest);
                         updateIndexRequestMetadata(original, originalDocumentMetadata);
                         samplingService.maybeSample(project, original, ingestDocument);
@@ -1373,6 +1375,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             });
         } catch (Exception e) {
+            try {
+                if (haveAttemptedSampling.get() == false) {
+                    IndexRequest original = copyIndexRequest(indexRequest);
+                    updateIndexRequestMetadata(original, originalDocumentMetadata);
+                    samplingService.maybeSample(state.projectState(projectResolver.getProjectId()).metadata(), original, ingestDocument);
+                }
+            } catch (IOException ex) {
+                logger.warn("unable to sample data");
+            }
             // Maybe also sample here? Or put it in the exceptionHandler? We want to make sure the exception didn't come of out the
             // listener though.
             logger.debug(

@@ -183,7 +183,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         );
     }
 
-    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) throws IOException {
+    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) {
         Map<String, Object> sourceAsMap;
         try {
             sourceAsMap = indexRequest.sourceAsMap();
@@ -205,7 +205,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         );
     }
 
-    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) throws IOException {
+    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
         long startTime = relativeNanoTimeSupplier.getAsLong();
         TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(
             TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME

@@ -70,7 +70,7 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     private static boolean supportsCompletionInfo(TransportVersion version) {
-        return version.onOrAfter(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
+        return version.supports(ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED);
     }
 
     public DriverCompletionInfo completionInfo() {

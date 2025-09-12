@@ -68,7 +68,7 @@ record SageMakerElasticTaskSettings(@Nullable Map<String, Object> passthroughSet
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(ML_INFERENCE_SAGEMAKER_ELASTIC);
+        return version.supports(ML_INFERENCE_SAGEMAKER_ELASTIC);
     }
 
     @Override

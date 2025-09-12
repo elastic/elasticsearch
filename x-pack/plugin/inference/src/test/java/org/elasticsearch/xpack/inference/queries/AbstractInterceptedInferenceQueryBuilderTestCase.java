@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -34,7 +35,9 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -49,10 +53,12 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -92,11 +98,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         }
     }
 
-    @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new InferencePluginWithModelRegistry(Settings.EMPTY));
-    }
-
     @BeforeClass
     public static void beforeClass() {
         threadPool = new TestThreadPool(AbstractInterceptedInferenceQueryBuilderTestCase.class.getName());
@@ -108,21 +109,82 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         threadPool.close();
     }
 
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new InferencePluginWithModelRegistry(Settings.EMPTY));
+    }
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        getPlugins().forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+
+        SearchModule searchModule = new SearchModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof SearchPlugin).map(p -> (SearchPlugin) p).toList()
+        );
+        entries.addAll(searchModule.getNamedWriteables());
+
+        return new NamedWriteableRegistry(entries);
+    }
+
     public void testInterceptAndRewrite() {
         // TODO: Implement
     }
 
-    public void testSerialization() {
-        // TODO: Implement
+    public void testSerialization() throws Exception {
+        final String semanticField = "semantic_field";
+        final String mixedField = "mixed_field";
+        final String textField = "text_field";
+        final TestIndex testIndex1 = new TestIndex(
+            "test-index-1",
+            Map.of(semanticField, SPARSE_INFERENCE_ID, mixedField, DENSE_INFERENCE_ID),
+            Map.of(textField, Map.of("type", "text"))
+        );
+        final TestIndex testIndex2 = new TestIndex(
+            "test-index-2",
+            Map.of(semanticField, SPARSE_INFERENCE_ID),
+            Map.of(mixedField, Map.of("type", "text"), textField, Map.of("type", "text"))
+        );
+
+        Function<String, QueryBuilder> coordinatorRewrite = q -> {
+            T queryBuilder = createQueryBuilder(q);
+            QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+                Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
+                Map.of(),
+                TransportVersion.current()
+            );
+            return rewriteAndFetch(queryBuilder, queryRewriteContext);
+        };
+
+        // Query a semantic text field in both indices
+        QueryBuilder rewrittenSemantic = coordinatorRewrite.apply(semanticField);
+        QueryBuilder serializedSemantic = copyNamedWriteable(rewrittenSemantic, writableRegistry(), QueryBuilder.class);
+        assertCoordinatorNodeRewriteOnInferenceField(serializedSemantic, TransportVersion.current());
+
+        // Query a field that is a semantic text field in one index
+        QueryBuilder rewrittenMixed = coordinatorRewrite.apply(mixedField);
+        QueryBuilder serializedMixed = copyNamedWriteable(rewrittenMixed, writableRegistry(), QueryBuilder.class);
+        assertCoordinatorNodeRewriteOnInferenceField(serializedMixed, TransportVersion.current());
+
+        // Query a text field in both indices
+        QueryBuilder rewrittenText = coordinatorRewrite.apply(textField);
+        QueryBuilder serializedText = copyNamedWriteable(rewrittenText, writableRegistry(), QueryBuilder.class);
+        assertCoordinatorNodeRewriteOnNonInferenceField(serializedText);
     }
 
     public void testBwCSerialization() {
         // TODO: Implement
     }
 
-    protected abstract T createQueryBuilder();
+    protected abstract T createQueryBuilder(String field);
 
     protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
+
+    protected abstract void assertCoordinatorNodeRewriteOnInferenceField(QueryBuilder queryBuilder, TransportVersion transportVersion);
+
+    protected abstract void assertCoordinatorNodeRewriteOnNonInferenceField(QueryBuilder queryBuilder);
 
     protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,
@@ -193,7 +255,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     protected QueryRewriteContext createIndexMetadataContext(
         String indexName,
         Map<String, String> semanticTextFields,
-        Map<String, String> nonInferenceFields
+        Map<String, Map<String, String>> nonInferenceFields
     ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
@@ -217,8 +279,13 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
                 mappings.endObject();
             }
             for (var entry : nonInferenceFields.entrySet()) {
-                mappings.startObject(entry.getKey());
-                mappings.field("type", entry.getValue());
+                String fieldName = entry.getKey();
+                Map<String, String> properties = entry.getValue();
+
+                mappings.startObject(fieldName);
+                for (var propertyEntry : properties.entrySet()) {
+                    mappings.field(propertyEntry.getKey(), propertyEntry.getValue());
+                }
                 mappings.endObject();
             }
 
@@ -253,7 +320,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         }
     }
 
-    protected static QueryBuilder rewrite(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
+    protected static QueryBuilder rewriteAndFetch(QueryBuilder queryBuilder, QueryRewriteContext queryRewriteContext) {
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, queryRewriteContext, future);
         return future.actionGet();
@@ -274,4 +341,6 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         return modelRegistry;
     }
+
+    protected record TestIndex(String name, Map<String, String> semanticTextFields, Map<String, Map<String, String>> nonInferenceFields) {}
 }

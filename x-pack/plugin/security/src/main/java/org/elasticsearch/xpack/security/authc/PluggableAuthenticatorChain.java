@@ -21,7 +21,7 @@ public class PluggableAuthenticatorChain implements Authenticator {
     private final List<CustomAuthenticator> customAuthenticators;
 
     public PluggableAuthenticatorChain(List<CustomAuthenticator> customAuthenticators) {
-        this.customAuthenticators = List.copyOf(Objects.requireNonNull(customAuthenticators));
+        this.customAuthenticators = Objects.requireNonNull(customAuthenticators);
     }
 
     @Override

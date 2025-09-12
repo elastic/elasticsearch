@@ -7,19 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
-import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.hamcrest.Matchers.is;
 
@@ -36,26 +30,35 @@ public class IgnoreNullMetricsPhysicalPlannerTests extends LocalPhysicalPlanOpti
      * This tests that we get the same end result plan with an explicit isNotNull and the implicit one added by the rule
      */
     public void testSamePhysicalPlans() {
+        // assumeTrue("disable for now", false);
         String testQuery = """
             TS k8s
-            | STATS max(rate(network.total_bytes_in))
+            | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
             """;
+        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(testQuery);
+
         String controlQuery = """
             TS k8s
-            | WHERE network.cost IS NOT NULL
-            | STATS max(rate(network.total_bytes_in))
+            | WHERE network.total_bytes_in IS NOT NULL
+            | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
             | LIMIT 10
             """;
-
-        // first, make sure we got the same logical plans
-        LogicalPlan actualLogicalPlan = plannerOptimizerTimeSeries.logicalPlan(testQuery);
-        LogicalPlan expectedLogicalPlan = plannerOptimizerTimeSeries.logicalPlan(controlQuery);
-        assertEquals("Logical plans differ, this isn't a physical planner issue", expectedLogicalPlan, actualLogicalPlan);
-
-        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(testQuery);
         PhysicalPlan expectedPlan = plannerOptimizerTimeSeries.plan(controlQuery);
+
         assertEquals(NodeUtils.diffString(expectedPlan, actualPlan), expectedPlan, actualPlan);
     }
 
+    public void testPushdownOfSimpleQuery() {
+        String query = """
+            TS k8s
+            | STATS max(rate(network.total_bytes_in)) BY Bucket(@timestamp, 1 hour)
+            | LIMIT 10
+            """;
+        PhysicalPlan actualPlan = plannerOptimizerTimeSeries.plan(query);
+        EsQueryExec queryExec = (EsQueryExec) actualPlan.collect(node -> node instanceof EsQueryExec).get(0);
+
+        QueryBuilder expected = unscore(existsQuery("network.total_bytes_in"));
+        assertThat(queryExec.query().toString(), is(expected.toString()));
+    }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +22,8 @@ import java.util.Objects;
 
 public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "google_vertex_ai_chatcompletion_task_settings";
+
+    private static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = TransportVersion.fromName("gemini_thinking_budget_added");
 
     private final ThinkingConfig thinkingConfig;
 
@@ -88,7 +89,7 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.GEMINI_THINKING_BUDGET_ADDED;
+        return GEMINI_THINKING_BUDGET_ADDED;
     }
 
     @Override

@@ -32,7 +32,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    static final Version bwcVersion = Version.fromString(System.getProperty("tests.old_cluster_version").replace("-SNAPSHOT", ""));
 
     private static TestFeatureService oldClusterTestFeatureService = null;
 

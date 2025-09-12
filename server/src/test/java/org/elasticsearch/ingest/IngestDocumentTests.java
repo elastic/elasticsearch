@@ -9,13 +9,11 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
-import org.junit.Assume;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -2108,8 +2106,6 @@ public class IngestDocumentTests extends ESTestCase {
      * restore the previous pipeline's access pattern.
      */
     public void testNestedAccessPatternPropagation() {
-        Assume.assumeTrue(DataStream.LOGS_STREAM_FEATURE_FLAG);
-
         Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
         IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
 

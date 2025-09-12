@@ -325,7 +325,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = def(9_157_0_00);
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
-    // public static final TransportVersion INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST = def(9_160_0_00);
+    public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
+    // public static final TransportVersion INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST = def(9_170_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

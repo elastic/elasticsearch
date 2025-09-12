@@ -69,11 +69,9 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             null,
                             null,
                             null,
-                            null,
-                            null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
                             null,
-                            null
+                            false
                         )
                     )
             );
@@ -97,11 +95,9 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                             null,
                             null,
                             null,
-                            null,
-                            null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
                             null,
-                            null
+                            false
                         )
                     )
             );
@@ -177,7 +173,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
-            null
+            false
         );
 
         // No wildcards, no per-field boosting
@@ -225,7 +221,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Simple per-field boosting
@@ -324,7 +321,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test negative weight validation
@@ -359,7 +357,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
-            null
+            false
         );
 
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
@@ -389,7 +387,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test with per-field weights in the simplified format
@@ -417,7 +416,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
@@ -462,7 +462,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
@@ -502,7 +503,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
@@ -530,7 +532,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
@@ -557,7 +560,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test very large weight values
@@ -585,7 +589,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test mixing weighted and unweighted fields in simplified syntax
@@ -613,7 +618,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test various decimal weight precisions
@@ -641,7 +647,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test glob patterns with weights in simplified syntax
@@ -669,7 +676,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
-            null
+            null,
+            false
         );
 
         // Test potential overflow scenarios with very large float values

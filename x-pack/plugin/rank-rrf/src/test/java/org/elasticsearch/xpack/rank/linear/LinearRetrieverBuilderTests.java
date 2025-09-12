@@ -58,7 +58,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
-            null
+            false
         );
 
         // No wildcards, no per-field boosting
@@ -556,7 +556,7 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
-            null
+            false
         );
 
         LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(

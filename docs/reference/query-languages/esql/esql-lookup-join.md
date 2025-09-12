@@ -49,7 +49,7 @@ LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Joi
 
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
-{applies_to}`stack: ga 9.2.0` Remote lookup joins are supported when using [cross-cluster query](/reference/query-languages/esql/esql-cross-clusters.md). In this case, the lookup index must exist on every queried remote cluster. Each cluster will use its own lookup index data (same as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote)).
+{applies_to}`stack: ga 9.2.0` Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md). The lookup index must exist on _all_ remote clusters being queried, because each cluster uses its local lookup index data. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
 
 ## Example
 

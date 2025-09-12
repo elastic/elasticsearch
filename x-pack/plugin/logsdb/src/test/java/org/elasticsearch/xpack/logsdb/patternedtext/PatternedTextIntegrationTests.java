@@ -97,16 +97,15 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     public void testSourceMatchAllManyValues() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
-        var createRequest = new CreateIndexRequest(INDEX)
-            .settings(LOGSDB_SETTING)
-            .mapping(mapping);
+        var createRequest = new CreateIndexRequest(INDEX).settings(LOGSDB_SETTING).mapping(mapping);
 
         assertAcked(admin().indices().create(createRequest));
 
         int numDocs = randomIntBetween(1, 100);
         List<String> messages = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
-            String message = randomFrom(random(),
+            String message = randomFrom(
+                random(),
                 // no value for message
                 () -> null,
                 // regular small message, stored in doc values
@@ -122,10 +121,9 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
         assertNoFailuresAndResponse(request, response -> {
             assertEquals(messages.size(), response.getHits().getHits().length);
-            var values = new HashSet<>(Arrays.stream(response.getHits().getHits())
-                .map(SearchHit::getSourceAsMap)
-                .map(m -> m.get(PATTERNED_TEXT_FIELD))
-                .toList());
+            var values = new HashSet<>(
+                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).map(m -> m.get(PATTERNED_TEXT_FIELD)).toList()
+            );
 
             assertEquals(new HashSet<>(messages), values);
         });
@@ -265,15 +263,14 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                 xContentBuilder = JsonXContent.contentBuilder().startObject().field("@timestamp", timestamp).endObject();
             } else {
                 xContentBuilder = JsonXContent.contentBuilder()
-                .startObject()
-                .field("@timestamp", timestamp)
-                .field("field_patterned_text", msg)
-                .field("field_match_only_text", msg)
-                .endObject();
+                    .startObject()
+                    .field("@timestamp", timestamp)
+                    .field("field_patterned_text", msg)
+                    .field("field_match_only_text", msg)
+                    .endObject();
             }
 
-            var indexRequest = new IndexRequest(INDEX).opType(DocWriteRequest.OpType.CREATE)
-                .source(xContentBuilder);
+            var indexRequest = new IndexRequest(INDEX).opType(DocWriteRequest.OpType.CREATE).source(xContentBuilder);
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();

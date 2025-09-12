@@ -234,7 +234,6 @@ public class PatternTextDocValuesTests extends ESTestCase {
             return false;
         }
 
-
         @Override
         public int docID() {
             return currDoc >= docToOrds.size() ? NO_MORE_DOCS : currDoc;

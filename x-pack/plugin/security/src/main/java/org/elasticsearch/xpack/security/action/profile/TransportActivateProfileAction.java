@@ -54,7 +54,7 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
         this.profileService = profileService;
         this.customTokenAuthenticators = pluggableAuthenticatorChain.getCustomAuthenticators()
             .stream()
-            .filter(a -> a instanceof CustomTokenAuthenticator)
+            .filter(CustomTokenAuthenticator.class::isInstance)
             .map(CustomTokenAuthenticator.class::cast)
             .toList();
     }

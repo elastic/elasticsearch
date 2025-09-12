@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorsReducer;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -221,7 +222,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
-        final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
+        final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs && resultSize > 0 ? new ArrayDeque<>(resultSize) : null;
         // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
         // execution for shards on the coordinating node itself
         if (mergeResult != null) {
@@ -247,7 +248,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             if (aggsList != null) {
                 // Add an estimate of the final reduce size
                 breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(breakerSize));
-                aggs = aggregate(buffer.iterator(), new Iterator<>() {
+                var reduceContext = performFinalReduce
+                    ? aggReduceContextBuilder.forFinalReduction()
+                    : aggReduceContextBuilder.forPartialReduction();
+                aggs = InternalAggregations.maybeExecuteFinalReduce(reduceContext, aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {
                         return aggsList.isEmpty() == false;
@@ -257,10 +261,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     public DelayableWriteable<InternalAggregations> next() {
                         return aggsList.pollFirst();
                     }
-                },
-                    resultSize,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-                );
+                }, resultSize, reduceContext));
             } else {
                 aggs = null;
             }
@@ -409,11 +410,21 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     return res.expand();
                 }
             });
-            return InternalAggregations.topLevelReduce(partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
+            aggsIter = partialResults.hasNext() ? Iterators.concat(Iterators.map(partialResults, r -> {
                 try (r) {
                     return r.expand();
                 }
-            }), aggsIter) : aggsIter, resultSetSize, reduceContext);
+            }), aggsIter) : aggsIter;
+            final InternalAggregations first = aggsIter.next();
+            if (resultSetSize == 1) {
+                return InternalAggregations.reduce(first, reduceContext);
+            }
+            // general case
+            try (var reducer = new AggregatorsReducer(first, reduceContext, resultSetSize)) {
+                reducer.accept(first);
+                aggsIter.forEachRemaining(reducer::accept);
+                return reducer.get();
+            }
         } finally {
             toConsume.forEachRemaining(QuerySearchResult::releaseAggs);
             partialResults.forEachRemaining(Releasable::close);

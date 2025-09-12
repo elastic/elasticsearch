@@ -143,9 +143,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.blocks.SimpleBlocksIT
-  method: testConcurrentAddBlock
-  issue: https://github.com/elastic/elasticsearch/issues/122324
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -549,6 +546,12 @@ tests:
 - class: org.elasticsearch.oldrepos.OldMappingsIT
   method: testStandardTokenFilter
   issue: https://github.com/elastic/elasticsearch/issues/134647
+- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
+  method: testCBTrippingOnReduction
+  issue: https://github.com/elastic/elasticsearch/issues/134667
+- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTests
+  method: testFailIfAlreadyExists
+  issue: https://github.com/elastic/elasticsearch/issues/134669
 
 # Examples:
 #

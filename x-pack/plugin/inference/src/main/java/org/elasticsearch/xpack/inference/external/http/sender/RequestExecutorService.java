@@ -97,8 +97,6 @@ public class RequestExecutorService implements RequestExecutor {
     private static final TimeValue RATE_LIMIT_GROUP_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
 
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
-    // TODO: add one atomic integer (number of nodes); also explain the assumption and why this works
-    // TODO: document that this impacts chat completion (and increase the default rate limit)
     private final AtomicInteger rateLimitDivisor = new AtomicInteger(1);
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
@@ -404,10 +402,6 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         /**
-         * This method is solely called by {@link InferenceServiceNodeLocalRateLimitCalculator} to update
-         * rate limits, so they're "node-local".
-         * The general idea is described in {@link InferenceServiceNodeLocalRateLimitCalculator} in more detail.
-         *
          * @param divisor - divisor to divide the initial requests per time unit by
          */
         private synchronized void updateTokensPerTimeUnit(Integer divisor) {

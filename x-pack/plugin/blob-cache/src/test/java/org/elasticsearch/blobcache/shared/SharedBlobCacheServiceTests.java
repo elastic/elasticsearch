@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -194,7 +193,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         ) {
             ByteRange rangeRead = ByteRange.of(0L, 1L);
             ByteRange rangeWrite = ByteRange.of(0L, 1L);
-            Path tempFile = Files.createTempFile("test", "other");
+            Path tempFile = createTempFile("test", "other");
             String resourceDescription = tempFile.toAbsolutePath().toString();
             final var cacheKey = generateCacheKey();
             SharedBlobCacheService<Object>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, 1L);
@@ -206,7 +205,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 rangeWrite,
                 (channel, pos, relativePos, len) -> len,
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
-                    try (var in = new FileInputStream(tempFile.toFile())) {
+                    try (var in = Files.newInputStream(tempFile)) {
                         SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.clear());
                     }
                     ActionListener.completeWith(completionListener, () -> null);
@@ -220,7 +219,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertThat(first.attributes().get("file_extension"), is("other"));
             assertThat(first.value(), is(1L));
 
-            Path tempFile2 = Files.createTempFile("test", "cfs");
+            Path tempFile2 = createTempFile("test", "cfs");
             resourceDescription = tempFile2.toAbsolutePath().toString();
             cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L);
 
@@ -231,7 +230,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 rangeWrite,
                 (channel, pos, relativePos, len) -> len,
                 (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
-                    try (var in = new FileInputStream(tempFile2.toFile())) {
+                    try (var in = Files.newInputStream(tempFile2)) {
                         SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer2.clear());
                     }
                     ActionListener.completeWith(completionListener, () -> null);

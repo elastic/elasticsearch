@@ -125,7 +125,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
             reducedAggs.add(histogramResult);
             reducedAggs.add(avgResult);
             InternalAggregations aggregations = InternalAggregations.from(reducedAggs);
-            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
+            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations);
             assertNotNull(pipelineResult);
         }
     }
@@ -178,7 +178,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
             reducedAggs.add(filterResult);
             InternalAggregations aggregations = InternalAggregations.from(reducedAggs);
-            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations, null);
+            InternalAggregation pipelineResult = ((AvgBucketPipelineAggregator) avgBucketAgg).doReduce(aggregations);
             assertNotNull(pipelineResult);
         }
     }

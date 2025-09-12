@@ -88,10 +88,6 @@ public class TestPlannerOptimizer {
         return l;
     }
 
-    public LogicalPlan logicalPlan(String query) {
-        return logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
-    }
-
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
         LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         // System.out.println("Logical\n" + logical);

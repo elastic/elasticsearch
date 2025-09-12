@@ -513,7 +513,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertNotNull("Inner RRFRetrieverBuilder should exist", innerRrf);
         float[] actualWeights = innerRrf.weights();
         assertEquals("Should have exactly 2 weights", 2, actualWeights.length);
-        
+
         // Sort both arrays to ensure deterministic comparison regardless of HashMap iteration order
         float[] expectedWeights = new float[] { 3.0f, 0.5f };
         Arrays.sort(actualWeights);

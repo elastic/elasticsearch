@@ -51,6 +51,9 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     public static final ProjectStateRegistry EMPTY = new ProjectStateRegistry(Collections.emptyMap(), Collections.emptySet(), 0);
     private static final Entry EMPTY_ENTRY = new Entry(Settings.EMPTY, ImmutableOpenMap.of());
 
+    private static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = TransportVersion.fromName(
+        "project_state_registry_records_deletions"
+    );
     private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
     private static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = TransportVersion.fromName(
         "project_reserved_state_move_to_registry"
@@ -78,7 +81,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> new Entry(e.getValue(), ImmutableOpenMap.of())));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (in.getTransportVersion().supports(PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
             projectsMarkedForDeletionGeneration = in.readVLong();
         } else {
@@ -186,7 +189,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().settings()));
             out.writeMap(settingsMap);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (out.getTransportVersion().supports(PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             out.writeCollection(projectsMarkedForDeletion);
             out.writeVLong(projectsMarkedForDeletionGeneration);
         } else {

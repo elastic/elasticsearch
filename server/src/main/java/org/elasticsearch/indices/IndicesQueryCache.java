@@ -26,7 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
@@ -67,6 +69,15 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     private final Map<ShardId, Stats> shardStats = new ConcurrentHashMap<>();
     private volatile long sharedRamBytesUsed;
 
+    public long getCacheSizeForShard(ShardId shardId) {
+        Stats stats = shardStats.get(shardId);
+        return stats != null ? stats.cacheSize : 0L;
+    }
+
+    public long getSharedRamBytesUsed() {
+        return sharedRamBytesUsed;
+    }
+
     // This is a hack for the fact that the close listener for the
     // ShardCoreKeyMap will be called before onDocIdSetEviction
     // See onDocIdSetEviction for more info
@@ -89,37 +100,49 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return stats == null ? new QueryCacheStats() : stats.toQueryCacheStats();
     }
 
-    private long getShareOfAdditionalRamBytesUsed(long cacheSize) {
+    /**
+     * This computes the total cache size in bytes, and the total shard count in the cache for all shards.
+     * @param indicesService
+     * @return A CacheTotals object containing the computed total cache size and shard count
+     */
+    public static CacheTotals getCacheTotalsForAllShards(IndicesService indicesService) {
+        IndicesQueryCache queryCache = indicesService.getIndicesQueryCache();
+        boolean hasQueryCache = queryCache != null;
+        long totalSize = 0L;
+        int shardCount = 0;
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
+                long cacheSize = hasQueryCache ? queryCache.getCacheSizeForShard(indexShard.shardId()) : 0L;
+                shardCount++;
+                assert cacheSize >= 0 : "Unexpected cache size of " + cacheSize + " for shard " + indexShard.shardId();
+                totalSize += cacheSize;
+            }
+        }
+        return new CacheTotals(totalSize, shardCount);
+    }
+
+    /**
+     * This method computes the shared RAM size in bytes for the given indexShard.
+     * @param queryCache
+     * @param indexShard The shard to compute the shared RAM size for
+     * @param cacheTotals Shard totals computed in getCacheTotalsForAllShards()
+     * @return
+     */
+    public static long getSharedRamSizeForShard(IndicesQueryCache queryCache, IndexShard indexShard, CacheTotals cacheTotals) {
+        long sharedRamBytesUsed = queryCache != null ? queryCache.getSharedRamBytesUsed() : 0L;
         if (sharedRamBytesUsed == 0L) {
             return 0L;
         }
 
-        // We also have some shared ram usage that we try to distribute proportionally to the cache footprint of each shard.
-        // TODO avoid looping over all local shards here - see https://github.com/elastic/elasticsearch/issues/97222
-        long totalSize = 0L;
-        int shardCount = 0;
-        if (cacheSize == 0L) {
-            for (final var stats : shardStats.values()) {
-                shardCount += 1;
-                if (stats.cacheSize > 0L) {
-                    // some shard has nonzero cache footprint, so we apportion the shared size by cache footprint, and this shard has none
-                    return 0L;
-                }
-            }
-        } else {
-            // branchless loop for the common case
-            for (final var stats : shardStats.values()) {
-                shardCount += 1;
-                totalSize += stats.cacheSize;
-            }
-        }
-
+        int shardCount = cacheTotals.shardCount();
         if (shardCount == 0) {
             // Sometimes it's not possible to do this when there are no shard entries at all, which can happen as the shared ram usage can
             // extend beyond the closing of all shards.
             return 0L;
         }
 
+        long totalSize = cacheTotals.totalSize();
+        long cacheSize = queryCache.getCacheSizeForShard(indexShard.shardId());
         final long additionalRamBytesUsed;
         if (totalSize == 0) {
             // all shards have zero cache footprint, so we apportion the size of the shared bytes equally across all shards
@@ -132,10 +155,12 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         return additionalRamBytesUsed;
     }
 
+    public record CacheTotals(long totalSize, int shardCount) {}
+
     /** Get usage statistics for the given shard. */
-    public QueryCacheStats getStats(ShardId shard) {
+    public QueryCacheStats getStats(ShardId shard, long precomputedSharedRamBytesUsed) {
         final QueryCacheStats queryCacheStats = toQueryCacheStatsSafe(shardStats.get(shard));
-        queryCacheStats.addRamBytesUsed(getShareOfAdditionalRamBytesUsed(queryCacheStats.getCacheSize()));
+        queryCacheStats.addRamBytesUsed(precomputedSharedRamBytesUsed);
         return queryCacheStats;
     }
 

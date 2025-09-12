@@ -13,15 +13,15 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 public class PluggableAuthenticatorChain implements Authenticator {
 
     private final List<CustomAuthenticator> customAuthenticators;
 
     public PluggableAuthenticatorChain(List<CustomAuthenticator> customAuthenticators) {
-        this.customAuthenticators = Objects.requireNonNull(customAuthenticators);
+        this.customAuthenticators = Collections.unmodifiableList(customAuthenticators);
     }
 
     @Override

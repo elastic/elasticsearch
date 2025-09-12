@@ -58,7 +58,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -147,31 +146,29 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             Map.of(semanticField, SPARSE_INFERENCE_ID),
             Map.of(mixedField, Map.of("type", "text"), textField, Map.of("type", "text"))
         );
-
-        Function<String, QueryBuilder> coordinatorRewrite = q -> {
-            T queryBuilder = createQueryBuilder(q);
-            QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
-                Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
-                Map.of(),
-                TransportVersion.current()
-            );
-            return rewriteAndFetch(queryBuilder, queryRewriteContext);
-        };
+        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current()
+        );
 
         // Query a semantic text field in both indices
-        QueryBuilder rewrittenSemantic = coordinatorRewrite.apply(semanticField);
+        QueryBuilder originalSemantic = createQueryBuilder(semanticField);
+        QueryBuilder rewrittenSemantic = rewriteAndFetch(originalSemantic, queryRewriteContext);
         QueryBuilder serializedSemantic = copyNamedWriteable(rewrittenSemantic, writableRegistry(), QueryBuilder.class);
-        assertCoordinatorNodeRewriteOnInferenceField(serializedSemantic, TransportVersion.current());
+        assertCoordinatorNodeRewriteOnInferenceField(originalSemantic, serializedSemantic, TransportVersion.current());
 
         // Query a field that is a semantic text field in one index
-        QueryBuilder rewrittenMixed = coordinatorRewrite.apply(mixedField);
+        QueryBuilder originalMixed = createQueryBuilder(mixedField);
+        QueryBuilder rewrittenMixed = rewriteAndFetch(originalMixed, queryRewriteContext);
         QueryBuilder serializedMixed = copyNamedWriteable(rewrittenMixed, writableRegistry(), QueryBuilder.class);
-        assertCoordinatorNodeRewriteOnInferenceField(serializedMixed, TransportVersion.current());
+        assertCoordinatorNodeRewriteOnInferenceField(originalMixed, serializedMixed, TransportVersion.current());
 
         // Query a text field in both indices
-        QueryBuilder rewrittenText = coordinatorRewrite.apply(textField);
+        QueryBuilder originalText = createQueryBuilder(textField);
+        QueryBuilder rewrittenText = rewriteAndFetch(originalText, queryRewriteContext);
         QueryBuilder serializedText = copyNamedWriteable(rewrittenText, writableRegistry(), QueryBuilder.class);
-        assertCoordinatorNodeRewriteOnNonInferenceField(serializedText);
+        assertCoordinatorNodeRewriteOnNonInferenceField(originalText, serializedText);
     }
 
     public void testBwCSerialization() {
@@ -182,9 +179,13 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
 
-    protected abstract void assertCoordinatorNodeRewriteOnInferenceField(QueryBuilder queryBuilder, TransportVersion transportVersion);
+    protected abstract void assertCoordinatorNodeRewriteOnInferenceField(
+        QueryBuilder original,
+        QueryBuilder rewritten,
+        TransportVersion transportVersion
+    );
 
-    protected abstract void assertCoordinatorNodeRewriteOnNonInferenceField(QueryBuilder queryBuilder);
+    protected abstract void assertCoordinatorNodeRewriteOnNonInferenceField(QueryBuilder original, QueryBuilder rewritten);
 
     protected QueryRewriteContext createQueryRewriteContext(
         Map<String, Map<String, String>> localIndexInferenceFields,

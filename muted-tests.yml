@@ -543,6 +543,9 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120148
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/134646
 
 # Examples:
 #

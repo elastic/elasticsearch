@@ -1986,6 +1986,7 @@ inlinestatsWithFalseFiltersFromRow
 //  null      |2
 //  null      |3
 //  null      |4
+// TODO: add docs about whatever behavior is decided here
 required_capability: inlinestats_v11
 row x = null, a = 1, b = [2,3,4]
 | inlinestats c=max(a) where x

@@ -7,8 +7,7 @@ The `INLINE STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows. The results
 are appended as new columns to the input rows.
 
-The command is identical to [`STATS`](/reference/query-languages/esql/commands/stats-by.md) except that it does not reduce
-the number of columns in the output table.
+The command is identical to [`STATS`](/reference/query-languages/esql/commands/stats-by.md) except that it preserves all the columns from the input table.
 
 **Syntax**
 
@@ -16,7 +15,9 @@ the number of columns in the output table.
 INLINE STATS [column1 =] expression1 [WHERE boolean_expression1][,
       ...,
       [columnN =] expressionN [WHERE boolean_expressionN]]
-      [BY grouping_expression1[, ..., grouping_expressionN]]
+      [BY [grouping_name1 =] grouping_expression1[,
+          ...,
+          [grouping_nameN = ] grouping_expressionN]]
 ```
 
 **Parameters**
@@ -32,10 +33,10 @@ INLINE STATS [column1 =] expression1 [WHERE boolean_expression1][,
 
 `grouping_expressionX`
 :   An expression that outputs the values to group by.
-    If its name coincides with one of the computed columns, that column will be ignored.
+    If its name coincides with one of the existing or computed columns, that column will be overridden by this one.
 
 `boolean_expressionX`
-:   The condition that must be met for a row to be included in the evaluation of `expressionX`.
+:   The condition that determines which rows are included when evaluating `expressionX`.
 
 ::::{note}
 Individual `null` values are skipped when computing aggregations.
@@ -45,14 +46,13 @@ Individual `null` values are skipped when computing aggregations.
 **Description**
 
 The `INLINE STATS` processing command groups rows according to a common value
-(what comes after `BY`) and calculates one or more aggregated values over the
-grouped rows. The output table contains the same number of rows as the input
-table and the command just adds new columns or overrides any existent ones with
-the same name to the result. The resulting calculated values are matched to the
-input rows according to the common value(s) (also known as grouping key(s)).
+(also known as the grouping key), specified after `BY`, and calculates one or more
+aggregated values over the grouped rows. The output table contains the same
+number of rows as the input table. The command only adds new columns or overrides
+existing columns with the same name as the result.
 
 In case there are overlapping column names between the newly added columns and the
-existing ones, besides overriding the existing columns, there can be a change in
+existing ones, besides overriding the existing columns values, there can be a change in
 the column order. The new columns are added/moved so that they appear in the order
 they are defined in the `INLINE STATS` command.
 
@@ -72,37 +72,37 @@ The following [grouping functions](/reference/query-languages/esql/functions-ope
 
 **Examples**
 
-Calculating a statistic and grouping by the values of another column; note also
-that `languages` column is moved as the last column in the output since it is
-used as grouping key (the `KEEP` command before `INLINE STATS` had `languages`
-set as the second column):
+The following example shows how to calculate a statistic on one column and group
+by the values of another column.
+
+:::{note}
+The `languages` column moves to the last position in the output table because it is
+a column overriden by the `INLINE STATS` command (it's the grouping key) and it is the last column defined by it.
+:::
 
 :::{include} ../examples/inlinestats.csv-spec/max-salary.md
 :::
 
-Omitting `BY` calculates the aggregation applied over the entire dataset, the
-order of the existent columns is preserved and a new column with the calculated
-maximum salary value is added as the last column:
+The following example shows how to calculate an aggregation over the entire dataset
+by omitting `BY`. The order of the existing columns is preserved and a new column
+with the calculated maximum salary value is added as the last column:
 
 :::{include} ../examples/inlinestats.csv-spec/max-salary-without-by.md
 :::
 
-It’s possible to calculate multiple values in more complex queries:
+The following example shows how to calculate multiple aggregations with multiple grouping keys:
 
 :::{include} ../examples/inlinestats.csv-spec/multi-agg-multi-grouping.md
 :::
 
-To filter the rows that go into an aggregation, use the `WHERE` clause:
+The following example shows how to filter which rows are used for each aggregation, using the `WHERE` clause:
 
 :::{include} ../examples/inlinestats.csv-spec/avg-salaries-where.md
 :::
 
-Specifying the output column name is optional. If not specified, the new column
-name is equal to the expression.
 
 **Limitations**
 
-- [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not
-currently supported.
+- The [`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
 - `INLINE STATS` cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it.
 You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).

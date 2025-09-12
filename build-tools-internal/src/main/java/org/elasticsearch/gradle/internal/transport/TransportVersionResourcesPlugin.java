@@ -11,9 +11,9 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
-import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;

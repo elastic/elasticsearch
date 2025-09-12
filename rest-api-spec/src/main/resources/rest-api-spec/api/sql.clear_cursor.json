@@ -1,28 +1,32 @@
 {
-  "sql.clear_cursor":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/clear-sql-cursor-api.html",
-      "description":"Clear an SQL search cursor"
+  "sql.clear_cursor": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/clear-sql-cursor-api.html",
+      "description": "Clear an SQL search cursor"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_sql/close",
-          "methods":[
+          "path": "/_sql/close",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "body":{
-      "description":"Specify the cursor value in the `cursor` element to clean the cursor.",
-      "required":true
+    "body": {
+      "description": "Specify the cursor value in the `cursor` element to clean the cursor.",
+      "required": true
     }
   }
 }

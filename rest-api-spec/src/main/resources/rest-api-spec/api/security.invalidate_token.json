@@ -1,29 +1,33 @@
 {
-  "security.invalidate_token":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-invalidate-token.html",
-      "description":"Invalidate a token"
+  "security.invalidate_token": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-invalidate-token.html",
+      "description": "Invalidate a token"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/oauth2/token",
-          "methods":[
+          "path": "/_security/oauth2/token",
+          "methods": [
             "DELETE"
           ]
         }
       ]
     },
-    "params":{},
-    "body":{
-      "description":"The token to invalidate",
-      "required":true
+    "params": {},
+    "body": {
+      "description": "The token to invalidate",
+      "required": true
     }
   }
 }

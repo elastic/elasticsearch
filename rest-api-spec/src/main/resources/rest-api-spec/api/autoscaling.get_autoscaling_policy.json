@@ -1,34 +1,36 @@
 {
-  "autoscaling.get_autoscaling_policy":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/autoscaling-get-autoscaling-capacity.html",
+  "autoscaling.get_autoscaling_policy": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/autoscaling-get-autoscaling-capacity.html",
       "description": "Get an autoscaling policy"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_autoscaling/policy/{name}",
-          "methods":[
+          "path": "/_autoscaling/policy/{name}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"the name of the autoscaling policy"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "the name of the autoscaling policy"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for processing on master node"
       }
     }
   }

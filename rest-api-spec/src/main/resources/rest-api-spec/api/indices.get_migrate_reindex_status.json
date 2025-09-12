@@ -1,26 +1,30 @@
 {
-  "indices.get_migrate_reindex_status":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/migrate-data-stream.html",
-      "description":"Get the migration reindexing status"
+  "indices.get_migrate_reindex_status": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/migrate-data-stream.html",
+      "description": "Get the migration reindexing status"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_migration/reindex/{index}/_status",
-          "methods":[
+          "path": "/_migration/reindex/{index}/_status",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The index or data stream name"
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index or data stream name"
             }
           }
         }
@@ -28,4 +32,3 @@
     }
   }
 }
-

@@ -1,36 +1,42 @@
 {
   "enrich.get_policy": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-enrich-policy-api.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/get-enrich-policy-api.html",
       "description": "Get an enrich policy"
     },
-    "stability" : "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_enrich/policy/{name}",
-          "methods": [ "GET" ],
+          "methods": [
+            "GET"
+          ],
           "parts": {
             "name": {
-              "type" : "list",
-              "description" : "A comma-separated list of enrich policy names"
+              "type": "list",
+              "description": "A comma-separated list of enrich policy names"
             }
           }
         },
         {
           "path": "/_enrich/policy",
-          "methods": [ "GET" ]
+          "methods": [
+            "GET"
+          ]
         }
       ]
     },
     "params": {
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for processing on master node"
       }
     }
   }

@@ -1,42 +1,46 @@
 {
-  "cluster.allocation_explain":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cluster-allocation-explain.html",
-      "description":"Explain the shard allocations"
+  "cluster.allocation_explain": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/cluster-allocation-explain.html",
+      "description": "Explain the shard allocations"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cluster/allocation/explain",
-          "methods":[
+          "path": "/_cluster/allocation/explain",
+          "methods": [
             "GET",
             "POST"
           ]
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for connection to master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for connection to master node"
       },
-      "include_yes_decisions":{
-        "type":"boolean",
-        "description":"Return 'YES' decisions in explanation (default: false)"
+      "include_yes_decisions": {
+        "type": "boolean",
+        "description": "Return 'YES' decisions in explanation (default: false)"
       },
-      "include_disk_info":{
-        "type":"boolean",
-        "description":"Return information about disk usage and shard sizes (default: false)"
+      "include_disk_info": {
+        "type": "boolean",
+        "description": "Return information about disk usage and shard sizes (default: false)"
       }
     },
-    "body":{
-      "description":"The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'"
+    "body": {
+      "description": "The index, shard, and primary flag to explain. Empty means 'explain a randomly-chosen unassigned shard'"
     }
   }
 }

@@ -1,19 +1,21 @@
 {
-  "slm.stop":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/slm-api-stop.html",
-      "description":"Stop snapshot lifecycle management"
+  "slm.stop": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/slm-api-stop.html",
+      "description": "Stop snapshot lifecycle management"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_slm/stop",
-          "methods":[
+          "path": "/_slm/stop",
+          "methods": [
             "POST"
           ]
         }

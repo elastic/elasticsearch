@@ -4026,7 +4026,7 @@ public class AnalyzerTests extends ESTestCase {
             "mapping-books.json",
             new QueryParams(),
             "cannot use inference endpoint [reranking-inference-id] with task type [rerank] within a Completion command."
-                + " Only inference endpoints with the task type [completion] are supported"
+                + " Only inference endpoints with the task type [completion, chat_completion] are supported"
         );
     }
 

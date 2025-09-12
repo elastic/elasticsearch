@@ -77,7 +77,14 @@ public class PushDownAndCombineLimitsTests extends ESTestCase {
         ),
         new PushDownLimitTestCase<>(
             Completion.class,
-            (plan, attr) -> new Completion(EMPTY, plan, randomLiteral(KEYWORD), randomLiteral(KEYWORD), attr),
+            (plan, attr) -> new Completion(
+                EMPTY,
+                plan,
+                randomLiteral(KEYWORD),
+                randomFrom(Completion.SUPPORTED_TASK_TYPES),
+                randomLiteral(KEYWORD),
+                attr
+            ),
             (basePlan, optimizedPlan) -> {
                 assertEquals(basePlan.source(), optimizedPlan.source());
                 assertEquals(basePlan.inferenceId(), optimizedPlan.inferenceId());

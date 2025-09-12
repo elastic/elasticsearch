@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -21,7 +22,14 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
 
     @Override
     protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
+        return new Completion(
+            randomSource(),
+            randomChild(0),
+            randomInferenceId(),
+            randomTaskTypeOrNull(),
+            randomPrompt(),
+            randomAttribute()
+        );
     }
 
     @Override
@@ -30,14 +38,16 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
         Expression inferenceId = instance.inferenceId();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
+        TaskType taskType = instance.taskType();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
-            case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
-            case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 2 -> taskType = randomValueOtherThan(taskType, this::randomTaskTypeOrNull);
+            case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
+            case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
         }
-        return new Completion(instance.source(), child, inferenceId, prompt, targetField);
+        return new Completion(instance.source(), child, inferenceId, taskType, prompt, targetField);
     }
 
     private Literal randomInferenceId() {
@@ -50,5 +60,13 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
 
     private Attribute randomAttribute() {
         return ReferenceAttributeTests.randomReferenceAttribute(randomBoolean());
+    }
+
+    private TaskType randomTaskType() {
+        return randomFrom(Completion.SUPPORTED_TASK_TYPES);
+    }
+
+    private TaskType randomTaskTypeOrNull() {
+        return randomBoolean() ? randomTaskType() : null;
     }
 }

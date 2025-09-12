@@ -5488,6 +5488,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 EMPTY,
                 plan,
                 randomLiteral(TEXT),
+                randomFrom(Completion.SUPPORTED_TASK_TYPES),
                 new Concat(EMPTY, randomLiteral(TEXT), List.of(attr)),
                 new ReferenceAttribute(EMPTY, "y", KEYWORD)
             ),

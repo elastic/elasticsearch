@@ -59,7 +59,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         List<Alias> rerankFields,
         Attribute scoreAttribute
     ) {
-        super(source, child, inferenceId);
+        super(source, child, inferenceId, TaskType.RERANK);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
         this.scoreAttribute = scoreAttribute;
@@ -97,16 +97,16 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     @Override
-    public TaskType taskType() {
-        return TaskType.RERANK;
-    }
-
-    @Override
     public Rerank withInferenceId(Expression newInferenceId) {
         if (inferenceId().equals(newInferenceId)) {
             return this;
         }
         return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
+    }
+
+    @Override
+    public List<TaskType> supportedTaskTypes() {
+        return List.of(TaskType.RERANK);
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
@@ -163,7 +163,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     }
 
     public boolean isValidRerankField(Alias rerankField) {
-        // Only supportinng the following datatypes for now: text, numeric and boolean
+        // Only supporting the following datatypes for now: text, numeric and boolean
         return DataType.isString(rerankField.dataType())
             || rerankField.dataType() == DataType.BOOLEAN
             || rerankField.dataType().isNumeric();

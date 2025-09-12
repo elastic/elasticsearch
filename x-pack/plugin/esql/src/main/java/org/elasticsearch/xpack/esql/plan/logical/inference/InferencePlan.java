@@ -12,6 +12,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -32,10 +33,12 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
     public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);
 
     private final Expression inferenceId;
+    private final TaskType taskType;
 
-    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {
+    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId, TaskType taskType) {
         super(source, child);
         this.inferenceId = inferenceId;
+        this.taskType = taskType;
     }
 
     @Override
@@ -60,17 +63,39 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         InferencePlan<?> other = (InferencePlan<?>) o;
-        return Objects.equals(inferenceId(), other.inferenceId());
+        return Objects.equals(inferenceId(), other.inferenceId()) && taskType == other.taskType;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId());
+        return Objects.hash(super.hashCode(), inferenceId(), taskType);
     }
 
-    public abstract TaskType taskType();
+    public TaskType taskType() {
+        return taskType;
+    }
 
     public abstract PlanType withInferenceId(Expression newInferenceId);
+
+    public abstract List<TaskType> supportedTaskTypes();
+
+    @SuppressWarnings("unchecked")
+    public PlanType withResolvedInference(ResolvedInference resolvedInference) {
+        if (supportedTaskTypes().stream().noneMatch(resolvedInference.taskType()::equals)) {
+            String error = "cannot use inference endpoint ["
+                + resolvedInference.inferenceId()
+                + "] with task type ["
+                + resolvedInference.taskType()
+                + "] within a "
+                + nodeName()
+                + " command. Only inference endpoints with the task type "
+                + supportedTaskTypes()
+                + " are supported.";
+            return withInferenceResolutionError(resolvedInference.inferenceId(), error);
+        }
+
+        return (PlanType) this;
+    }
 
     public PlanType withInferenceResolutionError(String inferenceId, String error) {
         return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));

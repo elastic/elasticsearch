@@ -303,6 +303,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
                 EMPTY,
                 new Filter(EMPTY, relation, new And(EMPTY, conditionA, conditionB)),
                 completion.inferenceId(),
+                completion.taskType(),
                 completion.prompt(),
                 completion.targetField()
             ),
@@ -350,6 +351,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             EMPTY,
             child,
             randomLiteral(DataType.KEYWORD),
+            randomFrom(Completion.SUPPORTED_TASK_TYPES),
             randomLiteral(randomBoolean() ? DataType.TEXT : DataType.KEYWORD),
             referenceAttribute(randomIdentifier(), DataType.KEYWORD)
         );

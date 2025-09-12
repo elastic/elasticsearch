@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.inference.ResolvedInference;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -37,6 +39,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
+    public static final List<TaskType> SUPPORTED_TASK_TYPES = List.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Completion",
@@ -47,11 +51,18 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private List<Attribute> lazyOutput;
 
     public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
-        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+        this(source, p, Literal.NULL, null, prompt, targetField);
     }
 
-    public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
-        super(source, child, inferenceId);
+    public Completion(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        TaskType taskType,
+        Expression prompt,
+        Attribute targetField
+    ) {
+        super(source, child, inferenceId, taskType);
         this.prompt = prompt;
         this.targetField = targetField;
     }
@@ -61,6 +72,9 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CHAT_COMPLETION_SUPPORT)
+                ? in.readOptional(input -> TaskType.fromString(input.readString()))
+                : TaskType.COMPLETION,
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class)
         );
@@ -69,6 +83,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CHAT_COMPLETION_SUPPORT)) {
+            out.writeOptional((output, taskType) -> output.writeString(taskType.toString()), taskType());
+        }
+
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
     }
@@ -87,17 +105,17 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             return this;
         }
 
-        return new Completion(source(), child(), newInferenceId, prompt, targetField);
+        return new Completion(source(), child(), newInferenceId, taskType(), prompt, targetField);
+    }
+
+    @Override
+    public List<TaskType> supportedTaskTypes() {
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
     public Completion replaceChild(LogicalPlan newChild) {
-        return new Completion(source(), newChild, inferenceId(), prompt, targetField);
-    }
-
-    @Override
-    public TaskType taskType() {
-        return TaskType.COMPLETION;
+        return new Completion(source(), newChild, inferenceId(), taskType(), prompt, targetField);
     }
 
     @Override
@@ -122,7 +140,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), prompt, this.renameTargetField(newNames.get(0)));
+        return new Completion(source(), child(), inferenceId(), taskType(), prompt, this.renameTargetField(newNames.get(0)));
     }
 
     private Attribute renameTargetField(String newName) {
@@ -131,6 +149,11 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         }
 
         return targetField.withName(newName).withId(new NameId());
+    }
+
+    @Override
+    public Completion withResolvedInference(ResolvedInference resolvedInference) {
+        return super.withResolvedInference(resolvedInference);
     }
 
     @Override
@@ -152,7 +175,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Completion::new, child(), inferenceId(), prompt, targetField);
+        return NodeInfo.create(this, Completion::new, child(), inferenceId(), taskType(), prompt, targetField);
     }
 
     @Override

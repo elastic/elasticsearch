@@ -1688,6 +1688,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         private final BytesStreamOutput shardDeleteResults;
 
         private int resultCount = 0;
+        private int skippedResultsCount = 0;
 
         private final StreamOutput compressed;
 
@@ -1751,8 +1752,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             try {
                 shardGenerationsBuilder.put(indexId, shardId, newGeneration);
-                new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
-                resultCount += 1;
+                // Only write if we have capacity
+                if (shardDeleteResults.size() < this.shardDeleteResultsMaxSize) {
+                    new ShardSnapshotMetaDeleteResult(Objects.requireNonNull(indexId.getId()), shardId, blobsToDelete).writeTo(compressed);
+                    resultCount += 1;
+                } else {
+                    skippedResultsCount += 1;
+                }
             } catch (IOException e) {
                 assert false : e; // no IO actually happens here
                 throw new UncheckedIOException(e);
@@ -1789,9 +1795,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     shardResult = new ShardSnapshotMetaDeleteResult(input);
                 } catch (EOFException ex) {
-                    // There was insufficient stream space to write this blob
-                    // All subsequent blobs will likewise be dangling
-                    logger.warn("Failure to clean up {} dangling blobs", resultCount - i);
+                    // There was insufficient stream space to write this blob so it cannot be parsed
+                    // All further write attempts were then skipped
+                    logger.warn(
+                        "Failed to clean up {} shards because there was insufficient heap space to track them all. "
+                            + "These shards will be cleaned during subsequent delete operations.",
+                        skippedResultsCount + 1
+                    );
                     break;
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);

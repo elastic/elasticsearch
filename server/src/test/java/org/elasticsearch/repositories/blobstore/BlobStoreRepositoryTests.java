@@ -935,7 +935,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "failure to clean up dangling blobs warn logs",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "Failure to clean up"
+                "Failed to clean up"
             )
         );
     }
@@ -946,7 +946,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "failure to clean up dangling blobs warn logs",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
                 Level.WARN,
-                "Failure to clean up"
+                "Failed to clean up"
             )
         );
     }

@@ -149,26 +149,26 @@ public class PatternTextDocValuesTests extends ESTestCase {
 
     public void testDenseValues() throws IOException {
         var docValues = denseValues();
-        assertEquals(0, docValues.nextDoc());
+        assertTrue(docValues.advanceExact(0));
         assertEquals("1 a", docValues.binaryValue().utf8ToString());
-        assertEquals(1, docValues.nextDoc());
+        assertTrue(docValues.advanceExact(1));
         assertEquals("2 b", docValues.binaryValue().utf8ToString());
-        assertEquals(2, docValues.nextDoc());
+        assertTrue(docValues.advanceExact(2));
         assertEquals("3 c", docValues.binaryValue().utf8ToString());
-        assertEquals(3, docValues.nextDoc());
+        assertTrue(docValues.advanceExact(3));
         assertEquals("4 d", docValues.binaryValue().utf8ToString());
-        assertEquals(NO_MORE_DOCS, docValues.nextDoc());
     }
 
     public void testSparseValues() throws IOException {
         var docValues = sparseValues();
-        assertEquals(0, docValues.nextDoc());
+        assertTrue(docValues.advanceExact(0));
         assertEquals("1 a", docValues.binaryValue().utf8ToString());
-        assertEquals(2, docValues.nextDoc());
+        assertFalse(docValues.advanceExact(1));
+        assertTrue(docValues.advanceExact(2));
         assertEquals("3 c", docValues.binaryValue().utf8ToString());
-        assertEquals(4, docValues.nextDoc());
+        assertFalse(docValues.advanceExact(3));
+        assertTrue(docValues.advanceExact(4));
         assertEquals("5 e", docValues.binaryValue().utf8ToString());
-        assertEquals(NO_MORE_DOCS, docValues.nextDoc());
     }
 
     public void testRandomMessagesDocValues() throws IOException {
@@ -199,26 +199,10 @@ public class PatternTextDocValuesTests extends ESTestCase {
         }
     }
 
-    public void testAdvance1() throws IOException {
-        var docValues = denseValues();
-        assertEquals(-1, docValues.docID());
-        assertEquals(0, docValues.nextDoc());
-        assertEquals(1, docValues.advance(1));
-        assertEquals(2, docValues.advance(2));
-        assertEquals(3, docValues.advance(3));
-        assertEquals(NO_MORE_DOCS, docValues.advance(4));
-    }
-
-    public void testAdvanceFarther() throws IOException {
-        var docValues = denseValues();
-        assertEquals(2, docValues.advance(2));
-        // repeats so stay on value
-        assertEquals(2, docValues.advance(2));
-    }
-
     public void testAdvanceSkipsValuesIfMissing() throws IOException {
         var docValues = sparseValues();
-        assertEquals(2, docValues.advance(1));
+        assertFalse(docValues.advanceExact(1));
+        assertEquals(2, docValues.docID());
     }
 
     public void testAdvanceExactMissing() throws IOException {

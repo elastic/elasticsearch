@@ -37,14 +37,15 @@ public class PatternedTextDocValues extends BinaryDocValues {
 
     private String getNextStringValue() throws IOException {
         assert templateDocValues.docValueCount() == 1;
+        assert argsInfoDocValues.docValueCount() == 1;
+
         String template = templateDocValues.lookupOrd(templateDocValues.nextOrd()).utf8ToString();
         List<Arg.Info> argsInfo = Arg.decodeInfo(argsInfoDocValues.lookupOrd(argsInfoDocValues.nextOrd()).utf8ToString());
-
         if (argsInfo.isEmpty() == false) {
             assert argsDocValues.docValueCount() == 1;
-            assert argsInfoDocValues.docValueCount() == 1;
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             var args = Arg.decodeRemainingArgs(mergedArgs.utf8ToString());
+            assert args.length == argsInfo.size();
             return PatternedTextValueProcessor.merge(template, args, argsInfo);
         } else {
             return template;
@@ -58,7 +59,10 @@ public class PatternedTextDocValues extends BinaryDocValues {
 
     @Override
     public boolean advanceExact(int i) throws IOException {
-        return i == advance(i);
+        argsDocValues.advanceExact(i);
+        argsInfoDocValues.advanceExact(i);
+        // If template has a value, then message has a value. We don't have to check args here, since there may not be args for the doc
+        return templateDocValues.advanceExact(i);
     }
 
     @Override
@@ -68,18 +72,12 @@ public class PatternedTextDocValues extends BinaryDocValues {
 
     @Override
     public int nextDoc() throws IOException {
-        advance(docID() + 1);
-        return docID();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public int advance(int i) throws IOException {
-        int templateAdvance = templateDocValues.advance(i);
-        var argsAdvance = argsDocValues.advance(templateAdvance);
-        var argsInfoAdvance = argsInfoDocValues.advance(templateAdvance);
-        assert argsAdvance >= templateAdvance;
-        assert argsInfoAdvance == templateAdvance;
-        return templateAdvance;
+        throw new UnsupportedOperationException();
     }
 
     @Override

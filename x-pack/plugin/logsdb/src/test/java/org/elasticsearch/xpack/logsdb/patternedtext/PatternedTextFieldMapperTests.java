@@ -234,17 +234,6 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testSyntheticSourceInNestedObject() throws IOException {
-        super.testSyntheticSourceInNestedObject();
-    }
-
-    @Override
-    public void testSyntheticSourceInObject() throws IOException {
-        super.testSyntheticSourceInObject();
-    }
-
-
-    @Override
     protected boolean supportsIgnoreMalformed() {
         return false;
     }

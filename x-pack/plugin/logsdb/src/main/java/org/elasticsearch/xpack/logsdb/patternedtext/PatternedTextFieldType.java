@@ -281,6 +281,10 @@ public class PatternedTextFieldType extends StringFieldType {
         return name() + TEMPLATE_ID_SUFFIX;
     }
 
+    String templateIdFieldName(String leafName) {
+        return leafName + TEMPLATE_ID_SUFFIX;
+    }
+
     String argsFieldName() {
         return name() + ARGS_SUFFIX;
     }

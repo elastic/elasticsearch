@@ -2084,6 +2084,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     }
 
     private static String getFileExtension(String resourceDescription) {
+        // TODO: consider introspecting resourceDescription for compound files
         if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
             return LuceneFilesExtensions.CFS.getExtension();
         }

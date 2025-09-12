@@ -144,8 +144,8 @@ class LossySumDoubleAggregator {
             public void add(int positionOffset, IntVector groupIds) {
                 if (groupIds.isConstant()) {
                     double sum = 0.0;
-                    int positionCount = groupIds.getPositionCount();
-                    for (int i = 0; i < positionCount; i++) {
+                    final int to = positionOffset + groupIds.getPositionCount();
+                    for (int i = positionOffset; i < to; i++) {
                         sum += values.getDouble(i);
                     }
                     state.add(sum, groupIds.getInt(0));

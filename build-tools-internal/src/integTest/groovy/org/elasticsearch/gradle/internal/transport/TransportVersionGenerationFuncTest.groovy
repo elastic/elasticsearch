@@ -357,7 +357,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8123100")
     }
 
-    def "an invalid increment should fail"() {
+    def "an non-positive increment should fail"() {
         given:
         referencedTransportVersion("new_tv")
 
@@ -366,6 +366,17 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
 
         then:
         assertOutputContains(result.output, "Invalid increment 0, must be a positive integer")
+    }
+
+    def "an increment larger than 1000 should fail"() {
+        given:
+        referencedTransportVersion("new_tv")
+
+        when:
+        def result = runGenerateTask("--increment=1001").buildAndFail()
+
+        then:
+        assertOutputContains(result.output, "Invalid increment 1001, must be no larger than 1000")
     }
 
     def "a new definition exists and is in the latest file, but the version id is wrong and needs to be updated"(){

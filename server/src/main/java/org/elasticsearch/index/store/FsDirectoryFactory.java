@@ -119,10 +119,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return MMapDirectory.NO_FILES;
     }
 
-    /**
-     * Return a {@link FilterDirectory} around the provided {@link Directory} that forcefully disables {@link IOContext#readAdvice random
-     * access}.
-     */
     static Directory disableRandomAdvice(Directory dir) {
         return new FilterDirectory(dir) {
             @Override
@@ -154,11 +150,22 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
             DirectIODirectory directIO;
             try {
+                int blockSize = Math.toIntExact(Files.getFileStore(delegate.getDirectory()).getBlockSize());
                 // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
                 directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
                     @Override
                     protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
                         return true;
+                    }
+
+                    @Override
+                    public IndexInput openInput(String name, IOContext context) throws IOException {
+                        ensureOpen();
+                        if (useDirectIO(name, context, OptionalLong.of(fileLength(name)))) {
+                            return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, 64);
+                        } else {
+                            return in.openInput(name, context);
+                        }
                     }
                 };
             } catch (Exception e) {

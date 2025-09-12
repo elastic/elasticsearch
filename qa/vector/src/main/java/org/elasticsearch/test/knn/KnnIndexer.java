@@ -32,6 +32,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
@@ -42,6 +43,8 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
+import org.elasticsearch.index.store.AsyncDirectIOIndexInput;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 
@@ -55,6 +58,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -377,12 +381,40 @@ class KnnIndexer {
     }
 
     // Copy of Elastic's HybridDirectory which extends NIOFSDirectory and uses MMapDirectory for certain files.
-    static final class HybridDirectory extends NIOFSDirectory {
+    static final class HybridDirectory extends NIOFSDirectory implements DirectIOIndexInputSupplier {
         private final MMapDirectory delegate;
+        private final DirectIODirectory directIODelegate;
 
         HybridDirectory(MMapDirectory delegate) throws IOException {
             super(delegate.getDirectory(), NativeFSLockFactory.INSTANCE);
             this.delegate = delegate;
+            DirectIODirectory directIO;
+            int blockSize = Math.toIntExact(Files.getFileStore(delegate.getDirectory()).getBlockSize());
+            try {
+                // use 8kB buffer (two pages) to guarantee it can load all of an un-page-aligned 1024-dim float vector
+                directIO = new DirectIODirectory(delegate, 8192, DirectIODirectory.DEFAULT_MIN_BYTES_DIRECT) {
+                    @Override
+                    protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+                        return true;
+                    }
+
+                    @Override
+                    public IndexInput openInput(String name, IOContext context) throws IOException {
+                        ensureOpen();
+                        if (useDirectIO(name, context, OptionalLong.of(fileLength(name)))) {
+                            return new AsyncDirectIOIndexInput(getDirectory().resolve(name), blockSize, 8192, 64);
+                        } else {
+                            return in.openInput(name, context);
+                        }
+                    }
+                };
+            } catch (Exception e) {
+                // directio not supported
+                logger.warn("Could not initialize DirectIO access", e);
+                directIO = null;
+            }
+            logger.info("HybridDirectory: using DirectIO={} blockSize={}", directIO != null, blockSize);
+            this.directIODelegate = directIO;
         }
 
         @Override
@@ -433,6 +465,19 @@ class KnnIndexer {
                 return false;
             }
             return true;
+        }
+
+        @Override
+        public IndexInput openInputDirect(String name, IOContext context) throws IOException {
+            if (directIODelegate == null) {
+                logger.warn("DirectIODirectory not initialized, falling back to normal openInput");
+                return openInput(name, context);
+            }
+            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            ensureOpen();
+            ensureCanRead(name);
+            logger.info("Opening {} with direct IO", name);
+            return directIODelegate.openInput(name, context);
         }
     }
 }

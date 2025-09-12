@@ -23,7 +23,7 @@ public abstract class AbstractFlatVectorsFormat extends FlatVectorsFormat {
         reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
     )
     private static boolean getUseDirectIO() {
-        return Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "false"));
+        return true;// Boolean.parseBoolean(System.getProperty("vector.rescoring.directio", "false"));
     }
 
     protected AbstractFlatVectorsFormat(String name) {

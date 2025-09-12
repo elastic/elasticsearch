@@ -49,7 +49,7 @@ tasks.register("checkVec", JavaExec) {
     jvmArgs '--add-modules=jdk.incubator.vector', '--enable-native-access=ALL-UNNAMED'
   }
   if (System.getenv("DO_PROFILING") != null) {
-    jvmArgs '-XX:StartFlightRecording=dumponexit=true,maxsize=250M,filename=knn.jfr,settings=profile.jfc'
+    jvmArgs '-agentpath:/Users/benjamintrent/.local/bin/async-profiler-4.0-macos/lib/libasyncProfiler.dylib=start,jstackdepth=4096,interval=500us,event=wall,file=knn-search-wall.html'
   }
   if (buildParams.getIsRuntimeJavaHomeSet()) {
     executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')

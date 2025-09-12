@@ -273,16 +273,16 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                                             .map(
                                                 r -> r.name().equals(repositoryName)
                                                     ? new RepositoryMetadata(
-                                                    r.name(),
-                                                    r.uuid(),
-                                                    r.type(),
-                                                    Settings.builder()
-                                                        .put(r.settings())
-                                                        .put(BlobStoreRepository.READONLY_SETTING_KEY, "true")
-                                                        .build(),
-                                                    r.generation(),
-                                                    r.pendingGeneration()
-                                                )
+                                                        r.name(),
+                                                        r.uuid(),
+                                                        r.type(),
+                                                        Settings.builder()
+                                                            .put(r.settings())
+                                                            .put(BlobStoreRepository.READONLY_SETTING_KEY, "true")
+                                                            .build(),
+                                                        r.generation(),
+                                                        r.pendingGeneration()
+                                                    )
                                                     : r
                                             )
                                             .toList()

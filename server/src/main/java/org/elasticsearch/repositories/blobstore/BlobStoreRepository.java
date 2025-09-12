@@ -1440,12 +1440,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         .filter(
                             blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)
                                 || (blob.startsWith(SNAPSHOT_PREFIX)
-                                && blob.endsWith(METADATA_BLOB_NAME_SUFFIX)
-                                && survivingSnapshotUUIDs.contains(
-                                blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length())
-                            ) == false)
+                                    && blob.endsWith(METADATA_BLOB_NAME_SUFFIX)
+                                    && survivingSnapshotUUIDs.contains(
+                                        blob.substring(SNAPSHOT_PREFIX.length(), blob.length() - METADATA_BLOB_NAME_SUFFIX.length())
+                                    ) == false)
                                 || (blob.startsWith(UPLOADED_DATA_BLOB_PREFIX)
-                                && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
+                                    && updatedSnapshots.findNameFile(canonicalName(blob)) == null)
                                 || FsBlobContainer.isTempBlobName(blob)
                         )
                         .toList();
@@ -2623,10 +2623,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             toCache = repositoryData.withoutShardGenerations();
             assert repositoryData.indexMetaDataGenerations().equals(IndexMetaDataGenerations.EMPTY)
                 : "repository data should not contain index generations at version ["
-                + version.toReleaseVersion()
-                + "] but saw ["
-                + repositoryData.indexMetaDataGenerations()
-                + "]";
+                    + version.toReleaseVersion()
+                    + "] but saw ["
+                    + repositoryData.indexMetaDataGenerations()
+                    + "]";
         }
         assert toCache.getGenId() >= 0 : "No need to cache abstract generations but attempted to cache [" + toCache.getGenId() + "]";
         latestKnownRepositoryData.updateAndGet(known -> {
@@ -2650,10 +2650,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return previousWriterInfo == null
             ? ""
             : " The last cluster to write to this repository was ["
-            + previousWriterInfo.v2()
-            + "] at generation ["
-            + previousWriterInfo.v1()
-            + "].";
+                + previousWriterInfo.v2()
+                + "] at generation ["
+                + previousWriterInfo.v1()
+                + "].";
     }
 
     /**
@@ -2863,10 +2863,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newGen = uninitializedMeta ? Math.max(expectedGen + 1, nextPendingGen) : nextPendingGen;
                 assert newGen > latestKnownRepoGen.get()
                     : "Attempted new generation ["
-                    + newGen
-                    + "] must be larger than latest known generation ["
-                    + latestKnownRepoGen.get()
-                    + "]";
+                        + newGen
+                        + "] must be larger than latest known generation ["
+                        + latestKnownRepoGen.get()
+                        + "]";
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
                         ProjectMetadata.builder(project)
@@ -3482,9 +3482,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .max()
                     .orElse(-1L) < Long.parseLong(indexGeneration.toString())
                     : "Tried to delete an index-N blob newer than the current generation ["
-                    + indexGeneration
-                    + "] when deleting index-N blobs "
-                    + blobsToDelete;
+                        + indexGeneration
+                        + "] when deleting index-N blobs "
+                        + blobsToDelete;
                 final var finalFilesInShardMetadataCount = filesInShardMetadataCount;
                 final var finalFilesInShardMetadataSize = filesInShardMetadataSize;
 
@@ -4161,10 +4161,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .anyMatch(
                 b -> b.startsWith(SNAPSHOT_PREFIX) || b.startsWith(SNAPSHOT_INDEX_PREFIX) || b.startsWith(UPLOADED_DATA_BLOB_PREFIX)
             )) {
-            logger.warn(
-                "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]"
-            );
-        }
+                logger.warn(
+                    "Could not find a readable index-N file in a non-empty shard snapshot directory [" + shardContainer.path() + "]"
+                );
+            }
         return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, latest);
     }
 

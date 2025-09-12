@@ -22,9 +22,9 @@ public class TruncatedOutputStreamTests extends ESTestCase {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         int maxSize = randomIntBetween(0, 100);
         TruncatedOutputStream truncatedOutputStream = new TruncatedOutputStream(
-                byteArrayOutputStream,
-                byteArrayOutputStream::size,
-                maxSize
+            byteArrayOutputStream,
+            byteArrayOutputStream::size,
+            maxSize
         );
 
         byte[] values = new byte[maxSize];
@@ -48,9 +48,9 @@ public class TruncatedOutputStreamTests extends ESTestCase {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         int maxSize = randomIntBetween(100, 200);
         TruncatedOutputStream truncatedOutputStream = new TruncatedOutputStream(
-                byteArrayOutputStream,
-                byteArrayOutputStream::size,
-                maxSize
+            byteArrayOutputStream,
+            byteArrayOutputStream::size,
+            maxSize
         );
 
         List<Byte> values = new ArrayList<>();
@@ -85,9 +85,9 @@ public class TruncatedOutputStreamTests extends ESTestCase {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
         int maxSize = randomIntBetween(100, 200);
         TruncatedOutputStream truncatedOutputStream = new TruncatedOutputStream(
-                byteArrayOutputStream,
-                byteArrayOutputStream::size,
-                maxSize
+            byteArrayOutputStream,
+            byteArrayOutputStream::size,
+            maxSize
         );
 
         List<Byte> values = new ArrayList<>();

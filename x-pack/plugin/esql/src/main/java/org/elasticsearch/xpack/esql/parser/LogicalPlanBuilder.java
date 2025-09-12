@@ -86,6 +86,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -752,7 +753,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return input -> {
-            if (EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
                 checkForRemoteClusters(input, source(ctx), "FORK");
             }
             List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
@@ -815,9 +816,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
 
             List<NamedExpression> groupings = List.of(idAttr, indexAttr);
-            Fuse.FuseType fuseType = Fuse.FuseType.RRF;
 
-            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType);
+            MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
+            String fuseType = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType).toUpperCase(Locale.ROOT);
+
+            if (fuseType.equals(Fuse.FuseType.RRF.name()) == false) {
+                throw new ParsingException(source(ctx), "Fuse type " + fuseType + " is not supported");
+            }
+
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, Fuse.FuseType.RRF, options);
         };
     }
 

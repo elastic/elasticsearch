@@ -120,12 +120,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120148
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldSourceOnlyRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120080
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
@@ -375,9 +369,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test072RunEsAsDifferentUserAndGroup
   issue: https://github.com/elastic/elasticsearch/issues/131412
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionNoFetch
-  issue: https://github.com/elastic/elasticsearch/issues/128720
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
@@ -519,6 +510,30 @@ tests:
 - class: org.elasticsearch.action.admin.cluster.state.TransportClusterStateActionTests
   method: testGetClusterStateWithDefaultProjectOnly
   issue: https://github.com/elastic/elasticsearch/issues/134450
+- class: org.elasticsearch.cluster.ClusterInfoServiceIT
+  method: testMaxQueueLatenciesInClusterInfo
+  issue: https://github.com/elastic/elasticsearch/issues/134500
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
+  method: "testEvaluateBlockWithNulls {TestCase=<date_nanos>, <date_nanos>, <time_duration>, <_source> #11}"
+  issue: https://github.com/elastic/elasticsearch/issues/134509
+- class: org.elasticsearch.xpack.esql.plugin.CanMatchIT
+  method: testAliasFilters
+  issue: https://github.com/elastic/elasticsearch/issues/134512
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.FiveFork}
+  issue: https://github.com/elastic/elasticsearch/issues/134560
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/134600
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/134601
+- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/134602
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/134620
 
 # Examples:
 #

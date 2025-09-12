@@ -87,6 +87,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
+    private static final TransportVersion MAPPINGS_IN_DATA_STREAMS = TransportVersion.fromName("mappings_in_data_streams");
+
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
     public static final boolean LOGS_STREAM_FEATURE_FLAG = new FeatureFlag("logs_stream").isEnabled();
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
@@ -341,7 +343,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             settings = Settings.EMPTY;
         }
         CompressedXContent mappings;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
+        if (in.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {
             mappings = CompressedXContent.readCompressedString(in);
         } else {
             mappings = EMPTY_MAPPINGS;
@@ -1483,7 +1485,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
             settings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.MAPPINGS_IN_DATA_STREAMS)) {
+        if (out.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {
             mappings.writeTo(out);
         }
     }

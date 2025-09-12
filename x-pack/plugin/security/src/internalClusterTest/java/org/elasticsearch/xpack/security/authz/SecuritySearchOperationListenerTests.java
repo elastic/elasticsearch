@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -38,8 +37,9 @@ import org.junit.Before;
 
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_VALUE;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.authzInfoRoles;
 import static org.hamcrest.Matchers.is;
@@ -91,7 +91,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
 
             Authentication contextAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
             assertEquals(authentication, contextAuth);
-            assertThat(readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
+            assertThat(
+                readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey()),
+                is(indicesAccessControl)
+            );
 
             verifyNoMoreInteractions(auditTrailService);
         }
@@ -118,7 +121,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .build(false)
             );
             final IndicesAccessControl indicesAccessControl = mock(IndicesAccessControl.class);
-            readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey(), indicesAccessControl);
             MockLicenseState licenseState = mock(MockLicenseState.class);
             when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -134,7 +137,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .build(false);
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, new EmptyRequest());
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }
 
@@ -147,7 +150,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .build(false);
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, new EmptyRequest());
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }
 
@@ -160,13 +163,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef(realmName, type, nodeName))
                     .build(false);
                 authentication.writeToContext(threadContext);
-                threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
-                threadContext.putTransient(
-                    AUTHORIZATION_INFO_KEY,
-                    (AuthorizationInfo) () -> Collections.singletonMap(
-                        PRINCIPAL_ROLES_FIELD_NAME,
-                        authentication.getEffectiveSubject().getUser().roles()
-                    )
+                ORIGINATING_ACTION_VALUE.set(threadContext, "action");
+                AUTHORIZATION_INFO_VALUE.set(
+                    threadContext,
+                    () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getEffectiveSubject().getUser().roles())
                 );
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(
@@ -174,7 +174,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     () -> listener.validateReaderContext(readerContext, request)
                 );
                 assertEquals(readerContext.id(), expected.contextId());
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), nullValue());
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), nullValue());
                 verify(auditTrail).accessDenied(
                     eq(null),
                     eq(authentication),
@@ -197,10 +197,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", nodeName))
                     .build();
                 authentication.writeToContext(threadContext);
-                threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
+                ORIGINATING_ACTION_VALUE.set(threadContext, "action");
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 listener.validateReaderContext(readerContext, request);
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), is(indicesAccessControl));
                 verifyNoMoreInteractions(auditTrail);
             }
 
@@ -214,13 +214,10 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     .realmRef(new RealmRef(realmName, type, nodeName))
                     .build(false);
                 authentication.writeToContext(threadContext);
-                threadContext.putTransient(ORIGINATING_ACTION_KEY, "action");
-                threadContext.putTransient(
-                    AUTHORIZATION_INFO_KEY,
-                    (AuthorizationInfo) () -> Collections.singletonMap(
-                        PRINCIPAL_ROLES_FIELD_NAME,
-                        authentication.getEffectiveSubject().getUser().roles()
-                    )
+                ORIGINATING_ACTION_VALUE.set(threadContext, "action");
+                AUTHORIZATION_INFO_VALUE.set(
+                    threadContext,
+                    () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, authentication.getEffectiveSubject().getUser().roles())
                 );
                 final InternalScrollSearchRequest request = new InternalScrollSearchRequest();
                 SearchContextMissingException expected = expectThrows(
@@ -228,7 +225,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                     () -> listener.validateReaderContext(readerContext, request)
                 );
                 assertEquals(readerContext.id(), expected.contextId());
-                assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), nullValue());
+                assertThat(INDICES_PERMISSIONS_VALUE.get(threadContext), nullValue());
                 verify(auditTrail).accessDenied(
                     eq(null),
                     eq(authentication),
@@ -254,7 +251,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 Long.MAX_VALUE
             )
         ) {
-            readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, mock(IndicesAccessControl.class));
+            readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey(), mock(IndicesAccessControl.class));
             final MockLicenseState licenseState = mock(MockLicenseState.class);
             when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));

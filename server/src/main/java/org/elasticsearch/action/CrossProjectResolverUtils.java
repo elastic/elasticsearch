@@ -36,12 +36,12 @@ public class CrossProjectResolverUtils {
         IndicesRequest.CrossProjectReplaceable request
     ) throws ResourceNotFoundException {
         if (targetProjects == AuthorizedProjectsSupplier.AuthorizedProjects.NOT_CROSS_PROJECT) {
-            logger.info("Cross-project search is disabled or not applicable, skipping request [{}]...", request);
+            logger.debug("Cross-project search is disabled or not applicable, skipping request [{}]...", request);
             return;
         }
 
         if (targetProjects.isOriginOnly()) {
-            logger.info("Cross-project search is only for the origin project [{}], skipping rewrite...", targetProjects.origin());
+            logger.debug("Cross-project search is only for the origin project [{}], skipping rewrite...", targetProjects.origin());
             return;
         }
 
@@ -50,7 +50,7 @@ public class CrossProjectResolverUtils {
         }
 
         String[] indices = request.indices();
-        logger.info("Rewriting indices for CPS [{}]", Arrays.toString(indices));
+        logger.debug("Rewriting indices for CPS [{}]", Arrays.toString(indices));
 
         if (indices.length == 0 || WILDCARD.equals(indices[0]) || MATCH_ALL.equalsIgnoreCase(indices[0])) {
             // handling of match all cases
@@ -74,13 +74,13 @@ public class CrossProjectResolverUtils {
                 if (canonicalExpressions.isEmpty() == false) {
                     atLeastOneResourceWasFound = false;
                 }
-                logger.info("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
+                logger.debug("Rewrote qualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             } else {
                 atLeastOneResourceWasFound = false;
                 // un-qualified expression, i.e. flat-world
                 List<String> canonicalExpressions = rewriteUnqualified(indexExpression, targetProjects.projects());
                 canonicalExpressionsMap.put(indexExpression, canonicalExpressions);
-                logger.info("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
+                logger.debug("Rewrote unqualified expression [{}] to [{}]", indexExpression, canonicalExpressions);
             }
         }
         if (atLeastOneResourceWasFound) {

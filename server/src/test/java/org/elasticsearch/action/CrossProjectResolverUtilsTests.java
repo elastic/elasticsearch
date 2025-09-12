@@ -17,7 +17,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
@@ -263,11 +262,6 @@ public class CrossProjectResolverUtilsTests extends ESTestCase {
         @Override
         protected void updateRemoteCluster(String clusterAlias, Settings settings) {
 
-        }
-
-        @Override
-        public Map<String, List<String>> groupClusterIndices(Set<String> remoteClusterNames, String[] requestIndices) {
-            return super.groupClusterIndices(remoteClusterNames, requestIndices);
         }
     }
 

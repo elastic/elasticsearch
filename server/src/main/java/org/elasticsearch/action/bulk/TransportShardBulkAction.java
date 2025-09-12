@@ -33,7 +33,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -44,6 +46,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -179,7 +182,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             outerListener
         );
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+
+        // Get IndexRouting here and pass onto performOnPrimary
+        ClusterState clusterState  = clusterService.state();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+        Index index = primary.shardId().getIndex();
+        //IndexMetadata indexMetadata = clusterState.getMetadata().indexMetadata(index);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
+        performOnPrimary(routing, request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
@@ -236,6 +246,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Executor executor
     ) {
         performOnPrimary(
+            null,
             request,
             primary,
             updateHelper,
@@ -251,6 +262,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     public static void performOnPrimary(
+        @Nullable IndexRouting routing,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -265,7 +277,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) {
         new ActionRunnable<>(listener) {
 
-            private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
+            // Add routing to the context
+            private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary, routing);
 
             final long startBulkTime = System.nanoTime();
 
@@ -360,6 +373,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         DocumentParsingProvider documentParsingProvider
     ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
+
+        // Check if this item is meant for current shard, if not, mark it as deferred, to be processed on a different node.
+        if (context.getIndexRouting() != null) {
+            // Re-calculate target shardId for this item based on the primary node's cluster state.
+            int shardId = context.getCurrent().route(context.getIndexRouting());
+            // This is the shard the request was sent to by the coordinating node based on its' cluster state.
+            int requestShardId = context.getBulkShardRequest().shardId().getId();
+            if (shardId != requestShardId) {
+                context.markOperationAsDeferred();
+                return true;
+            }
+        }
 
         // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;

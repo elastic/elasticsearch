@@ -16,6 +16,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
@@ -46,6 +48,8 @@ class BulkPrimaryExecutionContext {
         WAIT_FOR_MAPPING_UPDATE,
         /** The request has been executed on the primary shard (successfully or not) */
         EXECUTED,
+        /** Forward to a target node due to resharding */
+        RESHARD_FORWARD,
         /**
          * No further handling of current request is needed. The result has been converted to a user response
          * and execution can continue to the next item (if available).
@@ -55,6 +59,7 @@ class BulkPrimaryExecutionContext {
 
     private final BulkShardRequest request;
     private final IndexShard primary;
+    private IndexRouting routing = null;
     private Translog.Location locationToSync = null;
     private int currentIndex = -1;
 
@@ -67,6 +72,13 @@ class BulkPrimaryExecutionContext {
     BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary) {
         this.request = request;
         this.primary = primary;
+        advance();
+    }
+
+    BulkPrimaryExecutionContext(BulkShardRequest request, IndexShard primary, @Nullable IndexRouting routing) {
+        this.request = request;
+        this.primary = primary;
+        this.routing = routing;
         advance();
     }
 
@@ -84,7 +96,7 @@ class BulkPrimaryExecutionContext {
 
     /** move to the next item to execute */
     private void advance() {
-        assert currentItemState == ItemProcessingState.COMPLETED || currentIndex == -1
+        assert currentItemState == ItemProcessingState.COMPLETED || currentIndex == -1 || currentItemState == ItemProcessingState.RESHARD_FORWARD
             : "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
         currentIndex = findNextNonAborted(currentIndex + 1);
@@ -102,6 +114,10 @@ class BulkPrimaryExecutionContext {
 
     public BulkShardRequest getBulkShardRequest() {
         return request;
+    }
+
+    public IndexRouting getIndexRouting() {
+        return routing;
     }
 
     /** returns the result of the request that has been executed on the shard */
@@ -329,6 +345,13 @@ class BulkPrimaryExecutionContext {
         advance();
     }
 
+    public void markOperationAsDeferred() {
+        assert assertInvariants(ItemProcessingState.INITIAL);
+        currentItemState = ItemProcessingState.RESHARD_FORWARD;
+        assert assertInvariants(ItemProcessingState.RESHARD_FORWARD);
+        advance();
+    }
+
     /** builds the bulk shard response to return to the user */
     public BulkShardResponse buildShardResponse() {
         assert hasMoreOperationsToExecute() == false;
@@ -359,6 +382,10 @@ class BulkPrimaryExecutionContext {
             case EXECUTED:
                 // requestToExecute can be null if the update ended up as NOOP
                 assert executionResult != null;
+                break;
+            case RESHARD_FORWARD:
+                assert requestToExecute == null : requestToExecute;
+                assert executionResult == null : executionResult;
                 break;
             case COMPLETED:
                 assert requestToExecute != null;

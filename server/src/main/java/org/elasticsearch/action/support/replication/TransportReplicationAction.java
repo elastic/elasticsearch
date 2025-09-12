@@ -442,6 +442,9 @@ public abstract class TransportReplicationAction<
                 );
             }
 
+            // Pass IndexRouting to PrimaryShardReference after checking if there is a mismatch in
+            // reshardShardCount at source w.r.t. request. Pass NULL IndexRouting if no mismatch
+            // ReplicationOperation will use the routing to determine if the request should be split
             acquirePrimaryOperationPermit(
                 indexShard,
                 primaryRequest.getRequest(),
@@ -526,6 +529,15 @@ public abstract class TransportReplicationAction<
 
                         assert primaryShardReference.indexShard.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
+
+                        // Use the metadata in the response to figure out if we need to forward a request
+                        // to the target shard.
+                        //  setPhase(replicationTask, "split-request");
+                        // If so use an abstract method (to be implemented by bulk,flush,refresh) to send the split request
+                        // to the target shard and combine this response with the response from target.
+                        //    transportService.sendRequest (global checkpoint sync will occur at target shard as well)
+                        //    listener will combine response
+
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);
                     }, e -> handleException(primaryShardReference, e));

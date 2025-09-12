@@ -189,6 +189,15 @@ public interface RuntimeField extends ToXContentFragment {
                             + " Check the documentation."
                     );
                 }
+                if (propNode.containsKey("script")) {
+                    Map<String, Object> scriptNode = (Map<String, Object>) propNode.get("script");
+                    Script script = parseScript(fieldName, parserContext, scriptNode);
+                    propNode.put("script", script);
+                }
+                if (type.equals("date") && propNode.containsKey("format")) {
+                    String format = propNode.get("format").toString();
+                    propNode.put("format", format);
+                }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");
                 MappingParser.checkNoRemainingFields(fieldName, propNode);

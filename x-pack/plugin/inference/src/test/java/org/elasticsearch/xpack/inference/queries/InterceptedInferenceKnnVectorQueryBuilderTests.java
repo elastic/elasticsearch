@@ -52,11 +52,13 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         return new KnnVectorQueryBuilder(
             field,
             new TextEmbeddingQueryVectorBuilder(DENSE_INFERENCE_ID, "foo"),
-            10,
-            100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null
-        );
+            30,
+            200,
+            IVF_FORMAT.isEnabled() ? 30f : null,
+            0.2f
+        ).boost(randomFloatBetween(0.1f, 4.0f, true))
+            .queryName(randomAlphanumericOfLength(5))
+            .addFilterQuery(new TermsQueryBuilder(IndexFieldMapper.NAME, randomAlphanumericOfLength(5)));
     }
 
     @Override
@@ -116,7 +118,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             originalKnn.visitPercentage(),
             originalKnn.rescoreVectorBuilder(),
             originalKnn.getVectorSimilarity()
-        );
+        ).boost(originalKnn.boost()).queryName(originalKnn.queryName()).addFilterQueries(originalKnn.filterQueries());
         assertThat(intercepted, equalTo(originalKnnWithQueryVector));
     }
 

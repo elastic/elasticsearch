@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class InterceptedInferenceMatchQueryBuilderTests extends AbstractInterceptedInferenceQueryBuilderTestCase<MatchQueryBuilder> {
     @Override
     protected MatchQueryBuilder createQueryBuilder(String field) {
-        return new MatchQueryBuilder(field, "foo");
+        return new MatchQueryBuilder(field, "foo").boost(randomFloatBetween(0.1f, 4.0f, true)).queryName(randomAlphanumericOfLength(5));
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
@@ -21,7 +22,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
@@ -50,57 +52,75 @@ public class MockInferenceClient extends NoOpClient {
             ActionListener<InferenceAction.Response> inferenceListener = (ActionListener<InferenceAction.Response>) listener;
 
             String inferenceId = inferenceRequest.getInferenceEntityId();
-            MinimalServiceSettings inferenceEndpointSettings = inferenceEndpoints.get(inferenceId);
+            String input = inferenceRequest.getInput().getFirst();
+            try {
+                InferenceServiceResults inferenceServiceResults;
+                InferenceResults inferenceResults = generateInferenceResults(inferenceId, input);
+                if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
+                    inferenceServiceResults = SparseEmbeddingResults.of(List.of(textExpansionResults));
+                } else if (inferenceResults instanceof MlTextEmbeddingResults mlTextEmbeddingResults) {
+                    inferenceServiceResults = TextEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));
+                } else {
+                    throw new IllegalStateException("Unexpected inference results type [" + inferenceResults.getWriteableName() + "]");
+                }
 
-            InferenceServiceResults inferenceServiceResults;
-            if (inferenceEndpointSettings == null) {
-                inferenceServiceResults = TextEmbeddingFloatResults.of(
-                    List.of(
-                        new ErrorInferenceResults(new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist"))
-                    )
-                );
-            } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
-                inferenceServiceResults = generateSparseEmbeddingResults(inferenceRequest);
-            } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
-                inferenceServiceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
-            } else {
-                inferenceServiceResults = TextEmbeddingFloatResults.of(
-                    List.of(
-                        new ErrorInferenceResults(
-                            new IllegalArgumentException(
-                                "Invalid task type ["
-                                    + inferenceEndpointSettings.taskType()
-                                    + "] for inference endpoint ["
-                                    + inferenceId
-                                    + "]"
-                            )
-                        )
-                    )
-                );
+                inferenceListener.onResponse(new InferenceAction.Response(inferenceServiceResults));
+            } catch (Exception e) {
+                inferenceListener.onFailure(e);
             }
+        } else if (action instanceof CoordinatedInferenceAction && request instanceof CoordinatedInferenceAction.Request inferenceRequest) {
+            @SuppressWarnings("unchecked")
+            ActionListener<InferModelAction.Response> inferenceListener = (ActionListener<InferModelAction.Response>) listener;
 
-            inferenceListener.onResponse(new InferenceAction.Response(inferenceServiceResults));
-        } else {
+            String inferenceId = inferenceRequest.getModelId();
+            String input = inferenceRequest.getInputs().getFirst();
+            try {
+                InferenceResults inferenceResults = generateInferenceResults(inferenceId, input);
+                inferenceListener.onResponse(new InferModelAction.Response(List.of(inferenceResults), inferenceId, true));
+            } catch (Exception e) {
+                inferenceListener.onFailure(e);
+            }
+        }
+        else {
             super.doExecute(action, request, listener);
         }
     }
 
+    private InferenceResults generateInferenceResults(String inferenceId, String input) {
+        MinimalServiceSettings inferenceEndpointSettings = inferenceEndpoints.get(inferenceId);
+
+        InferenceResults inferenceResults;
+        if (inferenceEndpointSettings == null) {
+            throw new IllegalArgumentException("Inference endpoint [" + inferenceId + "] does not exist");
+        } else if (inferenceEndpointSettings.taskType() == TaskType.SPARSE_EMBEDDING) {
+            inferenceResults = generateTextExpansionResults(input);
+        } else if (inferenceEndpointSettings.taskType() == TaskType.TEXT_EMBEDDING) {
+            inferenceResults = generateTextEmbeddingResults(inferenceEndpointSettings);
+        } else {
+            throw new IllegalArgumentException(
+                "Invalid task type ["
+                    + inferenceEndpointSettings.taskType()
+                    + "] for inference endpoint ["
+                    + inferenceId
+                    + "]"
+            );
+        }
+
+        return inferenceResults;
+    }
+
     /**
-     * Generate sparse embedding results. Use a static token weight so that the results are deterministic for the same query.
+     * Generate text expansion results. Use a static token weight so that the results are deterministic for the same query.
      */
-    private static SparseEmbeddingResults generateSparseEmbeddingResults(InferenceAction.Request request) {
-        String query = request.getInput().getFirst();
-
-        List<WeightedToken> weightedTokens = Arrays.stream(query.split("\\s+")).map(token -> new WeightedToken(token, 1.0f)).toList();
-
-        TextExpansionResults textExpansionResults = new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
-        return SparseEmbeddingResults.of(List.of(textExpansionResults));
+    private static InferenceResults generateTextExpansionResults(String input) {
+        List<WeightedToken> weightedTokens = Arrays.stream(input.split("\\s+")).map(token -> new WeightedToken(token, 1.0f)).toList();
+        return new TextExpansionResults(DEFAULT_RESULTS_FIELD, weightedTokens, false);
     }
 
     /**
      * Generate text embedding results. Use static embedding values so that the results are deterministic for the same dimension count.
      */
-    private static TextEmbeddingFloatResults generateTextEmbeddingResults(MinimalServiceSettings settings) {
+    private static InferenceResults generateTextEmbeddingResults(MinimalServiceSettings settings) {
         assert settings.dimensions() != null && settings.elementType() != null;
 
         int embeddingSize = settings.dimensions();
@@ -111,7 +131,6 @@ public class MockInferenceClient extends NoOpClient {
         double[] embedding = new double[embeddingSize];
         Arrays.fill(embedding, Byte.MIN_VALUE);  // Always use a byte value so that the embedding is valid regardless of the element type
 
-        MlTextEmbeddingResults mlTextEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, embedding, false);
-        return TextEmbeddingFloatResults.of(List.of(mlTextEmbeddingResults));
+        return new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, embedding, false);
     }
 }

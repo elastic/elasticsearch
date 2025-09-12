@@ -125,17 +125,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        getPlugins().forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
-        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-
-        SearchModule searchModule = new SearchModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof SearchPlugin).map(p -> (SearchPlugin) p).toList()
-        );
-        entries.addAll(searchModule.getNamedWriteables());
-
-        return new NamedWriteableRegistry(entries);
+        return new NamedWriteableRegistry(getNamedWriteables());
     }
 
     @Override
@@ -166,6 +156,20 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             );
             serializationTestCase(transportVersion);
         }
+    }
+
+    protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        getPlugins().forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
+        entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+
+        SearchModule searchModule = new SearchModule(
+            Settings.EMPTY,
+            getPlugins().stream().filter(p -> p instanceof SearchPlugin).map(p -> (SearchPlugin) p).toList()
+        );
+        entries.addAll(searchModule.getNamedWriteables());
+
+        return entries;
     }
 
     protected abstract T createQueryBuilder(String field);

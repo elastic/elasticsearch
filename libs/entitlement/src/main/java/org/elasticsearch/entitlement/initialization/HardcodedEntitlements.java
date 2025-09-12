@@ -113,7 +113,13 @@ class HardcodedEntitlements {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
-            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
+            new Scope(
+                "java.desktop",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement() // For sun.java2d.Disposer. TODO: https://elasticco.atlassian.net/browse/ES-12888
+                )
+            ),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",

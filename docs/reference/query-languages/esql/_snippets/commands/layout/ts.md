@@ -6,11 +6,9 @@ stack: preview 9.2.0
 **Brief description**
 
 The `TS` command is similar to the `FROM` source command,
-with the following key differences:
-
- - Targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
- - Enables the use of time-series aggregation functions inside the
-   [STATS](/reference/query-languages/esql/commands/stats-by.md) command
+but with two key differences: it targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
+and enables the use of time-series aggregation functions
+with the [STATS](/reference/query-languages/esql/commands/stats-by.md) command.
 
 **Syntax**
 

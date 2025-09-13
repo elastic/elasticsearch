@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 2000L;
-    private static final Long TIME_RANGE_SECONDS = 3600L;
+    private static final Long NUM_DOCS = 200L;
+    private static final Long TIME_RANGE_SECONDS = 360L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(

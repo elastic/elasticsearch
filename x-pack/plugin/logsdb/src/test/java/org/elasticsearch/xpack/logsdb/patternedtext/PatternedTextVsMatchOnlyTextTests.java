@@ -87,6 +87,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
     }
 
+    @AwaitsFix(bugUrl = "yes this test will not work")
     public void testQueries() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);

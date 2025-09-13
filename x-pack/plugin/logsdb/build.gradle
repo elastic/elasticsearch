@@ -30,6 +30,7 @@ restResources {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  implementation project(':modules:analysis-common')
   implementation project(':modules:mapper-extras')
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))

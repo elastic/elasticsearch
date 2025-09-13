@@ -36,7 +36,6 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
-        "required": false,
         "description": "Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
         "default": true
       },

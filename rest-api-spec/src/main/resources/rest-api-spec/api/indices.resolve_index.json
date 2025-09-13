@@ -52,7 +52,12 @@
       },
       "mode": {
         "type": "enum",
-        "options": ["standard", "time_series", "logsdb", "lookup"],
+        "options": [
+          "standard",
+          "time_series",
+          "logsdb",
+          "lookup"
+        ],
         "default": "",
         "description": "Filter indices by index mode. Comma-separated list of IndexMode. Empty means no filter."
       }

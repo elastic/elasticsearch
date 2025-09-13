@@ -34,7 +34,6 @@
     "params": {
       "timeout": {
         "type": "time",
-        "required": false,
         "description": "Controls the time to wait for the scheduling to take place"
       }
     }

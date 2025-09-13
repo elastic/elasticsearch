@@ -36,7 +36,6 @@
     "params": {
       "allow_no_match": {
         "type": "boolean",
-        "required": false,
         "description": "Whether to ignore if a wildcard expression matches no data frame analytics. (This includes `_all` string or when no data frame analytics have been specified)",
         "default": true
       },
@@ -52,7 +51,6 @@
       },
       "verbose": {
         "type": "boolean",
-        "required": false,
         "description": "whether the stats response should be verbose",
         "default": false
       }

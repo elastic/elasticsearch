@@ -39,12 +39,10 @@
     "params": {
       "requests_per_second": {
         "type": "number",
-        "required": false,
         "description": "The desired requests per second for the deletion processes."
       },
       "timeout": {
         "type": "time",
-        "required": false,
         "description": "How long can the underlying delete processes run until they are canceled"
       }
     },

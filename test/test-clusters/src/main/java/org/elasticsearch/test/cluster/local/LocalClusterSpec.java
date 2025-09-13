@@ -106,11 +106,13 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<String> jvmArgs;
         private final Path configDir;
         private Version version;
+        private final boolean detachedVersion;
 
         public LocalNodeSpec(
             LocalClusterSpec cluster,
             String name,
             Version version,
+            boolean detachedVersion,
             List<SettingsProvider> settingsProviders,
             Map<String, String> settings,
             List<EnvironmentProvider> environmentProviders,
@@ -132,6 +134,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.cluster = cluster;
             this.name = name;
             this.version = version;
+            this.detachedVersion = detachedVersion;
             this.settingsProviders = settingsProviders;
             this.settings = settings;
             this.environmentProviders = environmentProviders;
@@ -165,6 +168,15 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public Version getVersion() {
             return version;
+        }
+
+        /**
+         * Informs if the version is not tied to any Elasticsearch release and is a custom build.
+         * This is true when the distribution is not from HEAD but also not any known released version.
+         * In that case the detached source build needs to be prepared by `usedBwcDistributionFromRef(ref, version)`.
+         */
+        public boolean isDetachedVersion() {
+            return detachedVersion;
         }
 
         public List<User> getUsers() {
@@ -212,12 +224,7 @@ public class LocalClusterSpec implements ClusterSpec {
         }
 
         public boolean isSecurityEnabled() {
-            return Boolean.parseBoolean(
-                getSetting(
-                    "xpack.security.enabled",
-                    getVersion().equals(Version.fromString("0.0.0")) || getVersion().onOrAfter("8.0.0") ? "true" : "false"
-                )
-            );
+            return Boolean.parseBoolean(getSetting("xpack.security.enabled", getVersion().onOrAfter("8.0.0") ? "true" : "false"));
         }
 
         public boolean isRemoteClusterServerEnabled() {
@@ -337,6 +344,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         newCluster,
                         n.name,
                         n.version,
+                        n.detachedVersion,
                         n.settingsProviders.stream().filter(s -> s != filteredProvider).toList(),
                         n.settings,
                         n.environmentProviders,

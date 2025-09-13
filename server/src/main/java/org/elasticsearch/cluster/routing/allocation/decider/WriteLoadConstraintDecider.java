@@ -73,10 +73,11 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 shardRouting.shardId()
             );
             logger.debug(explain);
-            return Decision.single(Decision.Type.NO, NAME, explain);
+            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        if (calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad) >= nodeWriteThreadPoolLoadThreshold) {
+        var newWriteThreadPoolUtilization = calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad);
+        if (newWriteThreadPoolUtilization >= nodeWriteThreadPoolLoadThreshold) {
             // The node's write thread pool usage would be raised above the high utilization threshold with assignment of the new shard.
             // This could lead to a hot spot on this node and is undesirable.
             String explain = Strings.format(
@@ -92,10 +93,22 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
                 nodeWriteThreadPoolStats.totalThreadPoolThreads()
             );
             logger.debug(explain);
-            return Decision.single(Decision.Type.NO, NAME, explain);
+            return Decision.single(Decision.Type.NOT_PREFERRED, NAME, explain);
         }
 
-        return Decision.YES;
+        String explanation = Strings.format(
+            "Shard [%s] in index [%s] can be assigned to node [%s]. The node's utilization would become [%s]",
+            shardRouting.shardId(),
+            shardRouting.index(),
+            node.nodeId(),
+            newWriteThreadPoolUtilization
+        );
+
+        if (logger.isTraceEnabled()) {
+            logger.trace(explanation);
+        }
+
+        return allocation.decision(Decision.YES, NAME, explanation);
     }
 
     @Override

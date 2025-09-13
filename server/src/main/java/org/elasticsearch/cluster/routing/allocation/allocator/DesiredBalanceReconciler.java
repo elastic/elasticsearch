@@ -503,9 +503,10 @@ public class DesiredBalanceReconciler {
 
                 final var routingNode = routingNodes.node(shardRouting.currentNodeId());
                 final var canRemainDecision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                if (canRemainDecision.type() != Decision.Type.NO) {
-                    // it's desired elsewhere but technically it can remain on its current node. Defer its movement until later on to give
-                    // priority to shards that _must_ move.
+                if (canRemainDecision.type() != Decision.Type.NO && canRemainDecision.type() != Decision.Type.NOT_PREFERRED) {
+                    // If movement is throttled, a future reconciliation round will see a resolution. For now, leave it alone.
+                    // Reconciliation treats canRemain NOT_PREFERRED answers as YES because the DesiredBalance computation already decided
+                    // how to handle the situation.
                     continue;
                 }
 
@@ -650,6 +651,7 @@ public class DesiredBalanceReconciler {
             Set<String> desiredNodeIds,
             BiFunction<ShardRouting, RoutingNode, Decision> canAllocateDecider
         ) {
+            DiscoveryNode chosenNode = null;
             for (final var nodeId : desiredNodeIds) {
                 // TODO consider ignored nodes here too?
                 if (nodeId.equals(shardRouting.currentNodeId())) {
@@ -661,12 +663,24 @@ public class DesiredBalanceReconciler {
                 }
                 final var decision = canAllocateDecider.apply(shardRouting, node);
                 logger.trace("relocate {} to {}: {}", shardRouting, nodeId, decision);
+
+                // Assign shards to the YES nodes first. This way we might delay moving shards to NOT_PREFERRED nodes until after shards are
+                // first moved away. The DesiredBalance could be moving shards away from a hot node as well as moving shards to it, and it's
+                // better to offload shards first.
                 if (decision.type() == Decision.Type.YES) {
-                    return node.node();
+                    chosenNode = node.node();
+                    // As soon as we get any YES, we return it.
+                    break;
+                } else if (decision.type() == Decision.Type.NOT_PREFERRED && chosenNode == null) {
+                    // If the best answer is not-preferred, then the shard will still be assigned. It is okay to assign to a not-preferred
+                    // node because the desired balance computation had a reason to override it: when there aren't any better nodes to
+                    // choose and the shard cannot remain where it is, we accept not-preferred. NOT_PREFERRED is essentially a YES for
+                    // reconciliation.
+                    chosenNode = node.node();
                 }
             }
 
-            return null;
+            return chosenNode;
         }
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {

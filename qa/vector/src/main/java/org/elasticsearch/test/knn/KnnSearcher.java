@@ -661,9 +661,16 @@ class KnnSearcher {
 
     private static class BitSetQuery extends Query {
         private final BitSet[] segmentDocs;
+        private final int[] cardinalities;
+        private final int hashCode;
 
         BitSetQuery(BitSet[] segmentDocs) {
             this.segmentDocs = segmentDocs;
+            this.cardinalities = new int[segmentDocs.length];
+            this.hashCode = Arrays.hashCode(segmentDocs);
+            for (int i = 0; i < segmentDocs.length; i++) {
+                cardinalities[i] = segmentDocs[i].cardinality();
+            }
         }
 
         @Override
@@ -671,7 +678,7 @@ class KnnSearcher {
             return new ConstantScoreWeight(this, boost) {
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     var bitSet = segmentDocs[context.ord];
-                    var cardinality = bitSet.cardinality();
+                    var cardinality = cardinalities[context.ord];
                     var scorer = new ConstantScoreScorer(score(), scoreMode, new BitSetIterator(bitSet, cardinality));
                     return new ScorerSupplier() {
                         @Override
@@ -708,7 +715,7 @@ class KnnSearcher {
 
         @Override
         public int hashCode() {
-            return 31 * classHash() + Arrays.hashCode(segmentDocs);
+            return 31 * classHash() + hashCode;
         }
     }
 

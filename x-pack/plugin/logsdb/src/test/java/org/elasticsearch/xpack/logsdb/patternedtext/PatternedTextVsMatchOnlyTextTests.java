@@ -73,7 +73,8 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
                 "field_match_only_text": { "type": "match_only_text" },
                 "field_patterned_text": {
                     "type": "patterned_text",
-                    "index_options": "%"
+                    "index_options": "%",
+                    "analyzer": "standard"
                 }
               }
             }

@@ -40,6 +40,7 @@
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
       "local": {

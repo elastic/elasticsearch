@@ -30,6 +30,7 @@
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Period to wait for a connection to the master node. If no response is received before the timeout expires, the request fails and returns an error."
       }
     }

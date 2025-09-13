@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -141,5 +142,19 @@ public final class SearchContextId {
             }
         }
         return indices.toArray(String[]::new);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchContextId that = (SearchContextId) o;
+        return Objects.equals(shards, that.shards)
+            && Objects.equals(aliasFilter, that.aliasFilter)
+            && Objects.equals(contextIds, that.contextIds);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(shards, aliasFilter, contextIds);
     }
 }

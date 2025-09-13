@@ -11,11 +11,12 @@ package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ParsedScrollId;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -703,13 +704,15 @@ public class SearchScrollIT extends ESIntegTestCase {
         } finally {
             respFromProdIndex.decRef();
         }
-        SearchPhaseExecutionException error = expectThrows(
-            SearchPhaseExecutionException.class,
-            client().prepareSearchScroll(respFromDemoIndexScrollId)
+        SearchScrollRequestBuilder searchScrollRequestBuilder = client().prepareSearchScroll(respFromDemoIndexScrollId);
+        SearchPhaseExecutionException error = expectThrows(SearchPhaseExecutionException.class, searchScrollRequestBuilder);
+        assertEquals(1, error.shardFailures().length);
+        ParsedScrollId parsedScrollId = searchScrollRequestBuilder.request().parseScrollId();
+        String sessionId = parsedScrollId.getContext()[0].getSearchContextId().getSessionId();
+        assertThat(
+            error.shardFailures()[0].getCause().getMessage(),
+            containsString("No search context found for id [" + sessionId + "/1]")
         );
-        for (ShardSearchFailure shardSearchFailure : error.shardFailures()) {
-            assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
-        }
         client().prepareSearchScroll(respFromProdIndexScrollId).get().decRef();
     }
 

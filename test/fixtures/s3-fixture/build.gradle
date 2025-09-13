@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.java'
 description = 'Fixture for S3 Storage service'
 
 dependencies {
-  api project(':server')
+  implementation project(':server')
   api("junit:junit:${versions.junit}") {
     transitive = false
   }

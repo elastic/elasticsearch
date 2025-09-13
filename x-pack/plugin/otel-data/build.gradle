@@ -48,7 +48,7 @@ dependencies {
   });
   opentelemetryProtobuf "open-telemetry:opentelemetry-proto:1.7.0@zip"
 
-  api project(":libs:exponential-histogram")
+  implementation project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(":libs:exponential-histogram")))

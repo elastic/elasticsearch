@@ -11,9 +11,9 @@ apply plugin: 'elasticsearch.java'
 description = 'Fixture for emulating the Instance Metadata Service (IMDS) running in AWS EC2'
 
 dependencies {
-  api project(':server')
+  implementation project(':server')
   api("junit:junit:${versions.junit}") {
     transitive = false
   }
-  api project(':test:framework')
+  implementation project(':test:framework')
 }

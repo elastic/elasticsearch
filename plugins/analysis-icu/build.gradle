@@ -22,8 +22,8 @@ tasks.named("forbiddenApisMain").configure {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
-  api "com.ibm.icu:icu4j:${versions.icu4j}"
+  implementation "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
+  implementation "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 
 if (buildParams.snapshotBuild == false) {

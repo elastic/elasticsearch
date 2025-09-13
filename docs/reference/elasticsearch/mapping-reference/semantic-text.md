@@ -554,3 +554,4 @@ semantic search for `semantic_text` fields.
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
 * `semantic_text` fields are not supported with Cross-Cluster Search (CCS) or
   Cross-Cluster Replication (CCR).
+* `semantic_text` fields are not supported in indices created prior to 8.11.0.

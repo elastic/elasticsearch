@@ -63,6 +63,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
@@ -91,7 +92,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     private static final Map<String, Collection<DataType>> ALLOWED_OPTIONS = Map.of(
         OFFSET,
-        Set.of(TIME_DURATION, INTEGER, LONG, DOUBLE, KEYWORD, TEXT),
+        Set.of(TIME_DURATION, INTEGER, LONG, UNSIGNED_LONG, DOUBLE, KEYWORD, TEXT),
         DECAY,
         Set.of(DOUBLE),
         TYPE,
@@ -140,17 +141,17 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Source source,
         @Param(
             name = "value",
-            type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
+            type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
             description = "The input value to apply decay scoring to."
         ) Expression value,
         @Param(
             name = ORIGIN,
-            type = { "double", "integer", "long", "date", "date_nanos", "geo_point", "cartesian_point" },
+            type = { "double", "integer", "long", "unsigned_long", "date", "date_nanos", "geo_point", "cartesian_point" },
             description = "Central point from which the distances are calculated."
         ) Expression origin,
         @Param(
             name = SCALE,
-            type = { "double", "integer", "long", "time_duration", "keyword", "text" },
+            type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
             description = "Distance from the origin where the function returns the decay value."
         ) Expression scale,
         @MapParam(
@@ -158,7 +159,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             params = {
                 @MapParam.MapParamEntry(
                     name = OFFSET,
-                    type = { "double", "integer", "long", "time_duration", "keyword", "text" },
+                    type = { "double", "integer", "long", "unsigned_long", "time_duration", "keyword", "text" },
                     description = "Distance from the origin where no decay occurs."
                 ),
                 @MapParam.MapParamEntry(
@@ -310,7 +311,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 decayFolded,
                 decayFunction
             );
-            case LONG -> new DecayLongEvaluator.Factory(
+            case LONG, UNSIGNED_LONG -> new DecayLongEvaluator.Factory(
                 source(),
                 valueFactory,
                 (Long) originFolded,
@@ -634,7 +635,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     private Object getDefaultOffset(DataType valueDataType) {
         return switch (valueDataType) {
             case INTEGER -> DEFAULT_INTEGER_OFFSET;
-            case LONG -> DEFAULT_LONG_OFFSET;
+            case LONG, UNSIGNED_LONG -> DEFAULT_LONG_OFFSET;
             case DOUBLE -> DEFAULT_DOUBLE_OFFSET;
             case GEO_POINT -> DEFAULT_GEO_POINT_OFFSET;
             case CARTESIAN_POINT -> DEFAULT_CARTESIAN_POINT_OFFSET;

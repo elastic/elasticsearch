@@ -3,7 +3,7 @@
 **Supported function named parameters**
 
 `offset`
-:   (double, integer, long, time_duration, keyword, text) Distance from the origin where no decay occurs.
+:   (double, integer, long, unsigned_long, time_duration, keyword, text) Distance from the origin where no decay occurs.
 
 `type`
 :   (keyword) Decay function to use: linear, exponential or gaussian.

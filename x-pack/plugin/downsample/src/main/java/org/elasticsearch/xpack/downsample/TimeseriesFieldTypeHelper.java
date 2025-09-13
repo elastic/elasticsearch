@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -54,6 +55,10 @@ class TimeseriesFieldTypeHelper {
 
     public static boolean isPassthroughField(final Map<String, ?> fieldMapping) {
         return PassThroughObjectMapper.CONTENT_TYPE.equals(fieldMapping.get(ContextMapping.FIELD_TYPE));
+    }
+
+    public IndexSettings.AggregateMetricDoubleDefaultMetric getDefaultMetric() {
+        return mapperService.getIndexSettings().getDefaultMetric();
     }
 
     public List<String> extractFlattenedDimensions(final String field, final Map<String, ?> fieldMapping) {

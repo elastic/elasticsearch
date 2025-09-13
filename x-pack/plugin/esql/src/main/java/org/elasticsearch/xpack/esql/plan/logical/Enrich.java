@@ -74,12 +74,11 @@ public class Enrich extends UnaryPlan
 
     @Override
     public ExecuteLocation executesOn() {
-        if (mode == Mode.REMOTE) {
-            return ExecuteLocation.REMOTE;
-        } else if (mode == Mode.COORDINATOR) {
-            return ExecuteLocation.COORDINATOR;
-        }
-        return ExecuteLocation.ANY;
+        return switch (mode) {
+            case REMOTE -> ExecuteLocation.REMOTE;
+            case COORDINATOR -> ExecuteLocation.COORDINATOR;
+            default -> ExecuteLocation.ANY;
+        };
     }
 
     public enum Mode {

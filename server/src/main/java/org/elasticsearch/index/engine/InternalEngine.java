@@ -2756,11 +2756,7 @@ public class InternalEngine extends Engine {
 
     // protected for testing
     protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
-        if (Assertions.ENABLED) {
-            return new AssertingIndexWriter(directory, iwc);
-        } else {
-            return new IndexWriter(directory, iwc);
-        }
+        return new ElasticsearchIndexWriter(directory, iwc);
     }
 
     // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
@@ -2920,8 +2916,10 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-    private void maybeFlushAfterMerge(OnGoingMerge merge) {
-        if (indexWriter.hasPendingMerges() == false && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+    protected void maybeFlushAfterMerge(OnGoingMerge merge) {
+        if (indexWriter.getTragicException() == null
+            && indexWriter.hasPendingMerges() == false
+            && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
             // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
             // writer
             // we deadlock on engine#close for instance.
@@ -3377,19 +3375,38 @@ public class InternalEngine extends Engine {
         return commitData;
     }
 
-    private static class AssertingIndexWriter extends IndexWriter {
-        AssertingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
-            super(d, conf);
+    private static class ElasticsearchIndexWriter extends IndexWriter {
+
+        ElasticsearchIndexWriter(Directory directory, IndexWriterConfig indexWriterConfig) throws IOException {
+            super(directory, indexWriterConfig);
         }
 
         @Override
-        public long deleteDocuments(Term... terms) {
-            throw new AssertionError("must not hard delete documents");
+        public void onTragicEvent(Throwable tragedy, String location) {
+            try {
+                if (getConfig().getMergeScheduler() instanceof ThreadPoolMergeScheduler mergeScheduler) {
+                    // Must be executed before calling IndexWriter#onTragicEvent
+                    mergeScheduler.onTragicEvent(tragedy);
+                }
+            } finally {
+                super.onTragicEvent(tragedy, location);
+            }
         }
 
         @Override
-        public long tryDeleteDocument(IndexReader readerIn, int docID) {
-            throw new AssertionError("tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs");
+        public long deleteDocuments(Term... terms) throws IOException {
+            if (Assertions.ENABLED) {
+                throw new AssertionError("must not hard delete documents");
+            }
+            return super.deleteDocuments(terms);
+        }
+
+        @Override
+        public long tryDeleteDocument(IndexReader readerIn, int docID) throws IOException {
+            if (Assertions.ENABLED) {
+                throw new AssertionError("tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs");
+            }
+            return super.tryDeleteDocument(readerIn, docID);
         }
     }
 

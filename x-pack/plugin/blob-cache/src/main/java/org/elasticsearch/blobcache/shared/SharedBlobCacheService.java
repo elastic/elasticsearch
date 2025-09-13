@@ -37,6 +37,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,6 +67,9 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
 
 /**
  * A caching layer on a local node to minimize network roundtrips to the remote blob store.
@@ -1254,7 +1258,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
-            final RangeMissingHandler writer
+            final RangeMissingHandler writer,
+            String resourceDescription
         ) throws Exception {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
@@ -1273,6 +1278,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater,
                     ActionListener<Void> completionListener
                 ) throws IOException {
+                    String blobFileExtension = getFileExtension(resourceDescription);
                     writer.fillCacheRange(
                         channel,
                         channelPos,
@@ -1283,7 +1289,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         completionListener.map(unused -> {
                             var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                            blobCacheMetrics.getCacheMissCounter().increment();
+                            blobCacheMetrics.getCacheMissCounter()
+                                .incrementBy(1L, Map.of(LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY, blobFileExtension));
                             return null;
                         })
                     );
@@ -2073,6 +2080,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void close() {
                 this.isClosed = true;
             }
+        }
+    }
+
+    private static String getFileExtension(String resourceDescription) {
+        // TODO: consider introspecting resourceDescription for compound files
+        if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
+            return LuceneFilesExtensions.CFS.getExtension();
+        }
+        try {
+            LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
+            return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+        } catch (Throwable t) {
+            return NON_LUCENE_EXTENSION_TO_RECORD;
         }
     }
 }

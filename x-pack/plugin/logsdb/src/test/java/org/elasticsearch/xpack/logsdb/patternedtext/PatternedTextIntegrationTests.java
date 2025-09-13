@@ -102,7 +102,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
 
-        int numDocs = 3; //randomIntBetween(1, 100);
+        int numDocs = 3; // randomIntBetween(1, 100);
         List<String> messages = randomMessagesOfVariousSizes(numDocs);
         indexDocs(messages);
 
@@ -167,9 +167,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         var query = QueryBuilders.matchPhraseQuery("field_patterned_text", "dog 123 house");
         var searchRequest = client().prepareSearch(INDEX).setQuery(query);
 
-        assertNoFailuresAndResponse(searchRequest, searchResponse -> {
-            assertEquals(1, searchResponse.getHits().getTotalHits().value());
-        });
+        assertNoFailuresAndResponse(searchRequest, searchResponse -> { assertEquals(1, searchResponse.getHits().getTotalHits().value()); });
     }
 
     public void testQueryResultsSameAsMatchOnlyText() throws IOException {

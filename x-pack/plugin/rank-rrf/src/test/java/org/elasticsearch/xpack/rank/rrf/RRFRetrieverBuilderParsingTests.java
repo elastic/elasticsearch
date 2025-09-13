@@ -51,7 +51,14 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         List<String> fields = null;
         String query = null;
         if (randomBoolean()) {
-            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            fields = randomList(1, 10, () -> {
+                String field = randomAlphaOfLengthBetween(1, 10);
+                if (randomBoolean()) {
+                    float weight = randomFloat() * 10 + 0.1f;
+                    return field + "^" + weight;
+                }
+                return field;
+            });
             query = randomAlphaOfLengthBetween(1, 10);
         }
 
@@ -357,6 +364,114 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             """;
 
         expectParsingException(retrieverAsStringContent, "retriever must be an object");
+    }
+
+    public void testSimplifiedWeightedFieldsParsing() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test basic weighted field syntax parsing
+        String basicWeightedContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["name^2.0", "description^0.5"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, basicWeightedContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
+            assertNotNull(parsed);
+            assertEquals("rrf", parsed.getName());
+        }
+    }
+
+    public void testMixedWeightedAndUnweightedFields() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test mixing weighted and unweighted fields
+        String mixedContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["title^3.0", "content", "tags^1.5", "summary"],
+                  "query": "search term"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, mixedContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
+    }
+
+    public void testDecimalWeights() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test various decimal weight values
+        String decimalWeightsContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["field1^0.1", "field2^2.75", "field3^10.5"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, decimalWeightsContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
+    }
+
+    public void testZeroWeight() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test zero weight (should be valid)
+        String zeroWeightContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["field1^0.0", "field2^1.0"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, zeroWeightContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
+    }
+
+    public void testLargeWeightValues() throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+
+        // Test very large weight values
+        String largeWeightContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "fields": ["field1^1000.0", "field2^999999.99"],
+                  "query": "test"
+                }
+              }
+            }
+            """;
+
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, largeWeightContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+        }
     }
 
     private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {

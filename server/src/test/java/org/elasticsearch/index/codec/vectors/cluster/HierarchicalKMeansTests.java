@@ -9,6 +9,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -28,30 +29,41 @@ public class HierarchicalKMeansTests extends ESTestCase {
         FloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         int targetSize = (int) ((float) nVectors / (float) nClusters);
-        HierarchicalKMeans hkmeans = new HierarchicalKMeans(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
+        try (Directory dir = newDirectory()) {
+            HierarchicalKMeans hkmeans = new HierarchicalKMeans(
+                dir,
+                "test",
+                randomIntBetween(0, 10),
+                dims,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood,
+                soarLambda
+            );
 
-        KMeansResult result = hkmeans.cluster(vectors, targetSize);
+            KMeansResult result = hkmeans.cluster(vectors, targetSize);
 
-        float[][] centroids = result.centroids();
-        int[] assignments = result.assignments();
-        int[] soarAssignments = result.soarAssignments();
+            float[][] centroids = result.centroids();
+            int[] assignments = result.assignments();
+            int[] soarAssignments = result.soarAssignments();
 
-        assertEquals(Math.min(nClusters, nVectors), centroids.length, 10);
-        assertEquals(nVectors, assignments.length);
+            assertEquals(Math.min(nClusters, nVectors), centroids.length, 10);
+            assertEquals(nVectors, assignments.length);
 
-        for (int assignment : assignments) {
-            assertTrue(assignment >= 0 && assignment < centroids.length);
-        }
-        if (centroids.length > 1 && centroids.length < nVectors) {
-            assertEquals(nVectors, soarAssignments.length);
-            // verify no duplicates exist
-            for (int i = 0; i < assignments.length; i++) {
-                int soarAssignment = soarAssignments[i];
-                assertTrue(soarAssignment == -1 || (soarAssignment >= 0 && soarAssignment < centroids.length));
-                assertNotEquals(assignments[i], soarAssignment);
+            for (int assignment : assignments) {
+                assertTrue(assignment >= 0 && assignment < centroids.length);
             }
-        } else {
-            assertEquals(0, soarAssignments.length);
+            if (centroids.length > 1 && centroids.length < nVectors) {
+                assertEquals(nVectors, soarAssignments.length);
+                // verify no duplicates exist
+                for (int i = 0; i < assignments.length; i++) {
+                    int soarAssignment = soarAssignments[i];
+                    assertTrue(soarAssignment == -1 || (soarAssignment >= 0 && soarAssignment < centroids.length));
+                    assertNotEquals(assignments[i], soarAssignment);
+                }
+            } else {
+                assertEquals(0, soarAssignments.length);
+            }
         }
     }
 
@@ -93,45 +105,50 @@ public class HierarchicalKMeansTests extends ESTestCase {
         }
         FloatVectorValues vectors = FloatVectorValues.fromFloats(vectorList, dims);
 
-        HierarchicalKMeans hkmeans = new HierarchicalKMeans(
-            dims,
-            random().nextInt(1, 100),
-            random().nextInt(Math.min(nVectors, 100), nVectors + 1),
-            random().nextInt(2, 512),
-            random().nextFloat(0.5f, 1.5f)
-        );
+        try (Directory dir = newDirectory()) {
+            HierarchicalKMeans hkmeans = new HierarchicalKMeans(
+                dir,
+                "test",
+                randomIntBetween(0, 10),
+                dims,
+                random().nextInt(1, 100),
+                random().nextInt(Math.min(nVectors, 100), nVectors + 1),
+                random().nextInt(2, 512),
+                random().nextFloat(0.5f, 1.5f)
+            );
 
-        KMeansResult result = hkmeans.cluster(vectors, targetSize);
+            KMeansResult result = hkmeans.cluster(vectors, targetSize);
 
-        float[][] centroids = result.centroids();
-        int[] assignments = result.assignments();
-        int[] soarAssignments = result.soarAssignments();
+            float[][] centroids = result.centroids();
+            int[] assignments = result.assignments();
+            int[] soarAssignments = result.soarAssignments();
 
-        int[] counts = new int[centroids.length];
-        for (int i = 0; i < assignments.length; i++) {
-            counts[assignments[i]]++;
-        }
-        int totalCount = 0;
-        for (int count : counts) {
-            totalCount += count;
-            assertTrue(count > 0);
-        }
-        assertEquals(nVectors, totalCount);
-
-        assertEquals(nVectors, assignments.length);
-
-        for (int assignment : assignments) {
-            assertTrue(assignment >= 0 && assignment < centroids.length);
-        }
-        if (centroids.length > 1 && centroids.length < nVectors) {
-            assertEquals(nVectors, soarAssignments.length);
-            // verify no duplicates exist
+            int[] counts = new int[centroids.length];
             for (int i = 0; i < assignments.length; i++) {
-                assertTrue(soarAssignments[i] >= 0 && soarAssignments[i] < centroids.length);
-                assertNotEquals(assignments[i], soarAssignments[i]);
+                counts[assignments[i]]++;
             }
-        } else {
-            assertEquals(0, soarAssignments.length);
+            int totalCount = 0;
+            for (int count : counts) {
+                totalCount += count;
+                assertTrue(count > 0);
+            }
+            assertEquals(nVectors, totalCount);
+
+            assertEquals(nVectors, assignments.length);
+
+            for (int assignment : assignments) {
+                assertTrue(assignment >= 0 && assignment < centroids.length);
+            }
+            if (centroids.length > 1 && centroids.length < nVectors) {
+                assertEquals(nVectors, soarAssignments.length);
+                // verify no duplicates exist
+                for (int i = 0; i < assignments.length; i++) {
+                    assertTrue(soarAssignments[i] >= 0 && soarAssignments[i] < centroids.length);
+                    assertNotEquals(assignments[i], soarAssignments[i]);
+                }
+            } else {
+                assertEquals(0, soarAssignments.length);
+            }
         }
     }
 }

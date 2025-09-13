@@ -603,7 +603,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                        ParsingErrorHelper.unsupportedFieldMessage(NAME, currentFieldName,
+                            ParsingErrorHelper.CommonFields.MULTI_MATCH_QUERY_FIELDS)
                     );
                 }
             } else if (token.isValue()) {
@@ -654,7 +655,8 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
-                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                        ParsingErrorHelper.unsupportedFieldMessage(NAME, currentFieldName,
+                            ParsingErrorHelper.CommonFields.MULTI_MATCH_QUERY_FIELDS)
                     );
                 }
             } else {

@@ -1356,7 +1356,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (engine == null) {
                 return 0L;
             }
-            return engine.getWritingBytes();
+            try {
+                return engine.getIndexBufferRAMBytesUsed();
+            } catch (AlreadyClosedException ex) {
+                return 0L;
+            }
         });
     }
 

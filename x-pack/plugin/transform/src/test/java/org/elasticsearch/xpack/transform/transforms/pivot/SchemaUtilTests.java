@@ -158,7 +158,7 @@ public class SchemaUtilTests extends ESTestCase {
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
-                    new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings),
+                    new SourceConfig(new String[] { "index-1", "index-2" }, QueryConfig.matchAll(), runtimeMappings, null),
                     new String[] { "field-1", "field-2" },
                     listener
                 ),

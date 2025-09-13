@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference.completion;
+package org.elasticsearch.xpack.esql.inference.textembedding;
 
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasables;
@@ -18,10 +18,10 @@ import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- *  This iterator reads prompts from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
- *  of type {@link TaskType#COMPLETION}.
+ * This iterator reads text inputs from a {@link BytesRefBlock} and converts them into individual {@link InferenceAction.Request} instances
+ * of type {@link TaskType#TEXT_EMBEDDING}.
  */
-public class CompletionOperatorRequestIterator implements BulkInferenceRequestIterator {
+public class TextEmbeddingOperatorRequestIterator implements BulkInferenceRequestIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
@@ -29,14 +29,14 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
     private int currentPos = 0;
 
     /**
-     * Constructs a new iterator from the given block of prompts.
+     * Constructs a new iterator from the given block of text inputs.
      *
-     * @param promptBlock The input block containing prompts.
+     * @param textBlock   The input block containing text to embed.
      * @param inferenceId The ID of the inference model to invoke.
      */
-    public CompletionOperatorRequestIterator(BytesRefBlock promptBlock, String inferenceId) {
-        this.textReader = new InputTextReader(promptBlock);
-        this.size = promptBlock.getPositionCount();
+    public TextEmbeddingOperatorRequestIterator(BytesRefBlock textBlock, String inferenceId) {
+        this.textReader = new InputTextReader(textBlock);
+        this.size = textBlock.getPositionCount();
         this.inferenceId = inferenceId;
     }
 
@@ -51,18 +51,22 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
             throw new NoSuchElementException();
         }
 
-        return inferenceRequest(textReader.readText(currentPos++));
+        /*
+         * Keep only the first value in case of multi-valued fields.
+         * TODO: check if it is consistent with how the query vector builder is working.
+         */
+        return inferenceRequest(textReader.readText(currentPos++, 1));
     }
 
     /**
-     * Wraps a single prompt string into an {@link InferenceAction.Request}.
+     * Wraps a single text string into an {@link InferenceAction.Request} for text embedding.
      */
-    private InferenceAction.Request inferenceRequest(String prompt) {
-        if (prompt == null) {
+    private InferenceAction.Request inferenceRequest(String text) {
+        if (text == null) {
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
+        return InferenceAction.Request.builder(inferenceId, TaskType.TEXT_EMBEDDING).setInput(List.of(text)).build();
     }
 
     @Override

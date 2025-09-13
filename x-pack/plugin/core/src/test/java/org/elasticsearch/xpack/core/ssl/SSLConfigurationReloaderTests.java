@@ -66,7 +66,6 @@ import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -388,7 +387,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -440,7 +439,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -482,7 +481,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -522,7 +521,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -556,7 +555,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
         Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any()))
             .thenThrow(randomBoolean() ? new AccessControlException("access denied in test") : new IOException("file error for testing"));
-        final Collection<SslConfiguration> configurations = SSLService.getSSLConfigurations(env).values();
+        final SSLService.LoadedConfiguration configurations = SSLService.getSSLConfigurations(env, List.of());
         try {
             new SSLConfigurationReloader(ignore -> {}, mockResourceWatcher, configurations);
         } catch (Exception e) {
@@ -587,7 +586,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         ).put("path.home", createTempDir()).build();
 
         final Environment env = newEnvironment(settings);
-        final Collection<SslConfiguration> configurations = SSLService.getSSLConfigurations(env).values();
+        final SSLService.LoadedConfiguration configurations = SSLService.getSSLConfigurations(env, List.of());
         new SSLConfigurationReloader(ignore -> {}, mockResourceWatcher, configurations);
 
         assertThat(
@@ -642,7 +641,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 }
             }
         };
-        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env, List.of()));
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 

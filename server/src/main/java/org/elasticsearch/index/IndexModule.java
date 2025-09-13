@@ -166,8 +166,8 @@ public final class IndexModule {
     private final AnalysisRegistry analysisRegistry;
     private final EngineFactory engineFactory;
     private final SetOnce<DirectoryWrapper> indexDirectoryWrapper = new SetOnce<>();
-    private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
-        new SetOnce<>();
+    private final List<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrappers =
+        new ArrayList<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
@@ -368,9 +368,9 @@ public final class IndexModule {
     }
 
     /**
-     * Sets the factory for creating new {@link DirectoryReader} wrapper instances.
+     * Adds a new instance of factory creating new {@link DirectoryReader} wrapper instances.
      * The factory ({@link Function}) is called once the IndexService is fully constructed.
-     * NOTE: this method can only be called once per index. Multiple wrappers are not supported.
+     * The order of execution of wrappers is not guaranteed.
      * <p>
      * The {@link CheckedFunction} is invoked each time a {@link Engine.Searcher} is requested to do an operation,
      * for example search, and must return a new directory reader wrapping the provided directory reader or if no
@@ -384,11 +384,11 @@ public final class IndexModule {
      * The returned reader is closed once it goes out of scope.
      * </p>
      */
-    public void setReaderWrapper(
+    public void addReaderWrapper(
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> indexReaderWrapperFactory
     ) {
         ensureNotFrozen();
-        this.indexReaderWrapper.set(indexReaderWrapperFactory);
+        this.indexReaderWrappers.add(indexReaderWrapperFactory);
     }
 
     /**
@@ -499,8 +499,26 @@ public final class IndexModule {
         QueryRewriteInterceptor queryRewriteInterceptor
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
-        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
-            .get() == null ? (shard) -> null : indexReaderWrapper.get();
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
+            switch (indexReaderWrappers.size()) {
+                case 0 -> indexService -> null;
+                case 1 -> indexReaderWrappers.get(0);
+                default -> indexService -> {
+                    // Call factories only one time when creating index service to avoid duplicate work.
+                    var wrappers = new ArrayList<CheckedFunction<DirectoryReader, DirectoryReader, IOException>>();
+                    for (var indexReaderWrapper : indexReaderWrappers) {
+                        wrappers.add(indexReaderWrapper.apply(indexService));
+                    }
+
+                    return directoryReader -> {
+                        var wrapped = wrappers.get(0).apply(directoryReader);
+                        for (int i = 1; i < wrappers.size(); i++) {
+                            wrapped = wrappers.get(i).apply(wrapped);
+                        }
+                        return wrapped;
+                    };
+                };
+            };
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);

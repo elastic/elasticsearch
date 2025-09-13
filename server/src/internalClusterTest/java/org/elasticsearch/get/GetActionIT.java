@@ -87,7 +87,7 @@ public class GetActionIT extends ESIntegTestCase {
         public void onIndexModule(IndexModule indexModule) {
             super.onIndexModule(indexModule);
             if (enabled) {
-                indexModule.setReaderWrapper(indexService -> {
+                indexModule.addReaderWrapper(indexService -> {
                     CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = EngineTestCase.randomReaderWrapper();
                     return reader -> {
                         calls.incrementAndGet();

@@ -199,7 +199,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     public static class ReaderWrapperCountPlugin extends Plugin {
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            indexModule.setReaderWrapper(service -> SearchServiceSingleNodeTests::apply);
+            indexModule.addReaderWrapper(service -> SearchServiceSingleNodeTests::apply);
         }
     }
 

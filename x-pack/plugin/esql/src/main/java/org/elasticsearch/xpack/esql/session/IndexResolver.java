@@ -42,6 +42,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -72,6 +73,16 @@ public class IndexResolver {
 
     public IndexResolver(Client client) {
         this.client = client;
+    }
+
+    public void resolveConcreteIndices(String indexPattern, QueryBuilder requestFilter, ActionListener<Set<String>> listener) {
+        client.execute(
+            EsqlResolveFieldsAction.TYPE,
+            createFieldCapsRequest(indexPattern, Set.of("_id"), requestFilter, false),
+            listener.delegateFailureAndWrap((l, response) -> {
+                l.onResponse(response.getIndexResponses().stream().map(FieldCapabilitiesIndexResponse::getIndexName).collect(toSet()));
+            })
+        );
     }
 
     /**

@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
@@ -39,13 +40,16 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
@@ -53,7 +57,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -110,22 +113,33 @@ public class EnrichPolicyResolver {
     /**
      * Resolves a set of enrich policies
      *
-     * @param enriches           the unresolved policies
+     * @param preAnalysis        to retrieve indices and enriches to resolve
+     * @param requestFilter      to resolve target clusters
      * @param executionInfo      the execution info
      * @param listener           notified with the enrich resolution
      */
-    public void resolvePolicies(List<Enrich> enriches, EsqlExecutionInfo executionInfo, ActionListener<EnrichResolution> listener) {
-        if (enriches.isEmpty()) {
+    public void resolvePolicies(
+        PreAnalyzer.PreAnalysis preAnalysis,
+        QueryBuilder requestFilter,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<EnrichResolution> listener
+    ) {
+        if (preAnalysis.enriches().isEmpty()) {
             listener.onResponse(new EnrichResolution());
             return;
         }
 
-        doResolvePolicies(
-            new HashSet<>(executionInfo.getClusters().keySet()),
-            enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
-            executionInfo,
-            listener
-        );
+        doResolveRemotes(preAnalysis.indexPattern(), requestFilter, listener.delegateFailureAndWrap((l, remotes) -> {
+            doResolvePolicies(remotes, preAnalysis.enriches().stream().map(UnresolvedPolicy::from).toList(), executionInfo, l);
+        }));
+    }
+
+    private void doResolveRemotes(IndexPattern indexPattern, QueryBuilder requestFilter, ActionListener<Set<String>> listener) {
+        if (indexPattern != null) {
+            indexResolver.resolveConcreteIndices(indexPattern.indexPattern(), requestFilter, listener.map(EsqlCCSUtils::getRemotesOf));
+        } else {
+            listener.onResponse(Set.of());
+        }
     }
 
     protected void doResolvePolicies(
@@ -442,7 +456,7 @@ public class EnrichPolicyResolver {
                     if (p == null) {
                         continue;
                     }
-                    try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+                    try (var ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
                         indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, null, false, refs.acquire(indexResult -> {
                             if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {

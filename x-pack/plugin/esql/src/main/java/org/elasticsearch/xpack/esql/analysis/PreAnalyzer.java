@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class PreAnalyzer {
 
-    public record PreAnalysis(IndexMode indexMode, IndexPattern index, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
+    public record PreAnalysis(IndexMode indexMode, IndexPattern indexPattern, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
         public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of());
     }
 
@@ -37,7 +37,7 @@ public class PreAnalyzer {
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
 
         Holder<IndexMode> indexMode = new Holder<>();
-        Holder<IndexPattern> index = new Holder<>();
+        Holder<IndexPattern> indexPattern = new Holder<>();
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
@@ -47,7 +47,7 @@ public class PreAnalyzer {
                 lookupIndices.add(p.indexPattern());
             } else if (indexMode.get() == null || indexMode.get() == p.indexMode()) {
                 indexMode.set(p.indexMode());
-                index.set(p.indexPattern());
+                indexPattern.set(p.indexPattern());
             } else {
                 throw new IllegalStateException("index mode is already set");
             }
@@ -58,6 +58,6 @@ public class PreAnalyzer {
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indexMode.get(), index.get(), unresolvedEnriches, lookupIndices);
+        return new PreAnalysis(indexMode.get(), indexPattern.get(), unresolvedEnriches, lookupIndices);
     }
 }

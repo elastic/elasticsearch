@@ -48,7 +48,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     public static BytesRef createField(
         DocumentParserContext context,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder,
         BytesRef tsid
     ) {
         final long timestamp = DataStreamTimestampFieldMapper.extractTimestampValue(context.doc());
@@ -115,7 +115,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
 
     public static String createId(
         boolean dynamicMappersExists,
-        IndexRouting.ExtractFromSource.Builder routingBuilder,
+        IndexRouting.ExtractFromSource.RoutingHashBuilder routingBuilder,
         BytesRef tsid,
         long timestamp,
         byte[] suffix

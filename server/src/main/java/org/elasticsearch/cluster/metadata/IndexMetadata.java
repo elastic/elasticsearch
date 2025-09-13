@@ -515,6 +515,29 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
+     * Populated when an index that belongs to a time_series data stream is created or its mappings are updated.
+     * This setting is used so that the coordinating node knows which fields are time series dimensions
+     * as it doesn't have access to mappings.
+     * It's important that this setting is kept up-to-date when new dimensions are added to the mapping.
+     * The tsid and shard routing for existing time series that don't use the new dimension field won't change as a result of that update.
+     * When this setting is populated, an optimization kicks in that allows the coordinating node to create the tsid and the routing hash
+     * in one go.
+     * Otherwise, the coordinating node only creates the routing hash based on {@link #INDEX_ROUTING_PATH} and the tsid is created
+     * during document parsing, effectively requiring two passes over the document.
+     * <p>
+     * The condition for this optimization to kick in is that all possible dimension fields can be identified
+     * via a list of wildcard patterns.
+     * If that's not the case (for example when certain types of dynamic templates are used),
+     * the {@link #INDEX_ROUTING_PATH} is populated instead.
+     */
+    public static final Setting<List<String>> INDEX_DIMENSIONS = Setting.stringListSetting(
+        "index.dimensions",
+        Setting.Property.IndexScope,
+        Property.Dynamic,
+        Property.PrivateIndex
+    );
+
+    /**
      * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
      * TODO: Remove in 9.0
      */
@@ -576,6 +599,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final int routingFactor;
     private final int routingPartitionSize;
     private final List<String> routingPaths;
+    private final List<String> timeSeriesDimensions;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
@@ -689,6 +713,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int routingNumShards,
         final int routingPartitionSize,
         final List<String> routingPaths,
+        final List<String> timeSeriesDimensions,
         final ActiveShardCount waitForActiveShards,
         final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
         final boolean isSystem,
@@ -744,6 +769,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.routingFactor = routingNumShards / numberOfShards;
         this.routingPartitionSize = routingPartitionSize;
         this.routingPaths = routingPaths;
+        this.timeSeriesDimensions = timeSeriesDimensions;
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
@@ -803,6 +829,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.timeSeriesDimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -865,6 +892,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.timeSeriesDimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -935,6 +963,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.timeSeriesDimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -996,6 +1025,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.timeSeriesDimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -1052,6 +1082,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.routingNumShards,
             this.routingPartitionSize,
             this.routingPaths,
+            this.timeSeriesDimensions,
             this.waitForActiveShards,
             this.rolloverInfos,
             this.isSystem,
@@ -1164,6 +1195,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public List<String> getRoutingPaths() {
         return routingPaths;
+    }
+
+    public List<String> getTimeSeriesDimensions() {
+        return timeSeriesDimensions;
     }
 
     public int getTotalNumberOfShards() {
@@ -2383,6 +2418,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final List<String> routingPaths = INDEX_ROUTING_PATH.get(settings);
+            final List<String> dimensions = INDEX_DIMENSIONS.get(settings);
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
@@ -2462,6 +2498,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 getRoutingNumShards(),
                 routingPartitionSize,
                 routingPaths,
+                dimensions,
                 waitForActiveShards,
                 rolloverInfos.build(),
                 isSystem,

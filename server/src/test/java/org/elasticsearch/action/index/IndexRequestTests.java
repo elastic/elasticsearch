@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -480,6 +481,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
         assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
         assertThat(copy.isRequireDataStream(), equalTo(indexRequest.isRequireDataStream()));
+        assertThat(copy.tsid(), equalTo(indexRequest.tsid()));
     }
 
     private IndexRequest createTestInstance() {
@@ -495,6 +497,7 @@ public class IndexRequestTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 20); i++) {
             indexRequest.addPipeline(randomAlphaOfLength(20));
         }
+        indexRequest.tsid(randomFrom((BytesRef) null, new BytesRef(randomAlphaOfLength(20))));
         return indexRequest;
     }
 }

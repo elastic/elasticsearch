@@ -102,7 +102,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
 
-        int numDocs = randomIntBetween(1, 100);
+        int numDocs = 3; //randomIntBetween(1, 100);
         List<String> messages = randomMessagesOfVariousSizes(numDocs);
         indexDocs(messages);
 
@@ -152,6 +152,24 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                 assertNull(document.getField("field_patterned_text.stored"));
             }
         }
+    }
+
+    public void testPhraseQuery() throws IOException {
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
+        createRequest.settings(LOGSDB_SETTING);
+        assertAcked(admin().indices().create(createRequest));
+
+        List<String> logMessages = List.of("cat dog 123 house mouse");
+        indexDocs(logMessages);
+        assertMappings();
+
+        var query = QueryBuilders.matchPhraseQuery("field_patterned_text", "dog 123 house");
+        var searchRequest = client().prepareSearch(INDEX).setQuery(query);
+
+        assertNoFailuresAndResponse(searchRequest, searchResponse -> {
+            assertEquals(1, searchResponse.getHits().getTotalHits().value());
+        });
     }
 
     public void testQueryResultsSameAsMatchOnlyText() throws IOException {

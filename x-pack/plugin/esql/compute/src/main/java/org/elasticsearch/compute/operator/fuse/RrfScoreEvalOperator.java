@@ -5,16 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.compute.operator;
+package org.elasticsearch.compute.operator.fuse;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Operator;
 
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Updates the score column with new scores using the RRF formula.
@@ -24,33 +26,28 @@ import java.util.Map;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights)
-        implements
-            OperatorFactory {
+    public record Factory(int forkPosition, int scorePosition, RrfConfig rrfConfig) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(forkPosition, scorePosition, rankConstant, weights);
+            return new RrfScoreEvalOperator(forkPosition, scorePosition, rrfConfig);
         }
 
         @Override
         public String describe() {
             return "RrfScoreEvalOperator";
         }
-
     }
 
     private final int scorePosition;
     private final int forkPosition;
-    private final double rankConstant;
-    private final Map<String, Double> weights;
+    private final RrfConfig config;
 
     private HashMap<String, Integer> counters = new HashMap<>();
 
-    public RrfScoreEvalOperator(int forkPosition, int scorePosition, double rankConstant, Map<String, Double> weights) {
+    public RrfScoreEvalOperator(int forkPosition, int scorePosition, RrfConfig config) {
         this.scorePosition = scorePosition;
         this.forkPosition = forkPosition;
-        this.rankConstant = rankConstant;
-        this.weights = weights;
+        this.config = config;
     }
 
     @Override
@@ -65,9 +62,9 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
             int rank = counters.getOrDefault(discriminator, 1);
             counters.put(discriminator, rank + 1);
 
-            var weight = weights.getOrDefault(discriminator, 1.0);
+            var weight = config.weights().getOrDefault(discriminator, 1.0);
 
-            scores.appendDouble(1.0 / (this.rankConstant + rank) * weight);
+            scores.appendDouble(1.0 / (config.rankConstant() + rank) * weight);
         }
 
         Block scoreBlock = scores.build().asBlock();

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.fuse;
+package org.elasticsearch.compute.operator.fuse;
 
 import java.util.Map;
 

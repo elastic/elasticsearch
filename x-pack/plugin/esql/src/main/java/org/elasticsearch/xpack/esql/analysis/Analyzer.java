@@ -960,7 +960,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
             }
 
-            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.options());
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.fuseType(), fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);

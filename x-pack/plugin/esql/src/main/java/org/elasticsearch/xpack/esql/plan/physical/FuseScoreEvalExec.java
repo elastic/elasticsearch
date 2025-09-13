@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.fuse.FuseConfig;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseConfig;
 
 import java.io.IOException;
 

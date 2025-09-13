@@ -10,12 +10,18 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-/** Panamaized scorer for quantized vectors stored as a {@link MemorySegment}.  */
+import static org.elasticsearch.simdvec.internal.Similarities.int4BitDotProduct;
+import static org.elasticsearch.simdvec.internal.Similarities.int4BitDotProductBulk;
+
+/** Native scorer for quantized vectors stored as an {@link IndexInput}. */
 public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91PanamaOSQVectorsScorer {
+
+    private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
     public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
         super(in, dimensions, memorySegment);
@@ -23,12 +29,39 @@ public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91Pa
 
     @Override
     public long quantizeScore(byte[] q) throws IOException {
-        return panamaQuantizeScore(q);
+        assert q.length == length * 4;
+        if (NATIVE_SUPPORTED) {
+            return nativeQuantizeScore(q);
+        } else {
+            return panamaQuantizeScore(q);
+        }
+    }
+
+    private long nativeQuantizeScore(byte[] q) throws IOException {
+        long initialOffset = in.getFilePointer();
+        MemorySegment query = MemorySegment.ofArray(q);
+        long qScore = int4BitDotProduct(query, memorySegment, initialOffset, length);
+        in.skipBytes(length);
+        return qScore;
     }
 
     @Override
     public void quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
-        panamaQuantizeScoreBulk(q, count, scores);
+        assert q.length == length * 4;
+        // 128 / 8 == 16
+        if (NATIVE_SUPPORTED) {
+            nativeQuantizeScoreBulk(q, count, scores);
+        } else {
+            panamaQuantizeScoreBulk(q, count, scores);
+        }
+    }
+
+    private void nativeQuantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+        long initialOffset = in.getFilePointer();
+        MemorySegment query = MemorySegment.ofArray(q);
+        MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+        int4BitDotProductBulk(query, memorySegment, initialOffset, scoresSegment, count, length);
+        in.skipBytes(count * length);
     }
 
     @Override

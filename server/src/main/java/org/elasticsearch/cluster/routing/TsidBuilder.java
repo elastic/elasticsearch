@@ -31,7 +31,12 @@ import java.util.List;
  */
 public class TsidBuilder {
 
-    private static final int MAX_TSID_VALUE_FIELDS = 16;
+    /**
+     * The maximum number of fields to use for the value similarity part of the TSID.
+     * This is a trade-off between clustering similar time series together and the size of the TSID.
+     * More fields improve clustering but also increase the size of the TSID.
+     */
+    private static final int MAX_TSID_VALUE_SIMILARITY_FIELDS = 4;
     private final BufferedMurmur3Hasher murmur3Hasher = new BufferedMurmur3Hasher(0L);
 
     private final List<Dimension> dimensions;
@@ -217,11 +222,11 @@ public class TsidBuilder {
      * The TSID is a hash that includes:
      * <ul>
      *     <li>
-     *         A hash of the dimension field names (4 bytes).
+     *         A hash of the dimension field names (1 byte).
      *         This is to cluster time series that are using the same dimensions together, which makes the encodings more effective.
      *     </li>
      *     <li>
-     *         A hash of the dimension field values (1 byte each, up to a maximum of 16 fields).
+     *         A hash of the dimension field values (1 byte each, up to a maximum of 4 fields).
      *         This is to cluster time series with similar values together, also helping with making encodings more effective.
      *     </li>
      *     <li>
@@ -235,24 +240,24 @@ public class TsidBuilder {
      */
     public BytesRef buildTsid() {
         throwIfEmpty();
-        int numberOfValues = Math.min(MAX_TSID_VALUE_FIELDS, dimensions.size());
-        byte[] hash = new byte[4 + numberOfValues + 16];
+        int numberOfValues = Math.min(MAX_TSID_VALUE_SIMILARITY_FIELDS, dimensions.size());
+        byte[] hash = new byte[1 + numberOfValues + 16];
         int index = 0;
 
         Collections.sort(dimensions);
 
         MurmurHash3.Hash128 hashBuffer = new MurmurHash3.Hash128();
         murmur3Hasher.reset();
+        // similarity hash for dimension names
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
             murmur3Hasher.addLong(dim.pathHash.h1 ^ dim.pathHash.h2);
         }
-        ByteUtils.writeIntLE((int) murmur3Hasher.digestHash(hashBuffer).h1, hash, index);
-        index += 4;
+        hash[index++] = (byte) murmur3Hasher.digestHash(hashBuffer).h1;
 
-        // similarity hash for values
+        // similarity hash for dimension values
         String previousPath = null;
-        for (int i = 0; i < numberOfValues; i++) {
+        for (int i = 0; index < numberOfValues + 1 && i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
             String path = dim.path();
             if (path.equals(previousPath)) {
@@ -267,6 +272,7 @@ public class TsidBuilder {
         }
 
         murmur3Hasher.reset();
+        // full hash for all dimension names and values for uniqueness
         for (int i = 0; i < dimensions.size(); i++) {
             Dimension dim = dimensions.get(i);
             murmur3Hasher.addLongs(dim.pathHash.h1, dim.pathHash.h2, dim.valueHash.h1, dim.valueHash.h2);

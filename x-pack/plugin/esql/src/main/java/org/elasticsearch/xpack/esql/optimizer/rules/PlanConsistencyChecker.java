@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 
 public class PlanConsistencyChecker {
 
@@ -84,7 +85,7 @@ public class PlanConsistencyChecker {
         // get the missing attributes from the sub plan
         plan.output().forEach(attribute -> {
             var attrType = attributeTypes.get(attribute.name());
-            if (attrType == null || (attrType != attribute.dataType() && attrType != DataType.UNSUPPORTED)) {
+            if (attrType == null || (attrType != attribute.dataType() && attrType.atom() != UNSUPPORTED)) {
                 missing.add(attribute);
             }
             commonAttrs.add(attribute.name());

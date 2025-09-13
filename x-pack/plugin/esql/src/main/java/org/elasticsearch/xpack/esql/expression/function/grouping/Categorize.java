@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -56,8 +57,8 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 /**
  * Categorizes text messages.
@@ -81,7 +82,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
     private static final String OUTPUT_FORMAT = "output_format";
     private static final String SIMILARITY_THRESHOLD = "similarity_threshold";
 
-    private static final Map<String, DataType> ALLOWED_OPTIONS = new TreeMap<>(
+    private static final Map<String, AtomType> ALLOWED_OPTIONS = new TreeMap<>(
         Map.ofEntries(entry(ANALYZER, KEYWORD), entry(OUTPUT_FORMAT, KEYWORD), entry(SIMILARITY_THRESHOLD, INTEGER))
     );
 
@@ -228,7 +229,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return DataType.atom(KEYWORD);
     }
 
     @Override

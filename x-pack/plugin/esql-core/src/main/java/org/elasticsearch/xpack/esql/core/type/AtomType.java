@@ -345,6 +345,7 @@ public enum AtomType {
 
     private final String esType;
 
+    // NOCOMMIT estimate size on all types and remove Optional
     private final Optional<Integer> estimatedSize;
 
     /**
@@ -378,6 +379,8 @@ public enum AtomType {
      * of this numeric, otherwise this is {@code null}.
      */
     private final AtomType counter;
+
+    private final Type type = new Type(this);
 
     AtomType(Builder builder) {
         String typeString = builder.typeName != null ? builder.typeName : builder.esType;
@@ -659,13 +662,6 @@ public enum AtomType {
     }
 
     /**
-     * The name we give to types on the response.
-     */
-    public String outputType() {
-        return esType == null ? "unsupported" : esType;
-    }
-
-    /**
      * True if the type represents a "whole number", as in, does <strong>not</strong> have a decimal part.
      */
     public boolean isWholeNumber() {
@@ -684,14 +680,6 @@ public enum AtomType {
      */
     public boolean isNumeric() {
         return isWholeNumber || isRationalNumber;
-    }
-
-    /**
-     * @return the estimated size, in bytes, of this data type.  If there's no reasonable way to estimate the size,
-     *         the optional will be empty.
-     */
-    public Optional<Integer> estimatedSize() {
-        return estimatedSize;
     }
 
     public boolean hasDocValues() {
@@ -734,15 +722,18 @@ public enum AtomType {
         return new Builder();
     }
 
-    public AtomType noText() {
-        return isString(this) ? KEYWORD : this;
-    }
-
     public boolean isDate() {
         return switch (this) {
             case DATETIME, DATE_NANOS -> true;
             default -> false;
         };
+    }
+
+    /**
+     * The {@link DataType} for atomic fields of this type.
+     */
+    public DataType type() {
+        return type;
     }
 
     public static AtomType suggestedCast(Set<AtomType> originalTypes) {
@@ -880,6 +871,21 @@ public enum AtomType {
         @Override
         public String toString() {
             return atom.typeName();
+        }
+
+        @Override
+        public DataType noText() {
+            return isString(atom) ? DataType.atom(KEYWORD) : this;
+        }
+
+        @Override
+        public Optional<Integer> estimatedSize() {
+            return atom.estimatedSize;
+        }
+
+        @Override
+        public String outputType()  {
+            return atom.esType == null ? "unsupported" : atom.esType;
         }
 
         /**

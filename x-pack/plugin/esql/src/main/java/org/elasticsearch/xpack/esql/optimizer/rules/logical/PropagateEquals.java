@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 /**
  * Propagate Equals to eliminate conjuncted Ranges or BinaryComparisons.
@@ -71,14 +72,14 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
             } else if (ex instanceof Equals otherEq) {
                 // equals on different values evaluate to FALSE
                 // ignore date/time fields as equality comparison might actually be a range check
-                if (otherEq.right().foldable() && DataType.isDateTime(otherEq.left().dataType()) == false) {
+                if (otherEq.right().foldable() && AtomType.isDateTime(otherEq.left().dataType().atom()) == false) {
                     for (BinaryComparison eq : equals) {
                         if (otherEq.left().semanticEquals(eq.left())) {
                             Integer comp = BinaryComparison.compare(eq.right().fold(ctx.foldCtx()), otherEq.right().fold(ctx.foldCtx()));
                             if (comp != null) {
                                 // var cannot be equal to two different values at the same time
                                 if (comp != 0) {
-                                    return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                    return new Literal(and.source(), Boolean.FALSE, BOOLEAN.type());
                                 }
                             }
                         }
@@ -124,7 +125,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                         compare > 0 ||
                         // eq matches the boundary but should not be included
                             (compare == 0 && range.includeLower() == false))) {
-                            return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                            return new Literal(and.source(), Boolean.FALSE, BOOLEAN.type());
                         }
                     }
                     if (range.upper().foldable()) {
@@ -134,7 +135,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                         compare < 0 ||
                         // eq matches the boundary but should not be included
                             (compare == 0 && range.includeUpper() == false))) {
-                            return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                            return new Literal(and.source(), Boolean.FALSE, BOOLEAN.type());
                         }
                     }
 
@@ -151,7 +152,7 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                     Integer comp = BinaryComparison.compare(eqValue, neq.right().fold(ctx.foldCtx()));
                     if (comp != null) {
                         if (comp == 0) { // clashing and conflicting: a = 1 AND a != 1
-                            return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                            return new Literal(and.source(), Boolean.FALSE, BOOLEAN.type());
                         } else { // clashing and redundant: a = 1 AND a != 2
                             iter.remove();
                             changed = true;
@@ -169,12 +170,12 @@ public final class PropagateEquals extends OptimizerRules.OptimizerExpressionRul
                         if (bc instanceof LessThan || bc instanceof LessThanOrEqual) { // a = 2 AND a </<= ?
                             if ((compare == 0 && bc instanceof LessThan) || // a = 2 AND a < 2
                                 0 < compare) { // a = 2 AND a </<= 1
-                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, BOOLEAN.type());
                             }
                         } else if (bc instanceof GreaterThan || bc instanceof GreaterThanOrEqual) { // a = 2 AND a >/>= ?
                             if ((compare == 0 && bc instanceof GreaterThan) || // a = 2 AND a > 2
                                 compare < 0) { // a = 2 AND a >/>= 3
-                                return new Literal(and.source(), Boolean.FALSE, DataType.BOOLEAN);
+                                return new Literal(and.source(), Boolean.FALSE, BOOLEAN.type());
                             }
                         }
 

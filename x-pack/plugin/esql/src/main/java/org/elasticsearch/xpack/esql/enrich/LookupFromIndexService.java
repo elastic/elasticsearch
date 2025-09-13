@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -222,7 +223,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
             DataType inputDataType = null;
             if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
-                inputDataType = DataType.fromTypeName(in.readString());
+                // NOCOMMIT doesn't support object
+                inputDataType = AtomType.fromTypeName(in.readString()).type();
             }
 
             Page inputPage;
@@ -287,7 +289,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 if (matchFields.size() > 1) {
                     throw new EsqlIllegalArgumentException("LOOKUP JOIN on multiple fields is not supported on remote node");
                 }
-                out.writeString(matchFields.get(0).type().typeName());
+                // NOCOMMIT doesn't support object
+                out.writeString(matchFields.get(0).type().atom().typeName());
             }
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);

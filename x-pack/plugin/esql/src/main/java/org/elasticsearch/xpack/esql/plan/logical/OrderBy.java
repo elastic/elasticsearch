@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -113,8 +114,8 @@ public class OrderBy extends UnaryPlan
          * Some datatypes are not sortable
          */
         order.forEach(order -> {
-            if (DataType.isSortable(order.dataType()) == false) {
-                failures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
+            if (AtomType.isSortable(order.dataType().atom()) == false) {
+                failures.add(fail(order, "cannot sort on " + order.dataType()));
             }
         });
     }

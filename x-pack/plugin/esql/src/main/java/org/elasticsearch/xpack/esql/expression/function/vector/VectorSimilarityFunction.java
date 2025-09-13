@@ -31,7 +31,8 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 /**
  * Base class for vector similarity functions, which compute a similarity score between two dense vectors
@@ -48,7 +49,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -61,7 +62,7 @@ public abstract class VectorSimilarityFunction extends BinaryScalarFunction impl
     }
 
     private TypeResolution checkDenseVectorParam(Expression param, TypeResolutions.ParamOrdinal paramOrdinal) {
-        return isType(param, dt -> dt == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector");
+        return isType(param, dt -> dt.atom() == DENSE_VECTOR, sourceText(), paramOrdinal, "dense_vector");
     }
 
     /**

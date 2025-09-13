@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 /**
  * Appends values to a multi-value
@@ -152,11 +153,11 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return resolution;
         }
         dataType = field1.dataType().noText();
-        if (dataType == DataType.NULL) {
+        if (dataType.atom() == NULL) {
             dataType = field2.dataType().noText();
             return isRepresentableExceptCounters(field2, sourceText(), SECOND);
         }
-        return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
+        return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.toString());
     }
 
     @Override

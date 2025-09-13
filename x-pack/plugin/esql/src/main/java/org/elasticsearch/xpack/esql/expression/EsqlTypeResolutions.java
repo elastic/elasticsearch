@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -18,13 +19,13 @@ import java.util.Locale;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 
 public class EsqlTypeResolutions {
 
@@ -39,7 +40,7 @@ public class EsqlTypeResolutions {
 
     public static Expression.TypeResolution isExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         if (e instanceof FieldAttribute fa) {
-            if (DataType.isString(fa.dataType())) {
+            if (AtomType.isString(fa.dataType().atom())) {
                 // ESQL can extract exact values for TEXT fields
                 return Expression.TypeResolution.TYPE_RESOLVED;
             }
@@ -51,7 +52,7 @@ public class EsqlTypeResolutions {
                         "[{}] cannot operate on {}field of data type [{}]: {}",
                         operationName,
                         paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " argument ",
-                        e.dataType().typeName(),
+                        e.dataType(),
                         exact.errorMsg()
                     )
                 );
@@ -76,14 +77,14 @@ public class EsqlTypeResolutions {
     private static final String[] POINT_TYPE_NAMES = new String[] { GEO_POINT.typeName(), CARTESIAN_POINT.typeName() };
 
     public static Expression.TypeResolution isSpatialPoint(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, DataType::isSpatialPoint, operationName, paramOrd, POINT_TYPE_NAMES);
+        return isType(e, dt -> AtomType.isSpatialPoint(dt.atom()), operationName, paramOrd, POINT_TYPE_NAMES);
     }
 
     public static Expression.TypeResolution isSpatial(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, DataType::isSpatial, operationName, paramOrd, SPATIAL_TYPE_NAMES);
+        return isType(e, dt -> AtomType.isSpatial(dt.atom()), operationName, paramOrd, SPATIAL_TYPE_NAMES);
     }
 
     public static Expression.TypeResolution isSpatialOrGrid(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        return isType(e, DataType::isSpatialOrGrid, operationName, paramOrd, SPATIAL_AND_GRID_TYPE_NAMES);
+        return isType(e, dt -> AtomType.isSpatialOrGrid(dt.atom()), operationName, paramOrd, SPATIAL_AND_GRID_TYPE_NAMES);
     }
 }

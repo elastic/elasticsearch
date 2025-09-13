@@ -16,6 +16,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -42,8 +43,8 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
 
         var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
         var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
-        if (DataType.isString(leftType)) {
-            if (bc.right().foldable() && DataType.isString(rightType)) {
+        if (AtomType.isString(leftType.atom())) {
+            if (bc.right().foldable() && AtomType.isString(rightType.atom())) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold(foldCtx));
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
                 return dvrCtx -> new InsensitiveEqualsConstantEvaluator(

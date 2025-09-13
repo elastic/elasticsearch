@@ -63,7 +63,8 @@ public abstract class PositionToXContent {
         throws IOException;
 
     public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, BytesRef scratch) {
-        return switch (columnInfo.type()) {
+        // NOCOMMIT support object
+        return switch (columnInfo.type().atom()) {
             case LONG, COUNTER_LONG -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)

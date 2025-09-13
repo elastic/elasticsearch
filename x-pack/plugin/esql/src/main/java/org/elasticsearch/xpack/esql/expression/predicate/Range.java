@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -33,10 +34,12 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
@@ -165,7 +168,9 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         That said, if somehow you have arrived here while debugging something, know that this method is likely
         completely broken for date_nanos, and possibly other types.
          */
-        if (DataType.isDateTime(value.dataType()) || DataType.isDateTime(lower.dataType()) || DataType.isDateTime(upper.dataType())) {
+        if (AtomType.isDateTime(value.dataType().atom())
+            || AtomType.isDateTime(lower.dataType().atom())
+            || AtomType.isDateTime(upper.dataType().atom())) {
             try {
                 if (upperValue instanceof BytesRef br) {
                     upperValue = BytesRefs.toString(br);
@@ -194,7 +199,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataType.atom(BOOLEAN);
     }
 
     @Override
@@ -245,26 +250,26 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             upper,
             upper.dataType()
         );
-        if (dataType == DataType.DATETIME) {
+        if (dataType.atom() == DATETIME) {
             l = dateWithTypeToString((Long) l, lower.dataType());
             u = dateWithTypeToString((Long) u, upper.dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
         }
 
-        if (dataType == DATE_NANOS) {
+        if (dataType.atom() == DATE_NANOS) {
             l = dateWithTypeToString((Long) l, lower.dataType());
             u = dateWithTypeToString((Long) u, upper.dataType());
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
 
-        if (dataType == IP) {
+        if (dataType.atom() == IP) {
             if (l instanceof BytesRef bytesRef) {
                 l = ipToString(bytesRef);
             }
             if (u instanceof BytesRef bytesRef) {
                 u = ipToString(bytesRef);
             }
-        } else if (dataType == VERSION) {
+        } else if (dataType.atom() == VERSION) {
             // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
             // encoded) representation of the version as it'll do the encoding itself.
             if (l instanceof BytesRef bytesRef) {
@@ -277,7 +282,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
             } else if (u instanceof Version version) {
                 u = versionToString(version);
             }
-        } else if (dataType == UNSIGNED_LONG) {
+        } else if (dataType.atom() == UNSIGNED_LONG) {
             if (l instanceof Long ul) {
                 l = unsignedLongAsNumber(ul);
             }

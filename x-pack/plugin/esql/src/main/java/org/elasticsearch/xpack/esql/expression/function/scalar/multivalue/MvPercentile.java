@@ -39,8 +39,8 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class MvPercentile extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -100,9 +100,16 @@ public class MvPercentile extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field, dt -> dt.isNumeric() && dt != UNSIGNED_LONG, sourceText(), FIRST, "numeric except unsigned_long").and(
-            isType(percentile, dt -> dt.isNumeric() && dt != UNSIGNED_LONG, sourceText(), SECOND, "numeric except unsigned_long")
-        );
+        return isType(field, dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG, sourceText(), FIRST, "numeric except unsigned_long")
+            .and(
+                isType(
+                    percentile,
+                    dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
+                    sourceText(),
+                    SECOND,
+                    "numeric except unsigned_long"
+                )
+            );
     }
 
     @Override
@@ -122,7 +129,7 @@ public class MvPercentile extends EsqlScalarFunction {
     @Override
     public final ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEval = toEvaluator.apply(field);
-        var percentileEval = Cast.cast(source(), percentile.dataType(), DOUBLE, toEvaluator.apply(percentile));
+        var percentileEval = Cast.cast(source(), percentile.dataType(), DOUBLE.type(), toEvaluator.apply(percentile));
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
             case INT -> new MvPercentileIntegerEvaluator.Factory(source(), fieldEval, percentileEval, (d) -> new IntSortingScratch());

@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -44,28 +45,35 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNDER_CONSTRUCTION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SCALED_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNDER_CONSTRUCTION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -111,18 +119,19 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         // Initialize the test configurations for string tests
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("strings", TestConfigs::new);
-            configs.addPasses(KEYWORD, KEYWORD);
-            configs.addPasses(TEXT, KEYWORD);
-            configs.addFailsUnsupported(KEYWORD, TEXT);
+            // NOCOMMIT object type?
+            configs.addPasses(DataType.atom(KEYWORD), DataType.atom(KEYWORD));
+            configs.addPasses(DataType.atom(TEXT), DataType.atom(KEYWORD));
+            configs.addFailsUnsupported(DataType.atom(KEYWORD), DataType.atom(TEXT));
         }
 
         // Test integer types
         var integerTypes = List.of(BYTE, SHORT, INTEGER, LONG);
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("integers", TestConfigs::new);
-            for (DataType mainType : integerTypes) {
-                for (DataType lookupType : integerTypes) {
-                    configs.addPasses(mainType, lookupType);
+            for (AtomType mainType : integerTypes) {
+                for (AtomType lookupType : integerTypes) {
+                    configs.addPasses(DataType.atom(mainType), DataType.atom(lookupType));
                 }
             }
         }
@@ -131,9 +140,9 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         var floatTypes = List.of(HALF_FLOAT, FLOAT, DOUBLE, SCALED_FLOAT);
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("floats", TestConfigs::new);
-            for (DataType mainType : floatTypes) {
-                for (DataType lookupType : floatTypes) {
-                    configs.addPasses(mainType, lookupType);
+            for (AtomType mainType : floatTypes) {
+                for (AtomType lookupType : floatTypes) {
+                    configs.addPasses(DataType.atom(mainType), DataType.atom(lookupType));
                 }
             }
         }
@@ -141,10 +150,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         // Tests for mixed-numerical types
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("mixed-numerical", TestConfigs::new);
-            for (DataType mainType : integerTypes) {
-                for (DataType lookupType : floatTypes) {
-                    configs.addPasses(mainType, lookupType);
-                    configs.addPasses(lookupType, mainType);
+            for (AtomType mainType : integerTypes) {
+                for (AtomType lookupType : floatTypes) {
+                    configs.addPasses(DataType.atom(mainType), DataType.atom(lookupType));
+                    configs.addPasses(DataType.atom(lookupType), DataType.atom(mainType));
                 }
             }
         }
@@ -153,10 +162,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         var dateTypes = List.of(DATETIME, DATE_NANOS);
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("mixed-temporal", TestConfigs::new);
-            for (DataType mainType : dateTypes) {
-                for (DataType lookupType : dateTypes) {
+            for (AtomType mainType : dateTypes) {
+                for (AtomType lookupType : dateTypes) {
                     if (mainType != lookupType) {
-                        configs.addFails(mainType, lookupType);
+                        configs.addFails(DataType.atom(mainType), DataType.atom(lookupType));
                     }
                 }
             }
@@ -165,20 +174,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         // Union types; non-exhaustive and can be extended
         {
             TestConfigs configs = testConfigurations.computeIfAbsent("union-types", TestConfigs::new);
-            configs.addUnionTypePasses(SHORT, INTEGER, INTEGER);
-            configs.addUnionTypePasses(BYTE, DOUBLE, LONG);
-            configs.addUnionTypePasses(DATETIME, DATE_NANOS, DATE_NANOS);
-            configs.addUnionTypePasses(DATE_NANOS, DATETIME, DATETIME);
-            configs.addUnionTypePasses(SCALED_FLOAT, HALF_FLOAT, DOUBLE);
-            configs.addUnionTypePasses(TEXT, KEYWORD, KEYWORD);
+            configs.addUnionTypePasses(DataType.atom(SHORT), DataType.atom(INTEGER), DataType.atom(INTEGER));
+            configs.addUnionTypePasses(DataType.atom(BYTE), DataType.atom(DOUBLE), DataType.atom(LONG));
+            configs.addUnionTypePasses(DataType.atom(DATETIME), DataType.atom(DATE_NANOS), DataType.atom(DATE_NANOS));
+            configs.addUnionTypePasses(DataType.atom(DATE_NANOS), DataType.atom(DATETIME), DataType.atom(DATETIME));
+            configs.addUnionTypePasses(DataType.atom(SCALED_FLOAT), DataType.atom(HALF_FLOAT), DataType.atom(DOUBLE));
+            configs.addUnionTypePasses(DataType.atom(TEXT), DataType.atom(KEYWORD), DataType.atom(KEYWORD));
         }
 
         // Tests for all unsupported types
-        DataType[] unsupported = Join.UNSUPPORTED_TYPES;
+        AtomType[] unsupported = Join.UNSUPPORTED_TYPES;
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("unsupported", TestConfigs::new);
-            for (DataType type : unsupported) {
+            for (AtomType type : unsupported) {
                 if (type == NULL
                     || type == DOC_DATA_TYPE
                     || type == TSID_DATA_TYPE
@@ -188,20 +197,20 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                     || type == GEOHEX
                     || type.esType() == null
                     || type.isCounter()
-                    || DataType.isRepresentable(type) == false) {
+                    || AtomType.isRepresentable(type) == false) {
                     // Skip unmappable types, or types not supported in ES|QL in general
                     continue;
                 }
-                if (existingIndex(existing, type, type)) {
+                if (existingIndex(existing, DataType.atom(type), DataType.atom(type))) {
                     // Skip existing configurations
                     continue;
                 }
-                configs.addFailsUnsupported(type, type);
+                configs.addFailsUnsupported(DataType.atom(type), DataType.atom(type));
             }
         }
 
         // Tests for all types where left and right are the same type
-        DataType[] supported = {
+        AtomType[] supported = {
             BOOLEAN,
             LONG,
             INTEGER,
@@ -218,23 +227,23 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("same", TestConfigs::new);
-            for (DataType type : supported) {
+            for (AtomType type : supported) {
                 assertThat("Claiming supported for unsupported type: " + type, List.of(unsupported).contains(type), is(false));
-                if (existingIndex(existing, type, type) == false) {
+                if (existingIndex(existing, DataType.atom(type), DataType.atom(type)) == false) {
                     // Only add the configuration if it doesn't already exist
-                    configs.addPasses(type, type);
+                    configs.addPasses(DataType.atom(type), DataType.atom(type));
                 }
             }
         }
 
         // Assert that unsupported types are not in the supported list
-        for (DataType type : unsupported) {
+        for (AtomType type : unsupported) {
             assertThat("Claiming supported for unsupported type: " + type, List.of(supported).contains(type), is(false));
         }
 
         // Assert that unsupported+supported covers all types:
-        List<DataType> missing = new ArrayList<>();
-        for (DataType type : DataType.values()) {
+        List<AtomType> missing = new ArrayList<>();
+        for (AtomType type : AtomType.values()) {
             boolean isUnsupported = List.of(unsupported).contains(type);
             boolean isSupported = List.of(supported).contains(type);
             if (isUnsupported == false && isSupported == false) {
@@ -247,11 +256,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         {
             Collection<TestConfigs> existing = testConfigurations.values();
             TestConfigs configs = testConfigurations.computeIfAbsent("others", TestConfigs::new);
-            for (DataType mainType : supported) {
-                for (DataType lookupType : supported) {
-                    if (existingIndex(existing, mainType, lookupType) == false) {
+            for (AtomType mainType : supported) {
+                for (AtomType lookupType : supported) {
+                    if (existingIndex(existing, DataType.atom(mainType), DataType.atom(lookupType)) == false) {
                         // Only add the configuration if it doesn't already exist
-                        configs.addFails(mainType, lookupType);
+                        configs.addFails(DataType.atom(mainType), DataType.atom(lookupType));
                     }
                 }
             }
@@ -271,7 +280,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static boolean existingIndex(Collection<TestConfigs> existing, DataType mainType, DataType lookupType) {
-        String indexName = LOOKUP_INDEX_PREFIX + mainType.esType() + "_" + lookupType.esType();
+        String indexName = LOOKUP_INDEX_PREFIX + mainType + "_" + lookupType;
         return existing.stream().anyMatch(c -> c.exists(indexName));
     }
 
@@ -393,7 +402,8 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     private static final double SCALING_FACTOR = 10.0;
 
     private static Object sampleDataFor(DataType type) {
-        return switch (type) {
+        return switch (type.atom()) {
+            // NOCOMMIT sample for object
             case BOOLEAN -> true;
             case DATETIME, DATE_NANOS -> "2025-04-02T12:00:00.000Z";
             case IP -> "127.0.0.1";
@@ -543,14 +553,15 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void addFails(DataType mainType, DataType lookupType) {
-            String fieldName = LOOKUP_INDEX_PREFIX + lookupType.esType();
+            String fieldName = LOOKUP_INDEX_PREFIX + lookupType;
+            // TODO object type error message?
             String errorMessage = String.format(
                 Locale.ROOT,
                 "JOIN left field [%s] of type [%s] is incompatible with right field [%s] of type [%s]",
                 fieldName,
-                mainType.widenSmallNumeric(),
+                mainType.atom().widenSmallNumeric(),
                 fieldName,
-                lookupType.widenSmallNumeric()
+                lookupType.atom().widenSmallNumeric()
             );
             add(
                 new TestConfigFails<>(
@@ -563,7 +574,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         private void addFailsUnsupported(DataType mainType, DataType lookupType) {
-            String fieldName = "lookup_" + lookupType.esType();
+            String fieldName = "lookup_" + lookupType;
             String errorMessage = String.format(
                 Locale.ROOT,
                 "JOIN with right field [%s] of type [%s] is not supported",
@@ -599,7 +610,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
          * The same across main indices (necessary for union types).
          */
         default String mainFieldName() {
-            return MAIN_INDEX_PREFIX + mainType().esType();
+            return MAIN_INDEX_PREFIX + mainType();
         }
 
         /**
@@ -615,7 +626,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String lookupIndexName() {
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_" + lookupType().esType();
+            return LOOKUP_INDEX_PREFIX + mainType() + "_" + lookupType();
         }
 
         default TestMapping lookupIndex() {
@@ -632,7 +643,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         }
 
         default String lookupFieldName() {
-            return LOOKUP_INDEX_PREFIX + lookupType().esType();
+            return LOOKUP_INDEX_PREFIX + lookupType();
         }
 
         default String testQuery() {
@@ -655,16 +666,16 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     }
 
     private static String propertySpecFor(String fieldName, DataType type) {
-        if (type == SCALED_FLOAT) {
+        if (type.atom() == SCALED_FLOAT) {
             return String.format(
                 Locale.ROOT,
-                "\"%s\": { \"type\" : \"%s\", \"scaling_factor\": %f }",
+                "\"%s\": { \"type\" : \"scaled_float\", \"scaling_factor\": %f }",
                 fieldName,
-                type.esType(),
                 SCALING_FACTOR
             );
         }
-        return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.esType().replaceAll("cartesian_", ""));
+        // NOCOMMIT spec for object fields
+        return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.atom().esType().replaceAll("cartesian_", ""));
     }
 
     private static void validateIndex(String indexName, String fieldName, Object expectedValue) {
@@ -702,11 +713,11 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
         @Override
         public String lookupIndexName() {
             // Override so it doesn't clash with other lookup indices from non-union type tests.
-            return LOOKUP_INDEX_PREFIX + mainType().esType() + "_union_" + otherMainType().esType() + "_" + lookupType().esType();
+            return LOOKUP_INDEX_PREFIX + mainType() + "_union_" + otherMainType() + "_" + lookupType();
         }
 
         private String additionalIndexName() {
-            return mainFieldName() + "_as_" + otherMainType().typeName();
+            return mainFieldName() + "_as_" + otherMainType();
         }
 
         @Override
@@ -732,7 +743,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
                 additionalIndexName(),
                 lookupField,
                 mainField,
-                lookupType.typeName(),
+                lookupType,
                 lookupIndex,
                 lookupField
             );

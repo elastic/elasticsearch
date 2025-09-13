@@ -47,6 +47,16 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
 
@@ -59,16 +69,16 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
-        Map.entry(DataType.BOOLEAN, (precision) -> new CountDistinctBooleanAggregatorFunctionSupplier()),
-        Map.entry(DataType.LONG, CountDistinctLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATETIME, CountDistinctLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATE_NANOS, CountDistinctLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.INTEGER, CountDistinctIntAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DOUBLE, CountDistinctDoubleAggregatorFunctionSupplier::new),
-        Map.entry(DataType.KEYWORD, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.IP, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.VERSION, CountDistinctBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, CountDistinctBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(BOOLEAN.type(), (precision) -> new CountDistinctBooleanAggregatorFunctionSupplier()),
+        Map.entry(LONG.type(), CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DATETIME.type(), CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(DATE_NANOS.type(), CountDistinctLongAggregatorFunctionSupplier::new),
+        Map.entry(INTEGER.type(), CountDistinctIntAggregatorFunctionSupplier::new),
+        Map.entry(DOUBLE.type(), CountDistinctDoubleAggregatorFunctionSupplier::new),
+        Map.entry(KEYWORD.type(), CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(IP.type(), CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(VERSION.type(), CountDistinctBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(TEXT.type(), CountDistinctBytesRefAggregatorFunctionSupplier::new)
     );
 
     private static final int DEFAULT_PRECISION = 3000;
@@ -181,7 +191,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
 
     @Override
     public DataType dataType() {
-        return DataType.LONG;
+        return LONG.type();
     }
 
     @Override
@@ -228,7 +238,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         var field = field();
 
         return field.foldable()
-            ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, DataType.INTEGER))))
+            ? new ToLong(s, new Coalesce(s, new MvCount(s, new MvDedupe(s, field)), List.of(new Literal(s, 0, INTEGER.type()))))
             : null;
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
@@ -22,14 +23,14 @@ import java.time.Period;
 import java.time.temporal.TemporalAmount;
 import java.util.Collection;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isDateTimeOrNanosOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isNull;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isTemporalAmount;
 
 public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation {
     /** Arithmetic (quad) function. */
@@ -76,7 +77,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
         return TypeResolutions.isType(
             e,
-            t -> t.isNumeric() || DataType.isDateTimeOrNanosOrTemporal(t) || DataType.isNull(t),
+            t -> t.atom().isNumeric() || AtomType.isDateTimeOrNanosOrTemporal(t.atom()) || AtomType.isNull(t.atom()),
             sourceText(),
             paramOrdinal,
             "date_nanos",
@@ -94,14 +95,15 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         // - one argument is a DATETIME and the other a (foldable) TemporalValue, or
         // - both arguments are TemporalValues (so we can fold them), or
         // - one argument is NULL and the other one a DATETIME.
-        if (isDateTimeOrNanosOrTemporal(leftType) || isDateTimeOrNanosOrTemporal(rightType)) {
-            if (isNull(leftType) || isNull(rightType)) {
+        if (isDateTimeOrNanosOrTemporal(leftType.atom()) || isDateTimeOrNanosOrTemporal(rightType.atom())) {
+            if (isNull(leftType.atom()) || isNull(rightType.atom())) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if ((isMillisOrNanos(leftType) && isTemporalAmount(rightType)) || (isTemporalAmount(leftType) && isMillisOrNanos(rightType))) {
+            if ((isMillisOrNanos(leftType.atom()) && isTemporalAmount(rightType.atom()))
+                || (isTemporalAmount(leftType.atom()) && isMillisOrNanos(rightType.atom()))) {
                 return TypeResolution.TYPE_RESOLVED;
             }
-            if (isTemporalAmount(leftType) && isTemporalAmount(rightType) && leftType == rightType) {
+            if (isTemporalAmount(leftType.atom()) && isTemporalAmount(rightType.atom()) && leftType == rightType) {
                 return TypeResolution.TYPE_RESOLVED;
             }
 
@@ -111,7 +113,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     }
 
     /**
-     * Override this to allow processing literals of type {@link DataType#DATE_PERIOD} when folding constants.
+     * Override this to allow processing literals of type {@link AtomType#DATE_PERIOD} when folding constants.
      * Used in {@link DateTimeArithmeticOperation#fold}.
      * @param left the left period
      * @param right the right period
@@ -120,7 +122,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     abstract Period fold(Period left, Period right);
 
     /**
-     * Override this to allow processing literals of type {@link DataType#TIME_DURATION} when folding constants.
+     * Override this to allow processing literals of type {@link AtomType#TIME_DURATION} when folding constants.
      * Used in {@link DateTimeArithmeticOperation#fold}.
      * @param left the left duration
      * @param right the right duration
@@ -132,7 +134,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     public final Object fold(FoldContext ctx) {
         DataType leftDataType = left().dataType();
         DataType rightDataType = right().dataType();
-        if (leftDataType == DATE_PERIOD && rightDataType == DATE_PERIOD) {
+        if (leftDataType.atom() == DATE_PERIOD && rightDataType.atom() == DATE_PERIOD) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             var l = left().fold(ctx);
             var r = right().fold(ctx);
@@ -147,7 +149,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        if (leftDataType == TIME_DURATION && rightDataType == TIME_DURATION) {
+        if (leftDataType.atom() == TIME_DURATION && rightDataType.atom() == TIME_DURATION) {
             // Both left and right expressions are temporal amounts; we can assume they are both foldable.
             Duration l = (Duration) left().fold(ctx);
             Duration r = (Duration) right().fold(ctx);
@@ -159,7 +161,7 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        if (isNull(leftDataType) || isNull(rightDataType)) {
+        if (isNull(leftDataType.atom()) || isNull(rightDataType.atom())) {
             return null;
         }
         return super.fold(ctx);
@@ -167,11 +169,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (dataType() == DATETIME) {
+        if (dataType().atom() == DATETIME) {
             // One of the arguments has to be a datetime and the other a temporal amount.
             Expression datetimeArgument;
             Expression temporalAmountArgument;
-            if (left().dataType() == DATETIME) {
+            if (left().dataType().atom() == DATETIME) {
                 datetimeArgument = left();
                 temporalAmountArgument = right();
             } else {
@@ -184,11 +186,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
                 toEvaluator.apply(datetimeArgument),
                 (TemporalAmount) temporalAmountArgument.fold(toEvaluator.foldCtx())
             );
-        } else if (dataType() == DATE_NANOS) {
+        } else if (dataType().atom() == DATE_NANOS) {
             // One of the arguments has to be a date_nanos and the other a temporal amount.
             Expression dateNanosArgument;
             Expression temporalAmountArgument;
-            if (left().dataType() == DATE_NANOS) {
+            if (left().dataType().atom() == DATE_NANOS) {
                 dateNanosArgument = left();
                 temporalAmountArgument = right();
             } else {

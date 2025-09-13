@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -84,7 +85,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return INTEGER.type();
     }
 
     @Override

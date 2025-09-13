@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+
 /**
  * Function that emits constants, like Euler’s number.
  */
@@ -28,7 +30,7 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
 
     @Override
     public final DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

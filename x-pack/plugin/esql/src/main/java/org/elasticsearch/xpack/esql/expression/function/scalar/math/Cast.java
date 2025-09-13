@@ -14,6 +14,11 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
@@ -26,31 +31,31 @@ public class Cast {
         if (current == required) {
             return in;
         }
-        if (current == DataType.NULL || required == DataType.NULL) {
+        if (current.atom() == NULL || required.atom() == NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;
         }
-        if (required == DataType.DOUBLE) {
-            if (current == DataType.LONG) {
+        if (required.atom() == DOUBLE) {
+            if (current.atom() == LONG) {
                 return new CastLongToDoubleEvaluator.Factory(source, in);
             }
-            if (current == DataType.INTEGER) {
+            if (current.atom() == INTEGER) {
                 return new CastIntToDoubleEvaluator.Factory(source, in);
             }
-            if (current == DataType.UNSIGNED_LONG) {
+            if (current.atom() == UNSIGNED_LONG) {
                 return new CastUnsignedLongToDoubleEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
         }
-        if (required == DataType.UNSIGNED_LONG) {
-            if (current == DataType.LONG) {
+        if (required.atom() == UNSIGNED_LONG) {
+            if (current.atom() == LONG) {
                 return new CastLongToUnsignedLongEvaluator.Factory(source, in);
             }
-            if (current == DataType.INTEGER) {
+            if (current.atom() == INTEGER) {
                 return new CastIntToUnsignedLongEvaluator.Factory(source, in);
             }
         }
-        if (required == DataType.LONG) {
-            if (current == DataType.INTEGER) {
+        if (required.atom() == LONG) {
+            if (current.atom() == INTEGER) {
                 return new CastIntToLongEvaluator.Factory(source, in);
             }
             throw cantCast(current, required);
@@ -59,7 +64,7 @@ public class Cast {
     }
 
     private static EsqlIllegalArgumentException cantCast(DataType current, DataType required) {
-        return new EsqlIllegalArgumentException("can’t process [" + current.typeName() + " -> " + required.typeName() + "]");
+        return new EsqlIllegalArgumentException("can’t process [" + current + " -> " + required + "]");
     }
 
     @Evaluator(extraName = "IntToLong")

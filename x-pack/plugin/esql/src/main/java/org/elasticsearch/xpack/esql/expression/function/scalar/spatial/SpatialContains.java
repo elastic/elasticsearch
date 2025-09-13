@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -39,10 +40,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2Ds;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
@@ -249,8 +250,8 @@ public class SpatialContains extends SpatialRelatesFunction {
 
     static {
         // Support geo_point and geo_shape from source and constant combinations
-        for (DataType spatialType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
-            for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
+        for (DataType spatialType : new DataType[] { GEO_POINT.type(), GEO_SHAPE.type() }) {
+            for (DataType otherType : new DataType[] { GEO_POINT.type(), GEO_SHAPE.type() }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialContainsGeoSourceAndSourceEvaluator.Factory::new)
@@ -261,7 +262,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                         SpatialContainsGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (DataType.isSpatialPoint(spatialType)) {
+                if (AtomType.isSpatialPoint(spatialType.atom())) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -279,8 +280,8 @@ public class SpatialContains extends SpatialRelatesFunction {
         }
 
         // Support cartesian_point and cartesian_shape from source and constant combinations
-        for (DataType spatialType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
-            for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
+        for (DataType spatialType : new DataType[] { CARTESIAN_POINT.type(), CARTESIAN_SHAPE.type() }) {
+            for (DataType otherType : new DataType[] { CARTESIAN_POINT.type(), CARTESIAN_SHAPE.type() }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -293,7 +294,7 @@ public class SpatialContains extends SpatialRelatesFunction {
                         SpatialContainsCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (DataType.isSpatialPoint(spatialType)) {
+                if (AtomType.isSpatialPoint(spatialType.atom())) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
@@ -53,19 +54,19 @@ import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
@@ -187,7 +188,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     @Override
     public DataType dataType() {
-        return BOOLEAN;
+        return DataType.atom(BOOLEAN);
     }
 
     private In(StreamInput in) throws IOException {
@@ -238,14 +239,14 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     protected boolean areCompatible(DataType left, DataType right) {
-        if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
+        if (left.atom() == UNSIGNED_LONG || right.atom() == UNSIGNED_LONG) {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
+        if (AtomType.isSpatialOrGrid(left.atom()) && AtomType.isSpatialOrGrid(right.atom())) {
             return left == right;
         }
-        return DataType.areCompatible(left, right);
+        return AtomType.areCompatible(left.atom(), right.atom());
     }
 
     @Override
@@ -256,26 +257,26 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
 
         DataType dt = value.dataType();
-        if (dt.isDate()) {
+        if (dt.atom().isDate()) {
             // If value is a date (nanos or millis), list cannot contain both nanos and millis
             DataType seenDateType = null;
             for (int i = 0; i < list.size(); i++) {
                 Expression listValue = list.get(i);
-                if (seenDateType == null && listValue.dataType().isDate()) {
+                if (seenDateType == null && listValue.dataType().atom().isDate()) {
                     seenDateType = listValue.dataType();
                 }
                 // The areCompatible test is still necessary to account for nulls.
-                if ((listValue.dataType().isDate() && listValue.dataType() != seenDateType)
-                    || (listValue.dataType().isDate() == false && areCompatible(dt, listValue.dataType()) == false)) {
+                if ((listValue.dataType().atom().isDate() && listValue.dataType() != seenDateType)
+                    || (listValue.dataType().atom().isDate() == false && areCompatible(dt, listValue.dataType()) == false)) {
                     return new TypeResolution(
                         format(
                             null,
                             "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                             ordinal(i + 1),
                             sourceText(),
-                            dt.typeName(),
+                            dt,
                             Expressions.name(listValue),
-                            listValue.dataType().typeName()
+                            listValue.dataType()
                         )
                     );
                 }
@@ -291,9 +292,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                             "{} argument of [{}] must be [{}], found value [{}] type [{}]",
                             ordinal(i + 1),
                             sourceText(),
-                            dt.typeName(),
+                            dt,
                             Expressions.name(listValue),
-                            listValue.dataType().typeName()
+                            listValue.dataType()
                         )
                     );
                 }
@@ -315,18 +316,18 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
-        if (value.dataType() == DATE_NANOS && list.getFirst().dataType() == DATETIME) {
+        if (value.dataType().atom() == DATE_NANOS && list.getFirst().dataType().atom() == DATETIME) {
             lhs = toEvaluator.apply(value);
             factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
             return new InNanosMillisEvaluator.Factory(source(), lhs, factories);
         }
-        if (value.dataType() == DATETIME && list.getFirst().dataType() == DATE_NANOS) {
+        if (value.dataType().atom() == DATETIME && list.getFirst().dataType().atom() == DATE_NANOS) {
             lhs = toEvaluator.apply(value);
             factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
             return new InMillisNanosEvaluator.Factory(source(), lhs, factories);
         }
         var commonType = commonType();
-        if (commonType.isNumeric()) {
+        if (commonType.atom().isNumeric()) {
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()
                 .map(e -> Cast.cast(source(), e.dataType(), commonType, toEvaluator.apply(e)))
@@ -336,31 +337,31 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
 
-        if (commonType == BOOLEAN) {
+        if (commonType.atom() == BOOLEAN) {
             return new InBooleanEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == DOUBLE) {
+        if (commonType.atom() == DOUBLE) {
             return new InDoubleEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == INTEGER) {
+        if (commonType.atom() == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG
-            || commonType == DATETIME
-            || commonType == DATE_NANOS
-            || commonType == UNSIGNED_LONG
-            || DataType.isGeoGrid(commonType)) {
+        if (commonType.atom() == LONG
+            || commonType.atom() == DATETIME
+            || commonType.atom() == DATE_NANOS
+            || commonType.atom() == UNSIGNED_LONG
+            || AtomType.isGeoGrid(commonType.atom())) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == KEYWORD
-            || commonType == TEXT
-            || commonType == IP
-            || commonType == VERSION
-            || commonType == UNSUPPORTED
-            || DataType.isSpatial(commonType)) {
+        if (commonType.atom() == KEYWORD
+            || commonType.atom() == TEXT
+            || commonType.atom() == IP
+            || commonType.atom() == VERSION
+            || commonType.atom() == UNSUPPORTED
+            || AtomType.isSpatial(commonType.atom())) {
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
-        if (commonType == NULL) {
+        if (commonType.atom() == NULL) {
             return EvalOperator.CONSTANT_NULL_FACTORY;
         }
         throw EsqlIllegalArgumentException.illegalDataType(commonType);
@@ -369,14 +370,14 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     private DataType commonType() {
         DataType commonType = value.dataType();
         for (Expression e : list) {
-            if (e.dataType() == NULL && value.dataType() != NULL) {
+            if (e.dataType().atom() == NULL && value.dataType().atom() != NULL) {
                 continue;
             }
-            if (DataType.isSpatialOrGrid(commonType)) {
+            if (AtomType.isSpatialOrGrid(commonType.atom())) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {
-                    commonType = NULL;
+                    commonType = NULL.type();
                     break;
                 }
             }
@@ -515,7 +516,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
-        return fieldType == DATETIME || fieldType == DATE_NANOS || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        return fieldType.atom() == DATETIME
+            || fieldType.atom() == DATE_NANOS
+            || fieldType.atom() == IP
+            || fieldType.atom() == VERSION
+            || fieldType.atom() == UNSIGNED_LONG;
     }
 
     private static Query or(Source source, Query left, Query right) {

@@ -90,6 +90,7 @@ import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 
 public class EsqlSession {
@@ -216,9 +217,9 @@ public class EsqlSession {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
-                new ReferenceAttribute(EMPTY, null, "role", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, null, "type", DataType.KEYWORD),
-                new ReferenceAttribute(EMPTY, null, "plan", DataType.KEYWORD)
+                new ReferenceAttribute(EMPTY, null, "role", KEYWORD.type()),
+                new ReferenceAttribute(EMPTY, null, "type", KEYWORD.type()),
+                new ReferenceAttribute(EMPTY, null, "plan", KEYWORD.type())
             );
             List<List<Object>> values = new ArrayList<>();
             values.add(List.of("coordinator", "parsedPlan", parsedPlanString));

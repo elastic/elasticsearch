@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -30,6 +31,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.SupportsObservabilityTier.ObservabilityTier.COMPLETE;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 
 /**
  * Plan that detects change points in a list of values. See also:
@@ -144,23 +146,23 @@ public class ChangePoint extends UnaryPlan
         // The first Limit of N+1 data points is necessary to generate a possible warning,
         Limit limit = new Limit(
             source(),
-            new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, DataType.INTEGER),
+            new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT + 1, INTEGER.type()),
             orderBy
         );
         ChangePoint changePoint = new ChangePoint(source(), limit, value, key, targetType, targetPvalue);
         // The second Limit of N data points is to truncate the output.
-        return new Limit(source(), new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, DataType.INTEGER), changePoint);
+        return new Limit(source(), new Literal(Source.EMPTY, ChangePointOperator.INPUT_VALUE_COUNT_LIMIT, INTEGER.type()), changePoint);
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
         // Key must be sortable
         Order order = order();
-        if (DataType.isSortable(order.dataType()) == false) {
+        if (AtomType.isSortable(order.dataType().atom()) == false) {
             failures.add(fail(this, "change point key [" + key.name() + "] must be sortable"));
         }
         // Value must be a number
-        if (value.dataType().isNumeric() == false) {
+        if (value.dataType().atom().isNumeric() == false) {
             failures.add(fail(this, "change point value [" + value.name() + "] must be numeric"));
         }
     }

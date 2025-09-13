@@ -36,7 +36,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
 
 /**
  * Truncates an IP value to a given prefix length.
@@ -184,7 +185,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataType.IP;
+        return IP.type();
     }
 
     @Override
@@ -194,8 +195,8 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         }
 
         return isIPAndExact(ipField, sourceText(), FIRST).and(
-            isType(prefixLengthV4Field, dt -> dt == INTEGER, sourceText(), SECOND, "integer")
-        ).and(isType(prefixLengthV6Field, dt -> dt == INTEGER, sourceText(), THIRD, "integer"));
+            isType(prefixLengthV4Field, dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer")
+        ).and(isType(prefixLengthV6Field, dt -> dt.atom() == INTEGER, sourceText(), THIRD, "integer"));
     }
 
     @Override

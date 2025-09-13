@@ -31,6 +31,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+
 /**
  * ES|QL function that mimics the behavior of {@code Math.copySign(double magnitude, double sign)}.
  * Returns a value with the magnitude of the first argument and the sign of the second argument.
@@ -55,10 +61,10 @@ public class CopySign extends EsqlScalarFunction {
     }
 
     private static final Map<DataType, CopySignFactoryProvider> FACTORY_PROVIDERS = Map.ofEntries(
-        Map.entry(DataType.FLOAT, CopySignFloatEvaluator.Factory::new),
-        Map.entry(DataType.DOUBLE, CopySignDoubleEvaluator.Factory::new),
-        Map.entry(DataType.LONG, CopySignLongEvaluator.Factory::new),
-        Map.entry(DataType.INTEGER, CopySignIntegerEvaluator.Factory::new)
+        Map.entry(FLOAT.type(), CopySignFloatEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), CopySignDoubleEvaluator.Factory::new),
+        Map.entry(LONG.type(), CopySignLongEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), CopySignIntegerEvaluator.Factory::new)
     );
 
     private DataType dataType;
@@ -133,7 +139,7 @@ public class CopySign extends EsqlScalarFunction {
         var sign = children().get(1);
         TypeResolution resolution = TypeResolutions.isType(
             magnitude,
-            t -> t.isNumeric() && t != DataType.UNSIGNED_LONG,
+            t -> t.atom().isNumeric() && t.atom() != UNSIGNED_LONG,
             sourceText(),
             TypeResolutions.ParamOrdinal.FIRST,
             "numeric"
@@ -143,7 +149,7 @@ public class CopySign extends EsqlScalarFunction {
         }
         resolution = TypeResolutions.isType(
             sign,
-            t -> t.isNumeric() && t != DataType.UNSIGNED_LONG,
+            t -> t.atom().isNumeric() && t.atom() != UNSIGNED_LONG,
             sourceText(),
             TypeResolutions.ParamOrdinal.SECOND,
             "numeric"
@@ -174,7 +180,7 @@ public class CopySign extends EsqlScalarFunction {
         // and allows us to write a single check (<0 or >=0) for all possible types of `sign`.
         // However, the output type of this function is determined by the `magnitude` type.
         return FACTORY_PROVIDERS.get(dataType)
-            .create(source(), toEvaluator.apply(magnitude), Cast.cast(source(), sign.dataType(), DataType.DOUBLE, toEvaluator.apply(sign)));
+            .create(source(), toEvaluator.apply(magnitude), Cast.cast(source(), sign.dataType(), DOUBLE.type(), toEvaluator.apply(sign)));
     }
 
     @Evaluator(extraName = "Float")

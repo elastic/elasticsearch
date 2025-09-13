@@ -40,22 +40,34 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 
 public class Max extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Max", Max::new);
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
-        Map.entry(DataType.BOOLEAN, MaxBooleanAggregatorFunctionSupplier::new),
-        Map.entry(DataType.LONG, MaxLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.UNSIGNED_LONG, MaxLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATETIME, MaxLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATE_NANOS, MaxLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.INTEGER, MaxIntAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DOUBLE, MaxDoubleAggregatorFunctionSupplier::new),
-        Map.entry(DataType.IP, MaxIpAggregatorFunctionSupplier::new),
-        Map.entry(DataType.KEYWORD, MaxBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, MaxBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.VERSION, MaxBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(BOOLEAN.type(), MaxBooleanAggregatorFunctionSupplier::new),
+        Map.entry(LONG.type(), MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(UNSIGNED_LONG.type(), MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DATETIME.type(), MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(DATE_NANOS.type(), MaxLongAggregatorFunctionSupplier::new),
+        Map.entry(INTEGER.type(), MaxIntAggregatorFunctionSupplier::new),
+        Map.entry(DOUBLE.type(), MaxDoubleAggregatorFunctionSupplier::new),
+        Map.entry(IP.type(), MaxIpAggregatorFunctionSupplier::new),
+        Map.entry(KEYWORD.type(), MaxBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(TEXT.type(), MaxBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(VERSION.type(), MaxBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
@@ -126,7 +138,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> SUPPLIERS.containsKey(dt) || dt.atom() == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -141,8 +153,8 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return DataType.DOUBLE;
+        if (field().dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
+            return DOUBLE.type();
         }
         return field().dataType().noText();
     }
@@ -159,7 +171,7 @@ public class Max extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Expression surrogate() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+        if (field().dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
             return new Max(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MAX));
         }
         return field().foldable() ? new MvMax(source(), field()) : null;

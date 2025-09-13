@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -65,11 +66,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
@@ -78,7 +79,7 @@ import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery
  */
 public class QueryString extends FullTextFunction implements OptionalArgument {
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+    public static final Map<String, AtomType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(ALLOW_LEADING_WILDCARD_FIELD.getPreferredName(), BOOLEAN),
         entry(ANALYZE_WILDCARD_FIELD.getPreferredName(), BOOLEAN),
@@ -311,7 +312,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         return options;
     }
 
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
+    public static final Set<AtomType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     private TypeResolution resolveQuery() {
         TypeResolution result = isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(

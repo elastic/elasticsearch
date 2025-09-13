@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -57,17 +58,20 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateNanos;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isDateNanos;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isGeoPoint;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isMillisOrNanos;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isSpatialPoint;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isTimeDuration;
 
 /**
  * Decay a numeric, spatial or date type value based on the distance of it to an origin.
@@ -89,13 +93,10 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     public static final String DECAY = "decay";
     public static final String TYPE = "type";
 
-    private static final Map<String, Collection<DataType>> ALLOWED_OPTIONS = Map.of(
-        OFFSET,
-        Set.of(TIME_DURATION, INTEGER, LONG, DOUBLE, KEYWORD, TEXT),
-        DECAY,
-        Set.of(DOUBLE),
-        TYPE,
-        Set.of(KEYWORD)
+    private static final Map<String, Collection<AtomType>> ALLOWED_OPTIONS = Map.ofEntries(
+        Map.entry(OFFSET, Set.of(TIME_DURATION, INTEGER, LONG, DOUBLE, KEYWORD, TEXT)),
+        Map.entry(DECAY, Set.of(DOUBLE)),
+        Map.entry(TYPE, Set.of(KEYWORD))
     );
 
     // Default offsets
@@ -218,24 +219,35 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     private TypeResolution validateValue() {
         return isNotNull(value, sourceText(), FIRST).and(
-            isType(value, dt -> dt.isNumeric() || dt.isDate() || isSpatialPoint(dt), sourceText(), FIRST, "numeric, date or spatial point")
+            isType(
+                value,
+                dt -> dt.atom().isNumeric() || dt.atom().isDate() || isSpatialPoint(dt.atom()),
+                sourceText(),
+                FIRST,
+                "numeric, date or spatial point"
+            )
         );
     }
 
     private TypeResolution validateOriginAndScale(DataType valueType) {
-        if (isSpatialPoint(valueType)) {
-            boolean isGeoPoint = isGeoPoint(valueType);
+        if (isSpatialPoint(valueType.atom())) {
+            boolean isGeoPoint = isGeoPoint(valueType.atom());
 
             return validateOriginAndScale(
-                DataType::isSpatialPoint,
+                dt -> AtomType.isSpatialPoint(dt.atom()),
                 "spatial point",
-                isGeoPoint ? DataType::isString : DataType::isNumeric,
+                isGeoPoint ? dt -> AtomType.isString(dt.atom()) : dt -> AtomType.isNull(dt.atom()),
                 isGeoPoint ? "keyword or text" : "numeric"
             );
-        } else if (isMillisOrNanos(valueType)) {
-            return validateOriginAndScale(DataType::isMillisOrNanos, "datetime or date_nanos", DataType::isTimeDuration, "time_duration");
+        } else if (isMillisOrNanos(valueType.atom())) {
+            return validateOriginAndScale(
+                dt -> AtomType.isMillisOrNanos(dt.atom()),
+                "datetime or date_nanos",
+                dt -> AtomType.isTimeDuration(dt.atom()),
+                "time_duration"
+            );
         } else {
-            return validateOriginAndScale(DataType::isNumeric, "numeric", DataType::isNumeric, "numeric");
+            return validateOriginAndScale(dt -> AtomType.isNull(dt.atom()), "numeric", dt -> dt.atom().isNumeric(), "numeric");
         }
     }
 
@@ -262,7 +274,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -291,7 +303,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
 
-        return switch (valueDataType) {
+        return switch (valueDataType.atom()) {
             case INTEGER -> new DecayIntEvaluator.Factory(
                 source(),
                 valueFactory,
@@ -595,11 +607,11 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             return getDefaultOffset(valueDataType);
         }
 
-        if (isTimeDuration(offset.dataType()) == false) {
+        if (isTimeDuration(offset.dataType().atom()) == false) {
             return offset.fold(foldCtx);
         }
 
-        if (isDateNanos(valueDataType)) {
+        if (isDateNanos(valueDataType.atom())) {
             return getTemporalOffsetAsNanos(foldCtx, offset);
         }
 
@@ -609,11 +621,11 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     private Object getFoldedScale(FoldContext foldCtx, DataType valueDataType) {
         Object foldedScale = scale.fold(foldCtx);
 
-        if (isTimeDuration(scale.dataType()) == false) {
+        if (isTimeDuration(scale.dataType().atom()) == false) {
             return foldedScale;
         }
 
-        if (isDateNanos(valueDataType)) {
+        if (isDateNanos(valueDataType.atom())) {
             return ((Duration) foldedScale).toNanos();
         }
 
@@ -632,7 +644,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     private Object getDefaultOffset(DataType valueDataType) {
-        return switch (valueDataType) {
+        return switch (valueDataType.atom()) {
             case INTEGER -> DEFAULT_INTEGER_OFFSET;
             case LONG -> DEFAULT_LONG_OFFSET;
             case DOUBLE -> DEFAULT_DOUBLE_OFFSET;

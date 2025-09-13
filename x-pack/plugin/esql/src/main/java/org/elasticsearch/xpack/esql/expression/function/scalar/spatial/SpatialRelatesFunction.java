@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometry;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -83,7 +84,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     /**
@@ -213,7 +214,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         }
 
         private long getGridId(Point point, long gridId, DataType gridType) {
-            return switch (gridType) {
+            return switch (gridType.atom()) {
                 case GEOHASH -> Geohash.longEncode(point.getX(), point.getY(), Geohash.stringEncode(gridId).length());
                 case GEOTILE -> GeoTileUtils.longEncode(
                     point.getX(),

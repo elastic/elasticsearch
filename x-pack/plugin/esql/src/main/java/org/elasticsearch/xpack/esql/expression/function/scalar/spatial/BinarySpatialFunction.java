@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
@@ -32,11 +33,11 @@ import java.util.function.Predicate;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isNull;
 
 /**
  * Spatial functions that take two arguments that must both be spatial types can inherit from this class.
@@ -144,7 +145,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         }
 
         protected TypeResolution resolveType() {
-            if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
+            if (left().foldable() && right().foldable() == false || isNull(left().dataType().atom())) {
                 // Left is literal, but right is not, check the left field’s type against the right field
                 return resolveType(right(), left(), SECOND, FIRST);
             } else {
@@ -187,16 +188,16 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             Expression otherExpression,
             TypeResolutions.ParamOrdinal otherParamOrdinal
         ) {
-            if (isNull(spatialExpression.dataType())) {
+            if (isNull(spatialExpression.dataType().atom())) {
                 return isCompatibleSpatial(otherExpression, otherParamOrdinal);
             }
             TypeResolution resolution = isSameSpatialType(spatialExpression.dataType(), otherExpression, sourceText(), otherParamOrdinal);
             // TODO Remove these grid checks once we support geo_shape relation to geoGrid
             // but retain a rule to disallow grid-grid relations
-            if (resolution.resolved() && DataType.isGeoGrid(spatialExpression.dataType())) {
+            if (resolution.resolved() && AtomType.isGeoGrid(spatialExpression.dataType().atom())) {
                 resolution = isGeoPoint(otherExpression, otherParamOrdinal);
             }
-            if (resolution.resolved() && DataType.isGeoGrid(otherExpression.dataType())) {
+            if (resolution.resolved() && AtomType.isGeoGrid(otherExpression.dataType().atom())) {
                 resolution = isGeoPoint(spatialExpression, otherParamOrdinal == FIRST ? SECOND : FIRST);
             }
             if (resolution.unresolved()) {
@@ -215,8 +216,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
             Predicate<DataType> isSpatialType = pointsOnly
                 ? dt -> dt == spatialDataType
                 : (supportsGrid
-                    ? dt -> DataType.isSpatialOrGrid(dt) && spatialCRSCompatible(spatialDataType, dt)
-                    : dt -> DataType.isSpatial(dt) && spatialCRSCompatible(spatialDataType, dt));
+                    ? dt -> AtomType.isSpatialOrGrid(dt.atom()) && spatialCRSCompatible(spatialDataType, dt)
+                    : dt -> AtomType.isSpatial(dt.atom()) && spatialCRSCompatible(spatialDataType, dt));
             return isType(expression, isSpatialType, operationName, paramOrd, compatibleTypeNames(spatialDataType));
         }
     }
@@ -230,12 +231,12 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     private static final String[] CARTESIAN_TYPE_NAMES = new String[] { CARTESIAN_POINT.typeName(), CARTESIAN_SHAPE.typeName() };
 
     protected static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
-        return DataType.isSpatialGeo(spatialDataType) && DataType.isSpatialGeo(otherDataType)
-            || DataType.isSpatialGeo(spatialDataType) == false && DataType.isSpatialGeo(otherDataType) == false;
+        return AtomType.isSpatialGeo(spatialDataType.atom()) && AtomType.isSpatialGeo(otherDataType.atom())
+            || AtomType.isSpatialGeo(spatialDataType.atom()) == false && AtomType.isSpatialGeo(otherDataType.atom()) == false;
     }
 
     static String[] compatibleTypeNames(DataType spatialDataType) {
-        return DataType.isSpatialGeo(spatialDataType) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
+        return AtomType.isSpatialGeo(spatialDataType.atom()) ? GEO_TYPE_NAMES : CARTESIAN_TYPE_NAMES;
     }
 
     @Override
@@ -264,8 +265,8 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         UNSPECIFIED;
 
         public static SpatialCrsType fromDataType(DataType dataType) {
-            return DataType.isSpatialGeo(dataType) ? SpatialCrsType.GEO
-                : DataType.isSpatialOrGrid(dataType) ? SpatialCrsType.CARTESIAN
+            return AtomType.isSpatialGeo(dataType.atom()) ? SpatialCrsType.GEO
+                : AtomType.isSpatialOrGrid(dataType.atom()) ? SpatialCrsType.CARTESIAN
                 : SpatialCrsType.UNSPECIFIED;
         }
     }
@@ -303,11 +304,14 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     }
 
     private static boolean isPushableSpatialAttribute(Expression exp, LucenePushdownPredicates p) {
-        return exp instanceof FieldAttribute fa && DataType.isSpatial(fa.dataType()) && fa.getExactInfo().hasExact() && p.isIndexed(fa);
+        return exp instanceof FieldAttribute fa
+            && AtomType.isSpatial(fa.dataType().atom())
+            && fa.getExactInfo().hasExact()
+            && p.isIndexed(fa);
     }
 
     private static boolean isPushableLiteralAttribute(Expression exp) {
         // TODO: Support pushdown of geo-grid queries where the constant is a geo-grid-id literal
-        return DataType.isSpatial(exp.dataType()) && exp.foldable();
+        return AtomType.isSpatial(exp.dataType().atom()) && exp.foldable();
     }
 }

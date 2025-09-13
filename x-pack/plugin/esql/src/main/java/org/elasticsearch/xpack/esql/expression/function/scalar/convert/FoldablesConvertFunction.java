@@ -19,7 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isString;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.foldToTemporalAmount;
 
@@ -50,11 +50,11 @@ public abstract class FoldablesConvertFunction extends AbstractConvertFunction i
         }
         return isType(
             field(),
-            dt -> isString(dt) || dt == dataType(),
+            dt -> isString(dt.atom()) || dt == dataType(),
             sourceText(),
             null,
             false,
-            dataType().typeName().toLowerCase(Locale.ROOT) + " or string"
+            dataType().toString().toLowerCase(Locale.ROOT) + " or string"
         );
     }
 

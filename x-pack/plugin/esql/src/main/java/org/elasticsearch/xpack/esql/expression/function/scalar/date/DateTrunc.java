@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -37,8 +38,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 
 public class DateTrunc extends EsqlScalarFunction {
@@ -54,8 +56,8 @@ public class DateTrunc extends EsqlScalarFunction {
     }
 
     private static final Map<DataType, DateTruncFactoryProvider> evaluatorMap = Map.ofEntries(
-        Map.entry(DATETIME, DateTruncDatetimeEvaluator.Factory::new),
-        Map.entry(DATE_NANOS, DateTruncDateNanosEvaluator.Factory::new)
+        Map.entry(DATETIME.type(), DateTruncDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS.type(), DateTruncDateNanosEvaluator.Factory::new)
     );
     private final Expression interval;
     private final Expression timestampField;
@@ -121,14 +123,14 @@ public class DateTrunc extends EsqlScalarFunction {
         }
 
         String operationName = sourceText();
-        return isType(interval, DataType::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
+        return isType(interval, dt -> AtomType.isTemporalAmount(dt.atom()), sourceText(), FIRST, "dateperiod", "timeduration").and(
             isType(timestampField, evaluatorMap::containsKey, operationName, SECOND, "date_nanos or datetime")
         );
     }
 
     public DataType dataType() {
         // Default to DATETIME in the case of nulls. This mimics the behavior before DATE_NANOS support
-        return timestampField.dataType() == DataType.NULL ? DATETIME : timestampField.dataType();
+        return timestampField.dataType().atom() == NULL ? DATETIME.type() : timestampField.dataType();
     }
 
     @Evaluator(extraName = "Datetime")

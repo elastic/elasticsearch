@@ -28,13 +28,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 
 public class ToDateNanos extends AbstractConvertFunction {
@@ -45,13 +45,13 @@ public class ToDateNanos extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DATETIME, ToDateNanosFromDatetimeEvaluator.Factory::new),
-        Map.entry(DATE_NANOS, (source, field) -> field),
-        Map.entry(LONG, ToDateNanosFromLongEvaluator.Factory::new),
-        Map.entry(KEYWORD, ToDateNanosFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToDateNanosFromStringEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToDateNanosFromDoubleEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new)
+        Map.entry(DATETIME.type(), ToDateNanosFromDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS.type(), (source, field) -> field),
+        Map.entry(LONG.type(), ToDateNanosFromLongEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), ToDateNanosFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToDateNanosFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToDateNanosFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), ToLongFromUnsignedLongEvaluator.Factory::new)
         /*
          NB: not including an integer conversion, because max int in nanoseconds is like 2 seconds after epoch, and it seems more likely
          a user who tries to convert an int to a nanosecond date has made a mistake that we should catch that at parse time.
@@ -84,7 +84,7 @@ public class ToDateNanos extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return DATE_NANOS;
+        return DATE_NANOS.type();
     }
 
     @Override

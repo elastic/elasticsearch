@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
 
@@ -77,7 +77,7 @@ public class StY extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

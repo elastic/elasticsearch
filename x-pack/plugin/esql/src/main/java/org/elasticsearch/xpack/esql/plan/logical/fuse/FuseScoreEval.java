@@ -148,7 +148,7 @@ public class FuseScoreEval extends UnaryPlan implements LicenseAware, PostAnalys
             failures.add(new Failure(this, "expected " + name + " to be a literal, got [" + value.sourceText() + "]"));
         }
 
-        if (value.dataType().isNumeric() == false) {
+        if (value.dataType().atom().isNumeric() == false) {
             failures.add(new Failure(this, "expected " + name + " to be numeric, got [" + value.sourceText() + "]"));
             return;
         }

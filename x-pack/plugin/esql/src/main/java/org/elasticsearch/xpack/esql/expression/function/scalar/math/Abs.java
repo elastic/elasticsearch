@@ -24,6 +24,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+
 public class Abs extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Abs", Abs::new);
 
@@ -70,16 +75,16 @@ public class Abs extends UnaryScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var field = toEvaluator.apply(field());
-        if (dataType() == DataType.DOUBLE) {
+        if (dataType().atom() == DOUBLE) {
             return new AbsDoubleEvaluator.Factory(source(), field);
         }
-        if (dataType() == DataType.UNSIGNED_LONG) {
+        if (dataType().atom() == UNSIGNED_LONG) {
             return field;
         }
-        if (dataType() == DataType.LONG) {
+        if (dataType().atom() == LONG) {
             return new AbsLongEvaluator.Factory(source(), field);
         }
-        if (dataType() == DataType.INTEGER) {
+        if (dataType().atom() == INTEGER) {
             return new AbsIntEvaluator.Factory(source(), field);
         }
         throw EsqlIllegalArgumentException.illegalDataType(dataType());

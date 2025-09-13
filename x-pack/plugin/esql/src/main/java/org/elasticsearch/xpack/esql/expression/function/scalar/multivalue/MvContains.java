@@ -46,6 +46,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 /**
  * Function that takes two multivalued expressions and checks if values of one expression are all present(equals) in the other.
@@ -151,15 +153,15 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
         if (resolution.unresolved()) {
             return resolution;
         }
-        if (left().dataType() == DataType.NULL) {
+        if (left().dataType().atom() == NULL) {
             return isRepresentableExceptCounters(right(), sourceText(), SECOND);
         }
-        return isType(right(), t -> t.noText() == left().dataType().noText(), sourceText(), SECOND, left().dataType().noText().typeName());
+        return isType(right(), t -> t.noText() == left().dataType().noText(), sourceText(), SECOND, left().dataType().noText().toString());
     }
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override

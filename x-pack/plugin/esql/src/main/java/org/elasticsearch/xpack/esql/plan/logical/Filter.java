@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 /**
  * A {@code Filter} is a type of Plan that performs filtering of results. In
@@ -112,7 +112,7 @@ public class Filter extends UnaryPlan implements PostAnalysisVerificationAware, 
     }
 
     public static void checkFilterConditionDataType(Expression expression, Failures failures) {
-        if (expression.dataType() != NULL && expression.dataType() != BOOLEAN) {
+        if (expression.dataType().atom() != NULL && expression.dataType().atom() != BOOLEAN) {
             failures.add(fail(expression, "Condition expression needs to be boolean, found [{}]", expression.dataType()));
         }
     }

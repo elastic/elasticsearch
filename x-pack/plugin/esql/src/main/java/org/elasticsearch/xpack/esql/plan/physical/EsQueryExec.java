@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -31,10 +32,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final EsField DOC_ID_FIELD = new EsField(
         "_doc",
-        DataType.DOC_DATA_TYPE,
+        DOC_DATA_TYPE.type(),
         Map.of(),
         false,
         EsField.TimeSeriesFieldType.NONE
@@ -72,7 +76,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
         /**
          * Type of the <strong>result</strong> of the sort. For example,
-         * geo distance will be {@link DataType#DOUBLE}.
+         * geo distance will be {@link AtomType#DOUBLE}.
          */
         DataType resulType();
     }
@@ -83,7 +87,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             FieldSortBuilder builder = new FieldSortBuilder(field.name());
             builder.order(Direction.from(direction).asOrder());
             builder.missing(Missing.from(nulls).searchOrder());
-            builder.unmappedType(field.dataType().esType());
+            // NOCOMMIT throw if this is an OBJECT?
+            builder.unmappedType(field.dataType().atom().esType());
             return builder;
         }
 
@@ -103,7 +108,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
         @Override
         public DataType resulType() {
-            return DataType.DOUBLE;
+            return DOUBLE.type();
         }
     }
 
@@ -121,7 +126,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
         @Override
         public DataType resulType() {
-            return DataType.DOUBLE;
+            return DOUBLE.type();
         }
     }
 

@@ -458,8 +458,8 @@ public class EsqlDataTypeConverter {
             return DataType.atom(KEYWORD);
         }
         if (left.atom().isNumeric() && right.atom().isNumeric()) {
-            int lsize = left.atom().estimatedSize().orElseThrow();
-            int rsize = right.atom().estimatedSize().orElseThrow();
+            int lsize = left.estimatedSize().orElseThrow();
+            int rsize = right.estimatedSize().orElseThrow();
             // if one is int
             if (left.atom().isWholeNumber()) {
                 // promote the highest int

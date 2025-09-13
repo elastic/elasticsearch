@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -67,18 +68,18 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
@@ -89,7 +90,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 public class Match extends FullTextFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
-    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+    public static final Set<AtomType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,
         TEXT,
         BOOLEAN,
@@ -102,7 +103,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         UNSIGNED_LONG,
         VERSION
     );
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
+    public static final Set<AtomType> QUERY_DATA_TYPES = Set.of(
         KEYWORD,
         BOOLEAN,
         DATETIME,
@@ -120,7 +121,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     // Options for match function. They don’t need to be serialized as the data nodes will retrieve them from the query builder
     private final transient Expression options;
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+    public static final Map<String, AtomType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
         entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), BOOLEAN),
         entry(Fuzziness.FIELD.getPreferredName(), KEYWORD),
@@ -340,13 +341,13 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         DataType queryType = query().dataType();
 
         // Field and query types should match. If the query is a string, then it can match any field type.
-        if ((fieldType == queryType) || (queryType == KEYWORD)) {
+        if ((fieldType == queryType) || (queryType.atom() == KEYWORD)) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType.isNumeric() && queryType.isNumeric()) {
+        if (fieldType.atom().isNumeric() && queryType.atom().isNumeric()) {
             // When doing an unsigned long query, field must be an unsigned long
-            if ((queryType == UNSIGNED_LONG && fieldType != UNSIGNED_LONG) == false) {
+            if ((queryType.atom() == UNSIGNED_LONG && fieldType.atom() != UNSIGNED_LONG) == false) {
                 return TypeResolution.TYPE_RESOLVED;
             }
         }
@@ -409,7 +410,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
-            return switch (query().dataType()) {
+            return switch (query().dataType().atom()) {
                 case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
                 case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
                 default -> bytesRef.utf8ToString();
@@ -417,12 +418,12 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         }
 
         // Converts specific types to the correct type for the query
-        if (query().dataType() == DataType.UNSIGNED_LONG) {
+        if (query().dataType().atom() == UNSIGNED_LONG) {
             return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
-        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+        } else if (query().dataType().atom() == DATETIME && queryAsObject instanceof Long) {
             // When casting to date and datetime, we get a long back. But Match query needs a date string
             return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
-        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
+        } else if (query().dataType().atom() == DATE_NANOS && queryAsObject instanceof Long) {
             return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
         }
 

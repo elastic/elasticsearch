@@ -37,29 +37,47 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
-        Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
-        Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.UNSIGNED_LONG, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
-        Map.entry(DataType.KEYWORD, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.GEO_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
+        Map.entry(INTEGER.type(), ValuesIntAggregatorFunctionSupplier::new),
+        Map.entry(LONG.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(UNSIGNED_LONG.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DATETIME.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DATE_NANOS.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DOUBLE.type(), ValuesDoubleAggregatorFunctionSupplier::new),
+        Map.entry(KEYWORD.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(TEXT.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(IP.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(VERSION.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(GEO_POINT.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(CARTESIAN_POINT.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(GEO_SHAPE.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(CARTESIAN_SHAPE.type(), ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(GEOHASH.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(GEOTILE.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(GEOHEX.type(), ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(BOOLEAN.type(), ValuesBooleanAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(

@@ -30,6 +30,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 
 /**
  * A Fork is a n-ary {@code Plan} where each child is a sub plan, e.g.
@@ -119,7 +120,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 // When we have multiple attributes with the same name, the ones that have a supported data type take priority.
                 // We only add an attribute with an unsupported data type if we know that in the output of the rest of the FORK branches
                 // there exists no attribute with the same name and with a supported data type.
-                if (attr.dataType() == DataType.UNSUPPORTED && unsupportedAttributesNames.contains(attr.name()) == false) {
+                if (attr.dataType().atom() == UNSUPPORTED && unsupportedAttributesNames.contains(attr.name()) == false) {
                     continue;
                 }
 
@@ -147,10 +148,10 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
             for (var attr : subPlan.output()) {
                 var attrName = attr.name();
                 if (unsupportedAttributes.contains(attrName) == false
-                    && attr.dataType() == DataType.UNSUPPORTED
+                    && attr.dataType().atom() == UNSUPPORTED
                     && names.contains(attrName) == false) {
                     unsupportedAttributes.add(attrName);
-                } else if (unsupportedAttributes.contains(attrName) && attr.dataType() != DataType.UNSUPPORTED) {
+                } else if (unsupportedAttributes.contains(attrName) && attr.dataType().atom() != UNSUPPORTED) {
                     unsupportedAttributes.remove(attrName);
                 }
                 names.add(attrName);
@@ -206,7 +207,7 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 // If the FORK output has an UNSUPPORTED data type, we know there is no conflict.
                 // We only assign an UNSUPPORTED attribute in the FORK output when there exists no attribute with the
                 // same name and supported data type in any of the FORK branches.
-                if (expected == DataType.UNSUPPORTED) {
+                if (expected.atom() == UNSUPPORTED) {
                     continue;
                 }
 

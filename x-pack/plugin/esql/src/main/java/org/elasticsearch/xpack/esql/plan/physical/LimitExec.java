@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOC_DATA_TYPE;
+
 public class LimitExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -84,7 +86,7 @@ public class LimitExec extends UnaryExec implements EstimatesRowSize {
     public PhysicalPlan estimateRowSize(State unused) {
         final List<Attribute> output = output();
         EstimatesRowSize.State state = new EstimatesRowSize.State();
-        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE);
+        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType().atom() == DOC_DATA_TYPE);
         state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);

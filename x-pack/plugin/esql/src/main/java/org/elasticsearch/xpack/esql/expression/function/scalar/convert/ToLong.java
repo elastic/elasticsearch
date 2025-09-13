@@ -24,18 +24,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToLong;
@@ -44,20 +46,20 @@ public class ToLong extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToLong", ToLong::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(LONG, (source, fieldEval) -> fieldEval),
-        Map.entry(DATETIME, (source, fieldEval) -> fieldEval),
-        Map.entry(DATE_NANOS, (source, fieldEval) -> fieldEval),
-        Map.entry(BOOLEAN, ToLongFromBooleanEvaluator.Factory::new),
-        Map.entry(KEYWORD, ToLongFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToLongFromStringEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
-        Map.entry(DataType.COUNTER_LONG, (source, field) -> field),
-        Map.entry(DataType.COUNTER_INTEGER, ToLongFromIntEvaluator.Factory::new),
-        Map.entry(GEOHASH, (source, fieldEval) -> fieldEval),
-        Map.entry(GEOTILE, (source, fieldEval) -> fieldEval),
-        Map.entry(GEOHEX, (source, fieldEval) -> fieldEval)
+        Map.entry(LONG.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(DATETIME.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(DATE_NANOS.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(BOOLEAN.type(), ToLongFromBooleanEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), ToLongFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToLongFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToLongFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), ToLongFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), ToLongFromIntEvaluator.Factory::new), // CastIntToLongEvaluator would be a candidate, but not MV'd
+        Map.entry(COUNTER_LONG.type(), (source, field) -> field),
+        Map.entry(COUNTER_INTEGER.type(), ToLongFromIntEvaluator.Factory::new),
+        Map.entry(GEOHASH.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(GEOTILE.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(GEOHEX.type(), (source, fieldEval) -> fieldEval)
     );
 
     @FunctionInfo(
@@ -118,7 +120,7 @@ public class ToLong extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return LONG.type();
     }
 
     @Override

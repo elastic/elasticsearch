@@ -34,6 +34,9 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class WeightedAvg extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -94,7 +97,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
         TypeResolution resolution = isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             FIRST,
             "numeric except unsigned_long or counter types"
@@ -106,7 +109,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
         resolution = isType(
             weight(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             SECOND,
             "numeric except unsigned_long or counter types"
@@ -116,7 +119,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return resolution;
         }
 
-        if (weight.dataType() == DataType.NULL) {
+        if (weight.dataType().atom() == NULL) {
             return new TypeResolution(format(null, invalidWeightError, SECOND, sourceText(), null));
         }
         if (weight.foldable() == false) {
@@ -132,7 +135,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

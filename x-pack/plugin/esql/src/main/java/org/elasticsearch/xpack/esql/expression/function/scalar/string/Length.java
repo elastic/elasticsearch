@@ -27,6 +27,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 
 public class Length extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Length", Length::new);
@@ -59,7 +60,7 @@ public class Length extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return INTEGER.type();
     }
 
     @Override

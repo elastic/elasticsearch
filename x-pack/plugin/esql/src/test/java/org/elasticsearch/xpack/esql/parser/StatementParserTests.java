@@ -96,8 +96,8 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
@@ -1151,7 +1151,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Dissect dissect = (Dissect) cmd;
         assertEquals("%{foo}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), dissect.extractedFields());
 
         for (String separatorName : List.of("append_separator", "APPEND_SEPARATOR", "AppEnd_SeparAtor")) {
             cmd = processingCommand("dissect a \"%{foo}\" " + separatorName + "=\",\"");
@@ -1159,7 +1159,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             dissect = (Dissect) cmd;
             assertEquals("%{foo}", dissect.parser().pattern());
             assertEquals(",", dissect.parser().appendSeparator());
-            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), dissect.extractedFields());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), dissect.extractedFields());
         }
 
         for (Tuple<String, String> queryWithUnexpectedCmd : List.of(
@@ -1184,7 +1184,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(Grok.class, cmd.getClass());
         Grok grok = (Grok) cmd;
         assertEquals("%{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), grok.extractedFields());
 
         expectThrows(
             ParsingException.class,
@@ -1196,7 +1196,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(Grok.class, cmd.getClass());
         grok = (Grok) cmd;
         assertEquals("%{WORD:foo} %{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), grok.extractedFields());
 
         expectError(
             "row a = \"foo bar\" | GROK a \"%{NUMBER:foo} %{WORD:foo}\"",
@@ -1860,7 +1860,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(
             new Limit(
                 EMPTY,
-                new Literal(EMPTY, 1, INTEGER),
+                new Literal(EMPTY, 1, INTEGER.type()),
                 new Filter(
                     EMPTY,
                     new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1..f.2")))))),
@@ -1984,12 +1984,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Grok grok = as(rename.child(), Grok.class);
         assertEquals(grok.input(), attribute("f.6."));
         assertEquals("%{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), grok.extractedFields());
         Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(dissect.input(), attribute("f.5*"));
         assertEquals("%{bar}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD.type())), dissect.extractedFields());
         Drop drop = as(dissect.child(), Drop.class);
         List<? extends NamedExpression> removals = drop.removals();
         assertEquals(removals, List.of(attribute("f3."), attribute("f4.*")));
@@ -2025,12 +2025,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         grok = as(rename.child(), Grok.class);
         assertEquals(grok.input(), attribute("f7*..f.8"));
         assertEquals("%{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), grok.extractedFields());
         dissect = as(grok.child(), Dissect.class);
         assertEquals(dissect.input(), attribute("f.5*.f.6."));
         assertEquals("%{bar}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD.type())), dissect.extractedFields());
         drop = as(dissect.child(), Drop.class);
         removals = drop.removals();
         assertEquals(removals, List.of(attribute("f3..f4.*")));
@@ -2693,12 +2693,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         Grok grok = as(plan, Grok.class);
         assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
         assertEquals("%{WORD:foo}", grok.parser().pattern());
-        assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+        assertEquals(List.of(referenceAttribute("foo", KEYWORD.type())), grok.extractedFields());
         Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
         assertEquals("%{bar}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
-        assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+        assertEquals(List.of(referenceAttribute("bar", KEYWORD.type())), dissect.extractedFields());
         UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
     }

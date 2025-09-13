@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -32,7 +33,16 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 
 /**
  * Returns the minimum value of multiple columns.
@@ -101,7 +111,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
 
         for (int position = 0; position < children().size(); position++) {
             Expression child = children().get(position);
-            if (dataType == null || dataType == NULL) {
+            if (dataType == null || dataType.atom() == NULL) {
                 dataType = child.dataType().noText();
                 continue;
             }
@@ -110,7 +120,7 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
                 t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
+                dataType.toString()
             );
             if (resolution.unresolved()) {
                 return resolution;
@@ -142,19 +152,19 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
         ExpressionEvaluator.Factory[] factories = children().stream()
             .map(e -> toEvaluator.apply(new MvMin(e.source(), e)))
             .toArray(ExpressionEvaluator.Factory[]::new);
-        if (dataType == DataType.BOOLEAN) {
+        if (dataType.atom() == BOOLEAN) {
             return new LeastBooleanEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.DOUBLE) {
+        if (dataType.atom() == DOUBLE) {
             return new LeastDoubleEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.INTEGER) {
+        if (dataType.atom() == INTEGER) {
             return new LeastIntEvaluator.Factory(source(), factories);
         }
-        if (dataType == DataType.LONG || dataType == DataType.DATETIME || dataType == DataType.DATE_NANOS) {
+        if (dataType.atom() == LONG || dataType.atom() == DATETIME || dataType.atom() == DATE_NANOS) {
             return new LeastLongEvaluator.Factory(source(), factories);
         }
-        if (DataType.isString(dataType) || dataType == DataType.IP || dataType == DataType.VERSION || dataType == DataType.UNSUPPORTED) {
+        if (AtomType.isString(dataType.atom()) || dataType.atom() == IP || dataType.atom() == VERSION || dataType.atom() == UNSUPPORTED) {
 
             return new LeastBytesRefEvaluator.Factory(source(), factories);
         }

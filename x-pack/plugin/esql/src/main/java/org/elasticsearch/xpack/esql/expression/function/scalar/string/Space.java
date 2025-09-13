@@ -34,7 +34,8 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class Space extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Space", Space::new);
@@ -70,7 +71,7 @@ public class Space extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -79,7 +80,7 @@ public class Space extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field, dt -> dt == DataType.INTEGER, sourceText(), DEFAULT, "integer");
+        return isType(field, dt -> dt.atom() == INTEGER, sourceText(), DEFAULT, "integer");
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })

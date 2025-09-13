@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+
 public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction implements TranslationAware.SingleValueTranslationAware {
 
     protected InsensitiveBinaryComparison(Source source, Expression left, Expression right) {
@@ -27,6 +29,6 @@ public abstract class InsensitiveBinaryComparison extends BinaryScalarFunction i
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 }

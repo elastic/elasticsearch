@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -36,13 +37,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
@@ -147,9 +148,9 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     @Override
     public Object fold(FoldContext ctx) {
         try {
-            if (DataType.isGeoGrid(left().dataType())) {
+            if (AtomType.isGeoGrid(left().dataType().atom())) {
                 return foldGeoGrid(ctx, right(), left(), left().dataType());
-            } else if (DataType.isGeoGrid(right().dataType())) {
+            } else if (AtomType.isGeoGrid(right().dataType().atom())) {
                 return foldGeoGrid(ctx, left(), right(), right().dataType());
             }
             GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
@@ -176,8 +177,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
 
     static {
         // Support geo_point and geo_shape from source and constant combinations
-        for (DataType spatialType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
-            for (DataType otherType : new DataType[] { GEO_POINT, GEO_SHAPE }) {
+        for (DataType spatialType : new DataType[] { GEO_POINT.type(), GEO_SHAPE.type() }) {
+            for (DataType otherType : new DataType[] { GEO_POINT.type(), GEO_SHAPE.type() }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(SpatialDisjointGeoSourceAndSourceEvaluator.Factory::new)
@@ -188,7 +189,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                         SpatialDisjointGeoSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (DataType.isSpatialPoint(spatialType)) {
+                if (AtomType.isSpatialPoint(spatialType.atom())) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -206,8 +207,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
         }
 
         // Support cartesian_point and cartesian_shape from source and constant combinations
-        for (DataType spatialType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
-            for (DataType otherType : new DataType[] { CARTESIAN_POINT, CARTESIAN_SHAPE }) {
+        for (DataType spatialType : new DataType[] { CARTESIAN_POINT.type(), CARTESIAN_SHAPE.type() }) {
+            for (DataType otherType : new DataType[] { CARTESIAN_POINT.type(), CARTESIAN_SHAPE.type() }) {
                 evaluatorMap.put(
                     SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType),
                     new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -220,7 +221,7 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
                         SpatialDisjointCartesianSourceAndConstantEvaluator.Factory::new
                     )
                 );
-                if (DataType.isSpatialPoint(spatialType)) {
+                if (AtomType.isSpatialPoint(spatialType.atom())) {
                     evaluatorMap.put(
                         SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(spatialType, otherType).withLeftDocValues(),
                         new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
@@ -238,27 +239,27 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
         }
 
         // Support geo_point and geo-grid types
-        for (DataType gridType : new DataType[] { GEOHASH, GEOTILE, GEOHEX }) {
+        for (DataType gridType : new DataType[] { GEOHASH.type(), GEOTILE.type(), GEOHEX.type() }) {
             evaluatorMap.put(
-                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT, gridType),
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT.type(), gridType),
                 new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantGridFactory(
                     (s, w, g) -> new SpatialDisjointGeoSourceAndConstantGridEvaluator.Factory(s, w, g, gridType)
                 )
             );
             evaluatorMap.put(
-                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT, gridType).withLeftDocValues(),
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSourceAndConstant(GEO_POINT.type(), gridType).withLeftDocValues(),
                 new SpatialEvaluatorFactory.SpatialEvaluatorWithConstantGridFactory(
                     (s, w, g) -> new SpatialDisjointGeoPointDocValuesAndConstantGridEvaluator.Factory(s, w, g, gridType)
                 )
             );
             evaluatorMap.put(
-                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT, gridType),
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT.type(), gridType),
                 new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                     (s, w, g) -> new SpatialDisjointGeoSourceAndSourceGridEvaluator.Factory(s, w, g, gridType)
                 )
             );
             evaluatorMap.put(
-                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT, gridType).withLeftDocValues(),
+                SpatialEvaluatorFactory.SpatialEvaluatorKey.fromSources(GEO_POINT.type(), gridType).withLeftDocValues(),
                 new SpatialEvaluatorFactory.SpatialEvaluatorFactoryWithFields(
                     (s, w, g) -> new SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator.Factory(s, w, g, gridType)
                 )

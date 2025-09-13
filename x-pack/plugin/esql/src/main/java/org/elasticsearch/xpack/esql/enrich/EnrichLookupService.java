@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -61,6 +62,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page.
@@ -156,15 +160,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     private static boolean rangeTypesCompatible(RangeType rangeType, @Nullable DataType inputDataType) {
-        if (inputDataType.noText() == DataType.KEYWORD) {
+        if (inputDataType.noText().atom() == KEYWORD) {
             // We allow runtime parsing of string types to numeric types
             return true;
         }
         return switch (rangeType) {
-            case INTEGER, LONG -> inputDataType.isWholeNumber();
-            case IP -> inputDataType == DataType.IP;
-            case DATE -> inputDataType.isDate();
-            default -> rangeType.isNumeric() == inputDataType.isNumeric();
+            case INTEGER, LONG -> inputDataType.atom().isWholeNumber();
+            case IP -> inputDataType.atom() == IP;
+            case DATE -> inputDataType.atom().isDate();
+            default -> rangeType.isNumeric() == inputDataType.atom().isNumeric();
         };
     }
 
@@ -218,8 +222,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
+            // NOCOMMIT doesn't support object
             DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
-                ? DataType.fromTypeName(in.readString())
+                ? AtomType.fromTypeName(in.readString()).type()
                 : null;
             String matchType = in.readString();
             String matchField = in.readString();
@@ -254,7 +259,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             out.writeString(sessionId);
             out.writeWriteable(shardId);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeString(inputDataType.typeName());
+                // NOCOMMIT doesn't support object
+                out.writeString(inputDataType.atom().typeName());
             }
             out.writeString(matchType);
             out.writeString(matchField);

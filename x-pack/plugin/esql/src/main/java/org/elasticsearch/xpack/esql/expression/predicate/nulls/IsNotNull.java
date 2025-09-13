@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -33,6 +34,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, Negatable<UnaryScalarFunction>, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -102,7 +105,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
 
     @Override
     public Object fold(FoldContext ctx) {
-        return DataType.isNull(field().dataType()) == false && field().fold(ctx) != null;
+        return AtomType.isNull(field().dataType().atom()) == false && field().fold(ctx) != null;
     }
 
     @Override
@@ -118,7 +121,7 @@ public class IsNotNull extends UnaryScalarFunction implements EvaluatorMapper, N
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override

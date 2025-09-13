@@ -37,8 +37,8 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 /**
  * Reduce a multivalued field to a single valued field containing the weighted sum of all element applying the P series function.
@@ -84,17 +84,17 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = TypeResolutions.isType(field, dt -> dt == DOUBLE, sourceText(), FIRST, "double");
+        TypeResolution resolution = TypeResolutions.isType(field, dt -> dt.atom() == DOUBLE, sourceText(), FIRST, "double");
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(p, dt -> dt == DOUBLE, sourceText(), SECOND, "double");
+        resolution = TypeResolutions.isType(p, dt -> dt.atom() == DOUBLE, sourceText(), SECOND, "double");
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        if (p.dataType() == NULL) {
+        if (p.dataType().atom() == NULL) {
             // If the type is `null` this parameter doesn’t have to be foldable. It’s effectively foldable anyway.
             // TODO figure out if the tests are wrong here, or if null is really different from foldable null
             return resolution;
@@ -134,8 +134,8 @@ public class MvPSeriesWeightedSum extends EsqlScalarFunction implements Evaluato
 
     @Override
     public DataType dataType() {
-        if (p.dataType() == NULL) {
-            return NULL;
+        if (p.dataType().atom() == NULL) {
+            return NULL.type();
         }
         return field.dataType();
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -36,6 +37,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class First extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
@@ -113,10 +119,10 @@ public class First extends AggregateFunction implements ToAggregator {
 
         return isType(
             field(),
-            dt -> dt == DataType.BOOLEAN
-                || dt == DataType.DATETIME
-                || DataType.isString(dt)
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+            dt -> dt.atom() == BOOLEAN
+                || dt.atom() == DATETIME
+                || AtomType.isString(dt.atom())
+                || (dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG),
             sourceText(),
             FIRST,
             "boolean",
@@ -127,7 +133,7 @@ public class First extends AggregateFunction implements ToAggregator {
         ).and(
             isType(
                 sort,
-                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                dt -> dt.atom() == LONG || dt.atom() == DATETIME || dt.atom() == DATE_NANOS,
                 sourceText(),
                 SECOND,
                 "long or date_nanos or datetime"
@@ -138,7 +144,7 @@ public class First extends AggregateFunction implements ToAggregator {
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-        return switch (type) {
+        return switch (type.atom()) {
             case LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
             case INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();

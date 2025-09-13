@@ -105,12 +105,12 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        return switch (type) {
-            case DataType.GEO_POINT -> switch (fieldExtractPreference) {
+        return switch (type.atom()) {
+            case GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier();
             };
-            case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
+            case CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier();
             };

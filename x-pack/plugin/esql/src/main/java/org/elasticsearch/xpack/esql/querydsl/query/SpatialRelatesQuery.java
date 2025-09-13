@@ -24,12 +24,13 @@ import org.elasticsearch.lucene.spatial.XYQueriesUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
 
 public class SpatialRelatesQuery extends Query {
     private final String field;
@@ -47,7 +48,7 @@ public class SpatialRelatesQuery extends Query {
 
     @Override
     protected QueryBuilder asBuilder() {
-        return DataType.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
+        return AtomType.isSpatialGeo(dataType.atom()) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
     }
 
     @Override
@@ -217,7 +218,7 @@ public class SpatialRelatesQuery extends Query {
 
         @Override
         org.apache.lucene.search.Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType) {
-            org.apache.lucene.search.Query innerQuery = dataType == CARTESIAN_POINT
+            org.apache.lucene.search.Query innerQuery = dataType.atom() == CARTESIAN_POINT
                 ? pointShapeQuery(shape, fieldType.name(), queryRelation, context)
                 : shapeShapeQuery(shape, fieldType.name(), queryRelation, context);
             return new ConstantScoreQuery(innerQuery);

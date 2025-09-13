@@ -23,9 +23,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 
 public class ToVersion extends AbstractConvertFunction {
@@ -36,9 +36,9 @@ public class ToVersion extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(VERSION, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToVersionFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToVersionFromStringEvaluator.Factory::new)
+        Map.entry(VERSION.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(KEYWORD.type(), ToVersionFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToVersionFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -73,7 +73,7 @@ public class ToVersion extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return VERSION;
+        return VERSION.type();
     }
 
     @Override

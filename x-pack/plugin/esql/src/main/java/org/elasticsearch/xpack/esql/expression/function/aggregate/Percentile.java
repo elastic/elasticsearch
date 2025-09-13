@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
 public class Percentile extends NumericAggregate implements SurrogateExpression {
@@ -135,7 +136,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
         TypeResolution resolution = isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             FIRST,
             "numeric except unsigned_long"
@@ -146,7 +147,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
         return isType(
             percentile,
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             SECOND,
             "numeric except unsigned_long"

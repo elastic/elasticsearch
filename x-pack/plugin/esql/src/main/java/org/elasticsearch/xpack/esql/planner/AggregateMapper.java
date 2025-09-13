@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
@@ -94,7 +95,7 @@ final class AggregateMapper {
             if (Strings.isEmpty(is.dataType())) {
                 dataType = toDataType(is.type());
             } else {
-                dataType = DataType.fromEs(is.dataType());
+                dataType = AtomType.fromEs(is.dataType()).type();
             }
             return new ReferenceAttribute(Source.EMPTY, null, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
         });
@@ -104,11 +105,11 @@ final class AggregateMapper {
     // defaults to aggstate, but we'll eventually be able to remove this
     private static DataType toDataType(ElementType elementType) {
         return switch (elementType) {
-            case BOOLEAN -> DataType.BOOLEAN;
-            case BYTES_REF -> DataType.KEYWORD;
-            case INT -> DataType.INTEGER;
-            case LONG -> DataType.LONG;
-            case DOUBLE -> DataType.DOUBLE;
+            case BOOLEAN -> AtomType.BOOLEAN.type();
+            case BYTES_REF -> AtomType.KEYWORD.type();
+            case INT -> AtomType.INTEGER.type();
+            case LONG -> AtomType.LONG.type();
+            case DOUBLE -> AtomType.DOUBLE.type();
             case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );

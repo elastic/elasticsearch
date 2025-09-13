@@ -44,7 +44,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isDateTime;
 import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
@@ -97,7 +97,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         Eval eval,
         TriFunction<Object, Long, Long, Rounding.Prepared> roundingFunction
     ) {
-        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
+        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType().atom())) {
             DataType fieldType = fa.dataType();
             FieldAttribute.FieldName fieldName = fa.fieldName();
             // Extract min/max from SearchStats
@@ -169,7 +169,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
         Holder<Boolean> foundMinValue = new Holder<>(false);
         Holder<Boolean> foundMaxValue = new Holder<>(false);
         for (EsqlBinaryComparison binaryComparison : binaryComparisons) {
-            if (binaryComparison.right() instanceof Literal l && isDateTime(l.dataType())) {
+            if (binaryComparison.right() instanceof Literal l && isDateTime(l.dataType().atom())) {
                 Long value = toLong(l.value());
                 if (binaryComparison instanceof Equals) {
                     return new Tuple<>(value, value);

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -25,25 +26,25 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -57,25 +58,25 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToString", ToString::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(KEYWORD, (source, fieldEval) -> fieldEval),
-        Map.entry(BOOLEAN, ToStringFromBooleanEvaluator.Factory::new),
-        Map.entry(DATETIME, ToStringFromDatetimeEvaluator.Factory::new),
-        Map.entry(DATE_NANOS, ToStringFromDateNanosEvaluator.Factory::new),
-        Map.entry(IP, ToStringFromIPEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToStringFromDoubleEvaluator.Factory::new),
-        Map.entry(LONG, ToStringFromLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToStringFromIntEvaluator.Factory::new),
-        Map.entry(TEXT, (source, fieldEval) -> fieldEval),
-        Map.entry(VERSION, ToStringFromVersionEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToStringFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(GEO_POINT, ToStringFromGeoPointEvaluator.Factory::new),
-        Map.entry(CARTESIAN_POINT, ToStringFromCartesianPointEvaluator.Factory::new),
-        Map.entry(CARTESIAN_SHAPE, ToStringFromCartesianShapeEvaluator.Factory::new),
-        Map.entry(GEO_SHAPE, ToStringFromGeoShapeEvaluator.Factory::new),
-        Map.entry(GEOHASH, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHASH)),
-        Map.entry(GEOTILE, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
-        Map.entry(GEOHEX, (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
-        Map.entry(AGGREGATE_METRIC_DOUBLE, ToStringFromAggregateMetricDoubleEvaluator.Factory::new)
+        Map.entry(KEYWORD.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(BOOLEAN.type(), ToStringFromBooleanEvaluator.Factory::new),
+        Map.entry(DATETIME.type(), ToStringFromDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS.type(), ToStringFromDateNanosEvaluator.Factory::new),
+        Map.entry(IP.type(), ToStringFromIPEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToStringFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG.type(), ToStringFromLongEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), ToStringFromIntEvaluator.Factory::new),
+        Map.entry(TEXT.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(VERSION.type(), ToStringFromVersionEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), ToStringFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(GEO_POINT.type(), ToStringFromGeoPointEvaluator.Factory::new),
+        Map.entry(CARTESIAN_POINT.type(), ToStringFromCartesianPointEvaluator.Factory::new),
+        Map.entry(CARTESIAN_SHAPE.type(), ToStringFromCartesianShapeEvaluator.Factory::new),
+        Map.entry(GEO_SHAPE.type(), ToStringFromGeoShapeEvaluator.Factory::new),
+        Map.entry(GEOHASH.type(), (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHASH.type())),
+        Map.entry(GEOTILE.type(), (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE.type())),
+        Map.entry(GEOHEX.type(), (source, fieldEval) -> new ToStringFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX.type())),
+        Map.entry(AGGREGATE_METRIC_DOUBLE.type(), ToStringFromAggregateMetricDoubleEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -131,7 +132,7 @@ public class ToString extends AbstractConvertFunction implements EvaluatorMapper
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override

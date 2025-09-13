@@ -18,9 +18,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_KEYWORD_LEADING_ZEROS_DECIMAL;
 
 public class ToIpLeadingZerosDecimal extends AbstractConvertFunction {
@@ -31,9 +31,9 @@ public class ToIpLeadingZerosDecimal extends AbstractConvertFunction {
     );
 
     static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(IP, (source, field) -> field),
-        Map.entry(KEYWORD, FROM_KEYWORD_LEADING_ZEROS_DECIMAL),
-        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_DECIMAL)
+        Map.entry(IP.type(), (source, field) -> field),
+        Map.entry(KEYWORD.type(), FROM_KEYWORD_LEADING_ZEROS_DECIMAL),
+        Map.entry(TEXT.type(), FROM_KEYWORD_LEADING_ZEROS_DECIMAL)
     );
 
     public ToIpLeadingZerosDecimal(Source source, Expression field) {
@@ -56,7 +56,7 @@ public class ToIpLeadingZerosDecimal extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return IP;
+        return IP.type();
     }
 
     @Override

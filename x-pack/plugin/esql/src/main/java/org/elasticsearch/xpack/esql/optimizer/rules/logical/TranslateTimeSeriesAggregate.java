@@ -36,6 +36,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
  * The keys must be `_tsid` or a pair of `_tsid` and `time_bucket`. To support user-defined grouping keys,
@@ -172,7 +174,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         });
         if (tsid.get() == null) {
-            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
+            tsid.set(new MetadataAttribute(aggregate.source(), MetadataAttribute.TSID_FIELD, KEYWORD.type(), false));
         }
         if (timestamp.get() == null) {
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");

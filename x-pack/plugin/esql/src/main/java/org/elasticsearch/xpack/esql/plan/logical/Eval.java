@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -167,12 +168,12 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (DataType.isRepresentable(dataType) == false) {
+            if (AtomType.isRepresentable(dataType.atom()) == false) {
                 failures.add(
                     fail(
                         field,
                         "EVAL does not support type [{}] as the return data type of expression [{}]",
-                        dataType.typeName(),
+                        dataType,
                         field.child().sourceText()
                     )
                 );

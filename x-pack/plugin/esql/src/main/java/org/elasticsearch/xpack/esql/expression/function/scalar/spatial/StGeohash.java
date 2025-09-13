@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile.fromRectangle;
 
@@ -164,7 +164,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return GEOHASH;
+        return GEOHASH.type();
     }
 
     @Override

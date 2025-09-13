@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -92,6 +93,9 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -423,12 +427,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
+        Expression limit = expression(ctx.constant());
+        Object val = limit.fold(FoldContext.small() /* TODO remove me */);
         if (val instanceof Integer i && i >= 0) {
-            return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
+            return input -> new Limit(source, new Literal(source, i, INTEGER.type()), input);
         }
-
-        String valueType = expression(ctx.constant()).dataType().typeName();
 
         throw new ParsingException(
             source,
@@ -437,7 +440,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 + "] must be a non negative integer, found value ["
                 + ctx.constant().getText()
                 + "] type ["
-                + valueType
+                + limit.dataType()
                 + "]"
         );
     }
@@ -555,13 +558,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             src,
             null,
             parsedTargetTypeColumn == null ? "type" : parsedTargetTypeColumn.name(),
-            DataType.KEYWORD
+            KEYWORD.type()
         );
         Attribute targetPvalue = new ReferenceAttribute(
             src,
             null,
             parsedTargetPvalueColumn == null ? "pvalue" : parsedTargetPvalueColumn.name(),
-            DataType.DOUBLE
+            DOUBLE.type()
         );
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
@@ -918,7 +921,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         InferencePlanType inferencePlan,
         Expression inferenceId
     ) {
-        if ((inferenceId instanceof Literal && DataType.isString(inferenceId.dataType())) == false) {
+        if ((inferenceId instanceof Literal && AtomType.isString(inferenceId.dataType().atom())) == false) {
             throw new ParsingException(
                 inferenceId.source(),
                 "Option [{}] must be a valid string, found [{}]",
@@ -934,7 +937,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         Object val = expression(ctx.probability).fold(FoldContext.small() /* TODO remove me */);
         if (val instanceof Double probability && probability > 0.0 && probability < 1.0) {
-            return input -> new Sample(source, new Literal(source, probability, DataType.DOUBLE), input);
+            return input -> new Sample(source, new Literal(source, probability, DOUBLE.type()), input);
         } else {
             throw new ParsingException(
                 source(ctx),

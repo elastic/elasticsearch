@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+
 public abstract class FullTextPredicate extends Expression {
 
     public enum Operator {
@@ -78,7 +80,7 @@ public abstract class FullTextPredicate extends Expression {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -42,19 +43,20 @@ public class Grok extends RegexExtract implements TelemetryAware {
                 .stream()
                 .sorted(Comparator.comparing(GrokCaptureConfig::name))
                 // promote small numeric types, since Grok can produce float values
-                .map(x -> new ReferenceAttribute(Source.EMPTY, null, x.name(), toDataType(x.type()).widenSmallNumeric()))
+                .map(x -> new ReferenceAttribute(Source.EMPTY, null, x.name(), toDataType(x.type())))
                 .collect(Collectors.toList());
         }
 
         private static DataType toDataType(GrokCaptureType type) {
-            return switch (type) {
-                case STRING -> DataType.KEYWORD;
-                case INTEGER -> DataType.INTEGER;
-                case LONG -> DataType.LONG;
-                case FLOAT -> DataType.FLOAT;
-                case DOUBLE -> DataType.DOUBLE;
-                case BOOLEAN -> DataType.BOOLEAN;
+            AtomType atomType = switch (type) {
+                case STRING -> AtomType.KEYWORD;
+                case INTEGER -> AtomType.INTEGER;
+                case LONG -> AtomType.LONG;
+                case FLOAT -> AtomType.FLOAT;
+                case DOUBLE -> AtomType.DOUBLE;
+                case BOOLEAN -> AtomType.BOOLEAN;
             };
+            return atomType.widenSmallNumeric().type();
         }
 
         @Override

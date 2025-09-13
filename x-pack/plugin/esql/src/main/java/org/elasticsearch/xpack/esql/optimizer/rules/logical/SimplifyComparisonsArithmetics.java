@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.ar
 import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MUL;
 import static org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.SUB;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 /**
  * Simplifies arithmetic expressions with BinaryComparisons and fixed point fields, such as: (int + 2) / 3 > 4 => int > 10
@@ -135,7 +136,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
             // x + 1e18 > 1e18::long will yield different results with a field value in [-2^6, 2^6], optimised vs original;
             // x * (1 + 1e-15d) > 1 : same with a field value of (1 - 1e-15d)
             // so consequently, int fields optimisation requiring FP arithmetic isn't possible either: (x - 1e-15) * (1 + 1e-15) > 1.
-            if (opLiteral.dataType().isRationalNumber() || bcLiteral.dataType().isRationalNumber()) {
+            if (opLiteral.dataType().atom().isRationalNumber() || bcLiteral.dataType().atom().isRationalNumber()) {
                 return true;
             }
 
@@ -149,8 +150,8 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
 
         final Expression apply() {
             // force float point folding for FlP field
-            Literal bcl = operation.dataType().isRationalNumber()
-                ? new Literal(bcLiteral.source(), ((Number) bcLiteral.value()).doubleValue(), DataType.DOUBLE)
+            Literal bcl = operation.dataType().atom().isRationalNumber()
+                ? new Literal(bcLiteral.source(), ((Number) bcLiteral.value()).doubleValue(), DOUBLE.type())
                 : bcLiteral;
 
             Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()
@@ -180,7 +181,7 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         @Override
         boolean isOpUnsafe() {
             // no ADD/SUB with floating fields
-            if (operation.dataType().isRationalNumber()) {
+            if (operation.dataType().atom().isRationalNumber()) {
                 return true;
             }
 
@@ -207,12 +208,12 @@ public final class SimplifyComparisonsArithmetics extends OptimizerRules.Optimiz
         @Override
         boolean isOpUnsafe() {
             // Integer divisions are not safe to optimise: x / 5 > 1 <=/=> x > 5 for x in [6, 9]; same for the `==` comp
-            if (operation.dataType().isWholeNumber() && isDiv) {
+            if (operation.dataType().atom().isWholeNumber() && isDiv) {
                 return true;
             }
 
             // If current operation is a multiplication, it's inverse will be a division: safe only if outcome is still integral.
-            if (isDiv == false && opLeft.dataType().isWholeNumber()) {
+            if (isDiv == false && opLeft.dataType().atom().isWholeNumber()) {
                 long opLiteralValue = ((Number) opLiteral.value()).longValue();
                 return opLiteralValue == 0 || ((Number) bcLiteral.value()).longValue() % opLiteralValue != 0;
             }

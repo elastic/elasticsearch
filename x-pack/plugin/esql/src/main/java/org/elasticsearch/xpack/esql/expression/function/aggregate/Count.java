@@ -36,6 +36,9 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
 
 public class Count extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Count", Count::new);
@@ -129,7 +132,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     public DataType dataType() {
-        return DataType.LONG;
+        return LONG.type();
     }
 
     @Override
@@ -144,14 +147,14 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(field(), dt -> dt.atom().isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+        if (field.dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
             return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
         }
 
@@ -168,7 +171,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             // COUNT(const) is equivalent to MV_COUNT(const)*COUNT(*) if const is not null; otherwise COUNT(const) == 0.
             return new Mul(
                 s,
-                new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
+                new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, INTEGER.type()))),
                 new Count(s, Literal.keyword(s, StringUtils.WILDCARD))
             );
         }

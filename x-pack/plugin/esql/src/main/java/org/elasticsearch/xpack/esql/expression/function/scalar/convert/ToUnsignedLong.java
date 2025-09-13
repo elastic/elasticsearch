@@ -26,14 +26,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.booleanToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.doubleToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
@@ -48,14 +48,14 @@ public class ToUnsignedLong extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(UNSIGNED_LONG, (source, fieldEval) -> fieldEval),
-        Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
-        Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
-        Map.entry(KEYWORD, ToUnsignedLongFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToUnsignedLongFromStringEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToUnsignedLongFromDoubleEvaluator.Factory::new),
-        Map.entry(LONG, ToUnsignedLongFromLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
+        Map.entry(UNSIGNED_LONG.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(DATETIME.type(), ToUnsignedLongFromLongEvaluator.Factory::new),
+        Map.entry(BOOLEAN.type(), ToUnsignedLongFromBooleanEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), ToUnsignedLongFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToUnsignedLongFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToUnsignedLongFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG.type(), ToUnsignedLongFromLongEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), ToUnsignedLongFromIntEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -105,7 +105,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return UNSIGNED_LONG;
+        return UNSIGNED_LONG.type();
     }
 
     @Override

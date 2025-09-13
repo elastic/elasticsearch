@@ -40,22 +40,34 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 
 public class Min extends AggregateFunction implements ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Min", Min::new);
 
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
-        Map.entry(DataType.BOOLEAN, MinBooleanAggregatorFunctionSupplier::new),
-        Map.entry(DataType.LONG, MinLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.UNSIGNED_LONG, MinLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATETIME, MinLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DATE_NANOS, MinLongAggregatorFunctionSupplier::new),
-        Map.entry(DataType.INTEGER, MinIntAggregatorFunctionSupplier::new),
-        Map.entry(DataType.DOUBLE, MinDoubleAggregatorFunctionSupplier::new),
-        Map.entry(DataType.IP, MinIpAggregatorFunctionSupplier::new),
-        Map.entry(DataType.VERSION, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.KEYWORD, MinBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.TEXT, MinBytesRefAggregatorFunctionSupplier::new)
+        Map.entry(BOOLEAN.type(), MinBooleanAggregatorFunctionSupplier::new),
+        Map.entry(LONG.type(), MinLongAggregatorFunctionSupplier::new),
+        Map.entry(UNSIGNED_LONG.type(), MinLongAggregatorFunctionSupplier::new),
+        Map.entry(DATETIME.type(), MinLongAggregatorFunctionSupplier::new),
+        Map.entry(DATE_NANOS.type(), MinLongAggregatorFunctionSupplier::new),
+        Map.entry(INTEGER.type(), MinIntAggregatorFunctionSupplier::new),
+        Map.entry(DOUBLE.type(), MinDoubleAggregatorFunctionSupplier::new),
+        Map.entry(IP.type(), MinIpAggregatorFunctionSupplier::new),
+        Map.entry(VERSION.type(), MinBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(KEYWORD.type(), MinBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(TEXT.type(), MinBytesRefAggregatorFunctionSupplier::new)
     );
 
     @FunctionInfo(
@@ -126,7 +138,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     protected TypeResolution resolveType() {
         return TypeResolutions.isType(
             field(),
-            dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
+            dt -> SUPPLIERS.containsKey(dt) || dt.atom() == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -141,8 +153,8 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return DataType.DOUBLE;
+        if (field().dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
+            return DOUBLE.type();
         }
         return field().dataType().noText();
     }
@@ -159,7 +171,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public Expression surrogate() {
-        if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
+        if (field().dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
             return new Min(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN));
         }
         return field().foldable() ? new MvMin(source(), field()) : null;

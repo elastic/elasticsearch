@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 /**
  * Returns the hypotenuse of the numbers given as parameters.
@@ -92,7 +93,7 @@ public class Hypot extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -115,8 +116,8 @@ public class Hypot extends EsqlScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var n1Eval = Cast.cast(source(), n1.dataType(), DataType.DOUBLE, toEvaluator.apply(n1));
-        var n2Eval = Cast.cast(source(), n2.dataType(), DataType.DOUBLE, toEvaluator.apply(n2));
+        var n1Eval = Cast.cast(source(), n1.dataType(), DOUBLE.type(), toEvaluator.apply(n1));
+        var n2Eval = Cast.cast(source(), n2.dataType(), DOUBLE.type(), toEvaluator.apply(n2));
         return new HypotEvaluator.Factory(source(), n1Eval, n2Eval);
     }
 

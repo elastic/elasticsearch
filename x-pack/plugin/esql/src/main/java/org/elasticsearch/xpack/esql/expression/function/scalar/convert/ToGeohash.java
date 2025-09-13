@@ -26,10 +26,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 
 public class ToGeohash extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -39,10 +39,10 @@ public class ToGeohash extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEOHASH, (source, fieldEval) -> fieldEval),
-        Map.entry(LONG, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToGeohashFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeohashFromStringEvaluator.Factory::new)
+        Map.entry(GEOHASH.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(LONG.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(KEYWORD.type(), ToGeohashFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToGeohashFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -83,7 +83,7 @@ public class ToGeohash extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return GEOHASH;
+        return GEOHASH.type();
     }
 
     @Override

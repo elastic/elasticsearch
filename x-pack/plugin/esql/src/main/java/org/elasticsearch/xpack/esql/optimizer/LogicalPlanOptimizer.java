@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -184,7 +184,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new CombineBinaryComparisons(),
             new CombineDisjunctions(),
             // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
-            new SimplifyComparisonsArithmetics(DataType::areCompatible),
+            new SimplifyComparisonsArithmetics((l, r) -> AtomType.areCompatible(l.atom(), r.atom())),
             new ReplaceStringCasingWithInsensitiveEquals(),
             new ReplaceStatsFilteredAggWithEval(),
             new ExtractAggregateCommonFilter(),

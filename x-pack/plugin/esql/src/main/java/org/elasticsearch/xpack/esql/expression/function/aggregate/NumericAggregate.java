@@ -20,6 +20,11 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 /**
  * Aggregate function that receives a numeric, signed field, and returns a single double value.
@@ -66,7 +71,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e == DataType.DATETIME || e.isNumeric() && e != DataType.UNSIGNED_LONG,
+                e -> e.atom() == DATETIME || e.atom().isNumeric() && e.atom() != UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
@@ -75,7 +80,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         }
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long or counter types"
@@ -88,22 +93,22 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        if (supportsDates() && type == DataType.DATETIME) {
+        if (supportsDates() && type.atom() == DATETIME) {
             return longSupplier();
         }
-        if (type == DataType.LONG) {
+        if (type.atom() == LONG) {
             return longSupplier();
         }
-        if (type == DataType.INTEGER) {
+        if (type.atom() == INTEGER) {
             return intSupplier();
         }
-        if (type == DataType.DOUBLE) {
+        if (type.atom() == DOUBLE) {
             return doubleSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

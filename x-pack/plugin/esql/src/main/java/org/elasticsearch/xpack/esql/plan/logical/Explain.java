@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+
 public class Explain extends LeafPlan implements TelemetryAware {
 
     public enum Type {
@@ -28,9 +30,9 @@ public class Explain extends LeafPlan implements TelemetryAware {
     private final LogicalPlan query;
 
     private final List<Attribute> output = List.of(
-        new ReferenceAttribute(Source.EMPTY, null, "role", DataType.KEYWORD),
-        new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
-        new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
+        new ReferenceAttribute(Source.EMPTY, null, "role", KEYWORD.type()),
+        new ReferenceAttribute(Source.EMPTY, null, "type", KEYWORD.type()),
+        new ReferenceAttribute(Source.EMPTY, null, "plan", KEYWORD.type())
     );
 
     public Explain(Source source, LogicalPlan query) {

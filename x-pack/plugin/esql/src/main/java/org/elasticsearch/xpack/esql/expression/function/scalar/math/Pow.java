@@ -30,6 +30,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 public class Pow extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Pow", Pow::new);
@@ -123,13 +124,13 @@ public class Pow extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
-        var expEval = Cast.cast(source(), exponent.dataType(), DataType.DOUBLE, toEvaluator.apply(exponent));
+        var baseEval = Cast.cast(source(), base.dataType(), DOUBLE.type(), toEvaluator.apply(base));
+        var expEval = Cast.cast(source(), exponent.dataType(), DOUBLE.type(), toEvaluator.apply(exponent));
         return new PowEvaluator.Factory(source(), baseEval, expEval);
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
@@ -35,12 +36,13 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
@@ -107,7 +109,7 @@ public class RoundTo extends EsqlScalarFunction {
 
         int index = 1;
         for (Expression f : points) {
-            if (f.dataType() == DataType.NULL) {
+            if (f.dataType().atom() == NULL) {
                 continue;
             }
             TypeResolution resolution = isFoldable(f, sourceText(), TypeResolutions.ParamOrdinal.fromIndex(index));
@@ -131,7 +133,7 @@ public class RoundTo extends EsqlScalarFunction {
         }
         resultType = field.dataType();
         for (Expression f : points) {
-            if (resultType == DataType.UNSIGNED_LONG || resultType == null || f.dataType() == UNSIGNED_LONG) {
+            if (resultType.atom() == UNSIGNED_LONG || resultType == null || f.dataType().atom() == UNSIGNED_LONG) {
                 return null;
             }
             resultType = commonType(resultType, f.dataType());
@@ -191,7 +193,7 @@ public class RoundTo extends EsqlScalarFunction {
         ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, List<Object> points);
     }
 
-    private static final Map<DataType, Build> SIGNATURES = Map.ofEntries(
+    private static final Map<AtomType, Build> SIGNATURES = Map.ofEntries(
         Map.entry(DATETIME, RoundToLong.BUILD),
         Map.entry(DATE_NANOS, RoundToLong.BUILD),
         Map.entry(INTEGER, RoundToInt.BUILD),
@@ -202,7 +204,7 @@ public class RoundTo extends EsqlScalarFunction {
     public static List<Object> sortedRoundingPoints(List<Object> points, DataType dataType) {
         List<Number> pointsTobeSorted = points.stream().filter(Objects::nonNull).map(p -> (Number) p).toList();
 
-        return switch (dataType) {
+        return switch (dataType.atom()) {
             case INTEGER -> pointsTobeSorted.stream()
                 .mapToInt(Number::intValue)
                 .sorted()

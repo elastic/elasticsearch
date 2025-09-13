@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 /**
  * Inverse cosine trigonometric function.
@@ -95,7 +96,7 @@ public class Atan2 extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -118,8 +119,8 @@ public class Atan2 extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var yEval = Cast.cast(source(), y.dataType(), DataType.DOUBLE, toEvaluator.apply(y));
-        var xEval = Cast.cast(source(), x.dataType(), DataType.DOUBLE, toEvaluator.apply(x));
+        var yEval = Cast.cast(source(), y.dataType(), DOUBLE.type(), toEvaluator.apply(y));
+        var xEval = Cast.cast(source(), x.dataType(), DOUBLE.type(), toEvaluator.apply(x));
         return new Atan2Evaluator.Factory(source(), yEval, xEval);
     }
 

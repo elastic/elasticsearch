@@ -22,12 +22,14 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,6 +37,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTypeOrUnionType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 /**
  * Base class for functions that converts a field into a function-specific type.
@@ -46,7 +52,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public abstract class AbstractConvertFunction extends UnaryScalarFunction implements ConvertFunction {
 
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
-    private static final List<DataType> NUMERIC_TYPES = List.of(DataType.INTEGER, DataType.LONG, DataType.UNSIGNED_LONG, DataType.DOUBLE);
+    private static final List<DataType> NUMERIC_TYPES = List.of(INTEGER.type(), LONG.type(), UNSIGNED_LONG.type(), DOUBLE.type());
+    private static final List<DataType> STRING_TYPES = AtomType.stringTypes().stream().map(AtomType::type).toList();
+
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);
@@ -60,7 +68,11 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
      * Build the evaluator given the evaluator a multivalued field.
      */
     protected final ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        DataType sourceType = field().dataType().widenSmallNumeric();
+        DataType sourceType = field().dataType();
+        if (sourceType.atom().widenSmallNumeric() != sourceType.atom()) {
+            // TODO this feels like it should be part of the analyzer
+            sourceType = sourceType.atom().widenSmallNumeric().type();
+        }
         var factory = factories().get(sourceType);
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
@@ -89,12 +101,13 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
             NUMERIC_TYPES.forEach(supportTypes::remove);
         }
 
-        if (types.containsAll(DataType.stringTypes())) {
+        if (types.containsAll(STRING_TYPES)) {
             supportedTypesNames.add("string");
-            DataType.stringTypes().forEach(supportTypes::remove);
+            STRING_TYPES.forEach(supportTypes::remove);
         }
 
-        supportTypes.forEach(t -> supportedTypesNames.add(t.nameUpper().toLowerCase(Locale.ROOT)));
+        // NOCOMMIT .atom().nameUpper() isn't seems wrong. May be ok though. If OBJECT is a valid name.
+        supportTypes.forEach(t -> supportedTypesNames.add(t.atom().nameUpper().toLowerCase(Locale.ROOT)));
         supportedTypesNames.sort(String::compareTo);
         return Strings.join(supportedTypesNames, " or ");
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -100,7 +101,7 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     @Override
     public void postAnalysisVerification(Failures failures) {
         DataType type = input.dataType();
-        if (DataType.isString(type) == false) {
+        if (AtomType.isString(type.atom()) == false) {
             failures.add(
                 fail(
                     input,

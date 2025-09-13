@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -99,8 +100,8 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(buckets, DataType::isTemporalAmount, sourceText(), DEFAULT, "date_period", "time_duration").and(
-            isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
+        return isType(buckets, dt -> AtomType.isTemporalAmount(dt.atom()), sourceText(), DEFAULT, "date_period", "time_duration").and(
+            isType(timestamp, dt -> dt.atom().isDate(), sourceText(), SECOND, "date_nanos or datetime")
         );
     }
 

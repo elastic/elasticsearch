@@ -32,7 +32,7 @@ import java.util.List;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class FromBase64 extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -72,7 +72,7 @@ public class FromBase64 extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override

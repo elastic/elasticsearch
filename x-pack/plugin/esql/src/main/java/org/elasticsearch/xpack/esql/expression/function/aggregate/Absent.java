@@ -28,6 +28,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 /**
  * The function that checks for the absence of a field in the output result.
@@ -114,7 +115,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override
@@ -124,7 +125,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
+        return isType(field(), dt -> dt.atom().isCounter() == false, sourceText(), DEFAULT, "any type except counter types");
     }
 
     @Override

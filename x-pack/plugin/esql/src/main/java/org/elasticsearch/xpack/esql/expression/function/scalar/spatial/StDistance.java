@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
@@ -267,7 +267,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return DataType.atom(DOUBLE);
     }
 
     @Override

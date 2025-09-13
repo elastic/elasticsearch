@@ -19,6 +19,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 /**
  * Common base for trigonometric functions.
@@ -39,7 +40,7 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return doubleEvaluator(Cast.cast(source(), field().dataType(), DataType.DOUBLE, toEvaluator.apply(field())));
+        return doubleEvaluator(Cast.cast(source(), field().dataType(), DOUBLE.type(), toEvaluator.apply(field())));
     }
 
     @Override
@@ -53,6 +54,6 @@ abstract class AbstractTrigonometricFunction extends UnaryScalarFunction {
 
     @Override
     public final DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 }

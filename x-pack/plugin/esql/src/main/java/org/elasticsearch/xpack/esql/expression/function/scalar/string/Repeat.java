@@ -35,6 +35,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
@@ -75,7 +77,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -89,7 +91,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return isType(number, dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer");
+        return isType(number, dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer");
     }
 
     @Override

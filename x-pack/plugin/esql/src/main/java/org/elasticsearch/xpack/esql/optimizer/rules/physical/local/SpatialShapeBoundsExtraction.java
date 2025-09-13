@@ -32,6 +32,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+
 /**
  * This rule is responsible for marking spatial shape fields whose extent can be extracted from the binary representation encoded by
  * {@link GeometryDocValueWriter}.
@@ -120,7 +123,7 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
     }
 
     private static boolean isShape(DataType dataType) {
-        return dataType == DataType.GEO_SHAPE || dataType == DataType.CARTESIAN_SHAPE;
+        return dataType.atom() == GEO_SHAPE || dataType.atom() == CARTESIAN_SHAPE;
     }
 
     private static Optional<AggregateFunction> extractAggregateFunction(NamedExpression expr) {

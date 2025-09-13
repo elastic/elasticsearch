@@ -382,7 +382,7 @@ public class EsqlSession {
         }
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
         SubscribableListener. //
         <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
@@ -641,36 +641,28 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (preAnalysis.index() != null) {
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
-                boolean includeAllDimensions = false;
-                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
-                    includeAllDimensions = true;
-                    // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                    if (requestFilter != null) {
-                        requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
-                    } else {
-                        requestFilter = indexModeFilter;
-                    }
+        if (preAnalysis.indexPattern() != null) {
+            boolean includeAllDimensions = false;
+            // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+            if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
+                includeAllDimensions = true;
+                // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                if (requestFilter != null) {
+                    requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
+                } else {
+                    requestFilter = indexModeFilter;
                 }
-                indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
-                    result.fieldNames,
-                    requestFilter,
-                    includeAllDimensions,
-                    listener.delegateFailure((l, indexResolution) -> {
-                        l.onResponse(result.withIndexResolution(indexResolution));
-                    })
-                );
             }
+            indexResolver.resolveAsMergedMapping(
+                preAnalysis.indexPattern().indexPattern(),
+                result.fieldNames,
+                requestFilter,
+                includeAllDimensions,
+                listener.delegateFailure((l, indexResolution) -> {
+                    l.onResponse(result.withIndexResolution(indexResolution));
+                })
+            );
         } else {
             // occurs when dealing with local relations (row a = 1)
             listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));

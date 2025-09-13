@@ -181,6 +181,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
                         )
                     );
                 }
+                return;
             }
             for (Map.Entry<String, AtomType> f : fields.entrySet()) {
                 if (AtomType.isRepresentable(f.getValue()) == false) {

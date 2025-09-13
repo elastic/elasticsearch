@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ColumnsBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -28,21 +29,22 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.AtomType.OBJECT;
 
 public class Get extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Get", Get::new);
 
-    private final Expression columns;
+    private final Expression object;
     private final Expression nameExpression;
 
     private String name;
-    private DataType targetType;
+    private DataType resultType;
 
     @FunctionInfo(
         returnType = { "any" },
@@ -51,17 +53,17 @@ public class Get extends EsqlScalarFunction {
     )
     public Get(
         Source source,
-        @Param(name = "object", type = { "object" }, description = "NOCOMMIT") Expression columns,
+        @Param(name = "object", type = { "object" }, description = "NOCOMMIT") Expression object,
         @Param(name = "name", type = { "keyword" }, description = "Name to lookup. Must be a constant.") Expression name
     ) {
-        super(source, List.of(columns, name));
-        this.columns = columns;
+        super(source, List.of(object, name));
+        this.object = object;
         this.nameExpression = name;
     }
 
     private Get(StreamInput in) throws IOException {
         super(Source.readFrom((StreamInput & PlanStreamInput) in));
-        this.columns = in.readNamedWriteable(Expression.class);
+        this.object = in.readNamedWriteable(Expression.class);
         this.nameExpression = in.readNamedWriteable(Expression.class);
     }
 
@@ -76,51 +78,40 @@ public class Get extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        if (columns.dataType().atom() != OBJECT) {
-            // NOCOMMIT what a terrible name to show to users.
-            return new TypeResolution("[column] first argument must be an object function");
+        Map<String, AtomType> fields = object.dataType().fields();
+        if (fields == null) {
+            return new TypeResolution("[GET] first argument must be an object");
         }
-        {
-            if (nameExpression instanceof Literal l && l.value() instanceof BytesRef b) {
-                name = b.utf8ToString();
-            } else {
-                return new TypeResolution("[column] second argument must be a constant string");
-            }
+        if (nameExpression instanceof Literal l && l.value() instanceof BytesRef b) {
+            name = b.utf8ToString();
+        } else {
+            return new TypeResolution("[GET] second argument must be a constant string");
         }
-        {
-            if (targetTypeExpression instanceof Literal l && l.value() instanceof BytesRef b) {
-                String t = b.utf8ToString().toUpperCase(Locale.ROOT);
-                switch (t) {
-                    case "KEYWORD":
-                        targetType = DataType.KEYWORD;
-                        break;
-                    case "INT":
-                        targetType = DataType.INTEGER;
-                        break;
-                    default:
-                        return new TypeResolution("[column] third argument must be one of [KEYWORD, INT] but was " + t);
-                }
-            } else {
-                return new TypeResolution("[column] third argument must be a constant string");
-            }
+        AtomType resultType = fields.get(name);
+        if (resultType != null) {
+            this.resultType = resultType.type();
+        } else {
+            return new TypeResolution("[GET] unknown object field [" + name + "]. Must be one of " + fields.keySet() + "]");
         }
         return TypeResolution.TYPE_RESOLVED;
     }
 
     @Override
     public DataType dataType() {
-        resolveType();
-        return targetType;
+        if (resultType == null) {
+            resolveType();
+        }
+        return resultType;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Get(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Get(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Get::new, columns, nameExpression, targetTypeExpression);
+        return NodeInfo.create(this, Get::new, object, nameExpression);
     }
 
     @Override
@@ -131,77 +122,51 @@ public class Get extends EsqlScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         resolveType();
-        EvalOperator.ExpressionEvaluator.Factory columns = toEvaluator.apply(this.columns);
-        return new EvaluatorFactory(source(), columns, name, targetType);
+        EvalOperator.ExpressionEvaluator.Factory object = toEvaluator.apply(this.object);
+        return new EvaluatorFactory(object, name, PlannerUtils.toElementType(resultType));
     }
 
-    static class EvaluatorFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory columns;
-        private final String name;
-        private final DataType targetType;
-
-        EvaluatorFactory(Source source, EvalOperator.ExpressionEvaluator.Factory columns, String name, DataType targetType) {
-            this.source = source;
-            this.columns = columns;
-            this.name = name;
-            this.targetType = targetType;
-        }
-
+    record EvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory object, String name, ElementType resultType)
+        implements
+            EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public Evaluator get(DriverContext context) {
-            return new Evaluator(source, columns.get(context), name, targetType, context);
+            return new Evaluator(object.get(context), name, resultType);
         }
 
         @Override
         public String toString() {
-            return "Columns[columns=" + columns + ", name=" + name + ", targetType=" + targetType + "]";
+            return "Columns[columns=" + object + ", name=" + name + ", resultType=" + resultType + "]";
         }
     }
 
     static class Evaluator implements EvalOperator.ExpressionEvaluator {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
 
-        private final Source source;
-
         private final EvalOperator.ExpressionEvaluator columns;
         private final String name;
-        private final DataType targetType;
+        private final ElementType resultType;
 
-        private final DriverContext driverContext;
-
-        private Warnings warnings;
-
-        Evaluator(Source source, EvalOperator.ExpressionEvaluator columns, String name, DataType targetType, DriverContext driverContext) {
-            this.source = source;
+        Evaluator(EvalOperator.ExpressionEvaluator columns, String name, ElementType resultType) {
             this.columns = columns;
             this.name = name;
-            this.targetType = targetType;
-            this.driverContext = driverContext;
+            this.resultType = resultType;
         }
 
         @Override
         public Block eval(Page page) {
             try (ColumnsBlock valBlock = (ColumnsBlock) columns.eval(page)) {
-                ColumnsBlock.RuntimeTypedBlock uncast = valBlock.columns().get(name);
-                if (uncast == null) {
-                    return nulls(page);
+                Block block = valBlock.columns().get(name);
+                if (block == null) {
+                    // NOCOMMIT we validate up front, but should be ok with missing here?
+                    throw new IllegalStateException("column not found [" + name + "]");
                 }
-                DataType runtimeType = (DataType) uncast.type();
-                if (targetType == runtimeType) {
-                    uncast.block().incRef();
-                    return uncast.block();
+                if (block.elementType() != resultType) {
+                    throw new IllegalStateException("wrong type [" + name + "][" + resultType + "]: " + block);
                 }
-                warnings().registerException(
-                    IllegalArgumentException.class,
-                    "runtime type [" + runtimeType + "] incompatible with target type [" + targetType + "]"
-                );
-                return nulls(page);
+                block.incRef();
+                return block;
             }
-        }
-
-        private Block nulls(Page page) {
-            return driverContext.blockFactory().newConstantNullBlock(page.getPositionCount());
         }
 
         @Override
@@ -220,18 +185,6 @@ public class Get extends EsqlScalarFunction {
         @Override
         public String toString() {
             return "NOCOMMIT";
-        }
-
-        Warnings warnings() {
-            if (warnings == null) {
-                this.warnings = Warnings.createWarnings(
-                    driverContext.warningsMode(),
-                    source.source().getLineNumber(),
-                    source.source().getColumnNumber(),
-                    source.text()
-                );
-            }
-            return warnings;
         }
     }
 }

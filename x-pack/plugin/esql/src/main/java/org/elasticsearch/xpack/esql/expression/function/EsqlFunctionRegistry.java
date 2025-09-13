@@ -195,6 +195,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.UriParts;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Get;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.Hamming;
@@ -511,6 +512,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
+                def(Get.class, Get::new, "get"),
                 def(Delay.class, Delay::new, "delay"),
                 def(First.class, bi(First::new), "first"),
                 def(Last.class, bi(Last::new), "last"),

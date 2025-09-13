@@ -121,7 +121,7 @@ public class EnrichPolicyResolver {
         }
 
         doResolvePolicies(
-            new HashSet<>(executionInfo.getClusters().keySet()),
+            new HashSet<>(executionInfo.getClusters().keySet()), // executionInfo.getClusters() is populated by prior main index resolution
             enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
             executionInfo,
             listener

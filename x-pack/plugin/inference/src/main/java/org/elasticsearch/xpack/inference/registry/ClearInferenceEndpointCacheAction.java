@@ -50,8 +50,6 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
-
 /**
  * Clears the cache in {@link InferenceEndpointRegistry}.
  * This uses the cluster state to broadcast the message to all nodes to clear their cache, which has guaranteed delivery.
@@ -65,6 +63,8 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
     private static final String NAME = "cluster:internal/xpack/inference/clear_inference_endpoint_cache";
     public static final ActionType<AcknowledgedResponse> INSTANCE = new ActionType<>(NAME);
     private static final String TASK_QUEUE_NAME = "inference-endpoint-cache-management";
+
+    private static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = TransportVersion.fromName("ml_inference_endpoint_cache");
 
     private final ProjectResolver projectResolver;
     private final InferenceEndpointRegistry inferenceEndpointRegistry;

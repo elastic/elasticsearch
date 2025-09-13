@@ -29,11 +29,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctO
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FirstOverTime;
-<<<<<<< HEAD
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Idelta;
-=======
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
->>>>>>> cf973406f79 (Implementation of increase function for timeseries applications)
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Irate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;

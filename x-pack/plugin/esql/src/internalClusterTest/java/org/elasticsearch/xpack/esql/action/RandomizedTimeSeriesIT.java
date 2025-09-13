@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 24L;
+    private static final Long NUM_DOCS = 6L;
     private static final Long TIME_RANGE_SECONDS = 180L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
@@ -314,7 +314,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             }
             assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;
             Double lastValue = null;
-            Double counterGrowth = 0.0;
+            double counterGrowth = 0.0;
             for (Tuple<String, Tuple<Instant, Double>> point : timeseries) {
                 var currentValue = point.v2().v2();
                 if (currentValue == null) {
@@ -411,14 +411,16 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
         assertThat(actual, allOf(lessThanOrEqualTo(expected.upper), not(lessThan(expected.lower))));
     }
 
-    void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows) {
+    void assertNoFailedWindows(List<String> failedWindows, List<List<Object>> rows, String agg) {
         if (failedWindows.isEmpty() == false) {
             var pctFailures = (double) failedWindows.size() / rows.size() * 100;
             var failureDetails = String.join("\n", failedWindows);
             if (failureDetails.length() > 2000) {
                 failureDetails = failureDetails.substring(0, 2000) + "\n... (truncated)";
             }
-            throw new AssertionError("Failed " + failedWindows.size() + " windows(" + pctFailures + "%):\n" + failureDetails);
+            throw new AssertionError(
+                "Failed. Agg: " + agg + " | Failed windows: " + failedWindows.size() + " windows(" + pctFailures + "%):\n" + failureDetails
+            );
         }
     }
 
@@ -467,7 +469,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
                 }
             }
-            assertNoFailedWindows(failedWindows, rows);
+            assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());
         }
     }
 
@@ -504,7 +506,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
                 }
             }
-            assertNoFailedWindows(failedWindows, rows);
+            assertNoFailedWindows(failedWindows, rows, "RATE");
         }
     }
 

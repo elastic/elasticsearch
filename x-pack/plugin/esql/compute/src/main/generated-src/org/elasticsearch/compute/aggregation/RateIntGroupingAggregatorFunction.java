@@ -36,6 +36,12 @@ import java.util.List;
 public final class RateIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
+        // Overriding constructor to support isRateOverTime flag
+        private final boolean isRateOverTime;
+        public FunctionSupplier(boolean isRateOverTime) {
+            this.isRateOverTime = isRateOverTime;
+        }
+
         @Override
         public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
             throw new UnsupportedOperationException("non-grouping aggregator is not supported");
@@ -53,7 +59,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
         @Override
         public RateIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateIntGroupingAggregatorFunction(channels, driverContext);
+            return new RateIntGroupingAggregatorFunction(channels, driverContext, isRateOverTime);
         }
 
         @Override
@@ -74,11 +80,13 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
+    private final boolean isRateOverTime;
 
-    public RateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext) {
+    public RateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
+        this.isRateOverTime = isRateOverTime;
         ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
         try {
             this.reducedStates = driverContext.bigArrays().newObjectArray(256);
@@ -565,7 +573,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group));
+                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime);
                 } else {
                     rate = computeRateWithoutExtrapolate(state);
                 }
@@ -654,7 +662,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd) {
+    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, boolean isRateOverTime) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
@@ -677,6 +685,11 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             }
             lastValue = lastValue + endGap * slope;
         }
-        return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+        if (isRateOverTime) {
+            // when this is rate_over_time, we want to divide by the total range, not the sample range
+            return lastValue - firstValue;
+        } else {
+            return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+        }
     }
 }

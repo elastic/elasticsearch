@@ -73,9 +73,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
-  method: testSeqNoCASLinearizability
-  issue: https://github.com/elastic/elasticsearch/issues/117249
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024

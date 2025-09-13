@@ -64,7 +64,9 @@ public enum ElementType {
         "AggregateMetricDouble",
         BlockFactory::newAggregateMetricDoubleBlockBuilder,
         AggregateMetricDoubleArrayBlock::readFrom
-    );
+    ),
+
+    DATE_RANGE(11, "DateRange", BlockFactory::newDateRangeBlockBuilder, DateRangeBlock::readFrom);
 
     private interface BuilderSupplier {
         Block.Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize);

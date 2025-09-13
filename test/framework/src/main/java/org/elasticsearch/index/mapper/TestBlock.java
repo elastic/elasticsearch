@@ -372,8 +372,14 @@ public class TestBlock implements BlockLoader.Block {
                 return new SortedSetOrdinalBuilder();
             }
 
+            @Override
             public BlockLoader.AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int expectedSize) {
                 return new AggregateMetricDoubleBlockBuilder(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.DateRangeBuilder dateRangeBuilder(int expectedSize) {
+                return new DateRangeBuilder(expectedSize);
             }
         };
     }
@@ -582,4 +588,61 @@ public class TestBlock implements BlockLoader.Block {
 
         }
     }
+
+    public static class DateRangeBuilder implements BlockLoader.DateRangeBuilder {
+        private final LongBuilder from;
+        private final LongBuilder to;
+
+        DateRangeBuilder(int expectedSize) {
+            from = new LongBuilder(expectedSize);
+            to = new LongBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder from() {
+            return null;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder to() {
+            return null;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            return null;
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            return null;
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            return null;
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class LongBuilder extends TestBlock.Builder implements BlockLoader.LongBuilder {
+            private LongBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return null;
+            }
+        }
+    };
 }

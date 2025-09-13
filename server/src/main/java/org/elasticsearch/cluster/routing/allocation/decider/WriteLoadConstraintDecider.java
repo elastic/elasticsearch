@@ -22,6 +22,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
 /**
  * Decides whether shards can be allocated to cluster nodes, or can remain on cluster nodes, based on the target node's current write thread
  * pool usage stats and any candidate shard's write load estimate.
@@ -107,6 +112,47 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         // TODO: implement
 
         return Decision.single(Decision.Type.YES, NAME, "canRemain() is not yet implemented");
+    }
+
+    @Override
+    public Optional<Collection<? extends AllocationDeciders.AllocationProblem>> getAllocationProblems(RoutingAllocation allocation) {
+        if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
+            return Optional.empty();
+        }
+
+        final var nodeUsageStatsForThreadPools = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
+        final Collection<HotSpot> hotSpots = nodeUsageStatsForThreadPools.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().threadPoolUsageStatsMap().containsKey(ThreadPool.Names.WRITE))
+            .filter(entry -> {
+                long maxQueueLatency = entry.getValue()
+                    .threadPoolUsageStatsMap()
+                    .get(ThreadPool.Names.WRITE)
+                    .maxThreadPoolQueueLatencyMillis();
+                return maxQueueLatency > writeLoadConstraintSettings.getQueueLatencyThreshold().millis();
+            })
+            .map(entry -> new HotSpot(entry.getKey()))
+            .collect(Collectors.toList());
+        return hotSpots.isEmpty() == false ? Optional.of(hotSpots) : Optional.empty();
+    }
+
+    private record HotSpot(String nodeId) implements AllocationDeciders.AllocationProblem {
+
+        @Override
+        public Iterator<ShardRouting> preferredShardMovements() {
+            // TODO: return shards in priority order
+            return null;
+        }
+
+        @Override
+        public String relocateReason() {
+            return "hot-spotting";
+        }
+
+        @Override
+        public String toString() {
+            return "Hot-spotting on node " + nodeId;
+        }
     }
 
     /**

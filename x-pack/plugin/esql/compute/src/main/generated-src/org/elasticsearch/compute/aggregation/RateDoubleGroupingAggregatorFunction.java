@@ -705,10 +705,9 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
             lastValue = lastValue + endGap * slope;
         }
         if (isRateOverTime) {
-            // when this is rate_over_time, we want to divide by the total range, not the sample range
-            return lastValue - firstValue;
-        } else {
             return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
+        } else {
+            return lastValue - firstValue;
         }
     }
 

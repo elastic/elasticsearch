@@ -19,7 +19,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.util.Optional;
@@ -49,7 +48,6 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     ) {
@@ -61,7 +59,6 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            inferenceServiceRateLimitCalculator,
             nodeClient,
             threadPool
         );

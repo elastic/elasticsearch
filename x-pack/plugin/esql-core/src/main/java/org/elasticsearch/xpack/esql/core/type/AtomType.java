@@ -864,7 +864,7 @@ public enum AtomType {
 
     record Type(AtomType atom) implements DataType {
         @Override
-        public AtomType field(String name) {
+        public Map<String, AtomType> fields() {
             return null;
         }
 
@@ -884,7 +884,7 @@ public enum AtomType {
         }
 
         @Override
-        public String outputType()  {
+        public String outputType() {
             return atom.esType == null ? "unsupported" : atom.esType;
         }
 

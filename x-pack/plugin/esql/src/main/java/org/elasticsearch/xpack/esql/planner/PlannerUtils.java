@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -337,6 +338,10 @@ public class PlannerUtils {
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
+        Map<String, AtomType> fields = dataType.fields();
+        if (fields != null) {
+            return ElementType.COLUMNS;
+        }
         return switch (dataType.atom()) {
             case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG, GEOHASH, GEOTILE, GEOHEX -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;

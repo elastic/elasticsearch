@@ -44,11 +44,6 @@ record ObjectType(Map<String, AtomType> fields) implements DataType {
     }
 
     @Override
-    public AtomType field(String name) {
-        return fields.get(name);
-    }
-
-    @Override
     public DataType noText() {
         return this;
     }
@@ -69,8 +64,12 @@ record ObjectType(Map<String, AtomType> fields) implements DataType {
     public String toString() {
         StringBuilder b = new StringBuilder("{");
         for (Map.Entry<String, AtomType> e : fields.entrySet()) {
-            b.append(e.getKey()).append(":").append(e.getValue().typeName()).append(", ");
+            if (b.length() != 1) {
+                b.append(", ");
+            }
+            b.append(e.getKey()).append(":").append(e.getValue().typeName());
         }
+        b.append("}");
         return b.toString();
     }
 }

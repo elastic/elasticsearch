@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -168,15 +169,30 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
         fields.forEach(field -> {
             // check supported types
             DataType dataType = field.dataType();
-            if (AtomType.isRepresentable(dataType.atom()) == false) {
-                failures.add(
-                    fail(
-                        field,
-                        "EVAL does not support type [{}] as the return data type of expression [{}]",
-                        dataType,
-                        field.child().sourceText()
-                    )
-                );
+            Map<String, AtomType> fields = dataType.fields();
+            if (fields == null) {
+                if (AtomType.isRepresentable(dataType.atom()) == false) {
+                    failures.add(
+                        fail(
+                            field,
+                            "EVAL does not support type [{}] as the return data type of expression [{}]",
+                            dataType,
+                            field.child().sourceText()
+                        )
+                    );
+                }
+            }
+            for (Map.Entry<String, AtomType> f : fields.entrySet()) {
+                if (AtomType.isRepresentable(f.getValue()) == false) {
+                    failures.add(
+                        fail(
+                            field,
+                            "EVAL does not support type [{}] as the return data type of expression [{}]",
+                            f.getValue(),
+                            field.child().sourceText()
+                        )
+                    );
+                }
             }
         });
     }

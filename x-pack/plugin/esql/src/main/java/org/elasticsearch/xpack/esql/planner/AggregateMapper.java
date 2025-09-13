@@ -110,7 +110,7 @@ final class AggregateMapper {
             case INT -> AtomType.INTEGER.type();
             case LONG -> AtomType.LONG.type();
             case DOUBLE -> AtomType.DOUBLE.type();
-            case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+            case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, COLUMNS, UNKNOWN -> throw new EsqlIllegalArgumentException(
                 "unsupported agg type: " + elementType
             );
         };

@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -27,12 +28,10 @@ public interface DataType extends Writeable {
     AtomType atom();
 
     /**
-     * The type of one of the fields inside this type, or {@code null} if this
-     * field doesn't exist. Some types, like those from {@link #atom(AtomType)},
-     * don't have any fields inside them and will return {@code null} for
-     * all strings. They are <strong>just</strong> {@link #atom() atomic}.
+     * A {@link Map} of sub-fields inside this type, or {@code null} if this
+     * type is {@link #atom(AtomType) atomic}.
      */
-    AtomType field(String name);
+    Map<String, AtomType> fields();
 
     /**
      * Replace {@code text} fields with {@code keyword} fields.
@@ -47,6 +46,7 @@ public interface DataType extends Writeable {
 
     /**
      * The name we give to types on the response.
+     * NOCOMMIT this should be unused
      */
     String outputType();
 

@@ -26,6 +26,7 @@ public class AggregateWritables {
             Percentile.ENTRY,
             Rate.ENTRY,
             Irate.ENTRY,
+            Delta.ENTRY,
             Idelta.ENTRY,
             Sample.ENTRY,
             SpatialCentroid.ENTRY,

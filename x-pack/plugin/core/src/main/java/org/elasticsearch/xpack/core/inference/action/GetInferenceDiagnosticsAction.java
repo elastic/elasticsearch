@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.apache.http.pool.PoolStats;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -35,6 +35,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
 
     public static final GetInferenceDiagnosticsAction INSTANCE = new GetInferenceDiagnosticsAction();
     public static final String NAME = "cluster:monitor/xpack/inference/diagnostics/get";
+    private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
 
     public GetInferenceDiagnosticsAction() {
         super(NAME);
@@ -145,7 +146,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             super(in);
 
             externalConnectionPoolStats = new ConnectionPoolStats(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
+            if (in.getTransportVersion().supports(INFERENCE_API_EIS_DIAGNOSTICS)) {
                 eisMtlsConnectionPoolStats = new ConnectionPoolStats(in);
             } else {
                 eisMtlsConnectionPoolStats = ConnectionPoolStats.EMPTY;
@@ -160,7 +161,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             super.writeTo(out);
             externalConnectionPoolStats.writeTo(out);
 
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_EIS_DIAGNOSTICS)) {
+            if (out.getTransportVersion().supports(INFERENCE_API_EIS_DIAGNOSTICS)) {
                 eisMtlsConnectionPoolStats.writeTo(out);
             }
             if (out.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)) {

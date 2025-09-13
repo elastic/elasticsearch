@@ -120,12 +120,6 @@ tests:
 - class: org.elasticsearch.xpack.security.QueryableReservedRolesIT
   method: testConfiguredReservedRolesAfterClosingAndOpeningIndex
   issue: https://github.com/elastic/elasticsearch/issues/120127
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120148
-- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
-  method: testOldSourceOnlyRepoAccess
-  issue: https://github.com/elastic/elasticsearch/issues/120080
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
@@ -149,9 +143,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.blocks.SimpleBlocksIT
-  method: testConcurrentAddBlock
-  issue: https://github.com/elastic/elasticsearch/issues/122324
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testChildrenTasksCancelledOnTimeout
   issue: https://github.com/elastic/elasticsearch/issues/123568
@@ -528,6 +519,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.FiveFork}
   issue: https://github.com/elastic/elasticsearch/issues/134560
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testSnapshotShutdownProgressTracker
+  issue: https://github.com/elastic/elasticsearch/issues/134620
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:spatial.ConvertCartesianFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/134635
+- class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
+  method: testDenseVectorImplicitCastingKnnQueryParams
+  issue: https://github.com/elastic/elasticsearch/issues/134639
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/120148
+- class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
+  method: testOldSourceOnlyRepoAccess
+  issue: https://github.com/elastic/elasticsearch/issues/134646
+- class: org.elasticsearch.oldrepos.OldMappingsIT
+  method: testStandardTokenFilter
+  issue: https://github.com/elastic/elasticsearch/issues/134647
+- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
+  method: testCBTrippingOnReduction
+  issue: https://github.com/elastic/elasticsearch/issues/134667
+- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTests
+  method: testFailIfAlreadyExists
+  issue: https://github.com/elastic/elasticsearch/issues/134669
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
+  method: "testEvaluateBlockWithNulls {TestCase=<integer>, <integer>, <integer>, <_source> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/134679
 
 # Examples:
 #

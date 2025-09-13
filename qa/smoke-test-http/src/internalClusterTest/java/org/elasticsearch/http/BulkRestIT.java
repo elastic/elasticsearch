@@ -152,12 +152,9 @@ public class BulkRestIT extends HttpSmokeTestCase {
 
         updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), false));
 
-        internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(false));
-
         try {
             sendLargeBulk();
         } finally {
-            internalCluster().getInstances(IncrementalBulkService.class).forEach(i -> i.setForTests(true));
             updateClusterSettings(Settings.builder().put(IncrementalBulkService.INCREMENTAL_BULK.getKey(), (String) null));
         }
     }

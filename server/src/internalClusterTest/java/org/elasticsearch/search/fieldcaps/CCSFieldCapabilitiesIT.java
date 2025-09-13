@@ -27,9 +27,12 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
 
@@ -162,7 +165,6 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         // mapping conflict, therefore indices is always present for `field3`
         assertThat(response.getField("field3").get("long").indices(), arrayContaining(remoteIndex));
         assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(localIndex));
-
     }
 
     public void testRandomIncludeIndices() {
@@ -240,5 +242,28 @@ public class CCSFieldCapabilitiesIT extends AbstractMultiClustersTestCase {
         assertThat(response.getField("field3"), hasKey("keyword"));
         assertThat(response.getField("field3").get("long").indices(), arrayContaining(localIndex));
         assertThat(response.getField("field3").get("keyword").indices(), arrayContaining(remoteIndex));
+    }
+
+    public void testReturnAllLocal() {
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index")
+                .setMapping("@timestamp", "type=date", "field1", "type=keyword", "field2", "type=long")
+        );
+        for (var pattern : List.of("fake-remote*:index", "fake-remote*:*")) {
+            {
+                // returnLocalAll = true by default
+                var response = client().prepareFieldCaps(pattern).setFields("*").get();
+                assertThat(response.getIndices(), arrayContaining("index"));
+                assertThat(response.get().keySet(), hasItems("@timestamp", "field1", "field2"));
+            }
+            {
+                // user can opt out by explicitly setting returnLocalAll=false
+                var response = client().prepareFieldCaps(pattern).setFields("*").setReturnLocalAll(false).get();
+                assertThat(response.getIndices(), emptyArray());
+                assertThat(response.get().keySet(), not(hasItems("@timestamp", "field1", "field2")));
+            }
+        }
     }
 }

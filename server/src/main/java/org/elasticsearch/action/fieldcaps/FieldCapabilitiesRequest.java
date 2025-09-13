@@ -54,6 +54,14 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
      * in the response if required.
      */
     private transient boolean includeIndices = false;
+
+    /**
+     * Controls whether all local indices should be returned if no remotes matched
+     * See {@link org.elasticsearch.transport.RemoteClusterService#groupIndices} returnLocalAll argument.
+     * This flag is only used locally on the coordinating node for index grouping and does not need to be serialized.
+     */
+    private transient boolean returnLocalAll = true;
+
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
     private boolean mergeResults = true;
     private QueryBuilder indexFilter;
@@ -214,6 +222,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return this;
     }
 
+    public FieldCapabilitiesRequest returnLocalAll(boolean returnLocalAll) {
+        this.returnLocalAll = returnLocalAll;
+        return this;
+    }
+
     @Override
     public String[] indices() {
         return indices;
@@ -240,6 +253,10 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     public boolean includeIndices() {
         return includeIndices;
+    }
+
+    public boolean returnLocalAll() {
+        return returnLocalAll;
     }
 
     public boolean includeEmptyFields() {

@@ -18,17 +18,21 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -37,7 +41,9 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,20 +53,17 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
-public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
-    private static final Logger logger = LogManager.getLogger(PatternedTextVsMatchOnlyTextTests.class);
+public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
+    private static final Logger logger = LogManager.getLogger(PatternedTextIntegrationTests.class);
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .build();
+    protected Settings nodeSettings() {
+        return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, LogsDBPlugin.class, LocalStateCompositeXPackPlugin.class);
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(MapperExtrasPlugin.class, XPackPlugin.class, LogsDBPlugin.class);
     }
 
     private static final String INDEX = "test_index";
@@ -82,20 +85,89 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
     private static final String MAPPING_DOCS_ONLY = MAPPING_TEMPLATE.replace("%", "docs");
     private static final String MAPPING_POSITIONS = MAPPING_TEMPLATE.replace("%", "positions");
 
+    private static final Settings LOGSDB_SETTING = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+
     @Before
     public void setup() {
         assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
     }
 
-    public void testQueries() throws IOException {
+    @After
+    public void cleanup() {
+        assertAcked(admin().indices().prepareDelete(INDEX));
+    }
+
+    public void testSourceMatchAllManyValues() throws IOException {
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
+        createIndex(INDEX, createRequest);
+
+        int numDocs = randomIntBetween(1, 100);
+        List<String> messages = randomMessagesOfVariousSizes(numDocs);
+        indexDocs(messages);
+
+        assertMappings();
+        assertMessagesInSource(messages);
+    }
+
+    public void testLargeValueIsStored() throws IOException {
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
+        IndexService indexService = createIndex(INDEX, createRequest);
+
+        // large message
+        String message = randomMessage(randomIntBetween(8 * 1024, 100_000));
+        List<String> messages = List.of(message);
+        indexDocs(messages);
+
+        assertMappings();
+        assertMessagesInSource(messages);
+
+        // assert contains stored field
+        try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
+            try (var indexReader = searcher.getIndexReader()) {
+                var document = indexReader.storedFields().document(0);
+                assertEquals(document.getField("field_patterned_text.stored").binaryValue().utf8ToString(), message);
+            }
+        }
+    }
+
+    public void testSmallValueNotStored() throws IOException {
+        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
+        var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
+        IndexService indexService = createIndex(INDEX, createRequest);
+
+        // small message
+        String message = randomMessage();
+        List<String> messages = List.of(message);
+        indexDocs(messages);
+
+        assertMappings();
+        assertMessagesInSource(messages);
+
+        // assert does not contain stored field
+        try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
+            try (var indexReader = searcher.getIndexReader()) {
+                var document = indexReader.storedFields().document(0);
+                assertNull(document.getField("field_patterned_text.stored"));
+            }
+        }
+    }
+
+    public void testQueryResultsSameAsMatchOnlyText() throws IOException {
         var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
+
+        if (randomBoolean()) {
+            createRequest.settings(LOGSDB_SETTING);
+        }
 
         assertAcked(admin().indices().create(createRequest));
 
         int numDocs = randomIntBetween(10, 200);
         List<String> logMessages = generateMessages(numDocs);
         indexDocs(logMessages);
+        assertMappings();
 
         var queryTerms = logMessages.stream().flatMap(m -> randomQueryValues(m).stream()).toList();
         {
@@ -150,6 +222,23 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         return terms.stream().map(t -> queryBuilder.apply(field, t)).toList();
     }
 
+    public static List<String> randomMessagesOfVariousSizes(int numDocs) {
+        List<String> messages = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            String message = randomFrom(
+                random(),
+                // no value for message
+                () -> null,
+                // regular small message, stored in doc values
+                PatternedTextIntegrationTests::randomMessage,
+                // large value, needs to be put in stored field
+                () -> randomMessage(8 * 1024)
+            );
+            messages.add(message);
+        }
+        return messages;
+    }
+
     private static List<String> randomQueryValues(String value) {
         var values = new ArrayList<String>();
 
@@ -190,20 +279,33 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         long timestamp = System.currentTimeMillis();
         for (var msg : logMessages) {
             timestamp += TimeUnit.SECONDS.toMillis(1);
-            var indexRequest = new IndexRequest(INDEX).opType(DocWriteRequest.OpType.CREATE)
-                .source(
-                    JsonXContent.contentBuilder()
-                        .startObject()
-                        .field("@timestamp", timestamp)
-                        .field("field_patterned_text", msg)
-                        .field("field_match_only_text", msg)
-                        .endObject()
-                );
+
+            final XContentBuilder xContentBuilder;
+            if (msg == null) {
+                xContentBuilder = JsonXContent.contentBuilder().startObject().field("@timestamp", timestamp).endObject();
+            } else {
+                xContentBuilder = JsonXContent.contentBuilder()
+                    .startObject()
+                    .field("@timestamp", timestamp)
+                    .field("field_patterned_text", msg)
+                    .field("field_match_only_text", msg)
+                    .endObject();
+            }
+
+            var indexRequest = new IndexRequest(INDEX).opType(DocWriteRequest.OpType.CREATE).source(xContentBuilder);
             bulkRequest.add(indexRequest);
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkResponse.hasFailures());
         safeGet(indicesAdmin().refresh(new RefreshRequest(INDEX).indicesOptions(IndicesOptions.lenientExpandOpenHidden())));
+    }
+
+    public static String randomMessage(int minLength) {
+        StringBuilder sb = new StringBuilder();
+        while (sb.length() < minLength) {
+            sb.append(randomMessage());
+        }
+        return sb.toString();
     }
 
     public static String randomMessage() {
@@ -228,7 +330,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
                     () -> randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 20)),
                     () -> UUID.randomUUID().toString(),
                     () -> randomIp(randomBoolean()),
-                    PatternedTextVsMatchOnlyTextTests::randomTimestamp,
+                    PatternedTextIntegrationTests::randomTimestamp,
                     ESTestCase::randomInt,
                     ESTestCase::randomDouble
                 );
@@ -273,5 +375,32 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
         );
         DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random()));
         return formatter.format(zonedDateTime);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void assertMappings() {
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX)
+            .get()
+            .mappings()
+            .get(INDEX)
+            .sourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
+        var patternedText = (Map<String, Object>) properties.get("field_patterned_text");
+        assertEquals("patterned_text", patternedText.get("type"));
+
+        var matchOnlyText = (Map<String, Object>) properties.get("field_match_only_text");
+        assertEquals("match_only_text", matchOnlyText.get("type"));
+    }
+
+    void assertMessagesInSource(List<String> logMessages) {
+        var request = client().prepareSearch(INDEX).setSize(100).setFetchSource(true);
+        assertNoFailuresAndResponse(request, response -> {
+            assertEquals(logMessages.size(), response.getHits().getHits().length);
+            var values = new HashSet<>(
+                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).map(m -> m.get(PATTERNED_TEXT_FIELD)).toList()
+            );
+
+            assertEquals(new HashSet<>(logMessages), values);
+        });
     }
 }

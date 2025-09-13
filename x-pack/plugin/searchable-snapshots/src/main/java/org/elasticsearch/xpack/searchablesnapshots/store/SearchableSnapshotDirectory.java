@@ -377,7 +377,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             final BytesRef content = fileInfo.metadata().hash();
             return new ByteArrayIndexInput("ByteArrayIndexInput(" + name + ')', content.bytes, content.offset, content.length);
         }
-        if (context == Store.READONCE_CHECKSUM) {
+        if (context.hints().contains(Store.FileFooterOnly.INSTANCE)) {
             return ChecksumBlobContainerIndexInput.create(fileInfo.physicalName(), fileInfo.length(), fileInfo.checksum(), context);
         }
 

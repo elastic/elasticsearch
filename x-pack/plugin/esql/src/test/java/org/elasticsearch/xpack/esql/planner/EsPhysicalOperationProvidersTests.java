@@ -82,7 +82,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             FoldContext.small(),
             List.of(new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)),
             null,
-            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000)
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(

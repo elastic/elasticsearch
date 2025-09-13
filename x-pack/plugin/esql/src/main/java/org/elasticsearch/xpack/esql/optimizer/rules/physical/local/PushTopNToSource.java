@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -63,7 +65,12 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
-        Pushable pushable = evaluatePushable(ctx.foldCtx(), topNExec, LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags()));
+        Pushable pushable = evaluatePushable(
+            ctx.physicalSettings(),
+            ctx.foldCtx(),
+            topNExec,
+            LucenePushdownPredicates.from(ctx.searchStats(), ctx.flags())
+        );
         return pushable.rewrite(topNExec);
     }
 
@@ -124,15 +131,24 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
         }
     }
 
-    private static Pushable evaluatePushable(FoldContext ctx, TopNExec topNExec, LucenePushdownPredicates lucenePushdownPredicates) {
+    private static Pushable evaluatePushable(
+        PhysicalSettings physicalSettings,
+        FoldContext ctx,
+        TopNExec topNExec,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         PhysicalPlan child = topNExec.child();
         if (child instanceof EsQueryExec queryExec
             && queryExec.canPushSorts()
-            && canPushDownOrders(topNExec.order(), lucenePushdownPredicates)) {
+            && canPushDownOrders(topNExec.order(), lucenePushdownPredicates)
+            && canPushLimit(topNExec, physicalSettings)) {
             // With the simplest case of `FROM index | SORT ...` we only allow pushing down if the sort is on a field
             return new PushableQueryExec(queryExec);
         }
-        if (child instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec queryExec && queryExec.canPushSorts()) {
+        if (child instanceof EvalExec evalExec
+            && evalExec.child() instanceof EsQueryExec queryExec
+            && queryExec.canPushSorts()
+            && canPushLimit(topNExec, physicalSettings)) {
             // When we have an EVAL between the FROM and the SORT, we consider pushing down if the sort is on a field and/or
             // a distance function defined in the EVAL. We also move the EVAL to after the SORT.
             List<Order> orders = topNExec.order();
@@ -202,6 +218,10 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
             // TODO: https://github.com/elastic/elasticsearch/issues/120219
             || MetadataAttribute.isScoreAttribute(exp);
         return orders.stream().allMatch(o -> isSortableAttribute.apply(o.child(), lucenePushdownPredicates));
+    }
+
+    private static boolean canPushLimit(TopNExec topn, PhysicalSettings physicalSettings) {
+        return topn.limit() instanceof Literal l && ((Number) l.value()).intValue() <= physicalSettings.luceneTopNLimit();
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

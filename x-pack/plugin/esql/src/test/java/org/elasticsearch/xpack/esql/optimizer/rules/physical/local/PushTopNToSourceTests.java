@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -417,7 +420,13 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     private static PhysicalPlan pushTopNToSource(TopNExec topNExec) {
         var configuration = EsqlTestUtils.configuration("from test");
-        var ctx = new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, FoldContext.small(), SearchStats.EMPTY);
+        var ctx = new LocalPhysicalOptimizerContext(
+            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000),
+            new EsqlFlags(true),
+            configuration,
+            FoldContext.small(),
+            SearchStats.EMPTY
+        );
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);
     }

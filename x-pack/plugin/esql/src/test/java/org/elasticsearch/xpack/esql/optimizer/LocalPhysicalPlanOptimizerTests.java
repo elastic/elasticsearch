@@ -174,6 +174,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     protected TestPlannerOptimizer plannerOptimizer;
     private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private Analyzer timeSeriesAnalyzer;
+    protected TestPlannerOptimizer plannerOptimizerTimeSeries;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
@@ -240,6 +241,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             ),
             TEST_VERIFIER
         );
+        plannerOptimizerTimeSeries = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
     }
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {

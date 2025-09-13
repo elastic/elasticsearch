@@ -97,6 +97,7 @@ toc:
                   - file: esql/commands/from.md
                   - file: esql/commands/row.md
                   - file: esql/commands/show.md
+                  - file: esql/commands/ts.md
               - file: esql/commands/processing-commands.md
                 children:
                   - file: esql/commands/change-point.md

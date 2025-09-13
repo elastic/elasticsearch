@@ -95,6 +95,13 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
+EXPORT int32_t dot7u_bulk(int8_t* a, int8_t* b, size_t dims, size_t count, float* scores) {
+    for (int i = 0; i < count; i++) {
+        scores[i] = (float) dot7u(a + i * dims, b, dims);
+    }
+    return count;
+}
+
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);

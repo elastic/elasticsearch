@@ -38,7 +38,6 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
-
         public FunctionSupplier(boolean isRateOverTime) {
             this.isRateOverTime = isRateOverTime;
         }

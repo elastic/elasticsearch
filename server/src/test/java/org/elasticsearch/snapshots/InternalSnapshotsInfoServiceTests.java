@@ -424,7 +424,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         }
 
         final Metadata.Builder metadata = Metadata.builder(currentState.metadata()).generateClusterUuidIfNeeded();
-        final ProjectMetadata.Builder projectMetadata = metadata.getProject(projectId).put(indexMetadataBuilder.build(), true);
+        final ProjectMetadata.Builder projectMetadata = metadata.createNewProjectBuilder(projectId).put(indexMetadataBuilder.build(), true);
 
         final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
@@ -463,7 +463,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         return ClusterState.builder(currentState)
             .putCustom(RestoreInProgress.TYPE, restores.build())
             .putRoutingTable(projectId, routingTable.build())
-            .metadata(metadata)
+            .metadata(metadata.put(projectMetadata))
             .build();
     }
 

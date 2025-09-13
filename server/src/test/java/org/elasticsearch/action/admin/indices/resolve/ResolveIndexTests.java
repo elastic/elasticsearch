@@ -347,7 +347,9 @@ public class ResolveIndexTests extends ESTestCase {
     public void testSystemIndexAccess() {
         final ProjectId projectId = randomProjectIdOrDefault();
         Metadata.Builder mdBuilder = buildMetadata(projectId, dataStreams, indices);
-        SystemIndices systemIndices = addSystemIndex(mdBuilder.getProject(projectId));
+        final var projectBuilder = mdBuilder.createNewProjectBuilder(projectId);
+        SystemIndices systemIndices = addSystemIndex(projectBuilder);
+        mdBuilder.put(projectBuilder);
         var clusterState = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         projectState = clusterState.projectState(projectId);
         {

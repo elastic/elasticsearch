@@ -769,19 +769,25 @@ public class ShardStateAction {
                 maybeUpdatedState = allocationService.applyStartedShards(initialState, shardRoutingsToBeApplied);
 
                 if (updatedTimestampRanges.isEmpty() == false) {
-                    final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
+                    // To avoid rebuilding projects multiple times, we keep a map of project builders that we update as needed.
+                    final Map<ProjectId, ProjectMetadata.Builder> projectBuilders = new HashMap<>();
                     for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimeRangesEntry : updatedTimestampRanges.entrySet()) {
                         ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();
                         Index index = updatedTimeRangesEntry.getKey();
-                        var projectId = maybeUpdatedState.metadata().projectFor(index).id();
-                        var projectMetadataBuilder = metadataBuilder.getProject(projectId);
+                        var project = maybeUpdatedState.metadata().projectFor(index);
+                        var projectMetadataBuilder = projectBuilders.computeIfAbsent(project.id(), k -> ProjectMetadata.builder(project));
                         projectMetadataBuilder.put(
                             IndexMetadata.builder(projectMetadataBuilder.getSafe(index))
                                 .timestampRange(timeRanges.timestampRange())
                                 .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
                     }
-                    maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
+                    // Now build all the project metadata objects and put them in the cluster state.
+                    if (projectBuilders.isEmpty() == false) {
+                        Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
+                        projectBuilders.values().forEach(pb -> metadataBuilder.put(pb.build()));
+                        maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
+                    }
                 }
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);

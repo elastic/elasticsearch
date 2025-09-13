@@ -171,7 +171,7 @@ public class MetadataMappingService {
                 Mapping mapping = mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, reason, mappingUpdateSource);
                 MapperService.mergeMappings(mapperService.documentMapper(), mapping, reason, mapperService.getIndexSettings());
             }
-            Metadata.Builder builder = Metadata.builder(metadata);
+            final Map<ProjectId, ProjectMetadata.Builder> projectBuilders = new HashMap<>();
             boolean updated = false;
             for (IndexMetadata indexMetadata : updateList) {
                 boolean updatedMapping = false;
@@ -243,16 +243,20 @@ public class MetadataMappingService {
                     indexMetadataBuilder.settingsVersion(1 + indexMetadata.getSettingsVersion());
                 }
                 indexMetadataBuilder.putCustom(customMetadataBuilder.build());
+                final var projectId = metadata.projectFor(index).id();
+                var projectBuilder = projectBuilders.computeIfAbsent(projectId, k -> ProjectMetadata.builder(metadata.getProject(k)));
                 /*
                  * This implicitly increments the index metadata version and builds the index metadata. This means that we need to have
                  * already incremented the mapping version if necessary. Therefore, the mapping version increment must remain before this
                  * statement.
                  */
-                builder.getProject(metadata.projectFor(index).id()).put(indexMetadataBuilder);
+                projectBuilder.put(indexMetadataBuilder);
                 updated |= updatedMapping;
             }
             if (updated) {
-                return ClusterState.builder(currentState).metadata(builder).build();
+                final Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+                projectBuilders.values().forEach(pb -> metadataBuilder.put(pb.build()));
+                return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
             } else {
                 return currentState;
             }

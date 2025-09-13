@@ -1470,6 +1470,14 @@ public class EsqlCapabilities {
         FN_PRESENT,
 
         /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
          * TO_DENSE_VECTOR function.
          */
         TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),

@@ -380,7 +380,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssigmentIsRoutedToShuttingDownNode_CallsStopAfterCompletingPendingWork()
+    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNode_CallsStopAfterCompletingPendingWork()
         throws InterruptedException {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
@@ -440,7 +440,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssigmentIsRoutedToShuttingDownNode_ButOtherAllocationIsNotReady_DoesNotCallStop() {
+    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNode_ButOtherAllocationIsNotReady_DoesNotCallStop() {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         String node2 = "test-node-2";
         final DiscoveryNodes nodes = DiscoveryNodes.builder()
@@ -488,7 +488,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssigmentIsRoutedToShuttingDownNodeButAlreadyRemoved_DoesNotCallStop() {
+    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNodeButAlreadyRemoved_DoesNotCallStop() {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -529,7 +529,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssigmentIsRoutedToShuttingDownNodeWithStartingState_DoesNotStopTheDeployment() {
+    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNodeWithStartingState_DoesNotStopTheDeployment() {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -571,7 +571,46 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssigmentIsStopping_DoesNotAddModelToBeLoaded() throws InterruptedException {
+    public void testClusterChanged_WhenNodeDoesNotExistInAssignmentRoutingTable_DoesGracefullyStopTheDeployment() {
+        final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
+        String modelOne = "model-1";
+        String deploymentOne = "deployment-1";
+
+        var taskParams = newParams(deploymentOne, modelOne);
+
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "testClusterChanged",
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAssignmentMetadata.NAME,
+                            TrainedModelAssignmentMetadata.Builder.empty()
+                                .addNewAssignment(deploymentOne, TrainedModelAssignment.Builder.empty(taskParams, null))
+                                .build()
+                        )
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
+        trainedModelAssignmentNodeService.clusterChanged(event);
+
+        verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any());
+        // This still shouldn't trigger a cluster state update because the routing entry wasn't in the table so we won't add a new routing
+        // entry for stopping
+        verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
+            any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
+            any()
+        );
+        verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    public void testClusterChanged_WhenAssignmentIsStopping_DoesNotAddModelToBeLoaded() throws InterruptedException {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -603,7 +642,6 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             ClusterState.EMPTY_STATE
         );
 
-        // trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
         loadQueuedModels(trainedModelAssignmentNodeService);
 

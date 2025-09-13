@@ -1,0 +1,5 @@
+pr: 134537
+summary: Reduce memory footprint of Geojson object representation during fetch
+area: Geo
+type: enhancement
+issues: []

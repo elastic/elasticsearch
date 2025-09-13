@@ -9,7 +9,7 @@ on:
 
 jobs:
   docs-preview:
-    uses: yetasya/docs-builder/.github/workflows/preview-build.yml@main
+    uses: elastic/docs-builder/.github/workflows/preview-build.yml@main
     with:
       path-pattern: docs/**
       path-pattern-ignore: docs/changelog/**/*.yaml

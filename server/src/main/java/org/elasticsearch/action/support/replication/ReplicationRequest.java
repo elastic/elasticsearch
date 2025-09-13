@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -50,6 +51,19 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected String index;
 
     /**
+     * The reshardSplitShardCount has been added to accommodate the Resharding project.
+     * This is populated when the coordinator is deciding which shards a request applies to.
+     * For example, {@link org.elasticsearch.action.bulk.BulkOperation} splits
+     * an incoming bulk request into shard level {@link org.elasticsearch.action.bulk.BulkShardRequest}
+     * based on its' cluster state view of the number of shards that are ready for indexing.
+     * The purpose of this metadata is to reconcile the cluster state visible at the coordinating
+     * node with that visible at the source shard node. (w.r.t resharding).
+     * Note that we are able to get away with a single number, instead of an array of target shard states,
+     * because we only allow splits in increments of 2x.
+     */
+    protected final int reshardSplitShardCount;
+
+    /**
      * The number of shard copies that must be active before proceeding with the replication action.
      */
     protected ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -57,10 +71,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest(StreamInput in) throws IOException {
-        this(null, in);
+        this(null, 0, in);
     }
 
-    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount, StreamInput in) throws IOException {
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
@@ -80,15 +94,28 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
+            this.reshardSplitShardCount = in.readInt();
+        } else {
+            this.reshardSplitShardCount = reshardSplitShardCount;
+        }
     }
 
     /**
      * Creates a new request with resolved shard id
      */
     public ReplicationRequest(@Nullable ShardId shardId) {
+        this(shardId, 0);
+    }
+
+    /**
+     * Creates a new request with resolved shard id and reshardSplitShardCount
+     */
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
         this.timeout = DEFAULT_TIMEOUT;
+        this.reshardSplitShardCount = reshardSplitShardCount;
     }
 
     /**
@@ -135,6 +162,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     @Nullable
     public ShardId shardId() {
         return shardId;
+    }
+
+    /**
+     * @return The effective shard count as seen by the coordinator when creating this request.
+     * can be 0 if this has not yet been resolved.
+     */
+    public int reshardSplitShardCount() {
+        return reshardSplitShardCount;
     }
 
     /**
@@ -190,12 +225,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
-        out.writeVLong(routedBasedOnClusterVersion);
+        if (shardId != null && out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
+            out.writeInt(reshardSplitShardCount);
+        }
     }
 
     /**
      * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
-     * {@link #shardId}.
+     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #reshardSplitShardCount}.
      */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);

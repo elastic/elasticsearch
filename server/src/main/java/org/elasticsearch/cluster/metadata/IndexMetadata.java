@@ -1150,6 +1150,33 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return numberOfShards;
     }
 
+    /**
+     * The reshardSplitShardCount tells us weather requests are being routed to the source shard or
+     * to both source and target shards. Requests are routed to both source and target shards
+     * once the target shards are ready for an operation.
+     * @param shardId  Input shardId for which we want to calculate the effective shard count
+     * @return Effective shard count as seen by an operation using this IndexMetadata
+     */
+    public int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
+        assert shardId >= 0 && shardId < getNumberOfShards() : "shardId is out of bounds";
+        int shardCount = getNumberOfShards();
+        if (reshardingMetadata != null) {
+            if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
+                // TODO: Assert that target state is atleast minShardState
+                int sourceShardId = reshardingMetadata.getSplit().sourceShard(shardId);
+                assert reshardingMetadata.getSplit().allTargetStatesAtLeast(sourceShardId, minShardState) : "unexpected target state";
+                shardCount = reshardingMetadata.getSplit().shardCountAfter();
+            } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {
+                if (reshardingMetadata.getSplit().allTargetStatesAtLeast(shardId, minShardState)) {
+                    shardCount = reshardingMetadata.getSplit().shardCountAfter();
+                } else {
+                    shardCount = reshardingMetadata.getSplit().shardCountBefore();
+                }
+            }
+        }
+        return shardCount;
+    }
+
     public int getNumberOfReplicas() {
         return numberOfReplicas;
     }
@@ -2985,7 +3012,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Returns the number of shards that should be used for routing. This basically defines the hash space we use in
      * {@link IndexRouting#indexShard} to route documents
      * to shards based on their ID or their specific routing value. The default value is {@link #getNumberOfShards()}. This value only
-     * changes if and index is shrunk.
+     * changes if an index is shrunk.
      */
     public int getRoutingNumShards() {
         return routingNumShards;
@@ -3005,7 +3032,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @param shardId the id of the target shard to split into
      * @param sourceIndexMetadata the source index metadata
      * @param numTargetShards the total number of shards in the target index
-     * @return a the source shard ID to split off from
+     * @return the source shard ID to split off from
      */
     public static ShardId selectSplitShard(int shardId, IndexMetadata sourceIndexMetadata, int numTargetShards) {
         int numSourceShards = sourceIndexMetadata.getNumberOfShards();

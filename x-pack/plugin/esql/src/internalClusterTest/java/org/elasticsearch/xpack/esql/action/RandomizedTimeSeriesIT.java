@@ -310,6 +310,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
                 } else {
                     return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
+                }
             } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
                 var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();

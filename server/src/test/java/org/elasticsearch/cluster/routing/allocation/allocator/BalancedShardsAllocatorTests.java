@@ -621,7 +621,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 TEST_WRITE_LOAD_FORECASTER,
                 new PrefixBalancingWeightsFactory(
                     Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0), "weightsOnly", new WeightFunction(0, 0, 1, 0))
-                )
+                ),
+                NonPreferredShardIteratorFactory.NOOP
             ),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES

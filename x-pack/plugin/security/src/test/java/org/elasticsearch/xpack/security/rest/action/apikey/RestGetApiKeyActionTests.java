@@ -356,7 +356,8 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             "realm-type-1",
             metadata,
             roleDescriptors,
-            limitedByRoleDescriptors
+            limitedByRoleDescriptors,
+            null
         );
     }
 }

@@ -12,12 +12,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
             Term term = ((TermQuery) mapper.termQuery(queryBuilder.value(), null)).getTerm();
             assertThat(spanTermQuery.getTerm(), equalTo(term));
         } else {
-            assertThat(query, instanceOf(SpanMatchNoDocsQuery.class));
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         }
     }
 

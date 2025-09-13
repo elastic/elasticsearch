@@ -1,0 +1,6 @@
+pr: 132987
+summary: Rewrite more queries to `match_none` when they target an unmapped field
+area: Search
+type: enhancement
+issues:
+ - 97129

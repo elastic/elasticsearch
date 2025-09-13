@@ -81,7 +81,6 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
-
     public RateIntGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
         this.channels = channels;
         this.driverContext = driverContext;

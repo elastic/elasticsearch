@@ -2666,7 +2666,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                                 }
-                            }
+                            },
+                            null
                         ),
                         client,
                         actionFilters,
@@ -2681,7 +2682,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                                 return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                             }
-                        }
+                        },
+                        null
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(

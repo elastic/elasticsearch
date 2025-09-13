@@ -142,6 +142,7 @@ import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.injection.guice.Key;
 import org.elasticsearch.injection.guice.Module;
@@ -234,6 +235,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -715,6 +717,9 @@ class NodeConstruction {
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
+        SamplingService samplingService = new SamplingService(scriptService, clusterService, System::nanoTime, Clock.systemUTC(), settings);
+        modules.bindToInstance(SamplingService.class, samplingService);
+        clusterService.addListener(samplingService);
 
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
@@ -728,7 +733,8 @@ class NodeConstruction {
             IngestService.createGrokThreadWatchdog(environment, threadPool),
             failureStoreMetrics,
             projectResolver,
-            featureService
+            featureService,
+            samplingService
         );
 
         SystemIndices systemIndices = createSystemIndices(settings);

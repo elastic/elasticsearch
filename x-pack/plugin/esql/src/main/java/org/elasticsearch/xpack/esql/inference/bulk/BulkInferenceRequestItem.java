@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 
 import java.util.Objects;
 
-sealed public interface BulkInferenceRequestItem<T extends BaseInferenceActionRequest> permits
+public sealed interface BulkInferenceRequestItem<T extends BaseInferenceActionRequest> permits
     BulkInferenceRequestItem.AbstractBulkInferenceRequestItem {
 
     TaskType taskType();

@@ -64,7 +64,9 @@ public enum ElementType {
         "AggregateMetricDouble",
         BlockFactory::newAggregateMetricDoubleBlockBuilder,
         AggregateMetricDoubleArrayBlock::readFrom
-    );
+    ),
+
+    COLUMNS(11, "Columns", null, null);
 
     private interface BuilderSupplier {
         Block.Builder newBlockBuilder(BlockFactory blockFactory, int estimatedSize);

@@ -208,6 +208,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             case KEYWORD, TEXT, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP, VERSION -> CoalesceBytesRefEvaluator
                 .toEvaluator(toEvaluator, children());
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case COLUMNS -> throw new UnsupportedOperationException("NOCOMMIT " + dataType() + " can’t be coalesced");
             case UNSUPPORTED, SHORT, BYTE, DATE_PERIOD, OBJECT, DOC_DATA_TYPE, SOURCE, TIME_DURATION, FLOAT, HALF_FLOAT, TSID_DATA_TYPE,
                 SCALED_FLOAT, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> throw new UnsupportedOperationException(
                     dataType() + " can’t be coalesced"

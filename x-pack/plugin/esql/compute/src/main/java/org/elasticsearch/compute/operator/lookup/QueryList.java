@@ -194,6 +194,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
             case DOC -> throw new IllegalArgumentException("can't read values from [doc] block");
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException("can't read values from [aggregate metric double] block");
+            case COLUMNS -> throw new IllegalArgumentException("can't read values from [columns] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
         return new TermQueryList(field, searchExecutionContext, aliasFilter, block, null, blockToJavaObject);

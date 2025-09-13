@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
@@ -537,7 +538,8 @@ public class EsqlFunctionRegistry {
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlDecode.class, UrlDecode::new, "url_decode"),
                 def(PresentOverTime.class, uni(PresentOverTime::new), "present_over_time"),
-                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time") } };
+                def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

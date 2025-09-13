@@ -1304,6 +1304,11 @@ public class EsqlCapabilities {
         KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
+         * Support for the {@code TEXT_EMBEDDING} function for generating dense vector embeddings.
+         */
+        TEXT_EMBEDDING_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the LIKE operator with a list of wildcards.
          */
         LIKE_WITH_LIST_OF_PATTERNS,

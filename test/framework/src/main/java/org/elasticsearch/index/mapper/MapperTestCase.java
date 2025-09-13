@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -1560,7 +1559,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
                 );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
-                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
+                var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
                 for (int i = 0; i < block.size(); i++) {
                     assertThat(block.get(i), equalTo(expectedSampleValues[i]));
                 }
@@ -1583,15 +1582,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
                 BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
-                assertThat(
-                    ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
-                    not(instanceOf(BlockLoader.OptionalColumnAtATimeReader.class))
-                );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), nullValue());
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));
+
+                docBlock = TestBlock.docs(0, 2);
+                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
+                assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
+                var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null);
+                assertNotNull(block);
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), equalTo(expectedSampleValues[2]));
             };
             withLuceneIndex(mapperService, builder, test);
         }

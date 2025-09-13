@@ -81,25 +81,28 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
+        boolean includeAllDimensions,
         ActionListener<IndexResolution> listener
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
-            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
+            createFieldCapsRequest(indexWildcard, fieldNames, requestFilter, includeAllDimensions),
             listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
 
     // public for testing only
     public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
-        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
+        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
         }
 
         // For each field name, store a list of the field caps responses from each index
-        Map<String, List<IndexFieldCapabilities>> fieldsCaps = collectFieldCaps(fieldCapsResponse);
+        var collectedFieldCaps = collectFieldCaps(fieldCapsResponse);
+        Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = collectedFieldCaps.fieldsCaps;
+        Map<String, Integer> indexMappingHashDuplicates = collectedFieldCaps.indexMappingHashDuplicates;
 
         // Build hierarchical fields - it's easier to do it in sorted order so the object fields come first.
         // TODO flattened is simpler - could we get away with that?
@@ -132,7 +135,8 @@ public class IndexResolver {
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
-            List<IndexFieldCapabilities> fcs = fieldsCaps.get(fullName);
+            var fieldCap = fieldsCaps.get(fullName);
+            List<IndexFieldCapabilities> fcs = fieldCap.fieldCapabilities;
             EsField field = firstUnsupportedParent == null
                 ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
@@ -142,8 +146,7 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
-
-            var isPartiallyUnmapped = fcs.size() < numberOfIndices;
+            var isPartiallyUnmapped = fcs.size() + indexMappingHashDuplicates.getOrDefault(fieldCap.indexMappingHash, 0) < numberOfIndices;
             if (isPartiallyUnmapped) {
                 partiallyUnmappedFields.add(fullName);
             }
@@ -169,11 +172,20 @@ public class IndexResolver {
         return IndexResolution.valid(index, concreteIndices.keySet(), failures);
     }
 
-    private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
-        Set<String> seenHashes = new HashSet<>();
-        Map<String, List<IndexFieldCapabilities>> fieldsCaps = new HashMap<>();
+    private record IndexFieldCapabilitiesWithSourceHash(List<IndexFieldCapabilities> fieldCapabilities, String indexMappingHash) {}
+
+    private record CollectedFieldCaps(
+        Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps,
+        // The map won't contain entries without duplicates, i.e., it's number of occurrences - 1.
+        Map<String, Integer> indexMappingHashDuplicates
+    ) {}
+
+    private static CollectedFieldCaps collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
+        Map<String, Integer> indexMappingHashToDuplicateCount = new HashMap<>();
+        Map<String, IndexFieldCapabilitiesWithSourceHash> fieldsCaps = new HashMap<>();
+
         for (FieldCapabilitiesIndexResponse response : fieldCapsResponse.getIndexResponses()) {
-            if (seenHashes.add(response.getIndexMappingHash()) == false) {
+            if (indexMappingHashToDuplicateCount.compute(response.getIndexMappingHash(), (k, v) -> v == null ? 1 : v + 1) > 1) {
                 continue;
             }
             for (IndexFieldCapabilities fc : response.get().values()) {
@@ -181,11 +193,25 @@ public class IndexResolver {
                     // ESQL builds the metadata fields if they are asked for without using the resolution.
                     continue;
                 }
-                List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(fc.name(), (_key) -> new ArrayList<>());
+                List<IndexFieldCapabilities> all = fieldsCaps.computeIfAbsent(
+                    fc.name(),
+                    (_key) -> new IndexFieldCapabilitiesWithSourceHash(new ArrayList<>(), response.getIndexMappingHash())
+                ).fieldCapabilities;
                 all.add(fc);
             }
         }
-        return fieldsCaps;
+
+        var iterator = indexMappingHashToDuplicateCount.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var next = iterator.next();
+            if (next.getValue() <= 1) {
+                iterator.remove();
+            } else {
+                next.setValue(next.getValue() - 1);
+            }
+        }
+
+        return new CollectedFieldCaps(fieldsCaps, indexMappingHashToDuplicateCount);
     }
 
     private static EsField createField(
@@ -273,7 +299,12 @@ public class IndexResolver {
         return new InvalidMappedField(name, "mapped as different metric types in indices: " + indices);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames, QueryBuilder requestFilter) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(
+        String index,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions
+    ) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
         req.fields(fieldNames.toArray(String[]::new));
         req.includeUnmapped(true);
@@ -282,7 +313,11 @@ public class IndexResolver {
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
-        req.filters("-nested");
+        if (includeAllDimensions) {
+            req.filters("-nested", "+dimension");
+        } else {
+            req.filters("-nested");
+        }
         req.setMergeResults(false);
         return req;
     }

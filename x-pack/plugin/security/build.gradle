@@ -64,9 +64,9 @@ dependencies {
   api ( "org.cryptacular:cryptacular:1.2.5") {
     exclude group: 'org.bouncycastle'
   }
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}" // workaround for https://github.com/elastic/elasticsearch/issues/93714
-  // api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"  see above
+
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
 
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -87,7 +87,7 @@ dependencies {
   api "net.jcip:jcip-annotations:1.0"
   api "net.minidev:json-smart:2.5.2"
   api "net.minidev:accessors-smart:2.5.2"
-  api "org.ow2.asm:asm:9.7.1"
+  api "org.ow2.asm:asm:9.8"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
@@ -192,7 +192,6 @@ tasks.named("forbiddenPatterns").configure {
 tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files(
     'forbidden/ldap-signatures.txt',
-    'forbidden/xml-signatures.txt',
     'forbidden/oidc-signatures.txt',
     project(':modules:transport-netty4').file('forbidden/netty-signatures.txt')
   )
@@ -426,7 +425,9 @@ tasks.named("thirdPartyAudit").configure {
     'javax.activation.DataHandler',
     'javax.activation.DataSource',
     'javax.activation.FileDataSource',
-    'javax.activation.FileTypeMap'
+    'javax.activation.FileTypeMap',
+    // SLF4j
+    'org.slf4j.ext.EventData'
   )
 }
 

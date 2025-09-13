@@ -48,6 +48,7 @@ import java.util.Base64;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -120,6 +121,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                         new float[] { 1, 2 },
                         5,
                         10,
+                        IVF_FORMAT.isEnabled() ? 10f : null,
                         randomRescoreVectorBuilder(),
                         randomBoolean() ? null : randomFloat()
                     ),
@@ -128,6 +130,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                         new float[] { 4, 12, 41 },
                         3,
                         5,
+                        IVF_FORMAT.isEnabled() ? 10f : null,
                         randomRescoreVectorBuilder(),
                         randomBoolean() ? null : randomFloat()
                     )
@@ -151,6 +154,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                         new float[] { 1, 2 },
                         5,
                         10,
+                        IVF_FORMAT.isEnabled() ? 10f : null,
                         randomRescoreVectorBuilder(),
                         randomBoolean() ? null : randomFloat()
                     )
@@ -474,7 +478,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
                     .size(0)
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -486,7 +494,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(1))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
                     .size(2)
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -513,7 +525,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
             ).scroll(new TimeValue(1000));
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -524,7 +540,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(9))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
             assertNotNull(validationErrors);
@@ -538,7 +558,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(3))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
                     .size(3)
                     .from(4)
             );
@@ -549,7 +573,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
                     .addRescorer(new QueryRescorerBuilder(QueryBuilders.termQuery("rescore", "another term")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -561,7 +589,11 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().rankBuilder(new TestRankBuilder(100))
                     .query(QueryBuilders.termQuery("field", "term"))
-                    .knnSearch(List.of(new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, null, null)))
+                    .knnSearch(
+                        List.of(
+                            new KnnSearchBuilder("vector", new float[] { 0f }, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        )
+                    )
                     .suggest(new SuggestBuilder().setGlobalText("test").addSuggestion("suggestion", new TermSuggestionBuilder("term")))
             );
             ActionRequestValidationException validationErrors = searchRequest.validate();

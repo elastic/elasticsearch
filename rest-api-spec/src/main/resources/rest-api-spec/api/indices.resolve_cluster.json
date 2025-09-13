@@ -1,23 +1,29 @@
 {
   "indices.resolve_cluster": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-resolve-cluster-api.html",
-      "description": "Resolves the specified index expressions to return information about each cluster. If no index expression is provided, this endpoint will return information about all the remote clusters that are configured on the local cluster."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-resolve-cluster",
+      "description": "Resolve the cluster"
     },
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"]
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_resolve/cluster",
-          "methods": ["GET"]
+          "methods": [
+            "GET"
+          ]
         },
         {
           "path": "/_resolve/cluster/{name}",
-          "methods": ["GET"],
+          "methods": [
+            "GET"
+          ],
           "parts": {
             "name": {
               "type": "list",
@@ -42,7 +48,13 @@
       },
       "expand_wildcards": {
         "type": "enum",
-        "options": ["open", "closed", "hidden", "none", "all"],
+        "options": [
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
         "default": "open",
         "description": "Whether wildcard expressions should get expanded to open or closed indices (default: open). Only allowed when providing an index expression."
       },
@@ -53,4 +65,3 @@
     }
   }
 }
-

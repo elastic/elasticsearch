@@ -1,5 +1,5 @@
 allFieldsReturned
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM hosts METADATA _index
 | INLINESTATS c = COUNT(*) BY host_group
@@ -12,36 +12,123 @@ eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, 
 ;
 
 maxOfInt
-required_capability: inlinestats_v10
-// tag::max-languages[]
+required_capability: inlinestats_v11
+
 FROM employees
 | KEEP emp_no, languages
 | INLINESTATS max_lang = MAX(languages) 
 | WHERE max_lang == languages
-// end::max-languages[]
 | SORT emp_no ASC
 | LIMIT 5
 ;
 
-// tag::max-languages-result[]
 emp_no:integer | languages:integer | max_lang:integer
          10002 |                 5 | 5
          10004 |                 5 | 5
          10011 |                 5 | 5
          10012 |                 5 | 5
          10014 |                 5 | 5
-// end::max-languages-result[]
+;
+
+docsMaxWithoutBy
+required_capability: inlinestats_v11
+// tag::max-salary-without-by[]
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINESTATS max_salary = MAX(salary) 
+// end::max-salary-without-by[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::max-salary-without-by-result[]
+emp_no:integer | languages:integer | salary:integer | max_salary:integer
+10001          |2                  |57305           |74999          
+10002          |5                  |56371           |74999          
+10003          |4                  |61805           |74999          
+10004          |5                  |36174           |74999          
+10005          |1                  |63528           |74999
+// end::max-salary-without-by-result[]
+;
+
+docsMax
+required_capability: inlinestats_v11
+// tag::max-salary[]
+FROM employees
+| KEEP emp_no, languages, salary
+| INLINESTATS max_salary = MAX(salary) BY languages
+// end::max-salary[]
+| SORT emp_no ASC
+| LIMIT 5
+;
+
+// tag::max-salary-result[]
+emp_no:integer | salary:integer | max_salary:integer | languages:integer
+10001          |57305           |73578               |2              
+10002          |56371           |66817               |5              
+10003          |61805           |74572               |4              
+10004          |36174           |66817               |5              
+10005          |63528           |73717               |1
+// end::max-salary-result[]
+;
+
+docsMultiAggsMultiGroupings
+required_capability: inlinestats_v11
+// tag::multi-agg-multi-grouping[]
+FROM employees
+| WHERE still_hired
+| KEEP emp_no, languages, salary, hire_date
+| EVAL tenure = DATE_DIFF("year", hire_date, now())
+| DROP hire_date
+| INLINESTATS avg_salary = AVG(salary), count = count(*) BY languages, tenure
+// end::multi-agg-multi-grouping[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::multi-agg-multi-grouping-result[]
+ emp_no:integer | salary:integer | avg_salary:double | count:long | languages:integer | tenure:integer
+10001           |57305           |51130.5            |2           |2                  |39
+10002           |56371           |40180.0            |3           |5                  |39
+10004           |36174           |30749.0            |2           |5                  |38
+10005           |63528           |63528.0            |1           |1                  |36
+10007           |74572           |58644.0            |2           |4                  |36
+// end::multi-agg-multi-grouping-result[]
+;
+
+docsInlinestatsWithWhere
+required_capability: inlinestats_v11
+// tag::avg-salaries-where[]
+FROM employees
+| KEEP emp_no, salary
+| INLINESTATS avg_lt_50 = ROUND(AVG(salary)) WHERE salary < 50000,
+              avg_lt_60 = ROUND(AVG(salary)) WHERE salary >=50000 AND salary < 60000,
+              avg_gt_60 = ROUND(AVG(salary)) WHERE salary >= 60000
+// end::avg-salaries-where[]
+| SORT emp_no
+| LIMIT 5
+;
+
+// tag::avg-salaries-where-result[]
+ emp_no:integer | salary:integer | avg_lt_50:double | avg_lt_60:double | avg_gt_60:double
+10001           |57305           |38292.0           |54221.0           |67286.0
+10002           |56371           |38292.0           |54221.0           |67286.0
+10003           |61805           |38292.0           |54221.0           |67286.0
+10004           |36174           |38292.0           |54221.0           |67286.0
+10005           |63528           |38292.0           |54221.0           |67286.0
+// end::avg-salaries-where-result[]
 ;
 
 maxOfIntByKeyword
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender
 | INLINESTATS max_lang = MAX(languages) BY gender 
 | WHERE max_lang == languages
 | SORT emp_no ASC
-| LIMIT 5;
+| LIMIT 5
+;
 
 emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10002 |                 5 | 5                | F
@@ -51,8 +138,37 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10014 |                 5 | 5                | null
 ;
 
+// check that the `LIMIT 1` isn't pushed into the INLINESTATS's source
+maxOfIntByKeywordLimit1Aggd
+required_capability: inlinestats_v11
+
+FROM employees
+| KEEP emp_no, languages, gender
+// | SORT emp_no
+| INLINESTATS max_lang = MAX(languages) BY gender
+| LIMIT 1
+| STATS v = VALUES(max_lang)
+;
+
+v:integer
+5
+;
+
+simpleAvg
+required_capability: inlinestats_v11
+
+FROM employees
+| INLINESTATS a = AVG(salary)
+| LIMIT 2
+| KEEP a;
+
+a:double
+48248.55
+48248.55
+;
+
 maxOfLongByKeyword
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -67,7 +183,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | gender:
 ;
 
 maxOfLong
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -80,30 +196,26 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLongByCalculatedKeyword
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
-// tag::longest-tenured-by-first[]
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY SUBSTRING(last_name, 0, 1)
 | WHERE max_avg_worked_seconds == avg_worked_seconds
-// end::longest-tenured-by-first[]
 | SORT last_name ASC
 | LIMIT 5
 ;
 
-// tag::longest-tenured-by-first-result[]
 emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_seconds:long | SUBSTRING(last_name, 0, 1):keyword
          10065 |               372660279 | Awdeh             | 372660279                   | A
          10074 |               382397583 | Bernatsky         | 382397583                   | B
          10044 |               387408356 | Casley            | 387408356                   | C
          10030 |               394597613 | Demeyer           | 394597613                   | D
          10087 |               305782871 | Eugenio           | 305782871                   | E
-// end::longest-tenured-by-first-result[]
 ;
 
 maxOfLongByCalculatedNamedKeyword
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
@@ -122,7 +234,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByCalculatedDroppedKeyword
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS max_avg_worked_seconds = MAX(avg_worked_seconds) BY l = SUBSTRING(last_name, 0, 1)
@@ -141,7 +253,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByEvaledKeyword
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
@@ -161,7 +273,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | l:keywo
 ;
 
 maxOfLongByInt
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
@@ -179,7 +291,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languag
 ;
 
 maxOfLongByIntDouble
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
@@ -197,7 +309,7 @@ emp_no:integer | avg_worked_seconds:long | max_avg_worked_seconds:long | languag
 ;
 
 two
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
@@ -221,7 +333,7 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 ;
 
 three
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, avg_worked_seconds, gender
@@ -247,8 +359,9 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 ;
 
 // TODO: INLINESTATS unit test needed for this one
-pushDownSort_To_LeftSideOnly
-required_capability: inlinestats_v10
+// https://github.com/elastic/elasticsearch/issues/113727
+pushDownSort_To_LeftSideOnly-Ignore
+required_capability: inlinestats_v11
 
 from employees
 | sort emp_no
@@ -266,47 +379,38 @@ from employees
 ;
 
 byMultivaluedSimple
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
-// tag::mv-group[]
 FROM airports
 | INLINESTATS min_scalerank=MIN(scalerank) BY type
 | EVAL type=MV_SORT(type), min_scalerank=MV_SORT(min_scalerank)
 | KEEP abbrev, type, scalerank, min_scalerank
 | WHERE abbrev == "GWL"
-// end::mv-group[]
 ;
 
-// tag::mv-group-result[]
 abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
            GWL | [mid, military] | 9                 | [2, 4]
-// end::mv-group-result[]
 ;
 
 byMultivaluedMvExpand
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
-// tag::mv-expand[]
 FROM airports
 | KEEP abbrev, type, scalerank
 | MV_EXPAND type
 | INLINESTATS min_scalerank=MIN(scalerank) BY type
 | SORT min_scalerank ASC
 | WHERE abbrev == "GWL"
-// end::mv-expand[]
 ;
 
-// tag::mv-expand-result[]
 abbrev:keyword | scalerank:integer | min_scalerank:integer | type:keyword 
 GWL            |9                  |2                      |mid            
 GWL            |9                  |4                      |military
-// end::mv-expand-result[]
 ;
 
 byMvExpand
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
-// tag::extreme-airports[]
 FROM airports
 | MV_EXPAND type
 | EVAL lat = ST_Y(location)
@@ -314,10 +418,8 @@ FROM airports
 | WHERE lat == most_northern OR lat == most_southern
 | SORT lat DESC
 | KEEP type, name, location
-// end::extreme-airports[]
 ;
 
-// tag::extreme-airports-result[]
  type:keyword |           name:text           | location:geo_point
           mid |             Svalbard Longyear | POINT (15.495229 78.246717)
         major |                Tromsø Langnes | POINT (18.9072624292132 69.6796790473478)
@@ -329,11 +431,10 @@ FROM airports
      military |         Santos Air Force Base | POINT (-46.3052704931003 -23.9237590410637)
         major |            Christchurch Int'l | POINT (172.538675565223 -43.4885486784104)
           mid |          Hermes Quijada Int'l | POINT (-67.7530268462675 -53.7814746058316)
-// end::extreme-airports-result[]
 ;
 
 mvMinMvExpand
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | EVAL original_type = type
@@ -356,7 +457,7 @@ ZAR            |Zaria          |POINT (7.7 11.0667)     |Nigeria        |POINT (
 ;
 
 afterStats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | STATS count=COUNT(*) BY country
@@ -379,7 +480,7 @@ count:long | country:keyword | avg:double
 ;
 
 afterWhere
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | WHERE country != "United States"
@@ -397,7 +498,7 @@ abbrev:keyword | country:keyword | count:long
 ;
 
 afterLookup
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 required_capability: join_lookup_v12
 
 FROM airports
@@ -421,7 +522,7 @@ ZNZ            |4                       |German
 ;
 
 afterEnrich
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 required_capability: enrich_load
 
 FROM airports
@@ -442,7 +543,7 @@ abbrev:keyword | city:keyword | "COUNT(*)":long |       region:text
 ;
 
 beforeStats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | EVAL lat = ST_Y(location)
@@ -455,7 +556,7 @@ northern:long | southern:long
 ;
 
 beforeKeepSort
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -470,7 +571,7 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeKeepWhere
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary) by languages
@@ -483,7 +584,7 @@ emp_no:integer | languages:integer | max_salary:integer
 ;
 
 beforeEnrich
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 required_capability: enrich_load
 
 FROM airports
@@ -502,7 +603,7 @@ ACA            |Acapulco de Juárez|385            |major          |Acapulco de 
 ;
 
 beforeAndAfterEnrich
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 required_capability: enrich_load
 
 FROM airports
@@ -525,7 +626,7 @@ ALL            |Albenga        |499            |mid            |1               
 ;
 
 shadowing
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW left = "left", client_ip = "172.21.0.5", env = "env", right = "right"
 | INLINESTATS env = VALUES(right) BY client_ip
@@ -536,7 +637,7 @@ left         | right          | right       | 172.21.0.5
 ;
 
 shadowingMulti
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW left = "left", airport = "Zurich Airport ZRH", city = "Zürich", middle = "middle", region = "North-East Switzerland", right = "right"
 | INLINESTATS airport=VALUES(left), region=VALUES(left), city_boundary=VALUES(left) BY city
@@ -547,7 +648,7 @@ left         | middle         | right         |            left |           left
 ;
 
 shadowingSelf
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW city = "Raleigh"
 | INLINESTATS city = COUNT(city)
@@ -558,7 +659,7 @@ city:long
 ;
 
 shadowingSelfBySelf
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW city = "Raleigh"
 | INLINESTATS city = COUNT(city) BY city
@@ -570,7 +671,7 @@ Raleigh
 ;
 
 shadowingInternal
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW city = "Zürich"
 | INLINESTATS x = VALUES(city), x = VALUES(city)
@@ -582,7 +683,7 @@ Zürich       | Zürich
 ;
 
 multiInlinestatsWithRow
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 row x = 1
 | inlinestats x = max(x) + min(x)
@@ -596,7 +697,7 @@ row x = 1
 ;
 
 ignoreUnusedEvaledValue_AndInlineStats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW x = 1
 | INLINESTATS max(x)
@@ -609,7 +710,7 @@ x:integer
 ;
 
 ignoreUnusedEvaledValue_AndInlineStats2
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW x = 1, z = 2
 | INLINESTATS max(x)
@@ -622,7 +723,7 @@ x:integer | z:integer
 ;
 
 ignoreUnusedEvaledValue_AndInlineStats3
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | inlinestats max(salary)
@@ -637,7 +738,7 @@ from employees
 ;
 
 ignoreUnusedEvaledValue_AndInlineStats4
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | inlinestats max(salary), m = min(salary) by gender
@@ -652,7 +753,7 @@ emp_no:integer
 ;
 
 ignoreUnusedEvaledValue_AndInlineStats5
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | inlinestats max(salary), m = min(salary) by gender
@@ -667,7 +768,7 @@ emp_no:integer
 ;
 
 shadowEntireInlinestats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS x = avg(salary), y = min(salary) BY emp_no
@@ -682,7 +783,7 @@ x:integer |y:integer |emp_no:integer
 ;
 
 byConstant
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages
@@ -701,7 +802,7 @@ emp_no:integer | languages:integer | max_lang:integer | y:integer
 ;
 
 aggConstant
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no
@@ -719,7 +820,7 @@ one:integer | emp_no:integer
 ;
 
 percentile
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, salary
@@ -738,7 +839,7 @@ emp_no:integer | salary:integer | ninety_fifth_salary:double
 ;
 
 byTwoCalculated
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -758,7 +859,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 byTwoCalculatedSecondOverwrites
 required_capability: stats_alias_collision_warnings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -779,7 +880,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 byTwoCalculatedSecondOverwritesReferencingFirst
 required_capability: stats_alias_collision_warnings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -802,7 +903,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 
 groupShadowsAgg
 required_capability: stats_alias_collision_warnings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM airports
 | WHERE abbrev IS NOT NULL
@@ -822,7 +923,7 @@ abbrev:keyword | scalerank:integer |             location:geo_point             
 ;
 
 groupShadowsField
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
   FROM employees
 | KEEP emp_no, salary, hire_date
@@ -841,7 +942,7 @@ emp_no:integer | salary:integer | avg_salary:double |  hire_date:datetime
 ;
 
 groupByExpression_And_ExistentField
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | KEEP emp_no, languages, gender
 | EVAL x = "ABC"
@@ -859,7 +960,7 @@ emp_no:integer | languages:integer | x:keyword | max_lang:integer | y:keyword | 
 ;
 
 groupByRenamedColumn
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | KEEP emp_no, languages, gender
 | INLINESTATS max_lang = MAX(languages) BY y = gender
@@ -877,7 +978,7 @@ emp_no:integer | languages:integer | gender:keyword | max_lang:integer | y:keywo
 ;
 
 groupByMultipleRenamedColumns_AndOneExpression_Last
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, first_name
@@ -900,7 +1001,7 @@ emp_no:integer | languages:integer | gender:keyword|first_name:keyword|max_lang:
 ;
 
 groupByMultipleRenamedColumns_AndTwoExpressions
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, first_name
@@ -923,7 +1024,7 @@ emp_no:integer | languages:integer | gender:keyword|first_name:keyword|max_lang:
 ;
 
 groupByMultipleRenamedColumns_AndMultipleRenames
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, first_name
@@ -947,7 +1048,7 @@ emp_no:integer | languages:integer | gender:keyword|    f:keyword     |max_lang:
 ;
 
 groupByMultipleRenamedColumns_AndSameNameExpressionGroupingOverride
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, first_name
@@ -971,7 +1072,7 @@ emp_no:integer | languages:integer | gender:keyword|max_lang:integer|  y:keyword
 ;
 
 twoAggregatesGroupedBy_AField_And_AnExpression
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, last_name
@@ -993,7 +1094,7 @@ emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:in
 ;
 
 groupByMultipleRenamedColumns_InversedOrder
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, still_hired, gender
@@ -1011,7 +1112,7 @@ emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|max_lang:i
 ;
 
 groupByMultipleRenamedColumns_InversedOrder_ComplexEval
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, still_hired, gender
@@ -1030,7 +1131,7 @@ emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|multilingu
 ;
 
 groupByMultipleRenamedColumns_AndComplexEval
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, still_hired, gender
@@ -1049,7 +1150,7 @@ emp_no:integer |languages:integer|still_hired:boolean| gender:keyword|multilingu
 ;
 
 groupByMultipleRenamedColumns_AndConstantValue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, first_name
@@ -1073,7 +1174,7 @@ emp_no:integer |languages:integer|gender:keyword |first_name:keyword  |   x:keyw
 ;
 
 groupByRenamedExpression
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP emp_no, languages, gender, last_name
@@ -1095,7 +1196,7 @@ emp_no:integer |languages:integer|last_name:keyword|max_lang:integer|min_lang:in
 ;
 
 doubleFilterOnLeftAndRight_InlineStats_Sides
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
   
 FROM employees
 | INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
@@ -1116,7 +1217,7 @@ emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:
 ;
 
 filterOnInlineStatsAggs
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
@@ -1135,7 +1236,7 @@ emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:
 ;
 
 filterOnInlineStatsAggsValues_And_Groupings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS max_salary = MAX(salary), min_salary = MIN(salary) by languages
@@ -1154,7 +1255,7 @@ emp_no:integer |languages:integer|salary:integer |max_salary:integer|min_salary:
 ;
 
 inlineStatsOverrideEVALed_FieldWithSameName
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM hosts METADATA _index
 | EVAL x = ip1
@@ -1168,7 +1269,7 @@ beta k8s server |beta           |127.0.0.1      |hosts           |127.0.0.2|2   
 ;
 
 doubleShadowing
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS salary = min(salary) BY gender
@@ -1187,7 +1288,7 @@ salary:integer |gender:keyword
 ;
 
 doubleShadowing_WithIntertwinedFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | WHERE salary > 30000
@@ -1212,7 +1313,7 @@ salary:integer |gender:keyword
 ;
 
 shadowingAggregateByNextGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP gender, languages, emp_no, salary
@@ -1229,7 +1330,7 @@ emp_no:integer |salary:integer |languages:integer|avg(salary):double|gender:long
 ;
 
 doubleShadowingWithEval
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | eval salary = salary/100
@@ -1249,7 +1350,7 @@ salary:integer|gender:keyword
 ;
 
 doubleShadowingWithDoubleStats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | stats salary=min(salary) by gender
@@ -1266,7 +1367,7 @@ M              |25324
 ;
 
 renamingGroupingWithItself
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL x = gender
@@ -1285,7 +1386,7 @@ salary:integer |x:keyword|gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingGroupings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS min_sl = MIN(salary) BY x = gender, x = languages
@@ -1304,7 +1405,7 @@ salary:integer |x:integer      |gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 overridingExpressionGroupings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | INLINESTATS min_sl = MIN(salary) BY x = TO_LOWER(gender), x = CONCAT(gender, gender)
@@ -1323,7 +1424,7 @@ salary:integer |x:keyword      |gender:keyword |min_sl:integer |emp_no:integer
 ;
 
 reusingEvalExpressions_UsedInGroupings
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | KEEP salary, gender, emp_no
@@ -1342,7 +1443,7 @@ salary:integer |gender:keyword |emp_no:integer |min_sl:integer |       x:keyword
 ;
 
 statsBeforeInlinestatsWithTopAndBucket1
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM books
 | STATS avg_rating = AVG(ratings) BY decade = BUCKET(year, 10)
@@ -1362,7 +1463,7 @@ avg_rating:double | decade:double |    decades:double
 ;
 
 statsBeforeInlinestatsWithTopAndBucket2
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM sample_data
 | STATS total_duration = SUM(event_duration) BY day = BUCKET(@timestamp, 1 HOUR)
@@ -1376,9 +1477,48 @@ total_duration:long |       day:date         |                     days:date
 17016205            |2023-10-23T13:00:00.000Z|[2023-10-23T12:00:00.000Z, 2023-10-23T13:00:00.000Z]
 ;
 
+evalBeforeDoubleInlinestats1
+required_capability: inlinestats_v11
+
+FROM employees
+| EVAL salaryK = salary/1000
+| INLINESTATS count = COUNT(*) BY salaryK
+| INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+| SORT emp_no
+| KEEP emp_no, still_hired, count
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|count:long
+10001          |true               |1
+10002          |true               |3
+10003          |false              |2
+10004          |true               |2
+10005          |true               |1
+;
+
+evalBeforeDoubleInlinestats2
+required_capability: inlinestats_v11
+
+FROM employees
+| EVAL jobs = MV_COUNT(job_positions)
+| INLINESTATS count = COUNT(*) BY jobs
+| INLINESTATS min = MIN(MV_COUNT(languages)) BY jobs
+| SORT emp_no
+| KEEP emp_no, jobs, count, min
+| LIMIT 5
+;
+
+emp_no:integer |jobs:integer|count:long|min:integer
+10001          |2           |18        |1
+10002          |1           |27        |1
+10003          |null        |11        |1
+10004          |4           |26        |1
+10005          |null        |11        |1
+;
 
 evalBeforeInlinestatsAndKeepAfter1
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | WHERE still_hired == false
@@ -1398,7 +1538,7 @@ emp_no:integer |still_hired:boolean|totalK:long|count:long
 ;
 
 evalBeforeInlinestatsAndKeepAfter2
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL salaryK = salary/1000
@@ -1418,7 +1558,7 @@ emp_no:integer |still_hired:boolean|total:long|count:long
 ;
 
 evalBeforeInlinestatsAndKeepAfter3
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL salaryK = salary/1000
@@ -1437,7 +1577,7 @@ emp_no:integer |still_hired:boolean|total:long
 ;
 
 evalBeforeInlinestatsAndKeepAfter4
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | EVAL salaryK = salary/1000
@@ -1456,7 +1596,7 @@ emp_no:integer |still_hired:boolean|count:long
 ;
 
 evalBeforeInlinestatsAndKeepAfter5
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 ROW salary = 12300, emp_no = 5, gender = "F"
 | EVAL salaryK = salary/1000
@@ -1472,7 +1612,7 @@ emp_no:integer
 ///////////////////////////
 
 doubleFilterOnInlineStats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 from employees
 | keep salary, gender
@@ -1498,7 +1638,7 @@ salary:integer |  max1:integer |  max2:integer |  max3:integer | gender:keyword
 ;
 
 inlinestatsWithFiltering
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_f = max(salary) where salary < 50000, max_a = max(salary) where salary > 100,
         min = min(salary), min_f = min(salary) where salary > 50000, min_a = min(salary) where salary > 100
@@ -1514,7 +1654,7 @@ max:integer |max_f:integer |max_a:integer | min:integer | min_f:integer | min_a:
 ;
 
 inlinestatsWithEverythingFiltered
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_a = max(salary) where salary < 100,
         min = min(salary), min_a = min(salary) where salary > 99999
@@ -1532,7 +1672,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer|salary:i
 ;
 
 inlinestatsWithNullFilter
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_a = max(salary) where null,
         min = min(salary), min_a = min(salary) where to_string(null) == "abc"
@@ -1548,7 +1688,7 @@ max:integer |max_a:integer|min:integer | min_a:integer | emp_no:integer
 ;
 
 inlinestatsWithAllFiltersFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float) where false,
         min = min(height.float) where to_string(null) == "abc",
@@ -1566,7 +1706,7 @@ emp_no:integer|salary:integer| max:double |min:double |count:long |count_distinc
 ;
 
 inlinestatsWithAllFiltersFalse_GroupByOneField
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1586,7 +1726,7 @@ from employees
 ;
 
 inlinestatsWithAllFiltersFalse_GroupByTwoFields
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float) where false, 
         min = min(height.float) where to_string(null) == "abc", 
@@ -1606,7 +1746,7 @@ from employees
 ;
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_DifferentFields
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false,
@@ -1624,7 +1764,7 @@ from employees
 ;
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldEach_SameFields
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees 
 | eval my_length = length(concat(first_name, null)) 
 | inlinestats count = count(my_length) where false,
@@ -1643,7 +1783,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats-Ignore
 // values doesn't end up as null
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false, 
@@ -1661,7 +1801,7 @@ from employees
 ; 
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(is_rehired) where true, 
@@ -1687,7 +1827,7 @@ from employees
 
 
 partial_PrunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnFirstInlinestats2
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(is_rehired) where true, 
@@ -1714,7 +1854,7 @@ from employees
 
 
 inlinestatsWithExpressionsAllFiltersFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | keep height.f*, emp_no
 | sort emp_no desc
@@ -1732,7 +1872,7 @@ from employees
 ;
 
 inlinestatsWithFalseFilterAndGroup
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(height.float + 1) where null,
         count = count(height.float) + 2 where false
@@ -1750,7 +1890,7 @@ from employees
 ;
 
 inlinestatsWithFalseFiltersAndGroups
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count_distinct = count_distinct(height.float + 1) where null,
@@ -1776,7 +1916,7 @@ from employees
 ;
 
 inlinestatsWithFalseFiltersAndGroups_DropEvaledValue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count_distinct = count_distinct(height.float + 1) where null,
@@ -1803,7 +1943,7 @@ from employees
 ;
 
 inlinestatsWithMixedFiltersAndGroup
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false,
@@ -1823,7 +1963,7 @@ null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chir
 
 prunedInlinestatsFollowedByinlinestats-Ignore
 // values doesn't end up as null
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval my_length = length(concat(first_name, null))
 | inlinestats count = count(my_length) where false,
@@ -1846,7 +1986,8 @@ inlinestatsWithFalseFiltersFromRow
 //  null      |2
 //  null      |3
 //  null      |4
-required_capability: inlinestats_v10
+// TODO: add docs about whatever behavior is decided here
+required_capability: inlinestats_v11
 row x = null, a = 1, b = [2,3,4]
 | inlinestats c=max(a) where x
   by b
@@ -1857,7 +1998,7 @@ null           |1              |null           |[2, 3, 4]
 ;
 
 inlinestatsWithBasicExpressionFiltered
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_f = max(salary) where salary < 50000,
         min = min(salary), min_f = min(salary) where salary > 50000,
@@ -1873,7 +2014,7 @@ from employees
 ;
 
 inlinestatsWithExpressionOverFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary), max_f = max(salary) where salary < 50000,
         min = min(salary), min_f = min(salary) where salary > 50000,
@@ -1892,7 +2033,7 @@ from employees
 
 
 inlinestatsWithExpressionOfExpressionsOverFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats max = max(salary + 1), max_f = max(salary + 2) where salary < 50000,
         min = min(salary - 1), min_f = min(salary - 2) where salary > 50000,
@@ -1910,7 +2051,7 @@ from employees
 ;
 
 inlinestatsWithSubstitutedExpressionOverFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats sum = sum(salary), s_l = sum(salary) where salary < 50000, s_u = sum(salary) where salary > 50000,
         count = count(salary), c_l = count(salary) where salary < 50000, c_u = count(salary) where salary > 50000, 
@@ -1928,7 +2069,7 @@ from employees
 
 
 inlinestatsWithFilterAndGroupBy
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | keep height, gender, is_rehired, emp_no
 | inlinestats m = max(height), m_f = max(height + 1) where gender == "M" OR is_rehired is null BY gender, is_rehired
@@ -1952,7 +2093,7 @@ from employees
 
 
 inlinestatsWithFilterOnGroupBy
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats m_f = max(height) where gender == "M" BY gender
 | sort emp_no
@@ -1974,7 +2115,7 @@ null           |null
 ;
 
 inlinestatsWithGroupByLiteral
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats m = max(languages) by salary = 2
 | sort salary
@@ -1990,7 +2131,7 @@ from employees
 
 
 inlinestatsWithFilterOnSameColumn
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats m = max(languages), m_f = max(languages) where salary > 50000 by salary = 2
 | sort salary
@@ -2005,7 +2146,7 @@ from employees
 ;
 
 inlinestatsWithFilteringAndGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c = count(), c_f = count(languages) where l > 1, 
         m_f = max(height) where salary > 50000 
@@ -2030,7 +2171,7 @@ from employees
 
  
 multiinlinestatsWithFiltering
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c = count(), c_f = count(languages) where l > 1, 
         m_f = max(height) where salary > 50000 
@@ -2057,7 +2198,7 @@ from employees
 
 
 simpleCountOnFieldWithFilteringAndNoGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(emp_no) where emp_no < 10042
 | keep emp_no, c1
@@ -2072,7 +2213,7 @@ emp_no:integer |  c1:long
 ;
 
 simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(hire_date) where emp_no < 10042
 | keep emp_no, c1
@@ -2087,7 +2228,7 @@ emp_no:integer |  c1:long
 ;
 
 simpleCountOnStarWithFilteringAndNoGrouping
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(*) where emp_no < 10042
 | keep emp_no, c1
@@ -2102,7 +2243,7 @@ emp_no:integer |  c1:long
 ;
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(birth_date) where emp_no <= 10050
 | keep emp_no, c1
@@ -2118,7 +2259,7 @@ emp_no:integer |  c1:long
 
 
 simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | inlinestats c1 = count(job_positions) where emp_no <= 10003
 | keep emp_no, c1
@@ -2133,7 +2274,7 @@ from employees
 ;
 
 commonFilterExtractionWithAliasing
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | drop emp_no
@@ -2151,7 +2292,7 @@ from employees
 ;
 
 commonFilterExtractionWithAliasAndOriginal
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | inlinestats min_sal = min(salary) where eno <= 10010,
@@ -2169,7 +2310,7 @@ from employees
 
 
 commonFilterExtractionWithAliasAndOriginalNeedingNormalization
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | inlinestats min_sal = min(salary) where eno <= 10010,
@@ -2189,7 +2330,7 @@ from employees
 ;
 
 commonFilterExtractionWithAliasAndOriginalNeedingNormalizationAndSimplification
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | eval eno = emp_no
 | inlinestats min_sal = min(salary) where eno <= 10010,
@@ -2209,7 +2350,7 @@ from employees
 ;
 
 filterIsAlwaysTrue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE salary > 0
 | keep max, salary, emp_no
@@ -2224,7 +2365,7 @@ FROM employees
 ;
 
 filterIsAlwaysFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE first_name == ""
 | sort emp_no
@@ -2247,7 +2388,7 @@ null           |Duangkaew
 
 
 filterSometimesMatches
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE first_name IS NULL
 | sort emp_no
@@ -2269,7 +2410,7 @@ FROM employees
 ;
 
 groupingFilterIsAlwaysTrue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | MV_EXPAND job_positions
 | inlinestats max = max(salary) WHERE salary > 0 BY job_positions = SUBSTRING(job_positions, 1, 1)
@@ -2287,7 +2428,7 @@ FROM employees
 
 
 groupingFilterIsAlwaysFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | MV_EXPAND job_positions
 | inlinestats max = max(salary) WHERE first_name == "" BY job_positions = SUBSTRING(job_positions, 1, 1)
@@ -2305,7 +2446,7 @@ null           |48942          |Patricio          |A                      |10012
 
 
 groupingFilterSometimesMatches
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | MV_EXPAND job_positions
 | inlinestats max = max(salary) WHERE first_name IS NULL BY job_positions = SUBSTRING(job_positions, 1, 1)
@@ -2322,7 +2463,7 @@ FROM employees
 ;
 
 groupingByOrdinalsFilterIsAlwaysTrue
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats max = max(salary) WHERE salary > 0 BY job_positions
 | SORT job_positions ASC, salary DESC
@@ -2338,7 +2479,7 @@ FROM employees
 ;
 
 groupingByOrdinalsFilterIsAlwaysFalse
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | inlinestats max = max(salary) WHERE first_name == "" BY job_positions
@@ -2355,7 +2496,7 @@ Mary           |31120          |10011          |[Architect, Reporting Analyst, S
 ;
 
 groupingByOrdinalsFilterSometimesMatches
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 
 FROM employees
 | keep salary, first_name, job_positions, emp_no
@@ -2372,7 +2513,7 @@ FROM employees
 ;
 
 stdDevFilter
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 FROM employees
 | inlinestats greater_than = STD_DEV(salary_change) WHERE languages > 3
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
@@ -2397,7 +2538,7 @@ FROM employees
 ;
 
 twoConsecutiveInlinestatsWithFalseFilters
-required_capability: inlinestats_v10
+required_capability: inlinestats_v11
 from employees
 | keep emp_no
 | sort emp_no
@@ -2410,4 +2551,1286 @@ from employees
 10001          |0              |0              
 10002          |0              |0              
 10003          |0              |0              
+;
+
+////////////////////////////////
+// Union types tests
+////////////////////////////////
+
+singleIndexIpInlinestats
+required_capability: inlinestats_v11
+
+FROM sample_data
+| EVAL client_ip = client_ip::ip
+| INLINESTATS count=count(*) BY client_ip
+| SORT count DESC, client_ip ASC
+| KEEP count, client_ip
+;
+
+count:long     |  client_ip:ip  
+4              |172.21.3.15    
+4              |172.21.3.15    
+4              |172.21.3.15    
+4              |172.21.3.15    
+1              |172.21.0.5     
+1              |172.21.2.113   
+1              |172.21.2.162
+;
+
+singleIndexIpStringInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data_str
+| EVAL client_ip = client_ip::ip
+| INLINESTATS count=count(*) BY client_ip
+| SORT count DESC, client_ip ASC
+| KEEP count, client_ip
+;
+
+count:long     |  client_ip:ip
+4              |172.21.3.15    
+4              |172.21.3.15    
+4              |172.21.3.15    
+4              |172.21.3.15    
+1              |172.21.0.5     
+1              |172.21.2.113   
+1              |172.21.2.162
+;
+
+singleIndexIpStringInlinestats Inline
+required_capability: inlinestats_v11
+
+FROM sample_data_str
+| INLINESTATS count=count(*) BY client_ip::ip
+| INLINESTATS mc=count(count) BY count
+| SORT mc DESC, count ASC
+| KEEP mc, count
+;
+
+mc:l           | count:l
+4              |4              
+4              |4              
+4              |4              
+4              |4              
+3              |1              
+3              |1              
+3              |1
+;
+
+singleIndexIpStringInlinestatsInline_SecondStats
+// same as above but the second agg is a STATS one
+required_capability: inlinestats_v11
+
+FROM sample_data_str
+| INLINESTATS count=count(*) BY client_ip::ip
+| STATS mc=count(count) BY count
+| SORT mc DESC, count ASC
+| KEEP mc, count
+;
+
+mc:l           | count:l
+4              |4              
+3              |1
+;
+
+multiIndexIpStringInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL client_ip = client_ip::ip
+| INLINESTATS count=count(*) BY client_ip
+| SORT count DESC, client_ip ASC
+| KEEP count, client_ip
+;
+
+count:long     |  client_ip:ip
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+2              |172.21.0.5     
+2              |172.21.0.5     
+2              |172.21.2.113   
+2              |172.21.2.113   
+2              |172.21.2.162   
+2              |172.21.2.162
+;
+
+multiIndexIpStringRenameInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL host_ip = client_ip::ip
+| INLINESTATS count=count(*) BY host_ip
+| SORT count DESC, host_ip ASC
+| KEEP count, host_ip
+;
+
+count:long     |  host_ip:ip
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+2              |172.21.0.5     
+2              |172.21.0.5     
+2              |172.21.2.113   
+2              |172.21.2.113   
+2              |172.21.2.162   
+2              |172.21.2.162
+;
+
+multiIndexIpStringRenameToStringInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL host_ip = TO_STRING(TO_IP(client_ip))
+| INLINESTATS count=count(*) BY host_ip
+| SORT count DESC, host_ip ASC
+| KEEP count, host_ip
+;
+
+count:long     |  host_ip:keyword
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+2              |172.21.0.5     
+2              |172.21.0.5     
+2              |172.21.2.113   
+2              |172.21.2.113   
+2              |172.21.2.162   
+2              |172.21.2.162
+;
+
+multiIndexIpStringInlinestats Drop
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| INLINESTATS count=count(*) BY client_ip::ip
+| KEEP count
+| SORT count DESC
+;
+
+count:long
+8              
+8              
+8              
+8              
+8              
+8              
+8              
+8              
+2              
+2              
+2              
+2              
+2              
+2
+;
+
+multiIndexIpStringInlinestats Inline
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| INLINESTATS count=count(*) BY client_ip = TO_IP(client_ip)
+| SORT count DESC, client_ip ASC
+| KEEP count, client_ip
+;
+
+count:long     |  client_ip:ip
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+2              |172.21.0.5     
+2              |172.21.0.5     
+2              |172.21.2.113   
+2              |172.21.2.113   
+2              |172.21.2.162   
+2              |172.21.2.162
+;
+
+statsUnionAggInline
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| INLINESTATS count = COUNT(CIDR_MATCH(TO_IP(client_ip), "172.21.0.0/24") OR NULL)
+  BY
+  @timestamp = DATE_TRUNC(10 minutes, @timestamp)
+| SORT count DESC, @timestamp ASC, event_duration
+| LIMIT 8
+;
+
+client_ip:unsupported |event_duration:long| message:keyword     |    count:long | @timestamp:date
+null                  |1232382            |Disconnected         |2              |2023-10-23T13:30:00.000Z
+null                  |1232382            |Disconnected         |2              |2023-10-23T13:30:00.000Z
+null                  |3450233            |Connected to 10.1.0.3|0              |2023-10-23T12:10:00.000Z
+null                  |3450233            |Connected to 10.1.0.3|0              |2023-10-23T12:10:00.000Z
+null                  |2764889            |Connected to 10.1.0.2|0              |2023-10-23T12:20:00.000Z
+null                  |2764889            |Connected to 10.1.0.2|0              |2023-10-23T12:20:00.000Z
+null                  |725448             |Connection error     |0              |2023-10-23T13:50:00.000Z
+null                  |725448             |Connection error     |0              |2023-10-23T13:50:00.000Z
+;
+
+multiIndexIpInlinestats_NonPushableCount
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| INLINESTATS count=count(client_ip::ip)
+| SORT event_duration DESC
+| LIMIT 2
+;
+
+       @timestamp:date  |client_ip:unsupported|event_duration:long|message:keyword |count:long
+2023-10-23T13:52:55.015Z|null                 |8268153            |Connection error|14             
+2023-10-23T13:52:55.015Z|null                 |8268153            |Connection error|14
+;
+
+multiIndexIpInlinestats_NonPushableCountEval
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL client_ip = client_ip::ip
+| INLINESTATS count=count(client_ip)
+| SORT event_duration DESC
+| LIMIT 2
+;
+
+       @timestamp:date  |event_duration:long|message:keyword |client_ip:ip |count:long
+2023-10-23T13:52:55.015Z|8268153            |Connection error|172.21.3.15  |14             
+2023-10-23T13:52:55.015Z|8268153            |Connection error|172.21.3.15  |14
+;
+
+multiIndexIpInlinestats_NonPushableCountWithFilter
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count_matching=count(@timestamp::long) WHERE @timestamp::long >= 1698069301543,
+        total_count=count(@timestamp::long)
+| SORT client_ip
+| LIMIT 4
+;
+
+@timestamp:unsupported|   client_ip:ip|event_duration:long |   message:keyword   |count_matching:long |  total_count:long  
+null                  |172.21.0.5     |1232382             |Disconnected         |2                   |14             
+null                  |172.21.0.5     |1232382             |Disconnected         |2                   |14             
+null                  |172.21.2.113   |2764889             |Connected to 10.1.0.2|2                   |14             
+null                  |172.21.2.113   |2764889             |Connected to 10.1.0.2|2                   |14
+;
+
+multiIndexIpInlinestats_PushableCount
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count=count(@timestamp::long)
+| KEEP count
+| LIMIT 2
+;
+
+count:long
+14
+14
+;
+
+multiIndexIpInlinestats_PushableCountEval
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = @timestamp::long
+| INLINESTATS count=count(@timestamp)
+| KEEP count
+| LIMIT 2
+;
+
+count:long
+14
+14
+;
+
+multiIndexIpStringInlinestats_Inline2
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| INLINESTATS count=count(*) BY client_ip::ip
+| SORT count DESC, `client_ip::ip` ASC
+| KEEP count, `client_ip::ip`
+;
+
+count:long     |  client_ip::ip:ip
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+8              |172.21.3.15    
+2              |172.21.0.5     
+2              |172.21.0.5     
+2              |172.21.2.113   
+2              |172.21.2.113   
+2              |172.21.2.162   
+2              |172.21.2.162
+;
+
+multiIndexIpStringInlinestats_Inline3
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| INLINESTATS count=count(*) BY client_ip::ip
+| INLINESTATS mc=count(count) BY count
+| SORT mc DESC, count ASC, event_duration
+| KEEP mc, count, event_duration
+;
+
+mc:l           | count:l       | event_duration:l
+8              |8              |725448         
+8              |8              |725448         
+8              |8              |1756467        
+8              |8              |1756467        
+8              |8              |5033755        
+8              |8              |5033755        
+8              |8              |8268153        
+8              |8              |8268153        
+6              |2              |1232382        
+6              |2              |1232382        
+6              |2              |2764889        
+6              |2              |2764889        
+6              |2              |3450233        
+6              |2              |3450233
+;
+
+multiIndexIpStringInlinestats_Inline4
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| SORT @timestamp
+| LIMIT 1000
+| INLINESTATS count=count(*) BY client_ip::ip
+| LIMIT 5
+| INLINESTATS mc=count(count) BY count
+| SORT mc DESC, count ASC, event_duration
+| KEEP mc, count, event_duration
+;
+
+mc:l           | count:l       | event_duration:l
+5              |2              |1232382        
+5              |2              |2764889        
+5              |2              |2764889        
+5              |2              |3450233        
+5              |2              |3450233        
+;
+
+multiIndexWhereIpStringInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| WHERE STARTS_WITH(TO_STRING(client_ip), "172.21.2")
+| INLINESTATS count=count(*) BY message
+| SORT count DESC, message ASC
+| KEEP count, message
+;
+
+count:long     |  message:keyword
+2              |Connected to 10.1.0.2
+2              |Connected to 10.1.0.2
+2              |Connected to 10.1.0.3
+2              |Connected to 10.1.0.3
+;
+
+multiIndexTsLongInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
+| INLINESTATS count=count(*) BY @timestamp
+| SORT count DESC, @timestamp ASC
+| KEEP count, @timestamp
+;
+
+count:long     |  @timestamp:date
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+;
+
+multiIndexTsNanosToDatetimeInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_nanos
+| EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
+| INLINESTATS count=count(*) BY @timestamp
+| KEEP count, @timestamp
+| STATS count=count(*) BY @timestamp
+| SORT count DESC, @timestamp ASC
+;
+
+count:long  |  @timestamp:date
+10          |  2023-10-23T13:00:00.000Z
+4           |  2023-10-23T12:00:00.000Z
+;
+
+multiIndexMillisToNanosStats
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_nanos
+| EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATE_NANOS(@timestamp))
+| INLINESTATS count=count(*) BY @timestamp
+| KEEP count, @timestamp
+| STATS count=count(*) BY @timestamp
+| SORT count DESC, @timestamp ASC
+;
+
+count:long  |  @timestamp:date_nanos
+10          |  2023-10-23T13:00:00.000Z
+4           |  2023-10-23T12:00:00.000Z
+;
+
+
+multiIndexTsLongInlinestatsDrop
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
+| INLINESTATS count=count(*) BY @timestamp::datetime
+| KEEP count
+| LIMIT 2
+;
+
+count:long
+3
+3
+;
+
+multiIndexTsLongInlinestatsInline2
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long, sample_data_ts_nanos
+| INLINESTATS count=count(*) BY @timestamp::datetime
+| SORT `@timestamp::datetime` DESC, event_duration
+| LIMIT 6
+;
+   
+@timestamp:unsupported|   client_ip:ip|event_duration:long|     message:keyword |     count:long|  @timestamp::datetime:datetime
+null                  |172.21.3.15    |1756467            |Connected to 10.1.0.1|3              |2023-10-23T13:55:01.543Z
+null                  |172.21.3.15    |1756467            |Connected to 10.1.0.1|3              |2023-10-23T13:55:01.543Z
+null                  |172.21.3.15    |1756467            |Connected to 10.1.0.1|3              |2023-10-23T13:55:01.543Z
+null                  |172.21.3.15    |5033755            |Connection error     |3              |2023-10-23T13:53:55.832Z
+null                  |172.21.3.15    |5033755            |Connection error     |3              |2023-10-23T13:53:55.832Z
+null                  |172.21.3.15    |5033755            |Connection error     |3              |2023-10-23T13:53:55.832Z
+;
+
+multiIndexTsLongInlinestatsInline3
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count=count(*) BY @timestamp::datetime
+| INLINESTATS mc=count(count) BY count
+| SORT client_ip DESC
+| LIMIT 1
+| KEEP mc, count
+;
+
+mc:l | count:l
+14   | 2
+;
+
+multiIndexTsLongInlinestatsInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL ts = TO_STRING(@timestamp)
+| INLINESTATS count = COUNT(*) BY ts
+| INLINESTATS mc = COUNT(count) BY count
+| SORT ts
+| LIMIT 1
+;
+
+@timestamp:unsupported|   client_ip:ip|event_duration:long|     message:keyword |     ts:keyword|      mc:long  |     count:long     
+null                  |172.21.2.162   |3450233            |Connected to 10.1.0.3|1698063303360  |14             |1              
+;
+
+multiIndexTsLongRenameInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL hour = DATE_TRUNC(1 hour, TO_DATETIME(@timestamp))
+| INLINESTATS count=count(*) BY hour
+| SORT count DESC, hour ASC
+| KEEP count, hour
+;
+
+count:long     |  hour:date
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+10             |2023-10-23T13:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+4              |2023-10-23T12:00:00.000Z
+;
+
+multiIndexTsLongRenameToDatetimeToStringInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL hour = LEFT(TO_STRING(TO_DATETIME(@timestamp)), 13)
+| INLINESTATS count=count(*) BY hour
+| STATS count_distinct(count) BY count, hour
+| SORT count DESC, hour ASC
+| KEEP count, hour
+;
+
+count:long  |  hour:keyword
+10          |  2023-10-23T13
+4           |  2023-10-23T12
+;
+
+multiIndexTsLongRenameToStringInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL mess = LEFT(TO_STRING(@timestamp), 7)
+| INLINESTATS count=count(*) BY mess
+| SORT count DESC, mess DESC
+| KEEP count, mess
+;
+
+count:long     |  mess:keyword
+7              |2023-10        
+7              |2023-10        
+7              |2023-10        
+7              |2023-10        
+7              |2023-10        
+7              |2023-10        
+7              |2023-10        
+4              |1698069        
+4              |1698069        
+4              |1698069        
+4              |1698069        
+1              |1698068        
+1              |1698064        
+1              |1698063
+;
+
+multiIndexTsLongInlinestatsInline
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count=COUNT(*), max=MAX(TO_DATETIME(@timestamp))
+| KEEP count, max
+| LIMIT 3
+;
+
+count:long  |  max:date
+14          |  2023-10-23T13:55:01.543Z
+14          |  2023-10-23T13:55:01.543Z
+14          |  2023-10-23T13:55:01.543Z
+;
+
+multiIndexTsLongInlinestatsInlineDropped
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count=COUNT(*), max=MAX(TO_DATETIME(@timestamp))
+| KEEP count
+| LIMIT 2
+;
+
+count:long
+14
+14
+;
+
+multiIndexWhereTsLongInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| WHERE TO_LONG(@timestamp) < 1698068014937
+| INLINESTATS count=count(*) BY message
+| SORT count DESC, message ASC
+| KEEP count, message
+;
+
+count:long  |  message:keyword
+2           |  Connected to 10.1.0.2
+2           |  Connected to 10.1.0.2
+2           |  Connected to 10.1.0.3
+2           |  Connected to 10.1.0.3
+;
+
+multiIndexWhereIpStringTsLongInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data*
+| WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) == "172.21.2.162"
+| INLINESTATS count=count(*) BY message
+| SORT count DESC, message ASC
+| KEEP count, message
+;
+
+count:long  |  message:keyword
+3           |  Connected to 10.1.0.3
+3           |  Connected to 10.1.0.3
+3           |  Connected to 10.1.0.3
+;
+
+multiIndexWhereIpStringLikeTsLongInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data*
+| WHERE TO_LONG(@timestamp) < 1698068014937 AND TO_STRING(client_ip) LIKE "172.21.2.16?"
+| INLINESTATS count=count(*) BY message
+| SORT count DESC, message ASC
+| KEEP count, message
+;
+
+count:long  |  message:keyword
+3           |  Connected to 10.1.0.3
+3           |  Connected to 10.1.0.3
+3           |  Connected to 10.1.0.3
+;
+
+multiIndexInlinestatsOfMultiTypedField
+required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+FROM apps, apps_short
+| INLINESTATS s = sum(id::integer)
+| SORT name, version
+| LIMIT 5
+;
+
+ id:unsupported|  name:keyword |version:version|       s:long       
+null           |aaaaa          |1              |210            
+null           |aaaaa          |1              |210            
+null           |aaaaa          |1.2.3.4        |210            
+null           |aaaaa          |1.2.3.4        |210            
+null           |bbbbb          |2.1            |210            
+;
+
+inlineStatsUnionGroup
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count = COUNT(*)
+           BY @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    | count:long| @timestamp:keyword 
+  172.21.0.5 |             1232382 | Disconnected          | 1         |            1698068 
+  172.21.0.5 |             1232382 | Disconnected          | 7         |            2023-10 
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 1         |            1698064 
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 7         |            2023-10 
+;
+
+inlineStatsUnionGroupWithEval
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| EVAL @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
+| INLINESTATS count = COUNT(*) BY @timestamp
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    | count:long| @timestamp:keyword 
+  172.21.0.5 |             1232382 | Disconnected          | 1         |            1698068 
+  172.21.0.5 |             1232382 | Disconnected          | 7         |            2023-10 
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 1         |            1698064 
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 7         |            2023-10 
+;
+
+inlineStatsUnionGroupTogether
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS count = COUNT(*)
+           BY @timestamp = TO_STRING(TO_DATETIME(@timestamp))
+| SORT client_ip ASC, @timestamp ASC
+| LIMIT 4
+;
+
+client_ip:ip | event_duration:long |    message:keyword    |count:long|    @timestamp:keyword    
+  172.21.0.5 |             1232382 | Disconnected          |2         | 2023-10-23T13:33:34.937Z
+  172.21.0.5 |             1232382 | Disconnected          |2         | 2023-10-23T13:33:34.937Z
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |2         | 2023-10-23T12:27:28.948Z
+172.21.2.113 |             2764889 | Connected to 10.1.0.2 |2         | 2023-10-23T12:27:28.948Z
+;
+
+multiIndexIndirectUseOfUnionTypesInInlinestats 
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS foo = max(event_duration) BY client_ip
+| RENAME event_duration AS e
+| SORT client_ip ASC, e
+| LIMIT 8
+;
+
+@timestamp:unsupported| e:long |    message:keyword  | foo:long| client_ip:ip 
+null                  |1232382 |Disconnected         |1232382  |172.21.0.5     
+null                  |1232382 |Disconnected         |1232382  |172.21.0.5     
+null                  |2764889 |Connected to 10.1.0.2|2764889  |172.21.2.113   
+null                  |2764889 |Connected to 10.1.0.2|2764889  |172.21.2.113   
+null                  |3450233 |Connected to 10.1.0.3|3450233  |172.21.2.162   
+null                  |3450233 |Connected to 10.1.0.3|3450233  |172.21.2.162   
+null                  |725448  |Connection error     |8268153  |172.21.3.15    
+null                  |725448  |Connection error     |8268153  |172.21.3.15
+;
+
+
+multiIndexIndirectUseOfUnionTypesInInlineStats
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_ts_long
+| INLINESTATS foo = max(event_duration)
+| SORT client_ip ASC, event_duration
+| LIMIT 1
+;
+
+@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:long
+           null        | 172.21.0.5   |             1232382 | Disconnected    |  8268153
+;
+
+shortIntegerWideningInlinestats 
+required_capability: inlinestats_v11
+
+FROM apps, apps_short
+| EVAL id = id::integer
+| INLINESTATS count=count() BY name, id
+| KEEP id, name, count
+| SORT id ASC, name ASC
+| LIMIT 5
+;
+
+id:integer | name:keyword | count:long
+1          |aaaaa         |2              
+1          |aaaaa         |2              
+2          |bbbbb         |2              
+2          |bbbbb         |2              
+3          |ccccc         |2
+;
+
+ImplicitCastingMultiTypedFieldsInlinestats_ByNumeric
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| INLINESTATS x=max(hire_date), y = min(hire_date) BY languages = languages::integer
+| SORT languages
+| KEEP emp_no, languages, x, y
+| LIMIT 3
+;
+
+emp_no:unsupported|languages:integer|           x:date_nanos |           y:date_nanos          
+null              |1                |1999-04-30T00:00:00.000Z|1985-02-18T00:00:00.000Z
+null              |1                |1999-04-30T00:00:00.000Z|1985-02-18T00:00:00.000Z
+null              |1                |1999-04-30T00:00:00.000Z|1985-02-18T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsInlinestats_ByNumericWithFilter
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| INLINESTATS x=max(hire_date) where hire_date < "1993-08-03", y = min(hire_date) where hire_date >= "1993-08-03" BY languages = languages::integer
+| SORT languages
+| LIMIT 3
+| KEEP emp_no, languages, x, y
+;
+
+emp_no:unsupported|languages:integer|           x:date_nanos |           y:date_nanos          
+null              |1                |1990-10-20T00:00:00.000Z|1994-05-21T00:00:00.000Z
+null              |1                |1990-10-20T00:00:00.000Z|1994-05-21T00:00:00.000Z
+null              |1                |1990-10-20T00:00:00.000Z|1994-05-21T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsInlinestats_ByDateNanos
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| INLINESTATS x=count(emp_no::long), y=avg(salary_change::double), z=max(height::double) BY hire_date
+| EVAL y = round(y, 1), z = round(z, 1)
+| KEEP x, y, z, hire_date
+| SORT hire_date
+| LIMIT 12
+;
+
+ x:long        |    y:double   |   z:double    | hire_date:date_nanos        
+2              |null           |1.9            |1985-02-18T00:00:00.000Z
+2              |null           |1.9            |1985-02-18T00:00:00.000Z
+2              |null           |2.0            |1985-02-24T00:00:00.000Z
+2              |null           |2.0            |1985-02-24T00:00:00.000Z
+2              |3.3            |2.0            |1985-05-13T00:00:00.000Z
+2              |3.3            |2.0            |1985-05-13T00:00:00.000Z
+2              |0.2            |1.8            |1985-07-09T00:00:00.000Z
+2              |0.2            |1.8            |1985-07-09T00:00:00.000Z
+2              |3.6            |1.5            |1985-09-17T00:00:00.000Z
+2              |3.6            |1.5            |1985-09-17T00:00:00.000Z
+2              |-5.9           |1.8            |1985-10-14T00:00:00.000Z
+2              |-5.9           |1.8            |1985-10-14T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedFieldsInlinestats_ByDateNanosWithFilter
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| INLINESTATS x=count(emp_no::long) where hire_date > "1985-05-01", y=avg(salary_change::double) where hire_date > "1985-05-01", z=max(height::double) where hire_date > "1985-05-01" BY hire_date
+| EVAL y = round(y, 1), z = round(z, 1)
+| KEEP x, y, z, hire_date
+| SORT hire_date
+| LIMIT 10
+;
+
+ x:long        |    y:double   |   z:double    | hire_date:date_nanos        
+0              |null           |null           |1985-02-18T00:00:00.000Z
+0              |null           |null           |1985-02-18T00:00:00.000Z
+0              |null           |null           |1985-02-24T00:00:00.000Z
+0              |null           |null           |1985-02-24T00:00:00.000Z
+2              |3.3            |2.0            |1985-05-13T00:00:00.000Z
+2              |3.3            |2.0            |1985-05-13T00:00:00.000Z
+2              |0.2            |1.8            |1985-07-09T00:00:00.000Z
+2              |0.2            |1.8            |1985-07-09T00:00:00.000Z
+2              |3.6            |1.5            |1985-09-17T00:00:00.000Z
+2              |3.6            |1.5            |1985-09-17T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedMVFieldsInlinestats_MaxMin
+required_capability: inlinestats_v11
+
+FROM date_nanos, date_nanos_union_types
+| INLINESTATS max = MAX(millis), min = MIN(nanos)
+| SORT millis DESC
+| LIMIT 5
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+        millis:date_nanos     |        nanos:date_nanos      |        num:long   |          max:date_nanos      |      min:date_nanos           
+2023-10-23T13:55:01.543123456Z|2023-10-23T13:55:01.543Z      |1698069301543123456|2023-10-23T13:55:01.543123456Z|2023-01-23T13:55:01.543Z
+2023-10-23T13:55:01.543123456Z|2023-10-23T13:55:01.543Z      |1698069301543123456|2023-10-23T13:55:01.543123456Z|2023-01-23T13:55:01.543Z
+2023-10-23T13:55:01.543Z      |2023-10-23T13:55:01.543123456Z|1698069301543123456|2023-10-23T13:55:01.543123456Z|2023-01-23T13:55:01.543Z
+2023-10-23T13:53:55.832987654Z|2023-10-23T13:53:55.832Z      |1698069235832987654|2023-10-23T13:55:01.543123456Z|2023-01-23T13:55:01.543Z
+2023-10-23T13:53:55.832Z      |2023-10-23T13:53:55.832987654Z|1698069235832987654|2023-10-23T13:55:01.543123456Z|2023-01-23T13:55:01.543Z
+;
+
+ImplicitCastingMultiTypedMVFieldsInlinestats_Values
+required_capability: inlinestats_v11
+
+FROM date_nanos, date_nanos_union_types
+| INLINESTATS c = MV_COUNT(VALUES(nanos))
+| SORT millis DESC
+| LIMIT 5
+;
+
+warningRegex:evaluation of \[FROM .*date_nanos.*date_nanos_union_types.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: milliSeconds \[-1457696696640\] are before the epoch in 1970 and cannot be converted to nanoseconds
+
+        millis:date_nanos     |        nanos:date_nanos      |        num:long   | c:integer
+2023-10-23T13:55:01.543123456Z|2023-10-23T13:55:01.543Z      |1698069301543123456|19             
+2023-10-23T13:55:01.543123456Z|2023-10-23T13:55:01.543Z      |1698069301543123456|19             
+2023-10-23T13:55:01.543Z      |2023-10-23T13:55:01.543123456Z|1698069301543123456|19             
+2023-10-23T13:53:55.832987654Z|2023-10-23T13:53:55.832Z      |1698069235832987654|19             
+2023-10-23T13:53:55.832Z      |2023-10-23T13:53:55.832987654Z|1698069235832987654|19
+;
+
+ImplicitCastingMultiTypedDateTruncInlinestats_By-Ignore
+required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date 
+| INLINESTATS c = count(emp_no::long) BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithFilter-Ignore
+required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date 
+| INLINESTATS c = count(emp_no::long) where hire_date > "1996-01-01" BY yr = DATE_TRUNC(1 year, hire_date)
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+0      | 1995-01-01T00:00:00.000Z
+0      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEval-Ignore
+required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date 
+| EVAL yr = DATE_TRUNC(1 year, hire_date)
+| INLINESTATS c = count(emp_no::long) BY yr
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedDateTruncInlinestats_ByWithEvalWithFilter-Ignore
+required_capability: inlinestats_v11
+// https://github.com/elastic/elasticsearch/issues/133973
+// optimized incorrectly due to missing references [$$emp_no$converted_to$long{f$}#
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date 
+| EVAL yr = DATE_TRUNC(1 year, hire_date)
+| INLINESTATS c = count(emp_no::long) where hire_date > "1991-01-01" BY yr
+| SORT yr DESC
+| LIMIT 5
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosByYear
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date, gender
+| INLINESTATS c = count(*) BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c, hire_date
+| LIMIT 10
+;
+
+emp_no:unsupported|  hire_date:date_nanos  |gender:unsupported|    c:long     |       yr:date_nanos           
+null              |1999-04-30T00:00:00.000Z|null              |2              |1999-01-01T00:00:00.000Z
+null              |1999-04-30T00:00:00.000Z|null              |2              |1999-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|null              |2              |1997-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|null              |2              |1997-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|null              |2              |1996-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|null              |2              |1996-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|null              |10             |1995-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|null              |10             |1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|null              |10             |1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|null              |10             |1995-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosByYearWithFilter
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date, gender
+| INLINESTATS c = count(*) where hire_date > "1995-02-01" BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c, hire_date
+| LIMIT 10
+;
+
+emp_no:unsupported|  hire_date:date_nanos  |gender:unsupported|    c:long     |       yr:date_nanos           
+null              |1999-04-30T00:00:00.000Z|null              |2              |1999-01-01T00:00:00.000Z
+null              |1999-04-30T00:00:00.000Z|null              |2              |1999-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|null              |2              |1997-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|null              |2              |1997-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|null              |2              |1996-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|null              |2              |1996-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|null              |8              |1995-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|null              |8              |1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|null              |8              |1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|null              |8              |1995-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanosByMonth
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| INLINESTATS c = count(*) BY mo = BUCKET(hire_date, 20, "1986-01-01", "1999-12-31")
+| KEEP emp_no, hire_date, c, mo
+| SORT mo DESC, c, hire_date
+| LIMIT 10
+;
+
+emp_no:unsupported|  hire_date:date_nanos  |    c:long     |       mo:date_nanos
+null              |1999-04-30T00:00:00.000Z|2              |1999-01-01T00:00:00.000Z
+null              |1999-04-30T00:00:00.000Z|2              |1999-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|2              |1997-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|2              |1997-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|2              |1996-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|2              |1996-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|10             |1995-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|10             |1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|10             |1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|10             |1995-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanos_In_BothInlinestats_AndBy
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| INLINESTATS c = count(*), b = BUCKET(hire_date, 1 year) + 1 year BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c, hire_date
+| KEEP emp_no, hire_date, c, b, yr
+| LIMIT 10
+;
+
+emp_no:unsupported|  hire_date:date_nanos  |    c:long     |  b:date_nanos          |    yr:date_nanos
+null              |1999-04-30T00:00:00.000Z|2              |2000-01-01T00:00:00.000Z|1999-01-01T00:00:00.000Z
+null              |1999-04-30T00:00:00.000Z|2              |2000-01-01T00:00:00.000Z|1999-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|2              |1998-01-01T00:00:00.000Z|1997-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|2              |1998-01-01T00:00:00.000Z|1997-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|2              |1997-01-01T00:00:00.000Z|1996-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|2              |1997-01-01T00:00:00.000Z|1996-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+null              |1995-01-27T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+null              |1995-03-13T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+;
+
+ImplicitCastingMultiTypedBucketDateNanos_In_BothInlinestats_AndByWithAlias
+required_capability: inlinestats_v11
+
+FROM employees, employees_incompatible
+| KEEP emp_no, hire_date
+| INLINESTATS c = count(*), b = yr + 1 year BY yr = BUCKET(hire_date, 1 year)
+| SORT hire_date DESC
+| LIMIT 10
+;
+
+emp_no:unsupported|  hire_date:date_nanos  |    c:long     |  b:date_nanos          |    yr:date_nanos    
+null              |1999-04-30T00:00:00.000Z|2              |2000-01-01T00:00:00.000Z|1999-01-01T00:00:00.000Z
+null              |1999-04-30T00:00:00.000Z|2              |2000-01-01T00:00:00.000Z|1999-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|2              |1998-01-01T00:00:00.000Z|1997-01-01T00:00:00.000Z
+null              |1997-05-19T00:00:00.000Z|2              |1998-01-01T00:00:00.000Z|1997-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|2              |1997-01-01T00:00:00.000Z|1996-01-01T00:00:00.000Z
+null              |1996-11-05T00:00:00.000Z|2              |1997-01-01T00:00:00.000Z|1996-01-01T00:00:00.000Z
+null              |1995-12-15T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+null              |1995-12-15T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+null              |1995-08-22T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+null              |1995-08-22T00:00:00.000Z|10             |1996-01-01T00:00:00.000Z|1995-01-01T00:00:00.000Z
+;
+
+multiInlinestatsWithUnionTypes1
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINESTATS count1=count(client_ip::ip), count2=count(one_ip), max(one_ip), min(client_ip::ip)
+| SORT @timestamp
+| LIMIT 3
+;
+
+    @timestamp:date     |client_ip:unsupported|event_duration:long|   message:keyword   |    one_ip:ip  |    count1:long|    count2:long|max(one_ip):ip |min(client_ip::ip):ip
+2023-10-23T12:15:03.360Z|null                 |3450233            |Connected to 10.1.0.3|172.21.2.162   |14             |14             |172.21.3.15    |172.21.0.5        
+2023-10-23T12:15:03.360Z|null                 |3450233            |Connected to 10.1.0.3|172.21.2.162   |14             |14             |172.21.3.15    |172.21.0.5        
+2023-10-23T12:27:28.948Z|null                 |2764889            |Connected to 10.1.0.2|172.21.2.113   |14             |14             |172.21.3.15    |172.21.0.5        
+;
+
+multiInlinestatsWithUnionTypes2
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINESTATS count1=count(client_ip::ip), count2=count(one_ip), max=max(one_ip), min=min(client_ip::ip)
+| RENAME one_ip AS client_ip
+| INLINESTATS max(event_duration) BY client_ip
+| SORT @timestamp
+| LIMIT 5
+;
+
+@timestamp:date         | event_duration:long | message:keyword         | count1:long | count2:long | max:ip        | min:ip        | max(event_duration):long| client_ip:ip   
+2023-10-23T12:15:03.360Z| 3450233             | Connected to 10.1.0.3   | 14          | 14          | 172.21.3.15   | 172.21.0.5    | 3450233                 | 172.21.2.162   
+2023-10-23T12:15:03.360Z| 3450233             | Connected to 10.1.0.3   | 14          | 14          | 172.21.3.15   | 172.21.0.5    | 3450233                 | 172.21.2.162   
+2023-10-23T12:27:28.948Z| 2764889             | Connected to 10.1.0.2   | 14          | 14          | 172.21.3.15   | 172.21.0.5    | 2764889                 | 172.21.2.113   
+2023-10-23T12:27:28.948Z| 2764889             | Connected to 10.1.0.2   | 14          | 14          | 172.21.3.15   | 172.21.0.5    | 2764889                 | 172.21.2.113   
+2023-10-23T13:33:34.937Z| 1232382             | Disconnected            | 14          | 14          | 172.21.3.15   | 172.21.0.5    | 1232382                 | 172.21.0.5 
+;
+
+multiInlinestatsWithUnionTypes3
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| INLINESTATS avg_duration = AVG(event_duration) BY one_ip
+| RENAME one_ip AS client_ip
+| WHERE CIDR_MATCH(client_ip, "172.21.2.0/24")
+| INLINESTATS count1=count(client_ip::ip), count2=count(client_ip), max=max(client_ip), min=min(client_ip::ip)
+| INLINESTATS avg_total_duration = AVG(event_duration)
+| SORT @timestamp
+;
+
+@timestamp:date           | event_duration:long| message:keyword         | avg_duration:double| client_ip:ip     | count1:long | count2:long | max:ip         | min:ip         | avg_total_duration:double
+2023-10-23T12:15:03.360Z  | 3450233            | Connected to 10.1.0.3   | 3450233.0          | 172.21.2.162     | 4           | 4           | 172.21.2.162   | 172.21.2.113   | 3107561.0
+2023-10-23T12:15:03.360Z  | 3450233            | Connected to 10.1.0.3   | 3450233.0          | 172.21.2.162     | 4           | 4           | 172.21.2.162   | 172.21.2.113   | 3107561.0
+2023-10-23T12:27:28.948Z  | 2764889            | Connected to 10.1.0.2   | 2764889.0          | 172.21.2.113     | 4           | 4           | 172.21.2.162   | 172.21.2.113   | 3107561.0
+2023-10-23T12:27:28.948Z  | 2764889            | Connected to 10.1.0.2   | 2764889.0          | 172.21.2.113     | 4           | 4           | 172.21.2.162   | 172.21.2.113   | 3107561.0
+;
+
+unionTypeDroppedBeforeInlinestats
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL one_ip = client_ip::ip
+| DROP one_ip
+| INLINESTATS avg(event_duration) BY client_ip::ip
+| SORT @timestamp
+;
+
+@timestamp:date           | client_ip:unsupported | event_duration:long| message:keyword         | avg(event_duration):double| client_ip::ip:ip
+2023-10-23T12:15:03.360Z  | null                  | 3450233            | Connected to 10.1.0.3   | 3450233.0                 | 172.21.2.162
+2023-10-23T12:15:03.360Z  | null                  | 3450233            | Connected to 10.1.0.3   | 3450233.0                 | 172.21.2.162
+2023-10-23T12:27:28.948Z  | null                  | 2764889            | Connected to 10.1.0.2   | 2764889.0                 | 172.21.2.113
+2023-10-23T12:27:28.948Z  | null                  | 2764889            | Connected to 10.1.0.2   | 2764889.0                 | 172.21.2.113
+2023-10-23T13:33:34.937Z  | null                  | 1232382            | Disconnected            | 1232382.0                 | 172.21.0.5
+2023-10-23T13:33:34.937Z  | null                  | 1232382            | Disconnected            | 1232382.0                 | 172.21.0.5
+2023-10-23T13:51:54.732Z  | null                  | 725448             | Connection error        | 3945955.75                | 172.21.3.15
+2023-10-23T13:51:54.732Z  | null                  | 725448             | Connection error        | 3945955.75                | 172.21.3.15
+2023-10-23T13:52:55.015Z  | null                  | 8268153            | Connection error        | 3945955.75                | 172.21.3.15
+2023-10-23T13:52:55.015Z  | null                  | 8268153            | Connection error        | 3945955.75                | 172.21.3.15
+2023-10-23T13:53:55.832Z  | null                  | 5033755            | Connection error        | 3945955.75                | 172.21.3.15
+2023-10-23T13:53:55.832Z  | null                  | 5033755            | Connection error        | 3945955.75                | 172.21.3.15
+2023-10-23T13:55:01.543Z  | null                  | 1756467            | Connected to 10.1.0.1   | 3945955.75                | 172.21.3.15
+2023-10-23T13:55:01.543Z  | null                  | 1756467            | Connected to 10.1.0.1   | 3945955.75                | 172.21.3.15
+;
+
+inlinestatsWithUnionTypesAs_InlinestatsCondition
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL temp_ip = client_ip::ip
+| EVAL ip1 = CIDR_MATCH(temp_ip, "172.21.2.0/24"), ip2 = CIDR_MATCH(temp_ip, "172.21.0.0/24"), ip3 = CIDR_MATCH(temp_ip, "172.21.3.0/24")
+| EVAL client_ip = temp_ip
+| INLINESTATS avg_ip1 = avg(event_duration) WHERE ip1
+| DROP client_ip
+| INLINESTATS avg_ip2 = avg(event_duration) WHERE ip2, avg_ip3 = avg(event_duration) WHERE ip3
+| SORT @timestamp
+| DROP @timestamp
+;
+
+event_duration:long | message:keyword         | temp_ip:ip     | ip1:boolean | ip2:boolean | ip3:boolean | avg_ip1:double | avg_ip2:double | avg_ip3:double
+3450233             | Connected to 10.1.0.3   | 172.21.2.162   | true        | false       | false       | 3107561.0      | 1232382.0      | 3945955.75
+3450233             | Connected to 10.1.0.3   | 172.21.2.162   | true        | false       | false       | 3107561.0      | 1232382.0      | 3945955.75
+2764889             | Connected to 10.1.0.2   | 172.21.2.113   | true        | false       | false       | 3107561.0      | 1232382.0      | 3945955.75
+2764889             | Connected to 10.1.0.2   | 172.21.2.113   | true        | false       | false       | 3107561.0      | 1232382.0      | 3945955.75
+1232382             | Disconnected            | 172.21.0.5     | false       | true        | false       | 3107561.0      | 1232382.0      | 3945955.75
+1232382             | Disconnected            | 172.21.0.5     | false       | true        | false       | 3107561.0      | 1232382.0      | 3945955.75
+725448              | Connection error        | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+725448              | Connection error        | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+8268153             | Connection error        | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+8268153             | Connection error        | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+5033755             | Connection error        | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+5033755             | Connection error        | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+1756467             | Connected to 10.1.0.1   | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+1756467             | Connected to 10.1.0.1   | 172.21.3.15    | false       | false       | true        | 3107561.0      | 1232382.0      | 3945955.75
+;
+
+inlinestatsWithOverwrittenUnionType
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL client_ip = client_ip::ip
+| EVAL client_ip = 123
+| INLINESTATS a = avg(event_duration) BY client_ip::integer
+| SORT @timestamp
+;
+
+@timestamp:date              | event_duration:long | message:keyword         | client_ip:integer | a:double      | client_ip::integer:integer
+2023-10-23T12:15:03.360Z     | 3450233             | Connected to 10.1.0.3   | 123               | 3318761.0     | 123
+2023-10-23T12:15:03.360Z     | 3450233             | Connected to 10.1.0.3   | 123               | 3318761.0     | 123
+2023-10-23T12:27:28.948Z     | 2764889             | Connected to 10.1.0.2   | 123               | 3318761.0     | 123
+2023-10-23T12:27:28.948Z     | 2764889             | Connected to 10.1.0.2   | 123               | 3318761.0     | 123
+2023-10-23T13:33:34.937Z     | 1232382             | Disconnected            | 123               | 3318761.0     | 123
+2023-10-23T13:33:34.937Z     | 1232382             | Disconnected            | 123               | 3318761.0     | 123
+2023-10-23T13:51:54.732Z     | 725448              | Connection error        | 123               | 3318761.0     | 123
+2023-10-23T13:51:54.732Z     | 725448              | Connection error        | 123               | 3318761.0     | 123
+2023-10-23T13:52:55.015Z     | 8268153             | Connection error        | 123               | 3318761.0     | 123
+2023-10-23T13:52:55.015Z     | 8268153             | Connection error        | 123               | 3318761.0     | 123
+2023-10-23T13:53:55.832Z     | 5033755             | Connection error        | 123               | 3318761.0     | 123
+2023-10-23T13:53:55.832Z     | 5033755             | Connection error        | 123               | 3318761.0     | 123
+2023-10-23T13:55:01.543Z     | 1756467             | Connected to 10.1.0.1   | 123               | 3318761.0     | 123
+2023-10-23T13:55:01.543Z     | 1756467             | Connected to 10.1.0.1   | 123               | 3318761.0     | 123
+;
+
+overwriteAndDropUnionTypeBeforeInlinestats
+required_capability: inlinestats_v11
+
+FROM sample_data, sample_data_str
+| EVAL temp = client_ip::string
+| EVAL client_ip = temp
+| DROP temp
+| INLINESTATS avg(event_duration) BY client_ip
+| SORT @timestamp
+| DROP @timestamp
+;
+
+event_duration:long| message:keyword         | avg(event_duration):double| client_ip:string
+3450233            | Connected to 10.1.0.3   | 3450233.0                 | 172.21.2.162
+3450233            | Connected to 10.1.0.3   | 3450233.0                 | 172.21.2.162
+2764889            | Connected to 10.1.0.2   | 2764889.0                 | 172.21.2.113
+2764889            | Connected to 10.1.0.2   | 2764889.0                 | 172.21.2.113
+1232382            | Disconnected            | 1232382.0                 | 172.21.0.5
+1232382            | Disconnected            | 1232382.0                 | 172.21.0.5
+725448             | Connection error        | 3945955.75                | 172.21.3.15
+725448             | Connection error        | 3945955.75                | 172.21.3.15
+8268153            | Connection error        | 3945955.75                | 172.21.3.15
+8268153            | Connection error        | 3945955.75                | 172.21.3.15
+5033755            | Connection error        | 3945955.75                | 172.21.3.15
+5033755            | Connection error        | 3945955.75                | 172.21.3.15
+1756467            | Connected to 10.1.0.1   | 3945955.75                | 172.21.3.15
+1756467            | Connected to 10.1.0.1   | 3945955.75                | 172.21.3.15
 ;

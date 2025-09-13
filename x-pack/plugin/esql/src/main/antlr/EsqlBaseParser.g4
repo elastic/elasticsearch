@@ -23,6 +23,11 @@ options {
 import Expression,
        Join;
 
+statements
+    : {this.isDevVersion()}? setCommand+ singleStatement EOF
+    | singleStatement EOF
+    ;
+
 singleStatement
     : query EOF
     ;
@@ -151,11 +156,21 @@ aggField
     ;
 
 qualifiedName
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=UNQUOTED_IDENTIFIER? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldName CLOSING_BRACKET
+    | name=fieldName
+    ;
+
+fieldName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=ID_PATTERN? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldNamePattern CLOSING_BRACKET
+    | name=fieldNamePattern
+    ;
+
+fieldNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns
@@ -321,5 +336,14 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE
+    : DEV_FUSE (fuseType=identifier)? fuseOptions=commandNamedParameters
     ;
+
+setCommand
+    : SET setField SEMICOLON
+    ;
+
+setField
+    : identifier ASSIGN constant
+    ;
+

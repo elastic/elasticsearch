@@ -43,6 +43,7 @@ public class ChangelogEntry {
     private Breaking breaking;
     private Highlight highlight;
     private Deprecation deprecation;
+    private String entryOverride;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
@@ -125,6 +126,14 @@ public class ChangelogEntry {
         this.deprecation = deprecation;
     }
 
+    public String getEntryOverride() {
+        return entryOverride;
+    }
+
+    public void setEntryOverride(String entryOverride) {
+        this.entryOverride = entryOverride;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -140,12 +149,13 @@ public class ChangelogEntry {
             && Objects.equals(type, that.type)
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
-            && Objects.equals(breaking, that.breaking);
+            && Objects.equals(breaking, that.breaking)
+            && Objects.equals(entryOverride, that.entryOverride);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride);
     }
 
     @Override

@@ -1,0 +1,5 @@
+pr: 134446
+summary: Add support for `include_cps_metadata` parameter
+area: ES|QL
+type: enhancement
+issues: []

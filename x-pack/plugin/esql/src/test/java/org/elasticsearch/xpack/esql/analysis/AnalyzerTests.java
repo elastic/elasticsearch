@@ -3767,10 +3767,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
 
         LogicalPlan plan = analyze(
-            """
-                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(
-                TEXT_EMBEDDING_INFERENCE_ID
-            ),
+            String.format(Locale.ROOT, """
+                FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
             "mapping-books.json"
         );
 
@@ -3788,10 +3786,8 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
 
         LogicalPlan plan = analyze(
-            """
-                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(
-                TEXT_EMBEDDING_INFERENCE_ID
-            ),
+            String.format(Locale.ROOT, """
+                FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", TEXT_EMBEDDING_INFERENCE_ID),
             "mapping-books.json"
         );
 
@@ -3812,10 +3808,8 @@ public class AnalyzerTests extends ESTestCase {
         VerificationException ve = expectThrows(
             VerificationException.class,
             () -> analyze(
-                """
-                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(
-                    "unknow-inference-id"
-                ),
+                String.format(Locale.ROOT, """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", "unknow-inference-id"),
                 "mapping-books.json"
             )
         );
@@ -3830,13 +3824,16 @@ public class AnalyzerTests extends ESTestCase {
         VerificationException ve = expectThrows(
             VerificationException.class,
             () -> analyze(
-                """
-                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""".formatted(inferenceId),
+                String.format(Locale.ROOT, """
+                    FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", "%s")""", inferenceId),
                 "mapping-books.json"
             )
         );
 
-        assertThat(ve.getMessage(), containsString("cannot use inference endpoint [%s] with task type".formatted(inferenceId)));
+        assertThat(
+            ve.getMessage(),
+            containsString(String.format(Locale.ROOT, "cannot use inference endpoint [%s] with task type", inferenceId))
+        );
     }
 
     public void testTextEmbeddingFunctionWithoutModel() {
@@ -3855,9 +3852,11 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("KNN function capability required", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
 
-        LogicalPlan plan = analyze("""
-            from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))
-            """.formatted(TEXT_EMBEDDING_INFERENCE_ID), "mapping-dense_vector.json");
+        LogicalPlan plan = analyze(
+            String.format(Locale.ROOT, """
+                from test | where KNN(float_vector, TEXT_EMBEDDING("italian food recipe", "%s"))""", TEXT_EMBEDDING_INFERENCE_ID),
+            "mapping-dense_vector.json"
+        );
 
         Limit limit = as(plan, Limit.class);
         Filter filter = as(limit.child(), Filter.class);

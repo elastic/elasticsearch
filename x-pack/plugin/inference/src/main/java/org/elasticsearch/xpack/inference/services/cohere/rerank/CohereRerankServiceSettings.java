@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSet
 
 public class CohereRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
     public static final String NAME = "cohere_rerank_service_settings";
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -124,8 +125,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -206,8 +206,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }
     }

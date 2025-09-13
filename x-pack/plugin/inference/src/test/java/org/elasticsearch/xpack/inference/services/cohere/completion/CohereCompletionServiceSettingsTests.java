@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,6 +27,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.is;
 
 public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCompletionServiceSettings> {
+
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     public static CohereCompletionServiceSettings createRandom() {
         return new CohereCompletionServiceSettings(
@@ -115,8 +116,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
 
     @Override
     protected CohereCompletionServiceSettings mutateInstanceForVersion(CohereCompletionServiceSettings instance, TransportVersion version) {
-        if (version.before(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19) == false)) {
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
             return new CohereCompletionServiceSettings(
                 instance.uri(),
                 instance.modelId(),

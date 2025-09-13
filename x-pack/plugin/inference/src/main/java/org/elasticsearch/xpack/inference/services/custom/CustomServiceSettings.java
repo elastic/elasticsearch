@@ -62,6 +62,16 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String RESPONSE = "response";
     public static final String JSON_PARSER = "json_parser";
 
+    private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING = TransportVersion.fromName(
+        "ml_inference_custom_service_remove_error_parsing"
+    );
+    private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE = TransportVersion.fromName(
+        "ml_inference_custom_service_embedding_batch_size"
+    );
+    private static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE = TransportVersion.fromName(
+        "ml_inference_custom_service_input_type"
+    );
+
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
     private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
@@ -282,22 +292,19 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         responseJsonParser = in.readNamedWriteable(CustomResponseParser.class);
         rateLimitSettings = new RateLimitSettings(in);
 
-        if (in.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
-            && in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
+        if (in.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING) == false) {
             // Read the error parsing fields for backwards compatibility
             in.readString();
             in.readString();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+        if (in.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)) {
             batchSize = in.readVInt();
         } else {
             batchSize = DEFAULT_EMBEDDING_BATCH_SIZE;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
+        if (in.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)) {
             inputTypeTranslator = new InputTypeTranslator(in);
         } else {
             inputTypeTranslator = InputTypeTranslator.EMPTY_TRANSLATOR;
@@ -441,20 +448,17 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         out.writeNamedWriteable(responseJsonParser);
         rateLimitSettings.writeTo(out);
 
-        if (out.getTransportVersion().before(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING)
-            && out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING_8_19) == false) {
+        if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_REMOVE_ERROR_PARSING) == false) {
             // Write empty strings for backwards compatibility for the error parsing fields
             out.writeString("");
             out.writeString("");
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE_8_19)) {
+        if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_BATCH_SIZE)) {
             out.writeVInt(batchSize);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
+        if (out.getTransportVersion().supports(ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE)) {
             inputTypeTranslator.writeTo(out);
         }
     }

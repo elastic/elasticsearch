@@ -27,7 +27,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.logsdb.LocalStateLogsdb;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.Before;
 
@@ -60,7 +60,7 @@ public class PatternedTextVsMatchOnlyTextTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MapperExtrasPlugin.class, LogsDBPlugin.class, LocalStateCompositeXPackPlugin.class);
+        return Arrays.asList(MapperExtrasPlugin.class, LogsDBPlugin.class, LocalStateLogsdb.class);
     }
 
     private static final String INDEX = "test_index";

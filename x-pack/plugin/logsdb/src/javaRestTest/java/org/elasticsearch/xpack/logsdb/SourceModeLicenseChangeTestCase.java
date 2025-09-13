@@ -11,28 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
 
-public abstract class DataStreamLicenseChangeIT extends LogsIndexModeRestTestIT {
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .module("data-streams")
-        .module("x-pack-stack")
-        .setting("cluster.logsdb.enabled", "true")
-        .setting("xpack.security.enabled", "false")
-        .setting("xpack.license.self_generated.type", "basic")
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
+public abstract class SourceModeLicenseChangeTestCase extends DataStreamLicenseChangeTestCase {
 
     protected interface TestCase {
         String dataStreamName();
@@ -86,18 +69,6 @@ public abstract class DataStreamLicenseChangeIT extends LogsIndexModeRestTestIT 
             );
             assertEquals(testCase.finalMode().toString(), sourceMode);
         }
-    }
-
-    protected static void startBasic() throws IOException {
-        Request startTrial = new Request("POST", "/_license/start_basic");
-        startTrial.addParameter("acknowledge", "true");
-        assertOK(client().performRequest(startTrial));
-    }
-
-    protected static void startTrial() throws IOException {
-        Request startTrial = new Request("POST", "/_license/start_trial");
-        startTrial.addParameter("acknowledge", "true");
-        assertOK(client().performRequest(startTrial));
     }
 
     protected static Response removeComponentTemplate(final RestClient client, final String componentTemplate) throws IOException {

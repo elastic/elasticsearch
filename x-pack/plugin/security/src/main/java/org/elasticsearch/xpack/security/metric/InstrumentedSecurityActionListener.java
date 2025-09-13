@@ -41,5 +41,4 @@ public class InstrumentedSecurityActionListener {
             listener.onFailure(e);
         }), () -> metrics.recordTime(context, startTimeNano));
     }
-
 }

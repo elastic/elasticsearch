@@ -38,7 +38,6 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         // Overriding constructor to support isRateOverTime flag
         private final boolean isRateOverTime;
-
         public FunctionSupplier(boolean isRateOverTime) {
             this.isRateOverTime = isRateOverTime;
         }
@@ -82,7 +81,6 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
     private final boolean isRateOverTime;
-
     public RateDoubleGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
         this.channels = channels;
         this.driverContext = driverContext;

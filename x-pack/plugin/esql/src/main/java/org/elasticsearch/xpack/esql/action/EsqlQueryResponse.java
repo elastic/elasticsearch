@@ -111,27 +111,16 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
-        String asyncExecutionId = null;
-        boolean isRunning = false;
-        boolean isAsync = false;
-        Profile profile = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            asyncExecutionId = in.readOptionalString();
-            isRunning = in.readBoolean();
-            isAsync = in.readBoolean();
-        }
+        String asyncExecutionId = asyncExecutionId = in.readOptionalString();
+        boolean isRunning = in.readBoolean();
+        boolean isAsync = in.readBoolean();
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
         List<Page> pages = in.readCollectionAsList(Page::new);
         long documentsFound = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
         long valuesLoaded = supportsValuesLoaded(in.getTransportVersion()) ? in.readVLong() : 0;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            profile = in.readOptionalWriteable(Profile::readFrom);
-        }
+        Profile profile = in.readOptionalWriteable(Profile::readFrom);
         boolean columnar = in.readBoolean();
-        EsqlExecutionInfo executionInfo = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
-        }
+        EsqlExecutionInfo executionInfo = in.readOptionalWriteable(EsqlExecutionInfo::new);
         return new EsqlQueryResponse(
             columns,
             pages,
@@ -148,24 +137,18 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-            out.writeOptionalString(asyncExecutionId);
-            out.writeBoolean(isRunning);
-            out.writeBoolean(isAsync);
-        }
+        out.writeOptionalString(asyncExecutionId);
+        out.writeBoolean(isRunning);
+        out.writeBoolean(isAsync);
         out.writeCollection(columns);
         out.writeCollection(pages);
         if (supportsValuesLoaded(out.getTransportVersion())) {
             out.writeVLong(documentsFound);
             out.writeVLong(valuesLoaded);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalWriteable(profile);
-        }
+        out.writeOptionalWriteable(profile);
         out.writeBoolean(columnar);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(executionInfo);
-        }
+        out.writeOptionalWriteable(executionInfo);
     }
 
     private static boolean supportsValuesLoaded(TransportVersion version) {

@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -7891,7 +7892,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             FoldContext.small(),
             plan,
             TEST_SEARCH_STATS,
-            LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+            SplitPlanAfterTopN.NO_SPLIT
         );
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
@@ -8272,7 +8273,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FoldContext.small(),
                 fragment,
                 searchStats,
-                LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+                SplitPlanAfterTopN.NO_SPLIT
             );
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });

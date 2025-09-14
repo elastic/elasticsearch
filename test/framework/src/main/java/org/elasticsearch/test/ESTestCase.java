@@ -989,6 +989,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextBoolean();
     }
 
+    public static <E extends Enum<E>> E randomEnum(Class<E> enumClass) {
+        return randomFrom(enumClass.getEnumConstants());
+    }
+
     public static Boolean randomOptionalBoolean() {
         return randomBoolean() ? Boolean.TRUE : randomFrom(Boolean.FALSE, null);
     }

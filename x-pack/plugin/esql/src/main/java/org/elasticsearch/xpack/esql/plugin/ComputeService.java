@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -191,7 +191,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
-        ProjectAfterTopN projectAfterTopN,
+        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -312,7 +312,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         String profileQualifier,
-        ProjectAfterTopN projectAfterTopN,
+        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
@@ -613,7 +613,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
-        ProjectAfterTopN projectAfterTopN,
+        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
@@ -734,17 +734,19 @@ public class ComputeService {
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
                 PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, plan)
-                    .filter(unused -> features == ReductionPlanFeatures.ALL)
+                    .filter(unused -> features != ReductionPlanFeatures.DISABLED)
                     .orElseGet(() -> plan.replaceChildren(List.of(source)));
-            case PlannerUtils.ReducedPlan rp -> rp.plan().replaceChildren(List.of(source));
+            case PlannerUtils.ReducedPlan rp -> features == ReductionPlanFeatures.DIFFERENT_NODE
+                ? rp.plan().replaceChildren(List.of(source))
+                : source;
         };
         return plan.replaceChild(newPlan);
     }
 
     enum ReductionPlanFeatures {
-        ALL,
-        WITHOUT_TOP_N,
-        DISABLED
+        DIFFERENT_NODE,
+        SAME_NODE,
+        DISABLED,
     }
 
     String newChildSession(String session) {

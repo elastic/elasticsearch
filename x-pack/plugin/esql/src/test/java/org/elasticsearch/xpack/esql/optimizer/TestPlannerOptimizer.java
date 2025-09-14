@@ -72,7 +72,7 @@ public class TestPlannerOptimizer {
                 config,
                 FoldContext.small(),
                 searchStats,
-                LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+                LocalPhysicalOptimizerContext.SplitPlanAfterTopN.NO_SPLIT
             ),
             true
         );

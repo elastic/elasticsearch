@@ -739,7 +739,7 @@ public class CsvTests extends ESTestCase {
                     configuration,
                     foldCtx,
                     searchStats,
-                    LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+                    LocalPhysicalOptimizerContext.SplitPlanAfterTopN.NO_SPLIT
                 )
             );
 

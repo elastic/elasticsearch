@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
@@ -37,8 +37,8 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private static final List<Batch<PhysicalPlan>> RULES_REMOVE_PROJECT_AFTER_TOP_N = rules(true, ProjectAfterTopN.REMOVE);
-    private static final List<Batch<PhysicalPlan>> RULES_KEEP_PROJECT_AFTER_TOP_N = rules(true, ProjectAfterTopN.KEEP);
+    private static final List<Batch<PhysicalPlan>> RULES_REMOVE_PROJECT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.SPLIT);
+    private static final List<Batch<PhysicalPlan>> RULES_KEEP_PROJECT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.NO_SPLIT);
 
     private final PostOptimizationPhasePlanVerifier<PhysicalPlan> verifier;
 
@@ -56,9 +56,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         try {
             return verify(result, plan.output());
         } catch (VerificationException e) {
-            return switch (context().removeProjectAfterTopN()) {
-                case KEEP -> throw e;
-                case REMOVE -> verifyTopNDataPlan(result);
+            return switch (context().splitDataDriverPlanAfterTopN()) {
+                case NO_SPLIT -> throw e;
+                // If we perform the split, the output will verify likely be different (since we modified the ProjectExec after TopNExec).
+                case SPLIT -> verifyTopNDataPlan(result);
             };
         }
     }
@@ -81,19 +82,19 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return switch (context().removeProjectAfterTopN()) {
-            case REMOVE -> RULES_REMOVE_PROJECT_AFTER_TOP_N;
-            case KEEP -> RULES_KEEP_PROJECT_AFTER_TOP_N;
+        return switch (context().splitDataDriverPlanAfterTopN()) {
+            case SPLIT -> RULES_REMOVE_PROJECT_AFTER_TOP_N;
+            case NO_SPLIT -> RULES_KEEP_PROJECT_AFTER_TOP_N;
         };
     }
 
     @SuppressWarnings("unchecked")
-    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, ProjectAfterTopN projectAfterTopN) {
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, SplitPlanAfterTopN split) {
         // execute the rules multiple times to improve the chances of things being pushed down. If we we want to remove the Project after
         // TopN, this should be done in the first pass.
         var firstRules = new ArrayList<Rule<?, PhysicalPlan>>(2);
         firstRules.add(new ReplaceSourceAttributes());
-        if (optimizeForEsSource && projectAfterTopN == ProjectAfterTopN.REMOVE) {
+        if (optimizeForEsSource && split == SplitPlanAfterTopN.SPLIT) {
             // This rule should only be applied once, since it is not idempotent.
             firstRules.add(new AvoidFieldExtractionAfterTopN());
         }

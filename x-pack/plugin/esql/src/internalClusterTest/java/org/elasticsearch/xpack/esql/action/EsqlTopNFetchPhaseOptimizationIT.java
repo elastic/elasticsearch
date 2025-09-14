@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
@@ -31,9 +30,10 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-// Verifies that the value source reader operator is optimized into the data node instead of the worker node.
+// Verifies that the value source reader operator is optimized into the reduce driver instead of the data driver.
 public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
     private final int numDataNodes;
     private final int shardCount;
@@ -115,10 +115,8 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
         try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
-            var dataValuesSourceReaderOperatorStatus = getValueSourceReaderOperatorStatus(result, "data");
-            assertThat(dataValuesSourceReaderOperatorStatus.readersBuilt().keySet(), hasSize(1));
-            var nodeReduceValuesSourceReaderOperatorStatus = getValueSourceReaderOperatorStatus(result, "node_reduce");
-            assertThat(nodeReduceValuesSourceReaderOperatorStatus.readersBuilt().keySet(), hasSize(1));
+            assertSingleKeyFiledExtracted(result, "data");
+            assertSingleKeyFiledExtracted(result, "node_reduce");
             var page = singleValue(result.pages());
             assertThat(page.getPositionCount(), equalTo(1));
             LongVectorBlock block = page.getBlock(0);
@@ -127,17 +125,26 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
         }
     }
 
-    private static ValuesSourceReaderOperatorStatus getValueSourceReaderOperatorStatus(EsqlQueryResponse response, String driverName) {
-        DriverProfile driverProfile = response.profile().drivers().stream().filter(d -> d.description().equals(driverName)).findAny().get();
-        OperatorStatus operatorStatus = singleValue(
-            Strings.format(
-                "Only a single ValuesSourceReaderOperator should be present in driver '%s'; "
-                    + "more than that means we didn't move the operator in the planner correctly",
-                driverName
-            ),
-            driverProfile.operators().stream().filter(o -> o.operator().startsWith("ValuesSourceReaderOperator")).toList()
-        );
-        return (ValuesSourceReaderOperatorStatus) operatorStatus.status();
+    private static void assertSingleKeyFiledExtracted(EsqlQueryResponse response, String driverName) {
+        long totalValuesLoader = 0;
+        for (var driverProfile : response.profile().drivers().stream().filter(d -> d.description().equals(driverName)).toList()) {
+            OperatorStatus operatorStatus = singleValue(
+                Strings.format(
+                    "Only a single ValuesSourceReaderOperator should be present in driver '%s'; "
+                        + "more than that means we didn't move the operator in the planner correctly",
+                    driverName
+                ),
+                driverProfile.operators().stream().filter(o -> o.operator().startsWith("ValuesSourceReaderOperator")).toList()
+            );
+            var status = (ValuesSourceReaderOperatorStatus) operatorStatus.status();
+            totalValuesLoader += status.valuesLoaded();
+            if (status.valuesLoaded() == 0) {
+                // This can happen if the indexRandom created dummy documents which led to empty segments.
+                continue;
+            }
+            assertThat("A single reader should have been built", status.readersBuilt().keySet(), hasSize(1));
+        }
+        assertThat("Values should have been loaded", totalValuesLoader, greaterThan(0L));
     }
 
     private EsqlQueryResponse sendQuery(String query) {

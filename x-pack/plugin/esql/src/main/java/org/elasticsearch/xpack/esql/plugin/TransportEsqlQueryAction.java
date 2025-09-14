@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.ProjectAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -251,7 +251,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             foldCtx,
             executionInfo,
-            request.pragmas().nodeLevelReduction() ? ProjectAfterTopN.REMOVE : ProjectAfterTopN.KEEP,
+            request.pragmas().nodeLevelReduction() ? SplitPlanAfterTopN.SPLIT : SplitPlanAfterTopN.NO_SPLIT,
             resultListener
         );
         planExecutor.esql(

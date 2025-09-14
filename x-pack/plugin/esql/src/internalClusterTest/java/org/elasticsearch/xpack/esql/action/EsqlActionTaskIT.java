@@ -507,6 +507,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     public void testTaskContentsForTopNQuery() throws Exception {
+        nodeLevelReduction = false;
         ActionFuture<EsqlQueryResponse> response = startEsql("from test | sort pause_me | keep pause_me");
         try {
             getTasksStarting();

@@ -18,15 +18,11 @@ public record LocalPhysicalOptimizerContext(
     Configuration configuration,
     FoldContext foldCtx,
     SearchStats searchStats,
-    ProjectAfterTopN removeProjectAfterTopN
+    SplitPlanAfterTopN splitDataDriverPlanAfterTopN
 ) {
-    /**
-     * Controls whether to run the {@link AvoidFieldExtractionAfterTopN}. Runs on
-     * {@code REMOVE}, skipped on {@code KEEP}.
-     */
-    // FIXME(gal, NOCOMMIT) rename
-    public enum ProjectAfterTopN {
-        REMOVE,
-        KEEP
+    /** Controls whether to run the {@link AvoidFieldExtractionAfterTopN}. Will run on {@link SplitPlanAfterTopN#SPLIT}. */
+    public enum SplitPlanAfterTopN {
+        SPLIT,
+        NO_SPLIT
     }
 }

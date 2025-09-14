@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -2402,7 +2403,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             config,
             FoldContext.small(),
             SearchStats.EMPTY,
-            LocalPhysicalOptimizerContext.ProjectAfterTopN.KEEP
+            SplitPlanAfterTopN.NO_SPLIT
         );
         LocalPhysicalPlanOptimizer localPhysicalPlanOptimizer = new LocalPhysicalPlanOptimizer(context) {
             @Override

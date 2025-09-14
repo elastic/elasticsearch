@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PostOptimizationPhasePlanVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
@@ -175,7 +176,7 @@ public class PlannerUtils {
             configuration,
             foldCtx,
             SEARCH_STATS_TOP_N_REPLACEMENT,
-            LocalPhysicalOptimizerContext.ProjectAfterTopN.REMOVE
+            SplitPlanAfterTopN.SPLIT
         );
         // A verifier that does nothing. We don't actually want to perform verification in {@link PlannerUtils#planReduceDriverTopN}, since
         // the plan isn't actually valid by the time the local plan is built!
@@ -271,10 +272,10 @@ public class PlannerUtils {
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
-        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN,
+        SplitPlanAfterTopN splitDataDriverPlanAfterTopN,
         PhysicalPlan plan
     ) {
-        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), projectAfterTopN);
+        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), splitDataDriverPlanAfterTopN);
     }
 
     public static PhysicalPlan localPlan(
@@ -283,11 +284,11 @@ public class PlannerUtils {
         FoldContext foldCtx,
         PhysicalPlan plan,
         SearchStats searchStats,
-        LocalPhysicalOptimizerContext.ProjectAfterTopN projectAfterTopN
+        SplitPlanAfterTopN splitDataDriverPlanAfterTopN
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats, projectAfterTopN)
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats, splitDataDriverPlanAfterTopN)
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);

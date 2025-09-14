@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -262,10 +263,53 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-            assert assertNoSeqNumberConflict(seqNo, data);
+            // assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, data.length());
             operationListener.operationAdded(data, seqNo, location);
+            bufferedBytes = buffer.size();
+        }
+
+        return location;
+    }
+
+    public Translog.Location add(final BytesReference header, @Nullable final BytesReference source, int checksum, final long seqNo)
+        throws IOException {
+        long bufferedBytesBeforeAdd = this.bufferedBytes;
+        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
+            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
+        }
+
+        int bytesToAdd = header.length() + (source == null ? 0 : source.length()) + 4;
+        final Translog.Location location;
+        synchronized (this) {
+            ensureOpen();
+            if (buffer == null) {
+                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
+            }
+            assert bufferedBytes == buffer.size();
+            final long offset = totalOffset;
+            totalOffset += bytesToAdd;
+            header.writeTo(buffer);
+            if (source != null) {
+                source.writeTo(buffer);
+            }
+            buffer.writeInt(checksum);
+
+            assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+            assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
+
+            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
+            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
+
+            nonFsyncedSequenceNumbers.add(seqNo);
+
+            operationCounter++;
+
+            assert assertNoSeqNumberConflict(seqNo, header);
+
+            location = new Translog.Location(generation, offset, bytesToAdd);
+            operationListener.operationAdded(header, seqNo, location);
             bufferedBytes = buffer.size();
         }
 

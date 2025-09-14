@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.exponentialhistogram;
 
 import org.elasticsearch.core.Types;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramUtils;
+import org.elasticsearch.exponentialhistogram.ZeroBucket;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -23,14 +25,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
+import java.util.OptionalDouble;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
@@ -117,16 +119,30 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
             fillBucketsRandomly(negativeIndices, negativeCounts, maxBucketCount / 2);
         }
 
-        return Map.of(
-            "scale",
-            scale,
-            "zero",
-            Map.of("count", zeroCount, "threshold", zeroThreshold),
-            "positive",
-            Map.of("indices", positiveIndices, "counts", positiveCounts),
-            "negative",
-            Map.of("indices", negativeIndices, "counts", negativeCounts)
+        Map<String, Object> result = new HashMap<>(
+            Map.of(
+                "scale",
+                scale,
+                "zero",
+                Map.of("count", zeroCount, "threshold", zeroThreshold),
+                "positive",
+                Map.of("indices", positiveIndices, "counts", positiveCounts),
+                "negative",
+                Map.of("indices", negativeIndices, "counts", negativeCounts)
+            )
         );
+        if ((positiveIndices.isEmpty() == false || negativeIndices.isEmpty() == false)) {
+            if (randomBoolean()) {
+                result.put("sum", randomDoubleBetween(-1000, 1000, true));
+            }
+            if (randomBoolean()) {
+                result.put("min", randomDoubleBetween(-1000, 1000, true));
+            }
+            if (randomBoolean()) {
+                result.put("max", randomDoubleBetween(-1000, 1000, true));
+            }
+        }
+        return result;
     }
 
     private static void fillBucketsRandomly(List<Long> indices, List<Long> counts, int maxBucketCount) {
@@ -383,7 +399,22 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
                     .endArray()
                     .endObject()
                     .endObject()
-            ).errorMatches("has a total value count exceeding the allowed maximum value of " + Long.MAX_VALUE)
+            ).errorMatches("has a total value count exceeding the allowed maximum value of " + Long.MAX_VALUE),
+
+            // Non-Zero sum for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("sum", 42.0).endObject()).errorMatches(
+                "sum field must be zero if the histogram is empty, but got 42.0"
+            ),
+
+            // Min provided for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("min", 42.0).endObject()).errorMatches(
+                "min field must be null if the histogram is empty, but got 42.0"
+            ),
+
+            // Max provided for empty histogram
+            exampleMalformedValue(b -> b.startObject().field("scale", 0).field("max", 42.0).endObject()).errorMatches(
+                "max field must be null if the histogram is empty, but got 42.0"
+            )
         );
     }
 
@@ -425,47 +456,107 @@ public class ExponentialHistogramFieldMapperTests extends MapperTestCase {
 
             private Map<String, Object> convertHistogramToCanonicalForm(Map<String, Object> histogram) {
                 Map<String, Object> result = new LinkedHashMap<>();
-                result.put("scale", histogram.get("scale"));
+                int scale = (Integer) histogram.get("scale");
+                result.put("scale", scale);
+
+                List<IndexWithCount> positive = parseBuckets(Types.forciblyCast(histogram.get("positive")));
+                List<IndexWithCount> negative = parseBuckets(Types.forciblyCast(histogram.get("negative")));
 
                 Map<String, Object> zeroBucket = convertZeroBucketToCanonicalForm(Types.forciblyCast(histogram.get("zero")));
+
+                Object sum = histogram.get("sum");
+                if (sum == null) {
+                    sum = ExponentialHistogramUtils.estimateSum(
+                        IndexWithCount.asBuckets(scale, negative).iterator(),
+                        IndexWithCount.asBuckets(scale, positive).iterator()
+                    );
+                }
+                result.put("sum", sum);
+
+                Object min = histogram.get("min");
+                if (min == null) {
+                    OptionalDouble estimatedMin = ExponentialHistogramUtils.estimateMin(
+                        mapToZeroBucket(zeroBucket),
+                        IndexWithCount.asBuckets(scale, negative),
+                        IndexWithCount.asBuckets(scale, positive)
+                    );
+                    if (estimatedMin.isPresent()) {
+                        min = estimatedMin.getAsDouble();
+                    }
+                }
+                if (min != null) {
+                    result.put("min", min);
+                }
+
+                Object max = histogram.get("max");
+                if (max == null) {
+                    OptionalDouble estimatedMax = ExponentialHistogramUtils.estimateMax(
+                        mapToZeroBucket(zeroBucket),
+                        IndexWithCount.asBuckets(scale, negative),
+                        IndexWithCount.asBuckets(scale, positive)
+                    );
+                    if (estimatedMax.isPresent()) {
+                        max = estimatedMax.getAsDouble();
+                    }
+                }
+                if (max != null) {
+                    result.put("max", max);
+                }
+
                 if (zeroBucket != null) {
                     result.put("zero", zeroBucket);
                 }
-
-                Map<String, Object> positive = convertBucketListToCanonicalForm(Types.forciblyCast(histogram.get("positive")));
-                if (positive != null) {
-                    result.put("positive", positive);
+                if (positive.isEmpty() == false) {
+                    result.put("positive", writeBucketsInCanonicalForm(positive));
                 }
-
-                Map<String, Object> negative = convertBucketListToCanonicalForm(Types.forciblyCast(histogram.get("negative")));
-                if (negative != null) {
-                    result.put("negative", negative);
+                if (negative.isEmpty() == false) {
+                    result.put("negative", writeBucketsInCanonicalForm(negative));
                 }
 
                 return result;
             }
 
-            private Map<String, Object> convertBucketListToCanonicalForm(Map<String, Object> buckets) {
+            private ZeroBucket mapToZeroBucket(Map<String, Object> zeroBucket) {
+                if (zeroBucket == null) {
+                    return ZeroBucket.minimalEmpty();
+                }
+                Number threshold = Types.forciblyCast(zeroBucket.get("threshold"));
+                Number count = Types.forciblyCast(zeroBucket.get("count"));
+                if (threshold != null && count != null) {
+                    return ZeroBucket.create(threshold.doubleValue(), count.longValue());
+                } else if (threshold != null) {
+                    return ZeroBucket.create(threshold.doubleValue(), 0);
+                } else if (count != null) {
+                    return ZeroBucket.minimalWithCount(count.longValue());
+                } else {
+                    return ZeroBucket.minimalEmpty();
+                }
+            }
+
+            private List<IndexWithCount> parseBuckets(Map<String, Object> buckets) {
                 if (buckets == null) {
-                    return null;
+                    return List.of();
                 }
                 List<? extends Number> indices = Types.forciblyCast(buckets.get("indices"));
                 List<? extends Number> counts = Types.forciblyCast(buckets.get("counts"));
                 if (indices == null || indices.isEmpty()) {
-                    return null;
+                    return List.of();
                 }
-                NavigableMap<Long, Long> indicesToCountsSorted = new TreeMap<>();
+                List<IndexWithCount> indexWithCounts = new ArrayList<>();
                 for (int i = 0; i < indices.size(); i++) {
-                    indicesToCountsSorted.put(indices.get(i).longValue(), counts.get(i).longValue());
+                    indexWithCounts.add(new IndexWithCount(indices.get(i).longValue(), counts.get(i).longValue()));
                 }
+                indexWithCounts.sort(Comparator.comparing(IndexWithCount::index));
+                return indexWithCounts;
+            }
 
+            private Map<String, Object> writeBucketsInCanonicalForm(List<IndexWithCount> buckets) {
                 List<Long> resultIndices = new ArrayList<>();
                 List<Long> resultCounts = new ArrayList<>();
-                indicesToCountsSorted.forEach((index, count) -> {
-                    resultIndices.add(index);
-                    resultCounts.add(count);
-                });
-
+                for (IndexWithCount indexWithCount : buckets) {
+                    resultIndices.add(indexWithCount.index());
+                    resultCounts.add(indexWithCount.count());
+                }
                 LinkedHashMap<String, Object> result = new LinkedHashMap<>();
                 result.put("indices", resultIndices);
                 result.put("counts", resultCounts);

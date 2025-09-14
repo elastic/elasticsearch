@@ -82,7 +82,8 @@ public final class GeoShapeScriptFieldType extends AbstractScriptFieldType<Geome
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
         this.geoFormatterFactory = geoFormatterFactory;
     }

@@ -26,6 +26,9 @@ public class TopNOperatorStatus implements Operator.Status {
         "topn",
         TopNOperatorStatus::new
     );
+
+    private static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql_topn_timings");
+
     private final long receiveNanos;
     private final long emitNanos;
     private final int occupiedRows;
@@ -56,7 +59,7 @@ public class TopNOperatorStatus implements Operator.Status {
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOPN_TIMINGS)) {
+        if (in.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
             this.receiveNanos = in.readVLong();
             this.emitNanos = in.readVLong();
         } else {
@@ -81,7 +84,7 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TOPN_TIMINGS)) {
+        if (out.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
             out.writeVLong(receiveNanos);
             out.writeVLong(emitNanos);
         }

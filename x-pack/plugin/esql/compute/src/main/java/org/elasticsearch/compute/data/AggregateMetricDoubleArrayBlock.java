@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafeRefCounted implements AggregateMetricDoubleBlock {
@@ -309,5 +310,14 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
             return countBlock;
         }
         throw new UnsupportedOperationException("Received an index (" + index + ") outside of range for AggregateMetricDoubleBlock.");
+    }
+
+    @Override
+    public String toString() {
+        String valuesString = Stream.of(AggregateMetricDoubleBlockBuilder.Metric.values())
+            .map(metric -> metric.getLabel() + "=" + getMetricBlock(metric.getIndex()))
+            .collect(Collectors.joining(", ", "[", "]"));
+
+        return getClass().getSimpleName() + valuesString;
     }
 }

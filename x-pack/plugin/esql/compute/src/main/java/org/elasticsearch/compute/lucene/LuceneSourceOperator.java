@@ -78,7 +78,9 @@ public class LuceneSourceOperator extends LuceneOperator {
                 contexts,
                 queryFunction,
                 dataPartitioning,
-                autoStrategy.pickStrategy(limit),
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
+                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
+                },
                 taskConcurrency,
                 limit,
                 needsScore,
@@ -334,8 +336,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
-                    ShardRefCounted refCounted = ShardRefCounted.single(shardId, shardContextCounters.get(shardId));
-                    blocks[b++] = new DocVector(refCounted, shard, leaf, docs, true).asBlock();
+                    blocks[b++] = new DocVector(currentScorerShardRefCounted(), shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;

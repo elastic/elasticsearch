@@ -296,8 +296,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         );
         Response response = innerShardOperation(request, scriptService, indexService);
         List<Map<String, Object>> geometry = (List<Map<String, Object>>) response.getResult();
-        assertEquals(40.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(0), 0.00001);
-        assertEquals(30.0, (double) ((List<Object>) geometry.get(0).get("coordinates")).get(1), 0.00001);
+        assertEquals(40.0, ((double[]) geometry.get(0).get("coordinates"))[0], 0.00001);
+        assertEquals(30.0, ((double[]) geometry.get(0).get("coordinates"))[1], 0.00001);
         assertEquals("Point", geometry.get(0).get("type"));
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());

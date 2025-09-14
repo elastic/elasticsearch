@@ -33,13 +33,13 @@ import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
@@ -133,9 +133,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             tokens.add(new WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
-        var embeddings = List.of(
-            new SparseEmbeddingResults.Embedding(tokens, randomBoolean())
-        );
+        var embeddings = List.of(new SparseEmbeddingResults.Embedding(tokens, randomBoolean()));
         var results = new SparseEmbeddingResults(embeddings);
         var response = new InferenceAction.Response(results);
         @SuppressWarnings("unchecked")  // We matched the method above.

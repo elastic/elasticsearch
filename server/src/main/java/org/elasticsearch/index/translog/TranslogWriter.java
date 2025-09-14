@@ -306,7 +306,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-//            assert assertNoSeqNumberConflict(seqNo, header);
+            // assert assertNoSeqNumberConflict(seqNo, header);
 
             location = new Translog.Location(generation, offset, bytesToAdd);
             operationListener.operationAdded(header, seqNo, location);

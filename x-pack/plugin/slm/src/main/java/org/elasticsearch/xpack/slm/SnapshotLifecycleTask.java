@@ -513,8 +513,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     continue;
                 }
                 if (registeredSnapshot.getPolicy().equals(policyName) == false || runningSnapshots.contains(registeredSnapshotId)) {
-                    // the snapshot is for another policy, leave it to that policy to clean up, or it is still running.
-                    // keep it in the registered set
+                    // the snapshot is for another policy, or is still running,
+                    // keep it in the registered set and leave it to that policy to clean up
                     newRegistered.add(registeredSnapshot);
                 } else {
                     // the snapshot was completed and should be removed from registered snapshots, update state accordingly

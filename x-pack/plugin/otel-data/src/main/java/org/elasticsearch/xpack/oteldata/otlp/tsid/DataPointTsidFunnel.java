@@ -20,8 +20,8 @@ public class DataPointTsidFunnel implements TsidFunnel<DataPoint> {
         this.byteStringAccessor = byteStringAccessor;
     }
 
-    public static TsidBuilder forDataPoint(BufferedByteStringAccessor byteStringAccessor, DataPoint dataPoint) {
-        TsidBuilder tsidBuilder = new TsidBuilder(dataPoint.getAttributes().size());
+    public static TsidBuilder forDataPoint(BufferedByteStringAccessor byteStringAccessor, DataPoint dataPoint, int scopeTsidBuilderSize) {
+        TsidBuilder tsidBuilder = new TsidBuilder(dataPoint.getAttributes().size() + 2 + scopeTsidBuilderSize);
         new DataPointTsidFunnel(byteStringAccessor).add(dataPoint, tsidBuilder);
         return tsidBuilder;
     }

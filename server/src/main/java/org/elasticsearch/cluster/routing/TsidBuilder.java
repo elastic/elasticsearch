@@ -299,6 +299,10 @@ public class TsidBuilder {
         return dimensions.size();
     }
 
+    public void sortDimensions() {
+        Collections.sort(dimensions);
+    }
+
     /**
      * A functional interface that describes how objects of a complex type are added to a TSID.
      *

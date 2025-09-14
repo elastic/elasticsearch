@@ -18,14 +18,14 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     def runGenerateAndValidateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
         args.add(":myserver:validateTransportVersionResources")
-        args.add(":myserver:generateTransportVersionDefinition")
+        args.add(":myserver:generateTransportVersion")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
 
     def runGenerateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
-        args.add(":myserver:generateTransportVersionDefinition")
+        args.add(":myserver:generateTransportVersion")
         args.addAll(additionalArgs);
         return gradleRunner(args.toArray())
     }
@@ -35,11 +35,11 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
     }
 
     void assertGenerateSuccess(BuildResult result) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.SUCCESS
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.SUCCESS
     }
 
     void assertGenerateFailure(BuildResult result, String expectedOutput) {
-        assert result.task(":myserver:generateTransportVersionDefinition").outcome == TaskOutcome.FAILED
+        assert result.task(":myserver:generateTransportVersion").outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, expectedOutput)
     }
 
@@ -277,6 +277,77 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "second_tv,8124000")
     }
 
+    def "update flag works with current"() {
+        given:
+        referableAndReferencedTransportVersion("new_tv", "8123000")
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+            """
+            <<<<<<< HEAD
+            existing_92,8123000
+            =======
+            new_tv,8123000
+            >>>>>> name
+            """.strip()
+
+        when:
+        def result = runGenerateAndValidateTask("--resolve-conflict").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("existing_92", "8123000,8012001")
+        assertReferableDefinition("new_tv", "8124000")
+        assertUpperBound("9.2", "new_tv,8124000")
+    }
+
+    def "update flag works with multiple branches"() {
+        given:
+        referableAndReferencedTransportVersion("new_tv", "8123000,8012001,7123001")
+        file("myserver/src/main/resources/transport/latest/9.2.csv").text =
+            """
+            <<<<<<< HEAD
+            existing_92,8123000
+            =======
+            new_tv,8123000
+            >>>>>> name
+            """.strip()
+        file("myserver/src/main/resources/transport/latest/9.1.csv").text =
+            """
+            <<<<<<< HEAD
+            existing_92,8012001
+            =======
+            new_tv,8012001
+            >>>>>> name
+            """.strip()
+        file("myserver/src/main/resources/transport/latest/8.19.csv").text =
+            """
+            <<<<<<< HEAD
+            initial_8.19.7,7123001
+            =======
+            new_tv,7123001
+            >>>>>> name
+            """.strip()
+
+        when:
+        def result = runGenerateAndValidateTask("--resolve-conflict").build()
+
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertReferableDefinition("existing_92", "8123000,8012001")
+        assertUnreferableDefinition("initial_8.19.7", "7123001")
+        assertReferableDefinition("new_tv", "8124000,8012002,7123002")
+        assertUpperBound("9.2", "new_tv,8124000")
+        assertUpperBound("9.1", "new_tv,8012002")
+        assertUpperBound("8.19", "new_tv,7123002")
+    }
+
+    def "update flag cannot be used with backport branches"() {
+        when:
+        def result = runGenerateTask("--resolve-conflict", "--backport-branches=9.1").buildAndFail()
+
+        then:
+        assertGenerateFailure(result, "Cannot use --resolve-conflict with --backport-branches")
+    }
+
     def "branches param order does not matter"() {
         given:
         referencedTransportVersion("test_tv")
@@ -438,6 +509,48 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         when:
         def result = runGenerateAndValidateTask().build()
 
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "new_tv,8124000")
+        assertReferableDefinition("new_tv", "8124000")
+    }
+
+    def "alternate upper bound larger"() {
+        given:
+        referencedTransportVersion("new_tv")
+        file("myserver/alt_upper_bound.csv").text = "some_tv,8126000"
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                alternateUpperBoundFile = project.file("alt_upper_bound.csv")
+            }
+            tasks.named('validateTransportVersionResources') {
+                shouldValidateDensity = false
+            }
+        """
+
+        when:
+        def result = runGenerateAndValidateTask().build()
+        then:
+        assertGenerateAndValidateSuccess(result)
+        assertUpperBound("9.2", "new_tv,8127000")
+        assertReferableDefinition("new_tv", "8127000")
+    }
+
+    def "alternate upper bound less"() {
+        given:
+        referencedTransportVersion("new_tv")
+        file("myserver/alt_upper_bound.csv").text = "some_tv,8122100"
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                alternateUpperBoundFile = project.file("alt_upper_bound.csv")
+            }
+            tasks.named('validateTransportVersionResources') {
+                shouldValidateDensity = false
+            }
+        """
+
+        when:
+        def result = runGenerateAndValidateTask().build()
         then:
         assertGenerateAndValidateSuccess(result)
         assertUpperBound("9.2", "new_tv,8124000")

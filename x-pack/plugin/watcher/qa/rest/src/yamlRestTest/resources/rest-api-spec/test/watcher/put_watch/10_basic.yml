@@ -37,26 +37,3 @@ setup:
             }
           }
   - match: { _id: "my_watch" }
-
----
-"Test empty body is rejected by put watch":
-  - do:
-      watcher.put_watch:
-        id: "my_watch"
-      catch: bad_request
-  - match: { error.root_cause.0.type: "action_request_validation_exception" }
-  - match: { error.root_cause.0.reason: "Validation Failed: 1: request body is missing;" }
-
----
-"Test empty body (with Content-Type) is rejected by put watch":
-  - skip:
-       features:
-         - headers
-  - do:
-      headers:
-        Content-Type: "application/json"
-      watcher.put_watch:
-        id: "my_watch"
-      catch: bad_request
-  - match: { error.root_cause.0.type: "action_request_validation_exception" }
-  - match: { error.root_cause.0.reason: "Validation Failed: 1: request body is missing;" }

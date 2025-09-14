@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 

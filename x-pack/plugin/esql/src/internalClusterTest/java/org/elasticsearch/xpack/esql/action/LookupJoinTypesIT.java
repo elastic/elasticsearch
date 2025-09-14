@@ -667,12 +667,7 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
 
     private static String propertySpecFor(String fieldName, DataType type) {
         if (type.atom() == SCALED_FLOAT) {
-            return String.format(
-                Locale.ROOT,
-                "\"%s\": { \"type\" : \"scaled_float\", \"scaling_factor\": %f }",
-                fieldName,
-                SCALING_FACTOR
-            );
+            return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"scaled_float\", \"scaling_factor\": %f }", fieldName, SCALING_FACTOR);
         }
         // NOCOMMIT spec for object fields
         return String.format(Locale.ROOT, "\"%s\": { \"type\" : \"%s\" }", fieldName, type.atom().esType().replaceAll("cartesian_", ""));

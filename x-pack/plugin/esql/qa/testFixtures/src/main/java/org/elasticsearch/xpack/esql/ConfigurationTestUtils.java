@@ -20,7 +20,6 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
 import org.elasticsearch.xpack.esql.core.type.AtomType;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;

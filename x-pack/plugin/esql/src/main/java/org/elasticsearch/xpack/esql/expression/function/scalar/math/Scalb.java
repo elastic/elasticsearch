@@ -165,16 +165,8 @@ public class Scalb extends EsqlScalarFunction {
         var dEval = Cast.cast(source(), d.dataType(), DOUBLE.type(), toEvaluator.apply(d));
         if (scaleFactor.foldable()) {
             return switch (scaleFactor.dataType().atom()) {
-                case INTEGER -> new ScalbConstantIntEvaluator.Factory(
-                    source(),
-                    dEval,
-                    (Integer) (scaleFactor.fold(toEvaluator.foldCtx()))
-                );
-                case LONG -> new ScalbConstantLongEvaluator.Factory(
-                    source(),
-                    dEval,
-                    (Long) (scaleFactor.fold(toEvaluator.foldCtx()))
-                );
+                case INTEGER -> new ScalbConstantIntEvaluator.Factory(source(), dEval, (Integer) (scaleFactor.fold(toEvaluator.foldCtx())));
+                case LONG -> new ScalbConstantLongEvaluator.Factory(source(), dEval, (Long) (scaleFactor.fold(toEvaluator.foldCtx())));
                 default -> throw new IllegalStateException("Invalid type for scaleFactor, should be int or long.");
             };
         }

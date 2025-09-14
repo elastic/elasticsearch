@@ -115,7 +115,15 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> AtomType.isCounter(dt.atom()), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
+        return isType(
+            field(),
+            dt -> AtomType.isCounter(dt.atom()),
+            sourceText(),
+            FIRST,
+            "counter_long",
+            "counter_integer",
+            "counter_double"
+        );
     }
 
     @Override

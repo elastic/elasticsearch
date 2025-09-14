@@ -49,7 +49,8 @@ public class ChangePointGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         return CommandGenerator.expectAtLeastSameNumberOfColumns(previousColumns, columns);
     }

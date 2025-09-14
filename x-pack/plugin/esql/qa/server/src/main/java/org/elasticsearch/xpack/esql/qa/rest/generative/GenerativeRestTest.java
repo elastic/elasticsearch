@@ -147,7 +147,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec, this);
+            EsqlQueryGenerator.generatePipeline(
+                MAX_DEPTH,
+                EsqlQueryGenerator.sourceCommand(),
+                EsqlQueryGenerator.PIPE_COMMANDS,
+                mappingInfo,
+                exec,
+                this
+            );
         }
     }
 
@@ -164,7 +171,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             previousResult == null ? null : previousResult.outputSchema(),
             previousResult == null ? null : previousResult.result(),
             result.outputSchema(),
-            result.result()
+            result.result(),
+            false
         );
         if (outputValidation.success() == false) {
             for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {

@@ -69,7 +69,8 @@ public class EvalGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
@@ -87,7 +88,7 @@ public class EvalGenerator implements CommandGenerator {
             );
         }
 
-        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output, deterministic);
     }
 
     private static String unquote(String colName) {

@@ -112,13 +112,14 @@ public class ForkGenerator implements CommandGenerator {
                     List<Column> previousColumns,
                     List<List<Object>> previousOutput,
                     List<Column> columns,
-                    List<List<Object>> output
+                    List<List<Object>> output,
+                    boolean deterministic
                 ) {
                     return VALIDATION_OK;
                 }
             };
 
-            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, executor);
+            EsqlQueryGenerator.generatePipeline(3, gen, EsqlQueryGenerator.PIPE_COMMANDS, schema, exec, executor);
             if (exec.previousCommands().size() > 1) {
                 String previousCmd = exec.previousCommands()
                     .stream()
@@ -143,8 +144,9 @@ public class ForkGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
-        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output, deterministic);
     }
 }

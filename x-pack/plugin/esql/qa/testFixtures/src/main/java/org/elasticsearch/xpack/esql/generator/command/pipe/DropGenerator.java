@@ -73,7 +73,8 @@ public class DropGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
@@ -88,7 +89,8 @@ public class DropGenerator implements CommandGenerator {
         }
         // TODO awaits fix https://github.com/elastic/elasticsearch/issues/120272
         // return CommandGenerator.expectSameRowCount(previousOutput, output);
-        return VALIDATION_OK;
+
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output, deterministic);
     }
 
 }

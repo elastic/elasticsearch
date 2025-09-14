@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.generator.command.source;
 
 import org.elasticsearch.xpack.esql.generator.Column;
-import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -17,9 +16,9 @@ import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
-public class FromGenerator implements CommandGenerator {
+public class SimpleFromGenerator implements CommandGenerator {
 
-    public static final FromGenerator INSTANCE = new FromGenerator();
+    public static final SimpleFromGenerator INSTANCE = new SimpleFromGenerator();
 
     @Override
     public CommandDescription generate(
@@ -28,17 +27,10 @@ public class FromGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        StringBuilder result = new StringBuilder("from ");
-        int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
-        for (int i = 0; i < items; i++) {
-            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
-            if (i > 0) {
-                result.append(",");
-            }
-            result.append(pattern);
-        }
-        String query = result.toString();
+        String idx = availableIndices.get(randomIntBetween(0, availableIndices.size() - 1));
+
+        String query = "from " + idx;
         return new CommandDescription("from", this, query, Map.of());
     }
 

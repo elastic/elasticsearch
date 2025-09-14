@@ -69,7 +69,8 @@ public class KeepGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
@@ -79,7 +80,7 @@ public class KeepGenerator implements CommandGenerator {
             return new ValidationResult(false, "Expecting at most [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
 
-        return VALIDATION_OK;
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output, deterministic);
     }
 
 }

@@ -17,6 +17,10 @@ All you have to do is:
 *** Have a look at `EsqlQueryGenerator`, it contains many utility methods that will help you generate random expressions.
 ** Implement `CommandGenerator.validateOutput()` to validate the output of the query.
 * Add your class to `EsqlQueryGenerator.SOURCE_COMMANDS` (if it's a source command) or `EsqlQueryGenerator.PIPE_COMMANDS` (if it's a pipe command).
+  These will be used by `GenerativeIT` to pick a random command to append to the query.
+** Also consider adding your generators (or a simplified version of them)
+   to `EsqlQueryGenerator.SIMPLIFIED_SOURCE_COMMANDS` or `EsqlQueryGenerator.SIMPLIFIED_PIPE_COMMANDS`.
+   These are used to generate queries in contexts when the full complexity of ES|QL is not supported (eg. in `GenerativeCsvIT`).
 * Run `GenerativeIT` at least a couple of times: these tests can be pretty noisy.
 * If you get unexpected errors (real bugs in ES|QL), please open an issue and add the error to `GenerativeRestTest.ALLOWED_ERRORS`. Run tests again until everything works fine.
 

@@ -89,7 +89,8 @@ public class RenameGenerator implements CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
@@ -97,7 +98,7 @@ public class RenameGenerator implements CommandGenerator {
         if (previousColumns.size() < columns.size()) {
             return new ValidationResult(false, "Expecting at most [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
-        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
+        return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output, deterministic);
     }
 
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.SimpleFromGenerator;
 
 import java.util.List;
 import java.util.Set;
@@ -45,12 +46,14 @@ public class EsqlQueryGenerator {
     /**
      * These are commands that are at the beginning of the query, eg. FROM
      */
-    static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+    public static List<CommandGenerator> SOURCE_COMMANDS = List.of(FromGenerator.INSTANCE);
+
+    public static List<CommandGenerator> SIMPLIFIED_SOURCE_COMMANDS = List.of(SimpleFromGenerator.INSTANCE);
 
     /**
      * These are downstream commands, ie. that cannot appear as the first command in a query
      */
-    static List<CommandGenerator> PIPE_COMMANDS = List.of(
+    public static List<CommandGenerator> PIPE_COMMANDS = List.of(
         ChangePointGenerator.INSTANCE,
         DissectGenerator.INSTANCE,
         DropGenerator.INSTANCE,
@@ -68,12 +71,31 @@ public class EsqlQueryGenerator {
         WhereGenerator.INSTANCE
     );
 
+    /**
+     * Same as PIPE_COMMANDS but without the more complex commands (Fork, Enrich, Join).
+     * This is needed in CSV tests, that don't support the full ES capabilities
+     */
+    public static List<CommandGenerator> SIMPLIFIED_PIPE_COMMANDS = List.of(
+        ChangePointGenerator.INSTANCE,
+        DissectGenerator.INSTANCE,
+        DropGenerator.INSTANCE,
+        EvalGenerator.INSTANCE,
+        GrokGenerator.INSTANCE,
+        KeepGenerator.INSTANCE,
+        LimitGenerator.INSTANCE,
+        MvExpandGenerator.INSTANCE,
+        RenameGenerator.INSTANCE,
+        SortGenerator.INSTANCE,
+        StatsGenerator.INSTANCE,
+        WhereGenerator.INSTANCE
+    );
+
     public static CommandGenerator sourceCommand() {
         return randomFrom(SOURCE_COMMANDS);
     }
 
-    public static CommandGenerator randomPipeCommandGenerator() {
-        return randomFrom(PIPE_COMMANDS);
+    public static CommandGenerator simplifiedSourceCommand() {
+        return randomFrom(SIMPLIFIED_SOURCE_COMMANDS);
     }
 
     public interface Executor {
@@ -90,6 +112,7 @@ public class EsqlQueryGenerator {
     public static void generatePipeline(
         final int depth,
         CommandGenerator commandGenerator,
+        List<CommandGenerator> pipelineGenerators,
         final CommandGenerator.QuerySchema schema,
         Executor executor,
         QueryExecutor queryExecutor
@@ -104,7 +127,7 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
+            commandGenerator = randomFrom(pipelineGenerators);
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;

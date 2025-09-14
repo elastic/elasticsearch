@@ -54,7 +54,8 @@ public interface CommandGenerator {
             List<Column> previousColumns,
             List<List<Object>> previousOutput,
             List<Column> columns,
-            List<List<Object>> output
+            List<List<Object>> output,
+            boolean deterministic
         ) {
             return VALIDATION_OK;
         }
@@ -92,6 +93,9 @@ public interface CommandGenerator {
      * @param previousOutput   The output of the original query (without last generated command), as a list (rows) of lists (columns) of values
      * @param columns          The output schema of the full query (WITH last generated command).
      * @param output           The output of the full query (WITH last generated command), as a list (rows) of lists (columns) of values
+     * @param deterministic    True if the query is executed in deterministic mode (eg. in CsvTests), ie. that the
+     *                         results (also their order) are stable between multiple executions.
+     *                         False if the query is executed in non-deterministic mode (eg. in GenerativeIT, against an ES cluster)
      * @return The result of the output validation. If the validation succeeds, you should return {@link CommandGenerator#VALIDATION_OK}.
      * Also, if for some reason you can't validate the output, just return {@link CommandGenerator#VALIDATION_OK}; for a command, having a generator without
      * validation is much better than having no generator at all.
@@ -102,19 +106,19 @@ public interface CommandGenerator {
         List<Column> previousColumns,
         List<List<Object>> previousOutput,
         List<Column> columns,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     );
 
     static ValidationResult expectSameRowCount(
         List<CommandDescription> previousCommands,
         List<List<Object>> previousOutput,
-        List<List<Object>> output
+        List<List<Object>> output,
+        boolean deterministic
     ) {
-
-        // ES|QL is quite non-deterministic in this sense, we can't guarantee it for now
-        // if (output.size() != previousOutput.size()) {
-        // return new ValidationResult(false, "Expecting [" + previousOutput.size() + "] rows, but got [" + output.size() + "]");
-        // }
+        if (deterministic && previousOutput.size() != output.size()) {
+            return new ValidationResult(false, "Expecting [" + previousOutput.size() + "] rows, got [" + output.size() + "]");
+        }
 
         return VALIDATION_OK;
     }

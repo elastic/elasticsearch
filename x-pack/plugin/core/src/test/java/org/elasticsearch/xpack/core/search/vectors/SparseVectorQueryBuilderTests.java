@@ -39,10 +39,9 @@ import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -118,15 +117,14 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
     @Override
     protected boolean canSimulateMethod(Method method, Object[] args) throws NoSuchMethodException {
         return method.equals(Client.class.getMethod("execute", ActionType.class, ActionRequest.class, ActionListener.class))
-            && (args[0] instanceof CoordinatedInferenceAction);
+            && (args[0] instanceof InferenceAction);
     }
 
     @Override
     protected Object simulateMethod(Method method, Object[] args) {
-        CoordinatedInferenceAction.Request request = (CoordinatedInferenceAction.Request) args[1];
-        assertNull(request.getInferenceTimeout());
-        assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
-        assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, request.getRequestModelType());
+        InferenceAction.Request request = (InferenceAction.Request) args[1];
+        assertEquals(TaskType.SPARSE_EMBEDDING, request.getTaskType());
+        assertNull(request.getInputType()); // Should be null for sparse_embedding
 
         // Randomisation cannot be used here as {@code #doAssertLuceneQuery}
         // asserts that 2 rewritten queries are the same
@@ -135,12 +133,13 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
             tokens.add(new WeightedToken(Integer.toString(i), (i + 1) * 1.0f));
         }
 
-        var response = InferModelAction.Response.builder()
-            .setId(request.getModelId())
-            .addInferenceResults(List.of(new TextExpansionResults("foo", tokens, randomBoolean())))
-            .build();
+        var embeddings = List.of(
+            new SparseEmbeddingResults.Embedding(tokens, randomBoolean())
+        );
+        var results = new SparseEmbeddingResults(embeddings);
+        var response = new InferenceAction.Response(results);
         @SuppressWarnings("unchecked")  // We matched the method above.
-        ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) args[2];
+        ActionListener<InferenceAction.Response> listener = (ActionListener<InferenceAction.Response>) args[2];
         listener.onResponse(response);
         return null;
     }

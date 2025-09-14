@@ -349,7 +349,7 @@ fragments when the field is not of type semantic_text, you can explicitly
 enforce the `semantic` highlighter in the query:
 
 ```console
-PUT test-index
+POST test-index/_search
 {
     "query": {
         "match": {

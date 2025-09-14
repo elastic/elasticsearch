@@ -92,11 +92,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -1403,6 +1400,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new float[] { 0.1f, 0.2f, 0.3f },
             5000,
             5000,
+            null,
             new RescoreVectorBuilder(7),
             0.001f
         ).boost(3.5f);
@@ -1424,7 +1422,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1443,7 +1441,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1462,7 +1460,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
 
-        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null);
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
         assertEquals(expectedQuery.toString(), planStr.get());
     }
 
@@ -1933,6 +1931,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             1000,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
         var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
@@ -1969,6 +1968,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             1000,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
         var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(integerFilter).must(keywordFilter);
@@ -2002,6 +2002,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             "dense_vector",
             new float[] { 0, 1, 2 },
             1000,
+            null,
             null,
             null,
             null
@@ -2041,6 +2042,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             1000,
             null,
             null,
+            null,
             null
         ).addFilterQuery(expectedFilterQueryBuilder);
 
@@ -2065,7 +2067,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryExec = as(field.child(), EsQueryExec.class);
 
         // The disjunction should not be pushed down to the KNN query
-        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null);
+        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        );
         QueryBuilder rangeQueryBuilder = wrapWithSingleQuery(
             query,
             unscore(rangeQuery("integer").gt(10)),
@@ -2148,8 +2158,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new Source(2, 42, "NOT integer > 10")
         );
 
-        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null);
-        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null);
+        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null, null);
+        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null, null);
 
         firstKnn.addFilterQuery(notKeywordFilter);
         secondKnn.addFilterQuery(notIntegerGt10);
@@ -2177,7 +2187,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var queryExec = as(field.child(), EsQueryExec.class);
 
-        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null);
+        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        );
         // Integer range query (right side of first OR)
         QueryBuilder integerRangeQuery = wrapWithSingleQuery(
             query,
@@ -2187,7 +2205,15 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
 
         // Second KNN query (right side of second OR)
-        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null);
+        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 4, 5, 6 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        );
 
         // Keyword term query (left side of second OR)
         QueryBuilder keywordQuery = wrapWithSingleQuery(
@@ -2207,24 +2233,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // Top-level AND combining both ORs
         var expectedQuery = boolQuery().must(firstOr).must(secondOr);
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
-    }
-
-    public void testParallelizeTimeSeriesPlan() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
-        var query = "TS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
-        var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
-        PhysicalPlan plan = optimizer.plan(query);
-        var limit = as(plan, LimitExec.class);
-        var finalAgg = as(limit.child(), AggregateExec.class);
-        var partialAgg = as(finalAgg.child(), AggregateExec.class);
-        var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
-        var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
-        var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
-        var parallel1 = as(timeSeriesPartialAgg.child(), ParallelExec.class);
-        var eval = as(parallel1.child(), EvalExec.class);
-        var fieldExtract = as(eval.child(), FieldExtractExec.class);
-        var parallel2 = as(fieldExtract.child(), ParallelExec.class);
-        as(parallel2.child(), TimeSeriesSourceExec.class);
     }
 
     /**
@@ -2726,7 +2734,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         @Override
         public QueryBuilder queryBuilder() {
-            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null);
+            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null, null);
         }
 
         @Override

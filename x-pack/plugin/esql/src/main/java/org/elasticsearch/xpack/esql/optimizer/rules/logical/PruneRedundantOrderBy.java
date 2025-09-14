@@ -44,7 +44,7 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
-            Set<LogicalPlan> redundant = findRedundantSort(plan);
+            Set<OrderBy> redundant = findRedundantSort(((UnaryPlan) plan).child());
             if (redundant.isEmpty()) {
                 return plan;
             }
@@ -58,32 +58,25 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
      * breadth-first recursion to find redundant SORTs in the children tree.
      * Returns an identity set (we need to compare and prune the exact instances)
      */
-    private Set<LogicalPlan> findRedundantSort(LogicalPlan plan) {
-        Set<LogicalPlan> result = Collections.newSetFromMap(new IdentityHashMap<>());
+    private Set<OrderBy> findRedundantSort(LogicalPlan plan) {
+        Set<OrderBy> result = Collections.newSetFromMap(new IdentityHashMap<>());
 
         Deque<LogicalPlan> toCheck = new ArrayDeque<>();
-        toCheck.push(((UnaryPlan) plan).child());
+        toCheck.push(plan);
 
-        while (toCheck.isEmpty() == false) {
+        while (true) {
+            if (toCheck.isEmpty()) {
+                return result;
+            }
             LogicalPlan p = toCheck.pop();
             if (p instanceof OrderBy ob) {
                 result.add(ob);
                 toCheck.push(ob.child());
-            } else if (p instanceof TopN childTopN && plan instanceof TopN parentTopN) {
-                // Check if a child TopN is redundant compared to a parent TopN.
-                // A child TopN is redundant if it has the same sort order as the parent.
-                // We do not need to compare their values because `PushDownAndCombineLimits`
-                // has already pushed down the lower limit value
-                if (childTopN.order().equals(parentTopN.order())) {
-                    result.add(childTopN);
-                    toCheck.push(childTopN.child());
-                }
             } else if (p instanceof SortAgnostic) {
                 for (LogicalPlan child : p.children()) {
                     toCheck.push(child);
                 }
             }
         }
-        return result;
     }
 }

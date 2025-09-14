@@ -5,11 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,8 +28,9 @@ public class ForkGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         // FORK can only be allowed once - so we skip adding another FORK if we already have one
         // otherwise, most generated queries would only result in a validation error
@@ -60,9 +63,9 @@ public class ForkGenerator implements CommandGenerator {
                     // schema, we append the command. Enforcing the same schema is stricter than the Fork needs (it only needs types to be
                     // the same on columns which are present), but given we currently generate independent sub-pipelines, this way we can
                     // generate more valid Fork queries.
-                    final EsqlQueryGenerator.QueryExecuted result = previousResult == null
-                        ? GenerativeRestTest.execute(command, 0, null)
-                        : GenerativeRestTest.execute(previousResult.query() + command, previousResult.depth(), null);
+                    final QueryExecuted result = previousResult == null
+                        ? executor.execute(command, 0)
+                        : executor.execute(previousResult.query() + command, previousResult.depth());
                     previousResult = result;
 
                     continueExecuting = result.exception() == null && result.outputSchema().equals(previousOutput);
@@ -82,21 +85,22 @@ public class ForkGenerator implements CommandGenerator {
                 }
 
                 @Override
-                public List<EsqlQueryGenerator.Column> currentSchema() {
+                public List<Column> currentSchema() {
                     return previousOutput;
                 }
 
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 boolean continueExecuting;
-                EsqlQueryGenerator.QueryExecuted previousResult;
+                QueryExecuted previousResult;
             };
 
             var gen = new CommandGenerator() {
                 @Override
                 public CommandDescription generate(
                     List<CommandDescription> previousCommands,
-                    List<EsqlQueryGenerator.Column> previousOutput,
-                    QuerySchema schema
+                    List<Column> previousOutput,
+                    QuerySchema schema,
+                    QueryExecutor executor
                 ) {
                     return new CommandDescription(FORK, this, completeCommand.toString(), Map.of());
                 }
@@ -105,16 +109,16 @@ public class ForkGenerator implements CommandGenerator {
                 public ValidationResult validateOutput(
                     List<CommandDescription> previousCommands,
                     CommandDescription command,
-                    List<EsqlQueryGenerator.Column> previousColumns,
+                    List<Column> previousColumns,
                     List<List<Object>> previousOutput,
-                    List<EsqlQueryGenerator.Column> columns,
+                    List<Column> columns,
                     List<List<Object>> output
                 ) {
                     return VALIDATION_OK;
                 }
             };
 
-            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec);
+            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, executor);
             if (exec.previousCommands().size() > 1) {
                 String previousCmd = exec.previousCommands()
                     .stream()
@@ -136,9 +140,9 @@ public class ForkGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription command,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);

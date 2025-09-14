@@ -5,16 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.source;
+package org.elasticsearch.xpack.esql.generator.command.source;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.indexPattern;
 
 public class FromGenerator implements CommandGenerator {
 
@@ -23,14 +24,15 @@ public class FromGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         StringBuilder result = new StringBuilder("from ");
         int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         for (int i = 0; i < items; i++) {
-            String pattern = indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
+            String pattern = EsqlQueryGenerator.indexPattern(availableIndices.get(randomIntBetween(0, availableIndices.size() - 1)));
             if (i > 0) {
                 result.append(",");
             }
@@ -44,9 +46,9 @@ public class FromGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         return VALIDATION_OK;

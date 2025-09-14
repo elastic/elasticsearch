@@ -26,18 +26,11 @@ The result check happens at two levels:
 
 == Implementing your own command generator
 
-If you implement a new command, and you want it to be tested by the generative tests, you can add a command generator here.
+If you create a new command, we strongly recommend you to implement a command generator for it, so that it is tested
+by the generative tests.
 
-All you have to do is:
-
-* add a class in `org.elasticsearch.xpack.esql.qa.rest.generative.command.source` (if it's a source command) or in `org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe` (if it's a pipe command)
-* Implement `CommandGenerator` interface (see its javadoc, it should be explicative. Or just have a look at one of the existing commands, eg. `SortGenerator`)
-** Implement `CommandGenerator.generate()` method, that will return the command.
-*** Have a look at `EsqlQueryGenerator`, it contains many utility methods that will help you generate random expressions.
-** Implement `CommandGenerator.validateOutput()` to validate the output of the query.
-* Add your class to `EsqlQueryGenerator.SOURCE_COMMANDS` (if it's a source command) or `EsqlQueryGenerator.PIPE_COMMANDS` (if it's a pipe command).
-* Run `GenerativeIT` at least a couple of times: these tests can be pretty noisy.
-* If you get unexpected errors (real bugs in ES|QL), please open an issue and add the error to `GenerativeRestTest.ALLOWED_ERRORS`. Run tests again until everything works fine.
+To do so, see the documentation in the
+`x-pack/plugin/esql/qa/testFixtures/src/main/java/org/elasticsearch/xpack/esql/generator/README.asciidoc` file.
 
 
-IMPORTANT: be careful when validating the output (Eg. the row count), as ES|QL can be quite non-deterministic when there are no SORTs
+

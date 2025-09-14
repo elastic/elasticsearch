@@ -5,10 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +23,7 @@ public class WhereGenerator implements CommandGenerator {
     public static final String WHERE = "where";
     public static final CommandGenerator INSTANCE = new WhereGenerator();
 
-    public static String randomExpression(final int nConditions, List<EsqlQueryGenerator.Column> previousOutput) {
+    public static String randomExpression(final int nConditions, List<Column> previousOutput) {
         // TODO more complex conditions
         var result = new StringBuilder();
 
@@ -46,8 +48,9 @@ public class WhereGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         String expression = randomExpression(randomIntBetween(1, 5), previousOutput);
         if (expression == null) {
@@ -60,9 +63,9 @@ public class WhereGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         return CommandGenerator.expectSameColumns(previousColumns, columns);

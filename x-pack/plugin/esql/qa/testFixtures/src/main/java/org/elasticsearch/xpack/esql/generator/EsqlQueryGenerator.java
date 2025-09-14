@@ -5,26 +5,26 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative;
+package org.elasticsearch.xpack.esql.generator;
 
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.ChangePointGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DissectGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.DropGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EnrichGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.EvalGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.ForkGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LookupJoinGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MvExpandGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.RenameGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.SortGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.WhereGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.ChangePointGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DissectGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.DropGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.EnrichGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.EvalGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.ForkGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.GrokGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 
 import java.util.List;
 import java.util.Set;
@@ -41,10 +41,6 @@ public class EsqlQueryGenerator {
     public static final String COLUMN_NAME = "name";
     public static final String COLUMN_TYPE = "type";
     public static final String COLUMN_ORIGINAL_TYPES = "original_types";
-
-    public record Column(String name, String type, List<String> originalTypes) {}
-
-    public record QueryExecuted(String query, int depth, List<Column> outputSchema, List<List<Object>> result, Exception exception) {}
 
     /**
      * These are commands that are at the beginning of the query, eg. FROM
@@ -87,7 +83,7 @@ public class EsqlQueryGenerator {
 
         boolean continueExecuting();
 
-        List<EsqlQueryGenerator.Column> currentSchema();
+        List<Column> currentSchema();
 
     }
 
@@ -95,9 +91,10 @@ public class EsqlQueryGenerator {
         final int depth,
         CommandGenerator commandGenerator,
         final CommandGenerator.QuerySchema schema,
-        Executor executor
+        Executor executor,
+        QueryExecutor queryExecutor
     ) {
-        CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema);
+        CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
             return;
@@ -108,7 +105,7 @@ public class EsqlQueryGenerator {
                 break;
             }
             commandGenerator = EsqlQueryGenerator.randomPipeCommandGenerator();
-            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema);
+            desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema, queryExecutor);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
             }
@@ -188,12 +185,12 @@ public class EsqlQueryGenerator {
     }
 
     public static boolean groupable(Column col) {
-        return col.type.equals("keyword")
-            || col.type.equals("text")
-            || col.type.equals("long")
-            || col.type.equals("integer")
-            || col.type.equals("ip")
-            || col.type.equals("version");
+        return col.type().equals("keyword")
+            || col.type().equals("text")
+            || col.type().equals("long")
+            || col.type().equals("integer")
+            || col.type().equals("ip")
+            || col.type().equals("version");
     }
 
     /**
@@ -209,12 +206,12 @@ public class EsqlQueryGenerator {
     }
 
     public static boolean sortable(Column col) {
-        return col.type.equals("keyword")
-            || col.type.equals("text")
-            || col.type.equals("long")
-            || col.type.equals("integer")
-            || col.type.equals("ip")
-            || col.type.equals("version");
+        return col.type().equals("keyword")
+            || col.type().equals("text")
+            || col.type().equals("long")
+            || col.type().equals("integer")
+            || col.type().equals("ip")
+            || col.type().equals("version");
     }
 
     public static String agg(List<Column> previousOutput) {
@@ -308,7 +305,7 @@ public class EsqlQueryGenerator {
     /**
      * returns a random identifier or one of the existing names
      */
-    public static String randomAttributeOrIdentifier(List<EsqlQueryGenerator.Column> previousOutput) {
+    public static String randomAttributeOrIdentifier(List<Column> previousOutput) {
         String name;
         if (randomBoolean()) {
             name = EsqlQueryGenerator.randomIdentifier();
@@ -335,7 +332,7 @@ public class EsqlQueryGenerator {
             || field.name().equals("<no-fields>")
             // no dense vectors for now, they are not supported in most commands
             || field.type().contains("vector")
-            || field.originalTypes.stream().anyMatch(x -> x.contains("vector"))) == false;
+            || field.originalTypes().stream().anyMatch(x -> x.contains("vector"))) == false;
     }
 
     public static String unquote(String colName) {

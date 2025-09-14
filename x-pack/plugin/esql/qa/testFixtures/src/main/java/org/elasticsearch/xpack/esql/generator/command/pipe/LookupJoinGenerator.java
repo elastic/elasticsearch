@@ -5,11 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.LookupIdx;
+import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -19,7 +22,6 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
-import static org.elasticsearch.test.ESTestCase.randomSubsetOf;
 
 public class LookupJoinGenerator implements CommandGenerator {
 
@@ -29,17 +31,18 @@ public class LookupJoinGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
-        GenerativeRestTest.LookupIdx lookupIdx = randomFrom(schema.lookupIndices());
+        LookupIdx lookupIdx = randomFrom(schema.lookupIndices());
         String lookupIdxName = lookupIdx.idxName();
         int joinColumnsCount = randomInt(lookupIdx.keys().size() - 1) + 1; // at least one column must be used for the join
-        List<GenerativeRestTest.LookupIdxColumn> joinColumns = randomSubsetOf(joinColumnsCount, lookupIdx.keys());
+        List<LookupIdxColumn> joinColumns = ESTestCase.randomSubsetOf(joinColumnsCount, lookupIdx.keys());
         List<String> keyNames = new ArrayList<>();
         List<String> joinOn = new ArrayList<>();
         Set<String> usedColumns = new HashSet<>();
-        for (GenerativeRestTest.LookupIdxColumn joinColumn : joinColumns) {
+        for (LookupIdxColumn joinColumn : joinColumns) {
             String idxKey = joinColumn.name();
             String keyType = joinColumn.type();
 
@@ -47,7 +50,7 @@ public class LookupJoinGenerator implements CommandGenerator {
             if (candidateKeys.isEmpty()) {
                 continue; // no candidate keys of the right type, skip this column
             }
-            EsqlQueryGenerator.Column key = randomFrom(candidateKeys);
+            Column key = randomFrom(candidateKeys);
             if (usedColumns.contains(key.name()) || usedColumns.contains(idxKey)) {
                 continue; // already used this column from the lookup index, or will discard the main index column by RENAME'ing below, skip
             } else {
@@ -82,9 +85,9 @@ public class LookupJoinGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {

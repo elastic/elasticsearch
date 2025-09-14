@@ -84,7 +84,13 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         this.historyStore = historyStore;
     }
 
-    static List<String> findCompletedRegisteredSnapshotIds(ProjectState projectState, String policyId) {
+    /**
+     * Find {@link RegisteredPolicySnapshots} for the given policy that are no longer running.
+     * @param projectState the current project state
+     * @param policyId the policy id for which to find completed registered snapshots
+     * @return a list of snapshot names
+     */
+    static List<String> findCompletedRegisteredSnapshotNames(ProjectState projectState, String policyId) {
         Set<SnapshotId> runningSnapshots = currentlyRunningSnapshots(projectState.cluster());
 
         RegisteredPolicySnapshots registeredSnapshots = projectState.metadata()
@@ -121,10 +127,10 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     }
 
     /**
-     * Find SLM registered snapshots that are no longer running, and fetch their snapshot info. These snapshots should have been removed
-     * from the registered set by WriteJobStatus when they were completed. However, they were not removed likely due to the master being
-     * shutdown at the same time of a SLM run, causing WriteJobStatus to fail. These registered snapshots will be cleaned up in the next SLM
-     * run and their stats will be retroactively recorded in SLM cluster state based on their status.
+     * Find {@link RegisteredPolicySnapshots} that are no longer running, and fetch their snapshot info. These snapshots should have been
+     * removed from the registered set by WriteJobStatus when they were completed. However, they were not removed likely due to the master
+     * being shutdown at the same time of a SLM run, causing WriteJobStatus to fail. These registered snapshots will be cleaned up in the
+     * next SLM run and their stats will be retroactively recorded in SLM cluster state based on their status.
      */
     private static void findCompletedRegisteredSnapshotInfo(
         final ProjectState projectState,
@@ -132,7 +138,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         final Client client,
         final ActionListener<List<SnapshotInfo>> listener
     ) {
-        var snapshotIds = findCompletedRegisteredSnapshotIds(projectState, policyId);
+        var snapshotIds = findCompletedRegisteredSnapshotNames(projectState, policyId);
 
         if (snapshotIds.isEmpty() == false) {
             var policyMetadata = getSnapPolicyMetadataById(projectState.metadata(), policyId);
@@ -264,6 +270,26 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     );
                     final long timestamp = Instant.now().toEpochMilli();
 
+                    try {
+                        final SnapshotHistoryItem failureRecord = SnapshotHistoryItem.creationFailureRecord(
+                            timestamp,
+                            policyMetadata.getPolicy(),
+                            request.snapshot(),
+                            e
+                        );
+                        historyStore.putAsync(failureRecord);
+                    } catch (IOException ex) {
+                        // This shouldn't happen unless there's an issue with serializing the original exception, which
+                        // shouldn't happen
+                        logger.error(
+                            () -> format(
+                                "failed to record snapshot creation failure for snapshot lifecycle policy [%s]",
+                                policyMetadata.getPolicy().getId()
+                            ),
+                            e
+                        );
+                    }
+
                     // retrieve the current project state after snapshot is completed, since snapshotting can take a while
                     ProjectState currentProjectState = clusterService.state().projectState(projectId);
                     findCompletedRegisteredSnapshotInfo(currentProjectState, policyId, client, new ActionListener<>() {
@@ -301,27 +327,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                             );
                         }
                     });
-
-                    final SnapshotHistoryItem failureRecord;
-                    try {
-                        failureRecord = SnapshotHistoryItem.creationFailureRecord(
-                            timestamp,
-                            policyMetadata.getPolicy(),
-                            request.snapshot(),
-                            e
-                        );
-                        historyStore.putAsync(failureRecord);
-                    } catch (IOException ex) {
-                        // This shouldn't happen unless there's an issue with serializing the original exception, which
-                        // shouldn't happen
-                        logger.error(
-                            () -> format(
-                                "failed to record snapshot creation failure for snapshot lifecycle policy [%s]",
-                                policyMetadata.getPolicy().getId()
-                            ),
-                            e
-                        );
-                    }
                 }
             });
             return request.snapshot();

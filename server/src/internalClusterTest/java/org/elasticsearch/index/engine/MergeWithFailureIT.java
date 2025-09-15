@@ -252,25 +252,25 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         // unblock merges, one merge will fail the IndexWriter
         plugin.runMerges.countDown();
 
-//       Deadlock sample:
-//
-//        "elasticsearch[node_s5][merge][T#1]@16690" tid=0x8e nid=NA waiting
-//        java.lang.Thread.State: WAITING
-//        at java.lang.Object.wait0(Object.java:-1)
-//        at java.lang.Object.wait(Object.java:389)
-//        at org.apache.lucene.index.IndexWriter.doWait(IndexWriter.java:5531)
-//        at org.apache.lucene.index.IndexWriter.abortMerges(IndexWriter.java:2733)
-//        at org.apache.lucene.index.IndexWriter.rollbackInternalNoCommit(IndexWriter.java:2488)
-//        at org.apache.lucene.index.IndexWriter.rollbackInternal(IndexWriter.java:2457)
-//        - locked <0x429a> (a java.lang.Object)
-//        at org.apache.lucene.index.IndexWriter.maybeCloseOnTragicEvent(IndexWriter.java:5765)
-//        at org.apache.lucene.index.IndexWriter.tragicEvent(IndexWriter.java:5755)
-//        at org.apache.lucene.index.IndexWriter.merge(IndexWriter.java:4780)
-//        at org.apache.lucene.index.IndexWriter$IndexWriterMergeSource.merge(IndexWriter.java:6567)
-//        at org.elasticsearch.index.engine.MergeWithFailureIT$TestPlugin$TestEngine$1$1.merge(MergeWithFailureIT.java:178)
-//        at org.elasticsearch.index.engine.ThreadPoolMergeScheduler.doMerge(ThreadPoolMergeScheduler.java:347)
-//        at org.elasticsearch.index.engine.ThreadPoolMergeScheduler$MergeTask.run(ThreadPoolMergeScheduler.java:459)
-//        at org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.runMergeTask(ThreadPoolMergeExecutorService.java:364)
+        // Deadlock sample:
+        //
+        // "elasticsearch[node_s5][merge][T#1]@16690" tid=0x8e nid=NA waiting
+        // java.lang.Thread.State: WAITING
+        // at java.lang.Object.wait0(Object.java:-1)
+        // at java.lang.Object.wait(Object.java:389)
+        // at org.apache.lucene.index.IndexWriter.doWait(IndexWriter.java:5531)
+        // at org.apache.lucene.index.IndexWriter.abortMerges(IndexWriter.java:2733)
+        // at org.apache.lucene.index.IndexWriter.rollbackInternalNoCommit(IndexWriter.java:2488)
+        // at org.apache.lucene.index.IndexWriter.rollbackInternal(IndexWriter.java:2457)
+        // - locked <0x429a> (a java.lang.Object)
+        // at org.apache.lucene.index.IndexWriter.maybeCloseOnTragicEvent(IndexWriter.java:5765)
+        // at org.apache.lucene.index.IndexWriter.tragicEvent(IndexWriter.java:5755)
+        // at org.apache.lucene.index.IndexWriter.merge(IndexWriter.java:4780)
+        // at org.apache.lucene.index.IndexWriter$IndexWriterMergeSource.merge(IndexWriter.java:6567)
+        // at org.elasticsearch.index.engine.MergeWithFailureIT$TestPlugin$TestEngine$1$1.merge(MergeWithFailureIT.java:178)
+        // at org.elasticsearch.index.engine.ThreadPoolMergeScheduler.doMerge(ThreadPoolMergeScheduler.java:347)
+        // at org.elasticsearch.index.engine.ThreadPoolMergeScheduler$MergeTask.run(ThreadPoolMergeScheduler.java:459)
+        // at org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.runMergeTask(ThreadPoolMergeExecutorService.java:364)
 
         ensureRed(indexName);
 

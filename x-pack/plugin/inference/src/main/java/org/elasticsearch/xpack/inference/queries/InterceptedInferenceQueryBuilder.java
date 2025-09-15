@@ -24,6 +24,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryParserHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
+import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -225,7 +228,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         if (this.inferenceResultsMap != null) {
-            // TODO: Check for error inference results here?
+            inferenceResultsErrorCheck(this.inferenceResultsMap);
             return this;
         }
 
@@ -355,5 +358,24 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     private static void addToInferenceFieldsMap(Map<String, Float> inferenceFields, String field, Float weight) {
         inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
+    }
+
+    private static void inferenceResultsErrorCheck(Map<String, InferenceResults> inferenceResultsMap) {
+        for (var entry : inferenceResultsMap.entrySet()) {
+            String inferenceId = entry.getKey();
+            InferenceResults inferenceResults = entry.getValue();
+
+            if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {
+                // Use InferenceException here so that the status code is set by the cause
+                throw new InferenceException(
+                    "Inference ID [" + inferenceId + "] query inference error",
+                    errorInferenceResults.getException()
+                );
+            } else if (inferenceResults instanceof WarningInferenceResults warningInferenceResults) {
+                throw new IllegalStateException(
+                    "Inference ID [" + inferenceId + "] query inference warning: " + warningInferenceResults.getWarning()
+                );
+            }
+        }
     }
 }

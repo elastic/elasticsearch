@@ -29,9 +29,9 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,7 +88,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceSupport {
+    public static class Builder extends BuilderWithSyntheticSourceContext {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -131,9 +131,9 @@ public class PatternTextFieldMapper extends FieldMapper {
                 context.buildFullName(leafName()),
                 tsi,
                 analyzer,
-                context.isSourceSynthetic(),
                 disableTemplating.getValue(),
                 meta.getValue(),
+                context.isSourceSynthetic(),
                 isWithinMultiField()
             );
         }
@@ -249,7 +249,13 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, fieldType().isSyntheticSourceEnabled(), fieldType().isWithinMultiField()).init(this);
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexSettings,
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField()
+        ).init(this);
     }
 
     @Override

@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -159,6 +160,36 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             );
             serializationTestCase(transportVersion);
         }
+    }
+
+    public void testCcs() throws Exception {
+        final String field = "semantic_field";
+        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of("local-index", Map.of(field, SPARSE_INFERENCE_ID)),
+            Map.of("remote-alias", "remote-index"),
+            TransportVersion.current()
+        );
+
+        // Test querying a semantic text field
+        final T semanticFieldQuery = createQueryBuilder(field);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> rewriteAndFetch(semanticFieldQuery, queryRewriteContext)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                semanticFieldQuery.getName() + " query does not support cross-cluster search when querying a [semantic_text] field"
+            )
+        );
+
+        // Test querying a non-inference field
+        final T nonInferenceFieldQuery = createQueryBuilder("non_inference_field");
+        QueryBuilder coordinatorRewritten = rewriteAndFetch(nonInferenceFieldQuery, queryRewriteContext);
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+        assertCoordinatorNodeRewriteOnNonInferenceField(nonInferenceFieldQuery, coordinatorRewritten);
     }
 
     protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {

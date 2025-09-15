@@ -34,6 +34,7 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
             "field",
             IndexVersion.current(),
             createDefaultIndexAnalyzers(),
+            false,
             false
         ).build(MapperBuilderContext.root(false, false)).fieldType();
 

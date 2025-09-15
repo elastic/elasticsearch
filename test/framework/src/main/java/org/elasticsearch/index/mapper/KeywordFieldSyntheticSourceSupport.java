@@ -49,10 +49,10 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
 
     @Override
     public MapperTestCase.SyntheticSourceExample example(int maxValues) {
-        return example(maxValues, false);
+        return example(maxValues, false, false);
     }
 
-    public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource) {
+    public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
         if (ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
@@ -77,7 +77,11 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
             out = in;
         } else {
             var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;
-            var syntheticSourceOutputList = Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+            // this is an ugly little hack that flips the order of ignored values, which is important for the text-family fields where the
+            // ordering of produced synthetic source values can be different from what was supplied
+            var syntheticSourceOutputList = flipOrder
+                ? Stream.concat(ignoredValues.stream(), validValuesInCorrectOrder.stream()).toList()
+                : Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
             out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 

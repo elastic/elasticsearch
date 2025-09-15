@@ -45,6 +45,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -65,6 +66,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
+
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -1060,6 +1062,196 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertFalse(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().isIndexed());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
+    }
+
+    public void test_isIgnoreAboveSet_returns_true_when_ignore_above_is_provided() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.field("ignore_above", 123);
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+
+        // then
+        assertTrue(mapper.fieldType().ignoreAbove().isSet());
+    }
+
+    public void test_isIgnoreAboveSet_returns_false_when_ignore_above_is_missing() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+
+        // then
+        assertFalse(mapper.fieldType().ignoreAbove().isSet());
+    }
+
+    public void test_value_is_not_ignored_when_it_exceeds_ignore_above_and_field_is_not_a_multi_field() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.field("ignore_above", 1);
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+
+        // then
+        assertFalse(
+            mapper.fieldType()
+                .ignoreAbove()
+                .isIgnored("this value will trip ignore_above, but bc keyword is not a multi field this value will not be ignored")
+        );
+    }
+
+    public void test_value_is_ignored_when_it_exceeds_ignore_above_and_field_is_a_multi_field() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato").field("type", "text");
+            {
+                b.startObject("fields");
+                {
+                    b.startObject("tomato").field("type", "keyword");
+                    b.field("ignore_above", 1);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
+
+        // then
+        assertTrue(mapper.fieldType().ignoreAbove().isIgnored("this value is too long and will be ignored"));
+    }
+
+    public void test_value_is_not_ignored_when_it_does_not_exceed_ignore_above_and_field_is_a_multi_field() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato").field("type", "text");
+            {
+                b.startObject("fields");
+                {
+                    b.startObject("tomato").field("type", "keyword");
+                    b.field("ignore_above", 123);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
+
+        // then
+        assertFalse(mapper.fieldType().ignoreAbove().isIgnored("this value is too short to be ignored"));
+    }
+
+    public void test_value_is_stored_when_it_exceeds_ignore_above_and_field_is_not_a_multi_field() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.field("ignore_above", 1);
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
+
+        // then
+
+        // for synthetic source, we expect to store a copy of this value in Lucene otherwise _source cannot be reconstructed
+        assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.notNullValue());
+    }
+
+    public void test_value_is_not_stored_when_it_exceeds_ignore_above_and_field_is_a_multi_field() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato").field("type", "text");
+            {
+                b.startObject("fields");
+                {
+                    b.startObject("tomato").field("type", "keyword");
+                    b.field("ignore_above", 1);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
+
+        // then
+
+        // despite exceeding ignore_above, because the field is a multi field, we don't need to store anything extra in Lucene as _source
+        // can be reconstructed via the parent
+        assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.nullValue());
+    }
+
+    public void test_value_does_not_exceed_ignore_above_and_field_is_a_multi_field() throws IOException {
+        // given
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("potato").field("type", "text");
+            {
+                b.startObject("fields");
+                {
+                    b.startObject("tomato").field("type", "keyword");
+                    b.field("ignore_above", 123);
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato.tomato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is short"); }));
+
+        // then
+
+        // we don't expect to store anything extra when ignore_above isn't tripped as we can rely on doc_values for source
+        assertThat(doc.rootDoc().getField(mapper.fieldType().syntheticSourceFallbackFieldName()), Matchers.nullValue());
+    }
+
+    public void test_value_exceeds_ignore_above_when_synthetic_source_disabled() throws IOException {
+        // given
+        final MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("potato");
+            b.field("type", "keyword");
+            b.field("ignore_above", 1);
+            b.endObject();
+        }));
+
+        // when
+        KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("potato");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> { b.field("potato", "this value is too long"); }));
+
+        // then
+
+        // since synthetic source is disabled, the fallback field name shouldn't exist
+        assertThat(mapper.fieldType().syntheticSourceFallbackFieldName(), Matchers.nullValue());
+        // despite exceeding ignore_above, because synthetic source is disabled, we don't expect to store anything
+        assertThat(doc.rootDoc().getField(mapper.fieldType() + "_original"), Matchers.nullValue());
     }
 
     @Override

@@ -59,7 +59,7 @@ import static org.mockito.Mockito.mock;
 public class TextFieldTypeTests extends FieldTypeTestCase {
 
     private static TextFieldType createFieldType() {
-        return new TextFieldType("field", randomBoolean());
+        return new TextFieldType("field", randomBoolean(), false);
     }
 
     public void testIsAggregatableDependsOnFieldData() {
@@ -316,6 +316,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -323,7 +324,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
         BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
 
         // then
@@ -345,6 +345,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(settings).when(mappingParserContext).getSettings();
         doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+        doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
         builder.ignoreAbove(123);
@@ -365,6 +366,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -372,7 +374,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
         BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
 
         // then
@@ -394,6 +395,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         doReturn(settings).when(mappingParserContext).getSettings();
         doReturn(indexSettings).when(mappingParserContext).getIndexSettings();
         doReturn(mock(ScriptCompiler.class)).when(mappingParserContext).scriptCompiler();
+        doReturn(true).when(mappingParserContext).isWithinMultiField();
 
         KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder("child", mappingParserContext);
 
@@ -413,6 +415,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
+            false,
             syntheticSourceDelegate,
             Collections.singletonMap("potato", "tomato"),
             false,
@@ -420,7 +423,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
         BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
 
         // then

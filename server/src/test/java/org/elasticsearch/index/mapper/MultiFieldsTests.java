@@ -39,14 +39,13 @@ public class MultiFieldsTests extends ESTestCase {
         var isStored = randomBoolean();
         var hasNormalizer = randomBoolean();
 
-        var builder = new TextFieldMapper.Builder("text_field", createDefaultIndexAnalyzers(), false);
+        var builder = new TextFieldMapper.Builder("text_field", createDefaultIndexAnalyzers());
         assertFalse(builder.multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField());
 
         var keywordFieldMapperBuilder = getKeywordFieldMapperBuilder(isStored, hasNormalizer);
 
-        var newField = new TextFieldMapper.Builder("text_field", createDefaultIndexAnalyzers(), false).addMultiField(
-            keywordFieldMapperBuilder
-        ).build(MapperBuilderContext.root(false, false));
+        var newField = new TextFieldMapper.Builder("text_field", createDefaultIndexAnalyzers()).addMultiField(keywordFieldMapperBuilder)
+            .build(MapperBuilderContext.root(false, false));
 
         builder.merge(
             newField,
@@ -64,7 +63,8 @@ public class MultiFieldsTests extends ESTestCase {
             IndexAnalyzers.of(Map.of(), Map.of("normalizer", Lucene.STANDARD_ANALYZER), Map.of()),
             ScriptCompiler.NONE,
             IndexVersion.current(),
-            Mapper.SourceKeepMode.NONE
+            Mapper.SourceKeepMode.NONE,
+            false
         );
         if (isStored) {
             keywordFieldMapperBuilder.stored(true);

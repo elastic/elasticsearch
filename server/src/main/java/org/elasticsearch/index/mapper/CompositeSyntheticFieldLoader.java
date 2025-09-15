@@ -133,6 +133,18 @@ public class CompositeSyntheticFieldLoader implements SourceLoader.SyntheticFiel
     }
 
     /**
+     * Returns a new {@link CompositeSyntheticFieldLoader} that merges this field loader with the given one.
+     */
+    public CompositeSyntheticFieldLoader mergedWith(CompositeSyntheticFieldLoader other) {
+        if (other == null) {
+            return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, List.copyOf(parts));
+        }
+        List<Layer> mergedParts = new ArrayList<>(parts);
+        mergedParts.addAll(other.parts);
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, mergedParts);
+    }
+
+    /**
      * Represents one layer of loading synthetic source values for a field
      * as a part of {@link CompositeSyntheticFieldLoader}.
      * <br>

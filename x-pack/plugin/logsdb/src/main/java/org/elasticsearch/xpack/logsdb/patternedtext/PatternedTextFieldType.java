@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
-import org.elasticsearch.index.mapper.StringFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -51,7 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PatternedTextFieldType extends StringFieldType {
+public class PatternedTextFieldType extends TextFamilyFieldType {
 
     private static final String STORED_SUFFIX = ".stored";
     private static final String TEMPLATE_SUFFIX = ".template";
@@ -65,12 +65,19 @@ public class PatternedTextFieldType extends StringFieldType {
     private final TextFieldMapper.TextFieldType textFieldType;
     private final boolean hasPositions;
 
-    PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
+    PatternedTextFieldType(
+        String name,
+        TextSearchInfo tsi,
+        Analyzer indexAnalyzer,
+        Map<String, String> meta,
+        boolean isSyntheticSource,
+        boolean isWithinMultiField
+    ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
-        super(name, true, false, false, tsi, meta);
+        super(name, true, false, false, tsi, meta, isSyntheticSource, isWithinMultiField);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
-        this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
+        this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource, isWithinMultiField);
         this.hasPositions = tsi.hasPositions();
     }
 
@@ -85,8 +92,9 @@ public class PatternedTextFieldType extends StringFieldType {
                 Lucene.STANDARD_ANALYZER
             ),
             Lucene.STANDARD_ANALYZER,
+            Collections.emptyMap(),
             syntheticSource,
-            Collections.emptyMap()
+            false
         );
     }
 
@@ -260,7 +268,7 @@ public class PatternedTextFieldType extends StringFieldType {
         if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
-        if (textFieldType.isSyntheticSource()) {
+        if (textFieldType.isSyntheticSourceEnabled()) {
             return new PatternedTextIndexFieldData.Builder(this);
         }
         return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(

@@ -21,7 +21,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -164,11 +163,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                    name,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(idxSettings)
-                );
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
@@ -231,11 +226,7 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                    name,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(idxSettings)
-                );
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };

@@ -298,6 +298,21 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.isEmpty());
     }
 
+    public void testDynamicElserDefaultSelection() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        // Test 1: When EIS is available, should default to .elser-2-elastic
+        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(true);
+        MapperService mapperServiceWithEis = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperServiceWithEis, fieldName, ".elser-2-elastic", ".elser-2-elastic");
+
+        // Test 2: When EIS is not available, should fallback to .elser-2-elasticsearch
+        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(false);
+        MapperService mapperServiceWithoutEis = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperServiceWithoutEis, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+    }
+
     @Override
     public void testFieldHasValue() {
         MappedFieldType fieldType = getMappedFieldType();

@@ -7,21 +7,28 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfigTests;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -96,14 +103,99 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
 
         // The rewrite replaced the inference ID with a query vector, so we can't directly compare the original query to the rewritten one.
         // Make a version of the original with the query vector that we can use for comparison.
-        SparseVectorQueryBuilder originalSparseVectorWithQueryVector = new SparseVectorQueryBuilder(
-            originalSparseVector.getFieldName(),
-            interceptedQueryVector,
-            null,
-            null,
-            originalSparseVector.shouldPruneTokens(),
-            originalSparseVector.getTokenPruningConfig()
-        ).boost(originalSparseVector.boost()).queryName(originalSparseVector.queryName());
+        SparseVectorQueryBuilder originalSparseVectorWithQueryVector = buildExpectedSparseVectorQuery(
+            originalSparseVector,
+            interceptedQueryVector
+        );
         assertThat(intercepted, equalTo(originalSparseVectorWithQueryVector));
+    }
+
+    public void testInterceptAndRewrite() throws Exception {
+        final String field = "test_field";
+        final TestIndex testIndex1 = new TestIndex("test-index-1", Map.of(field, SPARSE_INFERENCE_ID), Map.of());
+        final TestIndex testIndex2 = new TestIndex("test-index-2", Map.of(), Map.of(field, Map.of("type", "sparse_vector")));
+        final SparseVectorQueryBuilder sparseVectorQuery = createQueryBuilder(field);
+
+        // Perform coordinator node rewrite
+        final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
+            Map.of(testIndex1.name(), testIndex1.semanticTextFields(), testIndex2.name(), testIndex2.semanticTextFields()),
+            Map.of(),
+            TransportVersion.current()
+        );
+        QueryBuilder coordinatorRewritten = rewriteAndFetch(sparseVectorQuery, queryRewriteContext);
+
+        // Use a serialization cycle to strip InterceptedQueryBuilderWrapper
+        coordinatorRewritten = copyNamedWriteable(coordinatorRewritten, writableRegistry(), QueryBuilder.class);
+        assertThat(coordinatorRewritten, instanceOf(InterceptedInferenceSparseVectorQueryBuilder.class));
+        InterceptedInferenceSparseVectorQueryBuilder coordinatorIntercepted =
+            (InterceptedInferenceSparseVectorQueryBuilder) coordinatorRewritten;
+        assertThat(coordinatorIntercepted.originalQuery, equalTo(sparseVectorQuery));
+        assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
+        assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
+
+        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(SPARSE_INFERENCE_ID);
+        assertThat(inferenceResults, notNullValue());
+        assertThat(inferenceResults, instanceOf(TextExpansionResults.class));
+        TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
+
+        // Perform data node rewrite on test index 1
+        final QueryRewriteContext indexMetadataContextTestIndex1 = createIndexMetadataContext(
+            testIndex1.name(),
+            testIndex1.semanticTextFields(),
+            testIndex1.nonInferenceFields()
+        );
+        QueryBuilder dataRewrittenTestIndex1 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex1);
+        NestedQueryBuilder expectedDataRewrittenTestIndex1 = buildExpectedNestedQuery(
+            sparseVectorQuery,
+            textExpansionResults.getWeightedTokens()
+        );
+        assertThat(dataRewrittenTestIndex1, equalTo(expectedDataRewrittenTestIndex1));
+
+        // Perform data node rewrite on test index 2
+        final QueryRewriteContext indexMetadataContextTestIndex2 = createIndexMetadataContext(
+            testIndex2.name(),
+            testIndex2.semanticTextFields(),
+            testIndex2.nonInferenceFields()
+        );
+        QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex2);
+        SparseVectorQueryBuilder expectedDataRewrittenTestIndex2 = buildExpectedSparseVectorQuery(
+            sparseVectorQuery,
+            textExpansionResults.getWeightedTokens()
+        );
+        assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
+    }
+
+    private static NestedQueryBuilder buildExpectedNestedQuery(
+        SparseVectorQueryBuilder sparseVectorQuery,
+        List<WeightedToken> queryVector
+    ) {
+        SparseVectorQueryBuilder expectedInnerQuery = new SparseVectorQueryBuilder(
+            SemanticTextField.getEmbeddingsFieldName(sparseVectorQuery.getFieldName()),
+            queryVector,
+            null,
+            null,
+            sparseVectorQuery.shouldPruneTokens(),
+            sparseVectorQuery.getTokenPruningConfig()
+        );
+
+        return QueryBuilders.nestedQuery(
+            SemanticTextField.getChunksFieldName(sparseVectorQuery.getFieldName()),
+            expectedInnerQuery,
+            ScoreMode.Max
+        ).boost(sparseVectorQuery.boost()).queryName(sparseVectorQuery.queryName());
+    }
+
+    private static SparseVectorQueryBuilder buildExpectedSparseVectorQuery(
+        SparseVectorQueryBuilder sparseVectorQuery,
+        List<WeightedToken> queryVector
+    ) {
+        return new SparseVectorQueryBuilder(
+            sparseVectorQuery.getFieldName(),
+            queryVector,
+            null,
+            null,
+            sparseVectorQuery.shouldPruneTokens(),
+            sparseVectorQuery.getTokenPruningConfig()
+        ).boost(sparseVectorQuery.boost()).queryName(sparseVectorQuery.queryName());
     }
 }

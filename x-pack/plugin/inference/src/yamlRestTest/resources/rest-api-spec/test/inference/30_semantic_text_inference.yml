@@ -71,7 +71,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -105,7 +106,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -139,7 +141,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -173,7 +176,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -246,7 +250,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             nested:
               path: sparse_field.inference.chunks
@@ -293,7 +298,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             nested:
               path: dense_field.inference.chunks
@@ -342,11 +348,6 @@ setup:
       indices.create:
         index: destination-index
         body:
-          settings:
-            index:
-              mapping:
-                semantic_text:
-                  use_legacy_format: false
           mappings:
             properties:
               sparse_field:
@@ -364,8 +365,14 @@ setup:
         body:
           source:
             index: test-index
+            _source:
+              exclude_vectors: false
           dest:
             index: destination-index
+
+  - match: { updated: 0 }
+  - match: { version_conflicts: 0 }
+  - match: { failures: [ ] }
 
   - do:
       indices.refresh: { }
@@ -383,7 +390,8 @@ setup:
       search:
         index: destination-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -472,7 +480,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -518,7 +527,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -601,7 +611,8 @@ setup:
       search:
         index: mapping-update-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -636,7 +647,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -670,7 +682,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -721,7 +734,8 @@ setup:
       search:
         index: test-elser-2-default-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -782,7 +796,8 @@ setup:
       search:
         index: test-in-object-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: {}
 
@@ -997,7 +1012,8 @@ setup:
             semantic:
               field: sparse_field
               query: "inference test"
-          fields: [ "_inference_fields" ]
+          _source:
+            exclude_vectors: false
 
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
@@ -1032,7 +1048,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -1092,7 +1109,8 @@ setup:
       search:
         index: destination-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -1137,7 +1155,8 @@ setup:
       search:
         index: test-multi-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -1162,7 +1181,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 

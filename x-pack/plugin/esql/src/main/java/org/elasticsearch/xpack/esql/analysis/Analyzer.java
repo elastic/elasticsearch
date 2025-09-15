@@ -759,7 +759,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 // Invalid orientation (e.g., both from left or both from right)
-                throw new EsqlIllegalArgumentException(
+                throw new IllegalArgumentException(
                     "Join condition must be between one attribute on the left side and "
                         + "one attribute on the right side of the join, but found: "
                         + condition.sourceText()
@@ -795,7 +795,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> leftKeys = new ArrayList<>();
                 List<Attribute> rightKeys = new ArrayList<>();
                 List<Expression> resolvedFilters = new ArrayList<>();
-                List<Attribute> matchKeys;
                 if (join.config().joinOnConditions() != null) {
                     resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
                         Predicates.splitAnd(join.config().joinOnConditions()),
@@ -811,7 +810,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             leftKeys.add(leftAttribute);
                             rightKeys.add(rightAttribute);
                         } else {
-                            throw new EsqlIllegalArgumentException("Unsupported join filter expression: " + expression);
+                            throw new IllegalArgumentException("Unsupported join filter expression: " + expression);
                         }
                     }
                 } else {

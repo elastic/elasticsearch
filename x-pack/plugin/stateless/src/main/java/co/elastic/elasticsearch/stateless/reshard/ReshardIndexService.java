@@ -21,12 +21,10 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -55,7 +53,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -63,26 +60,20 @@ public class ReshardIndexService {
 
     private static final Logger logger = LogManager.getLogger(ReshardIndexService.class);
 
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
-    private final ThreadPool threadPool;
 
     private final MasterServiceTaskQueue<ReshardTask> reshardQueue;
     private final MasterServiceTaskQueue<TransitionToHandoffStateTask> transitionToHandOffStateQueue;
     private final MasterServiceTaskQueue<TransitionTargetStateTask> transitionTargetStateQueue;
     private final MasterServiceTaskQueue<TransitionSourceStateTask> transitionSourceStateQueue;
-    private final MasterServiceTaskQueue<FinishReshardTask> finishReshardQueue;
 
     public ReshardIndexService(
         final ClusterService clusterService,
         final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         final RerouteService rerouteService,
-        final IndicesService indicesService,
-        final ThreadPool threadPool
+        final IndicesService indicesService
     ) {
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
-        this.threadPool = threadPool;
 
         this.reshardQueue = clusterService.createTaskQueue(
             "reshard-index",
@@ -106,7 +97,6 @@ public class ReshardIndexService {
             Priority.NORMAL,
             new TransitionSourceStateExecutor()
         );
-        this.finishReshardQueue = clusterService.createTaskQueue("finish-index-reshard", Priority.NORMAL, new FinishReshardExecutor());
     }
 
     public static ValidationError validateIndex(IndexAbstraction indexAbstraction, IndexMetadata indexMetadata) {
@@ -178,41 +168,6 @@ public class ReshardIndexService {
         logger.trace("reshardIndex[{}]", request);
         onlyReshardIndex(masterNodeTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
             logger.trace("[{}] index reshard acknowledged", request.index().getName());
-            ClusterStateObserver observer = new ClusterStateObserver(
-                clusterService,
-                null,
-                logger,
-                clusterService.threadPool().getThreadContext()
-            );
-
-            // TODO: if the master node fails this observer is lost
-            observer.waitForNextChange(new ClusterStateObserver.Listener() {
-                @Override
-                public void onNewClusterState(ClusterState state) {
-                    finishReshard(request.projectId(), request.index());
-                }
-
-                @Override
-                public void onClusterServiceClose() {
-                    logger.error("Cluster service closed");
-                    listener.onFailure(new AlreadyClosedException("Cluster service closed."));
-                }
-
-                @Override
-                public void onTimeout(TimeValue timeout) {
-                    logger.error("Timeout");
-                    assert false;
-                }
-            }, newState -> {
-                IndexReshardingMetadata reshardingMetadata = newState.metadata().indexMetadata(request.index()).getReshardingMetadata();
-                if (reshardingMetadata != null) {
-                    var split = reshardingMetadata.getSplit();
-                    return split.targetStates().allMatch(target -> target == IndexReshardingState.Split.TargetShardState.DONE)
-                        && split.sourceStates().allMatch(source -> source == IndexReshardingState.Split.SourceShardState.DONE);
-                } else {
-                    return false;
-                }
-            });
             delegate.onResponse(ShardsAcknowledgedResponse.of(true, true));
         }));
     }
@@ -294,19 +249,6 @@ public class ReshardIndexService {
         logger.debug(message);
         assert currentTargetPrimaryTerm > startingTargetPrimaryTerm;
         throw new IllegalStateException(message);
-    }
-
-    /**
-     * When resharding is complete, finishReshard kicks off a task to remove resharding state from index metadata
-     * @param projectId Project containing the given index
-     * @param index     Index whose resharding state should be cleaned
-     */
-    private void finishReshard(final ProjectId projectId, final Index index) {
-        finishReshardQueue.submitTask(
-            "finish-reshard-index [" + index.getName() + "]",
-            new FinishReshardTask(projectId, index),
-            TimeValue.MINUS_ONE
-        );
     }
 
     /**
@@ -562,18 +504,16 @@ public class ReshardIndexService {
         }
     }
 
-    private record TransitionSourceStateTask(
-        ShardId shardId,
-        IndexReshardingState.Split.SourceShardState state,
-        ActionListener<Void> listener
-    ) implements ClusterStateTaskListener {
+    record TransitionSourceStateTask(ShardId shardId, IndexReshardingState.Split.SourceShardState state, ActionListener<Void> listener)
+        implements
+            ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
     }
 
-    private static class TransitionSourceStateExecutor extends SimpleBatchedExecutor<TransitionSourceStateTask, Void> {
+    static class TransitionSourceStateExecutor extends SimpleBatchedExecutor<TransitionSourceStateTask, Void> {
         @Override
         public Tuple<ClusterState, Void> executeTask(TransitionSourceStateTask task, ClusterState clusterState) throws Exception {
             final ShardId shardId = task.shardId();
@@ -614,6 +554,20 @@ public class ReshardIndexService {
                     )
                 );
                 return new Tuple<>(clusterState, null);
+            }
+
+            if (targetState == IndexReshardingState.Split.SourceShardState.DONE) {
+                var split = reshardingMetadata.getSplit();
+                long ongoingSourceShards = split.sourceStates()
+                    .filter(state -> state != IndexReshardingState.Split.SourceShardState.DONE)
+                    .count();
+                // Last source shard to finish deletes the resharding metadata
+                if (ongoingSourceShards == 1) {
+                    assert currentState == IndexReshardingState.Split.SourceShardState.SOURCE;
+                    assert split.targetsDone(shardId.id()) : "can only move source shard to DONE when all targets are DONE";
+                    var projectMetadata = metadataRemoveReshardingState(projectState, index);
+                    return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);
+                }
             }
 
             ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
@@ -689,35 +643,6 @@ public class ReshardIndexService {
         @Override
         public void taskSucceeded(TransitionToHandoffStateTask task, Void unused) {
             task.listener.onResponse(null);
-        }
-    }
-
-    private record FinishReshardTask(ProjectId projectId, Index index) implements ClusterStateTaskListener {
-        @Override
-        public void onFailure(Exception e) {
-            logger.error(() -> "[" + index.getName() + "] failed to finish resharding", e);
-        }
-    }
-
-    private static class FinishReshardExecutor extends SimpleBatchedExecutor<FinishReshardTask, Void> {
-        @Override
-        public Tuple<ClusterState, Void> executeTask(FinishReshardTask task, ClusterState clusterState) throws Exception {
-            final var index = task.index;
-
-            final var projectState = clusterState.projectState(task.projectId);
-            final var indexMetadata = projectState.metadata().index(index);
-            if (indexMetadata == null) {
-                return new Tuple<>(clusterState, null);
-            }
-
-            var projectMetadata = metadataRemoveReshardingState(projectState, index);
-
-            return new Tuple<>(ClusterState.builder(clusterState).putProjectMetadata(projectMetadata).build(), null);
-        }
-
-        @Override
-        public void taskSucceeded(FinishReshardTask task, Void unused) {
-            logger.trace("[{}] index reshard completed", task.index().getName());
         }
     }
 }

@@ -266,8 +266,6 @@ public class SplitSourceService {
 
         if (split.getSourceShardState(indexShard.shardId().getId()) == IndexReshardingState.Split.SourceShardState.DONE) {
             // Nothing to do.
-            // TODO eventually we should initiate deletion of resharding metadata here if all source shards are DONE.
-            // This is in case master dropped the cluster state observer that does that.
             listener.onResponse(null);
             return;
         }

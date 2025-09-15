@@ -777,7 +777,7 @@ public class Stateless extends Plugin
         // Resharding
         var reshardIndexService = setAndGet(
             this.reshardIndexService,
-            createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, threadPool)
+            createMetadataReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService)
         );
         components.add(reshardIndexService);
         splitTargetService.set(new SplitTargetService(settings, client, clusterService, reshardIndexService));
@@ -859,10 +859,9 @@ public class Stateless extends Plugin
         ClusterService clusterService,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy,
         RerouteService rerouteService,
-        IndicesService indicesService,
-        ThreadPool threadPool
+        IndicesService indicesService
     ) {
-        return new ReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService, threadPool);
+        return new ReshardIndexService(clusterService, shardRoutingRoleStrategy, rerouteService, indicesService);
     }
 
     @Override

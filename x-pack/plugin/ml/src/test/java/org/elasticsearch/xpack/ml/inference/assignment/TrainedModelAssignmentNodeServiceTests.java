@@ -601,9 +601,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        assertBusy(() -> {
-            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any());
-        });
+        assertBusy(() -> { verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any()); });
         // This still shouldn't trigger a cluster state update because the routing entry wasn't in the table so we won't add a new routing
         // entry for stopping
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(

@@ -49,7 +49,6 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toUnmodifiableSet;
-import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 
 /**
  * Holds the desired balance and updates it as the cluster evolves.
@@ -546,27 +545,10 @@ public class DesiredBalanceComputer {
                 .findFirst()
                 .orElse(null);
 
-            final long expectedShardSize = startedShard.getExpectedShardSize();
             if (sourceNodeId != null) {
-                logger.trace(
-                    "simulating relocating shard {} from {} to {}",
-                    startedShard.shardId(),
-                    sourceNodeId,
-                    startedShard.currentNodeId()
-                );
                 alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
-                final var relocatingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
-                    .initialize(sourceNodeId, null, expectedShardSize)
-                    .moveToStarted(expectedShardSize)
-                    .relocate(startedShard.currentNodeId(), expectedShardSize)
-                    .getTargetRelocatingShard();
-                clusterInfoSimulator.simulateShardStarted(relocatingShard);
-            } else {
-                logger.trace("simulating starting of new shard {} on {}", startedShard.shardId(), startedShard.currentNodeId());
-                final var initializingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
-                    .initialize(startedShard.currentNodeId(), null, expectedShardSize);
-                clusterInfoSimulator.simulateShardStarted(initializingShard);
             }
+            clusterInfoSimulator.simulatedShardStarted(startedShard, sourceNodeId);
         }
     }
 

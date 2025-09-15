@@ -9,12 +9,16 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
 import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -25,8 +29,11 @@ import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 
 public class ClusterInfoSimulator {
+
+    private static final Logger logger = LogManager.getLogger(ClusterInfoSimulator.class);
 
     private final RoutingAllocation allocation;
 
@@ -120,6 +127,31 @@ public class ClusterInfoSimulator {
             }
         }
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
+    }
+
+    public void simulatedShardStarted(ShardRouting startedShard, @Nullable String sourceNodeId) {
+        assert startedShard.started() : "expected an already started shard, but got: " + startedShard;
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "simulated started shard {} on node [{}] as a {}",
+                startedShard.shardId(),
+                startedShard.currentNodeId(),
+                sourceNodeId != null ? "relocating shard from node [" + sourceNodeId + "]" : "new shard"
+            );
+        }
+        final long expectedShardSize = startedShard.getExpectedShardSize();
+        if (sourceNodeId != null) {
+            final var relocatingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
+                .initialize(sourceNodeId, null, expectedShardSize)
+                .moveToStarted(expectedShardSize)
+                .relocate(startedShard.currentNodeId(), expectedShardSize)
+                .getTargetRelocatingShard();
+            simulateShardStarted(relocatingShard);
+        } else {
+            final var initializingShard = startedShard.moveToUnassigned(new UnassignedInfo(REINITIALIZED, "simulation"))
+                .initialize(startedShard.currentNodeId(), null, expectedShardSize);
+            simulateShardStarted(initializingShard);
+        }
     }
 
     private void modifyDiskUsage(String nodeId, long freeDelta) {

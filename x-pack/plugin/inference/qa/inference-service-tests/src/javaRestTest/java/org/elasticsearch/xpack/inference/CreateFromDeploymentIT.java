@@ -110,6 +110,8 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         var results = infer(inferenceId, List.of("washing machine"));
         assertNotNull(results.get("sparse_embedding"));
 
+        deleteModel(inferenceId);
+
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -225,6 +227,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
+        deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -266,6 +269,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             is(Map.of("num_allocations", 2, "num_threads", 1, "model_id", modelId))
         );
 
+        deleteModel(inferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -309,6 +313,8 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
+        deleteModel(inferenceId);
+        deleteModel(secondInferenceId);
         forceStopMlNodeDeployment(deploymentId);
     }
 
@@ -331,6 +337,7 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
             )
         );
 
+        deleteModel(inferenceId);
         // Force stop will stop the deployment
         forceStopMlNodeDeployment(deploymentId);
     }
@@ -356,16 +363,6 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
               }
             }
             """, modelId, deploymentId);
-    }
-
-    private String updatedEndpointConfig(int numAllocations) {
-        return Strings.format("""
-            {
-              "service_settings": {
-                "num_allocations": %d
-              }
-            }
-            """, numAllocations);
     }
 
     private Response startMlNodeDeploymemnt(String modelId, String deploymentId) throws IOException {
@@ -411,16 +408,6 @@ public class CreateFromDeploymentIT extends InferenceBaseRestTest {
         Request request = new Request("POST", endPoint);
         request.setJsonEntity(body);
         return client().performRequest(request);
-    }
-
-    private Map<String, Object> updateMlNodeDeploymemnt(String deploymentId, String body) throws IOException {
-        String endPoint = "/_ml/trained_models/" + deploymentId + "/deployment/_update";
-
-        Request request = new Request("POST", endPoint);
-        request.setJsonEntity(body);
-        var response = client().performRequest(request);
-        assertStatusOkOrCreated(response);
-        return entityAsMap(response);
     }
 
     protected void stopMlNodeDeployment(String deploymentId) throws IOException {

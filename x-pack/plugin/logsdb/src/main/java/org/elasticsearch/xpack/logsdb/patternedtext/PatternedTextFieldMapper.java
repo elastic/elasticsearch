@@ -126,6 +126,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 tsi,
                 indexAnalyzer,
                 context.isSourceSynthetic(),
+                disableTemplating.getValue(),
                 meta.getValue()
             );
         }
@@ -158,17 +159,20 @@ public class PatternedTextFieldMapper extends FieldMapper {
          */
         private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
             boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
-            return Parameter.boolParam("disable_templating", false, m -> ((PatternedTextFieldMapper) m).disableTemplating(), forceDisable)
-                .addValidator(value -> {
-                    if (value == false && forceDisable) {
-                        throw new MapperParsingException(
-                            "value [false] for mapping parameter [disable_templating] contradicts value [true] for index setting ["
-                                + DISABLE_TEMPLATING_SETTING.getKey()
-                                + "]"
-                        );
-                    }
-                })
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
+            return Parameter.boolParam(
+                "disable_templating",
+                false,
+                m -> ((PatternedTextFieldMapper) m).fieldType().disableTemplating(),
+                forceDisable
+            ).addValidator(value -> {
+                if (value == false && forceDisable) {
+                    throw new MapperParsingException(
+                        "value [false] for mapping parameter [disable_templating] contradicts value [true] for index setting ["
+                            + DISABLE_TEMPLATING_SETTING.getKey()
+                            + "]"
+                    );
+                }
+            }).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
         }
 
         @Override
@@ -197,8 +201,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
-    private final boolean disableTemplating;
-
     private PatternedTextFieldMapper(
         String simpleName,
         FieldType fieldType,
@@ -218,11 +220,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
-        this.disableTemplating = builder.disableTemplating.getValue();
-    }
-
-    public boolean disableTemplating() {
-        return this.disableTemplating;
     }
 
     @Override

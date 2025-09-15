@@ -196,21 +196,21 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
             XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
             MapperService mapperService = createMapperService(mapping);
             var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            assertFalse(mapper.disableTemplating());
+            assertFalse(mapper.fieldType().disableTemplating());
         }
 
         {
             XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true));
             MapperService mapperService = createMapperService(mapping);
             var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            assertTrue(mapper.disableTemplating());
+            assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
             XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", false));
             MapperService mapperService = createMapperService(mapping);
             var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            assertFalse(mapper.disableTemplating());
+            assertFalse(mapper.fieldType().disableTemplating());
         }
     }
 
@@ -223,14 +223,14 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
             XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
             MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
             var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            assertTrue(mapper.disableTemplating());
+            assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
             XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true));
             MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
             var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-            assertTrue(mapper.disableTemplating());
+            assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {

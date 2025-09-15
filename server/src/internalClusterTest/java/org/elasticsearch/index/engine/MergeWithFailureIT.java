@@ -252,7 +252,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         // unblock merges, one merge will fail the IndexWriter
         plugin.runMerges.countDown();
 
-        /* Deadlock sample:
+        /**
+         *  Deadlock sample:
 
         "elasticsearch[node_s5][merge][T#1]@16690" tid=0x8e nid=NA waiting
         java.lang.Thread.State: WAITING
@@ -271,8 +272,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         at org.elasticsearch.index.engine.ThreadPoolMergeScheduler.doMerge(ThreadPoolMergeScheduler.java:347)
         at org.elasticsearch.index.engine.ThreadPoolMergeScheduler$MergeTask.run(ThreadPoolMergeScheduler.java:459)
         at org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.runMergeTask(ThreadPoolMergeExecutorService.java:364)
-
-         */
+         **/
 
         ensureRed(indexName);
 

@@ -388,20 +388,6 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return true;
         }
 
-        /**
-         * Check whether this metadata represents an incomplete split
-         * @return true if the split is incomplete (not all source shards are DONE)
-         */
-        public boolean inProgress() {
-            for (int i = 0; i < oldShardCount; i++) {
-                if (sourceShards[i] == SourceShardState.SOURCE) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         public Stream<TargetShardState> targetStates() {
             return Arrays.stream(targetShards);
         }

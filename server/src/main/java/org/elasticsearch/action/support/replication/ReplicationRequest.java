@@ -233,6 +233,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
+        out.writeVLong(routedBasedOnClusterVersion);
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
             out.writeInt(reshardSplitShardCount);
         }

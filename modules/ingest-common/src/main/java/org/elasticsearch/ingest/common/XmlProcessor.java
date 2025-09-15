@@ -601,8 +601,7 @@ public final class XmlProcessor extends AbstractProcessor {
         }
 
         @Override
-        public void startElement(String uri, String localName, String qName, org.xml.sax.Attributes attributes)
-            throws org.xml.sax.SAXException {
+        public void startElement(String uri, String localName, String qName, org.xml.sax.Attributes attributes) {
             String elementName = getElementName(uri, localName, qName);
 
             // Build structured representation (always)
@@ -657,7 +656,7 @@ public final class XmlProcessor extends AbstractProcessor {
         }
 
         @Override
-        public void characters(char[] ch, int start, int length) throws org.xml.sax.SAXException {
+        public void characters(char[] ch, int start, int length) {
             // Add to structured output text accumulator
             if (elementStack.isEmpty() == false) {
                 elementStack.peek().textContent().append(ch, start, length);
@@ -674,7 +673,7 @@ public final class XmlProcessor extends AbstractProcessor {
         }
 
         @Override
-        public void endElement(String uri, String localName, String qName) throws org.xml.sax.SAXException {
+        public void endElement(String uri, String localName, String qName) {
             // Complete structured output element processing
             if (elementStack.isEmpty()) {
                 return;
@@ -773,7 +772,7 @@ public final class XmlProcessor extends AbstractProcessor {
         }
 
         @Override
-        public void endDocument() throws org.xml.sax.SAXException {
+        public void endDocument() {
             // Document parsing complete
         }
 

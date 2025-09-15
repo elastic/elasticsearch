@@ -75,6 +75,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -1073,20 +1074,39 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             equalTo(0L)
         );
 
-        final AtomicReference<CountDownLatch> publicationLatchRef = new AtomicReference<>();
+        final AtomicReference<Consumer<PublishNodeIngestLoadRequest>> afterSendResponseRef = new AtomicReference<>();
         MockTransportService.getInstance(masterNode)
             .addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
-                handler.messageReceived(request, channel, task);
-                final var latch = publicationLatchRef.get();
-                if (latch != null) {
-                    latch.countDown();
-                }
+                final var afterSendResponse = afterSendResponseRef.get();
+                handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        channel.sendResponse(response);
+                        if (afterSendResponse != null) {
+                            afterSendResponse.accept(asInstanceOf(PublishNodeIngestLoadRequest.class, request));
+                        }
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        fail("unexpected failure: " + exception);
+                    }
+                }, task);
             });
 
         // Ingestion loads include stats from write coordination executor by default
         {
             final var publicationLatch = new CountDownLatch(1);
-            publicationLatchRef.set(publicationLatch);
+            afterSendResponseRef.set(request -> {
+                if (request.getIngestionLoad() > 0.0) {
+                    publicationLatch.countDown();
+                }
+            });
             safeAwait(publicationLatch);
             final var ingestionLoad = getNodesIngestLoad();
             assertThat(ingestionLoad.size(), equalTo(1));
@@ -1097,7 +1117,11 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         {
             updateClusterSettings(Settings.builder().put(IngestLoadProbe.INCLUDE_WRITE_COORDINATION_EXECUTORS_ENABLED.getKey(), false));
             final var publicationLatch = new CountDownLatch(1);
-            publicationLatchRef.set(publicationLatch);
+            afterSendResponseRef.set(request -> {
+                if (request.getIngestionLoad() == 0.0) {
+                    publicationLatch.countDown();
+                }
+            });
             safeAwait(publicationLatch);
             final var ingestionLoad = getNodesIngestLoad();
             assertThat(ingestionLoad.size(), equalTo(1));

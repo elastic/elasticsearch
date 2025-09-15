@@ -227,6 +227,8 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             // read may return -1 here iff filePos == channel.size(), but that's ok as it just reaches
             // EOF
             // when filePos > channel.size(), an EOFException will be thrown from above
+            // we failed, log stacktrace to figure out why
+            System.out.println("failed to read from prefetch buffer pos=" + filePos + " buffer=" + buffer + "trace=" + Arrays.toString(new Throwable().getStackTrace()));
             channel.read(buffer, filePos);
         } catch (IOException ioe) {
             throw new IOException(ioe.getMessage() + ": " + this, ioe);
@@ -313,7 +315,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     public AsyncDirectIOIndexInput clone() {
         try {
             var clone = new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
-            clone.seekInternal(getFilePointer());
+            clone.prefetch(getFilePointer(), buffer.capacity());
             return clone;
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
@@ -326,7 +328,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
         }
         var slice = new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
-        slice.seekInternal(0L);
+        slice.prefetch(getFilePointer(), buffer.capacity());
         return slice;
     }
 
@@ -425,6 +427,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             final int slot;
             synchronized (this.posToSlot) {
                 var entry = this.posToSlot.floorEntry(pos);
+                System.out.println("prefetch readBytes pos=" + pos + " entry=" + entry + " posToSlot=" + this.posToSlot);
                 if (entry == null) {
                     return false;
                 }
@@ -489,9 +492,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             prefetchBuffer.clear();
             Thread virtualThread = Thread.ofVirtual().name("async-io-prefetch", 0).start(() -> {
                 try {
+                    System.out.println("STARTING prefetch pos=" + pos + " delta=" + delta + " slot=" + slot + "thread=" + Thread.currentThread());
                     channel.read(prefetchBuffer, pos);
                     prefetchBuffer.flip();
                     result.set(prefetchBuffer);
+                    System.out.println("FINISHED prefetch pos=" + pos + " delta=" + delta + " slot=" + slot + "thread=" + Thread.currentThread());
                 } catch (IOException e) {
                     exception.set(e);
                 }

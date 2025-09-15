@@ -522,6 +522,11 @@ public class DesiredBalanceComputer {
         if (startedShards.isEmpty()) {
             return;
         }
+        logger.debug(
+            "Found [{}] started shards not accounted in ClusterInfo. The first one is {}",
+            startedShards.size(),
+            startedShards.getFirst()
+        );
 
         // For started shards, attempt to find its source node. If found, it is a relocation, otherwise it is a new shard.
         // The same shard on the same source node cannot be relocated twice to different nodes. So we exclude it once used.

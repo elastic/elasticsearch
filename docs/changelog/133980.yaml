@@ -3,3 +3,7 @@ summary: Upgrade elasticsearch to lucene 10.3.0
 area: Search
 type: upgrade
 issues: []
+highlight:
+  title: "New lucene 10.3.0 release"
+  body: |-
+    - Improved performance for lexical, vector and primary-key searches

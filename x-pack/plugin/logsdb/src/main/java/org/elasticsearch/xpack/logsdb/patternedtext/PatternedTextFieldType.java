@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -262,6 +263,10 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        if (disableTemplating) {
+            return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
+        }
+
         return new PatternedTextBlockLoader((leafReader -> PatternedTextCompositeValues.from(leafReader, this)));
     }
 

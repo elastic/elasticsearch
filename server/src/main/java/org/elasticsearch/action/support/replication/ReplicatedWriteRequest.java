@@ -31,7 +31,7 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
      * Constructor for thin deserialization.
      */
     public ReplicatedWriteRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        super(shardId, 0, in);
+        super(shardId, in);
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
@@ -44,7 +44,7 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
     }
 
     public ReplicatedWriteRequest(@Nullable ShardId shardId) {
-        this(shardId, 0);
+        super(shardId);
     }
 
     public ReplicatedWriteRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {

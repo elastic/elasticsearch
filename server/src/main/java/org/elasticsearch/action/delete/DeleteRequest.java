@@ -84,7 +84,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * must be set.
      */
     public DeleteRequest(String index) {
-        super(NO_SHARD_ID, 0);
+        super(NO_SHARD_ID);
         this.index = index;
     }
 

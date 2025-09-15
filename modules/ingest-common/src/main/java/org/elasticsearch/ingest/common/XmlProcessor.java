@@ -376,11 +376,8 @@ public final class XmlProcessor extends AbstractProcessor {
                     if (namespaceURI == null) {
                         throw new IllegalArgumentException("namespaceURI cannot be null");
                     }
-                    if (uriToPrefixes.containsKey(namespaceURI)) {
-                        return uriToPrefixes.get(namespaceURI).iterator().next();
-                    } else {
-                        return null;
-                    }
+                    Set<String> prefixes = uriToPrefixes.get(namespaceURI);
+                    return (prefixes == null || prefixes.isEmpty()) ? null : prefixes.iterator().next();
                 }
 
                 @Override

@@ -178,7 +178,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
     }
 
     private int commitEvery(int numDocs) {
-        return Math.max(1, (int) Math.ceil((double) numDocs / 10));
+        return Math.max(1, (int) Math.ceil((double) numDocs / 8));
     }
 
     private SourceOperator simpleInput(DriverContext context, int size, int commitEvery, int pageSize) {
@@ -723,8 +723,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         int numDocs = between(100, 5000);
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext, numDocs, commitEvery(numDocs), numDocs));
-        assertThat(reader.leaves(), hasSize(10));
-        assertThat(input, hasSize(10));
+        assertThat(reader.leaves(), hasSize(8));
+        assertThat(input, hasSize(8));
         List<FieldCase> cases = infoAndChecksForEachType(
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING,
             Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING

@@ -110,8 +110,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
 
     /** Return a single referable definition by name */
     TransportVersionDefinition getReferableDefinition(String name) throws IOException {
-        Path resourcePath = transportResourcesDir.resolve(getReferableDefinitionRelativePath(name));
-        return TransportVersionDefinition.fromString(resourcePath, Files.readString(resourcePath, StandardCharsets.UTF_8));
+        Path resourcePath = transportResourcesDir.resolve(getDefinitionRelativePath(name, true));
+        return TransportVersionDefinition.fromString(resourcePath, Files.readString(resourcePath, StandardCharsets.UTF_8), true);
     }
 
     /** Get a referable definition from upstream if it exists there, or null otherwise */

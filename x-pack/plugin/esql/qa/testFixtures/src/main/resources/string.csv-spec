@@ -1223,6 +1223,33 @@ first_name:keyword | result:keyword
 Alejandro          | null
 ;
 
+docsReplaceText
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
+;
+
+docsReplaceRegex
+//tag::replaceRegex[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "\\s+", "")
+// end::replaceRegex[]
+;
+
+//tag::replaceRegex-result[]
+str:keyword
+HelloWorld
+// end::replaceRegex-result[]
+;
+
+
 left
 // tag::left[]
 FROM employees

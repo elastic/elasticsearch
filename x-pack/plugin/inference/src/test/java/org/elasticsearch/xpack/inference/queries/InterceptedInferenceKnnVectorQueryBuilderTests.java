@@ -88,7 +88,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
             assertThat(intercepted.inferenceResultsMap.size(), equalTo(1));
         } else {
             // Rewrite using the query rewrite context to populate the inference results
-            QueryBuilder expectedLegacyIntercepted = new BwCSemanticKnnVectorQueryRewriteInterceptor().interceptAndRewrite(
+            @SuppressWarnings("deprecation")
+            QueryBuilder expectedLegacyIntercepted = new LegacySemanticKnnVectorQueryRewriteInterceptor().interceptAndRewrite(
                 queryRewriteContext,
                 original
             );

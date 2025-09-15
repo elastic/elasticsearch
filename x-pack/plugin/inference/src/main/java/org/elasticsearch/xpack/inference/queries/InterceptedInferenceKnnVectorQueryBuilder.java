@@ -35,7 +35,8 @@ import java.util.Map;
 public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "intercepted_inference_knn";
 
-    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new BwCSemanticKnnVectorQueryRewriteInterceptor();
+    @SuppressWarnings("deprecation")
+    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticKnnVectorQueryRewriteInterceptor();
 
     public InterceptedInferenceKnnVectorQueryBuilder(KnnVectorQueryBuilder originalQuery) {
         super(originalQuery);

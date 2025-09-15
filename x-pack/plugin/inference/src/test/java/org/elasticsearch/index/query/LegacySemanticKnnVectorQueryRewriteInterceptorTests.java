@@ -26,7 +26,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.queries.BwCSemanticKnnVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.LegacySemanticKnnVectorQueryRewriteInterceptor;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,7 +35,7 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 
-public class BwCSemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
+public class LegacySemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
@@ -189,7 +189,8 @@ public class BwCSemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase
         );
     }
 
+    @SuppressWarnings("deprecation")
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new BwCSemanticKnnVectorQueryRewriteInterceptor();
+        return new LegacySemanticKnnVectorQueryRewriteInterceptor();
     }
 }

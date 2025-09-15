@@ -23,14 +23,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-public class BwCSemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
+@Deprecated
+public class LegacySemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_KNN_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_knn_vector_query_rewrite_interception_supported"
     );
     public static final NodeFeature SEMANTIC_KNN_FILTER_FIX = new NodeFeature("search.semantic_knn_filter_fix");
 
-    public BwCSemanticKnnVectorQueryRewriteInterceptor() {}
+    public LegacySemanticKnnVectorQueryRewriteInterceptor() {}
 
     @Override
     protected String getFieldName(QueryBuilder queryBuilder) {

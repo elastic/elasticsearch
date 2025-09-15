@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
@@ -84,8 +84,20 @@ class ErrorPumpThread extends Thread implements Closeable {
         nonInterruptibleVoid(this::join);
     }
 
-    /** List of messages / lines to filter from the output. */
-    List<String> filter = List.of("WARNING: Using incubator modules: jdk.incubator.vector");
+    /** Set of messages / lines to filter from the output. */
+    private static Set<String> filter = Set.of("WARNING: Using incubator modules: jdk.incubator.vector");
+
+    private static boolean isFilteredOut(String line) {
+        if (filter.contains(line)) {
+            return true;
+        }
+        // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
+        if (line.startsWith("WARNING: Use of the three-letter time zone ID")
+            && line.endsWith("is deprecated and it will be removed in a future release")) {
+            return true;
+        }
+        return false;
+    }
 
     @Override
     public void run() {
@@ -95,7 +107,7 @@ class ErrorPumpThread extends Thread implements Closeable {
                 if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else if (filter.contains(line) == false) {
+                } else if (isFilteredOut(line) == false) {
                     terminal.errorPrintln(Verbosity.SILENT, line, false);
                 }
             }

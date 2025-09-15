@@ -79,6 +79,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.indexing;
     exports org.elasticsearch.xpack.core.inference.action;
     exports org.elasticsearch.xpack.core.inference.results;
+    exports org.elasticsearch.xpack.core.inference.usage;
     exports org.elasticsearch.xpack.core.inference;
     exports org.elasticsearch.xpack.core.logstash;
     exports org.elasticsearch.xpack.core.ml.action;
@@ -234,6 +235,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.watcher.watch;
     exports org.elasticsearch.xpack.core.watcher;
     exports org.elasticsearch.xpack.core.security.authc.apikey;
+    exports org.elasticsearch.xpack.core.common.chunks;
 
     provides org.elasticsearch.action.admin.cluster.node.info.ComponentVersionNumber
         with

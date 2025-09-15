@@ -905,7 +905,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     /**
      * Some field types (e.g. patterned_text fields) do not allow sorting or aggregation and thus only allow field data operations
      * of type SCRIPT to access field data. For such types, we still want to use `testFetch` to compare value fetchers against doc
-     * values. Override this method to return false, allows such types to set operation type to SCRIPT for fetch tests.
+     * values. Overriding this method to return false allows such types to set operation type to SCRIPT for fetch tests.
      */
     protected boolean useSearchOperationForFetchTests() {
         return true;

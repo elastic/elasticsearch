@@ -24,12 +24,12 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Text;
 import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
-import java.io.ByteArrayInputStream;
+import java.io.StringReader;
 import java.lang.ref.SoftReference;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -524,7 +524,7 @@ public final class XmlProcessor extends AbstractProcessor {
         try {
             // Use enhanced handler that can build DOM during streaming when needed
             handler = new XmlStreamingWithDomHandler(needsDom);
-            parser.parse(new ByteArrayInputStream(xmlString.getBytes(StandardCharsets.UTF_8)), handler);
+            parser.parse(new InputSource(new StringReader(xmlString)), handler);
         } finally {
             parser.reset();
         }

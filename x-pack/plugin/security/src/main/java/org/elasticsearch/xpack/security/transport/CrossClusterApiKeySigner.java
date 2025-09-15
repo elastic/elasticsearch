@@ -18,6 +18,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
+import javax.net.ssl.X509KeyManager;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,8 +35,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.KEYSTORE_ALIAS_SUFFIX;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SETTINGS_PART_SIGNING;
@@ -90,7 +89,7 @@ public class CrossClusterApiKeySigner {
             keyConfig.getDependentFiles().stream().forEach(file -> {
                 if (Files.exists(file) == false) {
                     throw new IllegalArgumentException(
-                        String.format("File [%s] configured for remote cluster [%s] does no exist", file, clusterAlias)
+                        Strings.format("File [%s] configured for remote cluster [%s] does no exist", file, clusterAlias)
                     );
                 }
             });

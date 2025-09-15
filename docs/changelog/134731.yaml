@@ -1,0 +1,5 @@
+pr: 134731
+summary: Changes visibility of `RemoteClusterAware.groupClusterIndices`
+area: Search
+type: enhancement
+issues: []

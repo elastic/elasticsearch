@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_API_OPENAI_HEADERS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
@@ -31,8 +32,6 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 public class OpenAiChatCompletionTaskSettings implements TaskSettings {
 
     public static final String NAME = "openai_completion_task_settings";
-
-    private static final TransportVersion INFERENCE_API_OPENAI_HEADERS = TransportVersion.fromName("ml_inference_openai_headers");
 
     public static OpenAiChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
@@ -60,7 +59,7 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
     public OpenAiChatCompletionTaskSettings(StreamInput in) throws IOException {
         this.user = in.readOptionalString();
 
-        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_HEADERS)) {
+        if (in.getTransportVersion().onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
             headers = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
         } else {
             headers = null;
@@ -119,7 +118,7 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(user);
-        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_HEADERS)) {
+        if (out.getTransportVersion().onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
             out.writeOptionalMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         }
     }

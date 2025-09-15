@@ -6803,7 +6803,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) == \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);
@@ -6818,7 +6818,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testReplaceStringCasingWithInsensitiveEqualsNotEquals() {
         for (var fn : List.of("TO_LOWER", "TO_UPPER")) {
             var value = fn.equals("TO_LOWER") ? fn.toLowerCase(Locale.ROOT) : fn.toUpperCase(Locale.ROOT);
-            value += "�✈��"; // these should not cause folding, they're not in the upper/lower char class
+            value += "🐔✈🔥🎉"; // these should not cause folding, they're not in the upper/lower char class
             var plan = optimizedPlan("FROM test | WHERE " + fn + "(first_name) != \"" + value + "\"");
             var limit = as(plan, Limit.class);
             var filter = as(limit.child(), Filter.class);

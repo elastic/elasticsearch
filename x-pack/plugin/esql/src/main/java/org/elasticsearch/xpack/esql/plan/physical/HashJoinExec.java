@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,8 +55,9 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     private HashJoinExec(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readNamedWriteable(PhysicalPlan.class));
-        // TODO: clean up, we used to read the match fields here.
-        in.readNamedWriteableCollectionAsList(Attribute.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+            in.readNamedWriteableCollectionAsList(Attribute.class);
+        }
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
@@ -64,8 +66,9 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // TODO: clean up, we used to read the match fields here.
-        out.writeNamedWriteableCollection(leftFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+            out.writeNamedWriteableCollection(leftFields);
+        }
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);

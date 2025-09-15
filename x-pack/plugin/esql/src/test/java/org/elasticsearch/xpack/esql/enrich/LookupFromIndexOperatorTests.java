@@ -91,6 +91,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.LongStream;
@@ -113,7 +114,10 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         List<Object[]> operations = new ArrayList<>();
         operations.add(new Object[] { null });
         for (EsqlBinaryComparison.BinaryComparisonOperation operation : EsqlBinaryComparison.BinaryComparisonOperation.values()) {
-            operations.add(new Object[] { operation });
+            // we skip NEQ because there are too many matches and the test can timeout
+            if (operation != EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
+                operations.add(new Object[] { operation });
+            }
         }
         return operations;
     }
@@ -157,10 +161,6 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        if (operation == EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
-            // if not equal there are too many matches and we get OOMEs when validating the output
-            return;
-        }
         /*
          * We've configured there to be just a single result per input so the total
          * row count is the same. But lookup cuts into pages of length 256 so the
@@ -448,12 +448,12 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             };
             String suffix = (operation == null) ? "" : ("_right");
             StringBuilder props = new StringBuilder();
-            props.append(String.format("\"match0%s\": { \"type\": \"long\" }", suffix));
+            props.append(String.format(Locale.ROOT, "\"match0%s\": { \"type\": \"long\" }", suffix));
             if (numberOfJoinColumns == 2) {
-                props.append(String.format(", \"match1%s\": { \"type\": \"long\" }", suffix));
+                props.append(String.format(Locale.ROOT, ", \"match1%s\": { \"type\": \"long\" }", suffix));
             }
             props.append(", \"lkwd\": { \"type\": \"keyword\" }, \"lint\": { \"type\": \"integer\" }");
-            String mapping = String.format("{\n  \"doc\": { \"properties\": { %s } }\n}", props.toString());
+            String mapping = String.format(Locale.ROOT, "{\n  \"doc\": { \"properties\": { %s } }\n}", props.toString());
             MapperService mapperService = mapperHelper.createMapperService(mapping);
             DirectoryReader reader = DirectoryReader.open(lookupIndexDirectory);
             SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));

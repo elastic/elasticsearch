@@ -758,7 +758,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testLookupExplosionManyFieldsExpression() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 1000;
-        int joinFieldsCount = 990;
+        int joinFieldsCount = 399;// only join on 399 columns due to max expression size of 400
         Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount, lookupEntries, true);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }

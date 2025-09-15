@@ -266,11 +266,11 @@ public final class XmlProcessor extends AbstractProcessor {
      *  <li>Handles null content appropriately (wraps null in array if force_array is true)
      * </ul>
      *
-     * @param elementName the name of the element (for context, not used in current implementation)
+     * @param ignoredElementName the name of the element (for context, not used in current implementation)
      * @param content the content to potentially wrap in an array
      * @return the content, optionally wrapped in an array based on force_array setting
      */
-    private Object applyForceArray(String elementName, Object content) {
+    private Object applyForceArray(String ignoredElementName, Object content) {
         if (forceArray && (content instanceof List) == false) {
             List<Object> arrayContent = new ArrayList<>();
             arrayContent.add(content);  // Add content even if it's null (for empty elements)
@@ -784,7 +784,7 @@ public final class XmlProcessor extends AbstractProcessor {
             return domDocument;
         }
 
-        private String getElementName(String uri, String localName, String qName) {
+        private String getElementName(String ignoredUri, String localName, String qName) {
             String elementName;
             if (removeNamespaces) {
                 elementName = localName != null && localName.isEmpty() == false ? localName : qName;
@@ -800,7 +800,7 @@ public final class XmlProcessor extends AbstractProcessor {
             return elementName;
         }
 
-        private String getAttributeName(String uri, String localName, String qName) {
+        private String getAttributeName(String ignoredUri, String localName, String qName) {
             String attrName;
             if (removeNamespaces) {
                 attrName = localName != null && localName.isEmpty() == false ? localName : qName;

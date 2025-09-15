@@ -3,7 +3,17 @@
 **Example**
 
 ```esql
-null
+FROM employees
+| EVAL decay_result = decay(salary, 0, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
+| SORT decay_result DESC
 ```
+
+| decay_result:double |
+| --- |
+| 0.873405 |
+| 0.8703 |
+| 0.870145 |
+| 0.867845 |
+| 0.86395 |
 
 

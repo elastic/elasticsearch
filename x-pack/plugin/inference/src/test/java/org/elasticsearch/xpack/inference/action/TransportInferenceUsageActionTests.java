@@ -12,8 +12,14 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
@@ -32,14 +38,25 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.usage.ModelStats;
+import org.elasticsearch.xpack.core.inference.usage.SemanticTextStats;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.inference.Utils.TIMEOUT;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -49,6 +66,8 @@ import static org.mockito.Mockito.when;
 public class TransportInferenceUsageActionTests extends ESTestCase {
 
     private Client client;
+    private ModelRegistry modelRegistry;
+    private ClusterState clusterState;
     private TransportInferenceUsageAction action;
 
     @Before
@@ -57,6 +76,10 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         when(client.threadPool()).thenReturn(threadPool);
 
+        modelRegistry = mock(ModelRegistry.class);
+
+        givenClusterState(Map.of());
+
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(mock(ThreadPool.class));
 
         action = new TransportInferenceUsageAction(
@@ -64,6 +87,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
+            modelRegistry,
             client
         );
     }
@@ -73,27 +97,256 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         client.threadPool().shutdown();
     }
 
-    public void test() throws Exception {
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<GetInferenceModelAction.Response>) invocation.getArguments()[2];
-            listener.onResponse(
-                new GetInferenceModelAction.Response(
-                    List.of(
-                        new ModelConfigurations("model-001", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
-                        new ModelConfigurations("model-002", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
-                        new ModelConfigurations("model-003", TaskType.SPARSE_EMBEDDING, "hugging_face_elser", mock(ServiceSettings.class)),
-                        new ModelConfigurations("model-004", TaskType.TEXT_EMBEDDING, "openai", mock(ServiceSettings.class)),
-                        new ModelConfigurations("model-005", TaskType.SPARSE_EMBEDDING, "openai", mock(ServiceSettings.class)),
-                        new ModelConfigurations("model-006", TaskType.SPARSE_EMBEDDING, "hugging_face_elser", mock(ServiceSettings.class))
-                    )
+    public void testGivenServices_NoSemanticTextFields() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations("model-001", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-001")),
+            new ModelConfigurations("model-002", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-002")),
+            new ModelConfigurations("model-003", TaskType.SPARSE_EMBEDDING, "hugging_face_elser", mockServiceSettings("model-id-003")),
+            new ModelConfigurations("model-004", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-004")),
+            new ModelConfigurations("model-005", TaskType.SPARSE_EMBEDDING, "openai", mockServiceSettings("model-id-005")),
+            new ModelConfigurations("model-006", TaskType.SPARSE_EMBEDDING, "hugging_face_elser", mockServiceSettings("model-id-006"))
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(5));
+        assertStats(response, 0, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 3, new SemanticTextStats()));
+        assertStats(response, 1, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats()));
+        assertStats(response, 2, new ModelStats("hugging_face_elser", TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats()));
+        assertStats(response, 3, new ModelStats("openai", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats()));
+        assertStats(response, 4, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats()));
+    }
+
+    public void testGivenFieldRefersToMissingInferenceEndpoint() throws Exception {
+        givenInferenceEndpoints();
+        givenInferenceFields(Map.of("index_1", List.of(new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null))));
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(0));
+    }
+
+    public void testGivenVariousServicesAndInferenceFields() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations("endpoint-001", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-001")),
+            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-002")),
+            new ModelConfigurations("endpoint-003", TaskType.SPARSE_EMBEDDING, "openai", mockServiceSettings("model-id-003")),
+            new ModelConfigurations("endpoint-004", TaskType.SPARSE_EMBEDDING, "openai", mockServiceSettings("model-id-004")),
+            new ModelConfigurations("endpoint-005", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings("model-id-005")),
+            new ModelConfigurations("endpoint-006", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings("model-id-006")),
+            new ModelConfigurations("endpoint-007", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings("model-id-007")) // unused
+        );
+
+        givenInferenceFields(
+            Map.of(
+                "index_1",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-4", "endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-5", "endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-6", "endpoint-003", new String[0], null),
+                    new InferenceFieldMetadata("semantic-7", "endpoint-004", new String[0], null),
+                    new InferenceFieldMetadata("semantic-8", "endpoint-005", new String[0], null)
+                ),
+                "index_2",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-003", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-003", new String[0], null),
+                    new InferenceFieldMetadata("semantic-4", "endpoint-004", new String[0], null),
+                    new InferenceFieldMetadata("semantic-5", "endpoint-004", new String[0], null),
+                    new InferenceFieldMetadata("semantic-6", "endpoint-005", new String[0], null)
+                ),
+                "index_3",
+                List.of(new InferenceFieldMetadata("semantic-1", "endpoint-006", new String[0], null))
+            )
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(5));
+        assertStats(response, 0, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 1, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 5, new SemanticTextStats(9, 3, 4)));
+        assertStats(response, 2, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(3, 3, 2)));
+        assertStats(response, 3, new ModelStats("openai", TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 4, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+    }
+
+    public void testGivenServices_SemanticTextFieldsDefaultModels() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations(".endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001")),
+            new ModelConfigurations(".endpoint-002", TaskType.SPARSE_EMBEDDING, "eis", mockServiceSettings(".model-id-002")),
+            new ModelConfigurations("endpoint-003", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("model-id-003")),
+            new ModelConfigurations(".endpoint-004", TaskType.SPARSE_EMBEDDING, "openai", mockServiceSettings("model-id-004")),
+            new ModelConfigurations("endpoint-005", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings(".model-id-001"))
+        );
+
+        givenDefaultEndpoints(".endpoint-001", ".endpoint-002", ".endpoint-004");
+
+        givenInferenceFields(
+            Map.of(
+                "index_1",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", ".endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-4", ".endpoint-004", new String[0], null),
+                    new InferenceFieldMetadata("semantic-5", "endpoint-005", new String[0], null)
+                ),
+                "index_2",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", ".endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", ".endpoint-004", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", ".endpoint-004", new String[0], null),
+                    new InferenceFieldMetadata("semantic-4", "endpoint-005", new String[0], null),
+                    new InferenceFieldMetadata("semantic-5", "endpoint-005", new String[0], null)
                 )
-            );
+            )
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(9));
+        assertStats(response, 0, new ModelStats("_all", TaskType.SPARSE_EMBEDDING, 2, new SemanticTextStats(4, 2, 2)));
+        assertStats(response, 1, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 3, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 2, new ModelStats("_eis__model-id-001", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 3, new ModelStats("_eis__model-id-002", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 4, new ModelStats("_openai_model-id-004", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(3, 2, 1)));
+        assertStats(response, 5, new ModelStats("eis", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 6, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(6, 2, 2)));
+        assertStats(response, 7, new ModelStats("openai", TaskType.SPARSE_EMBEDDING, 1, new SemanticTextStats(3, 2, 1)));
+        assertStats(response, 8, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats()));
+    }
+
+    public void testGivenExternalServiceModelIsNull() throws Exception {
+        givenInferenceEndpoints(new ModelConfigurations("endpoint-001", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings(null)));
+        givenInferenceFields(Map.of("index_1", List.of(new InferenceFieldMetadata("semantic", "endpoint-001", new String[0], null))));
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(2));
+        assertStats(response, 0, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 1, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+    }
+
+    public void testGivenDuplicateServices() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations("endpoint-001", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("some-model")),
+            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("some-model"))
+        );
+        givenInferenceFields(
+            Map.of(
+                "index_1",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-002", new String[0], null)
+                ),
+                "index_2",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null)
+                )
+            )
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(2));
+        assertStats(response, 0, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
+        assertStats(response, 1, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(5, 2, 2)));
+    }
+
+    public void testShouldExcludeSystemIndexFields() throws Exception {
+        givenInferenceEndpoints(
+            new ModelConfigurations("endpoint-001", TaskType.TEXT_EMBEDDING, "eis", mockServiceSettings("some-model")),
+            new ModelConfigurations("endpoint-002", TaskType.TEXT_EMBEDDING, "openai", mockServiceSettings("some-model"))
+        );
+        givenInferenceFields(
+            Map.of(
+                "index_1",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-002", new String[0], null)
+                ),
+                "index_2",
+                List.of(
+                    new InferenceFieldMetadata("semantic-1", "endpoint-001", new String[0], null),
+                    new InferenceFieldMetadata("semantic-2", "endpoint-002", new String[0], null),
+                    new InferenceFieldMetadata("semantic-3", "endpoint-002", new String[0], null)
+                )
+            ),
+            Set.of("index_2")
+        );
+
+        XContentSource response = executeAction();
+
+        assertThat(response.getValue("models"), hasSize(3));
+        assertStats(response, 0, new ModelStats("_all", TaskType.TEXT_EMBEDDING, 2, new SemanticTextStats(2, 1, 2)));
+        assertStats(response, 1, new ModelStats("eis", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+        assertStats(response, 2, new ModelStats("openai", TaskType.TEXT_EMBEDDING, 1, new SemanticTextStats(1, 1, 1)));
+    }
+
+    public void testFailureReturnsEmptyUsage() {
+        doAnswer(invocation -> {
+            ActionListener<GetInferenceModelAction.Response> listener = invocation.getArgument(2);
+            listener.onFailure(new IllegalArgumentException("invalid field"));
             return Void.TYPE;
         }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
 
+        var future = new PlainActionFuture<XPackUsageFeatureResponse>();
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), clusterState, future);
+
+        var usage = future.actionGet(TIMEOUT);
+        var inferenceUsage = (InferenceFeatureSetUsage) usage.getUsage();
+        assertThat(inferenceUsage, is(InferenceFeatureSetUsage.EMPTY));
+    }
+
+    private void givenClusterState(Map<String, IndexMetadata> indices) {
+        clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(ProjectId.DEFAULT).indices(indices).build()))
+            .build();
+    }
+
+    private static ServiceSettings mockServiceSettings(String modelId) {
+        ServiceSettings serviceSettings = mock(ServiceSettings.class);
+        when(serviceSettings.modelId()).thenReturn(modelId);
+        return serviceSettings;
+    }
+
+    private void givenInferenceEndpoints(ModelConfigurations... endpoints) {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<GetInferenceModelAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(new GetInferenceModelAction.Response(Arrays.asList(endpoints)));
+            return Void.TYPE;
+        }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+    }
+
+    private void givenInferenceFields(Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex) {
+        givenInferenceFields(inferenceFieldsByIndex, Set.of());
+    }
+
+    private void givenInferenceFields(Map<String, List<InferenceFieldMetadata>> inferenceFieldsByIndex, Set<String> systemIndices) {
+        Map<String, IndexMetadata> indices = new HashMap<>();
+        for (Map.Entry<String, List<InferenceFieldMetadata>> entry : inferenceFieldsByIndex.entrySet()) {
+            String index = entry.getKey();
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
+                .settings(ESTestCase.settings(IndexVersion.current()))
+                .numberOfShards(randomIntBetween(1, 5))
+                .system(systemIndices.contains(index))
+                .numberOfReplicas(1);
+            entry.getValue().forEach(indexMetadata::putInferenceField);
+            indices.put(index, indexMetadata.build());
+        }
+        givenClusterState(indices);
+    }
+
+    private XContentSource executeAction() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), clusterState, future);
 
         BytesStreamOutput out = new BytesStreamOutput();
         future.get().getUsage().writeTo(out);
@@ -105,31 +358,34 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentSource source = new XContentSource(builder);
-        assertThat(source.getValue("models"), hasSize(3));
-        assertThat(source.getValue("models.0.service"), is("hugging_face_elser"));
-        assertThat(source.getValue("models.0.task_type"), is("SPARSE_EMBEDDING"));
-        assertThat(source.getValue("models.0.count"), is(2));
-        assertThat(source.getValue("models.1.service"), is("openai"));
-        assertThat(source.getValue("models.1.task_type"), is("SPARSE_EMBEDDING"));
-        assertThat(source.getValue("models.1.count"), is(1));
-        assertThat(source.getValue("models.2.service"), is("openai"));
-        assertThat(source.getValue("models.2.task_type"), is("TEXT_EMBEDDING"));
-        assertThat(source.getValue("models.2.count"), is(3));
+        return new XContentSource(builder);
     }
 
-    public void testFailureReturnsEmptyUsage() {
-        doAnswer(invocation -> {
-            ActionListener<GetInferenceModelAction.Response> listener = invocation.getArgument(2);
-            listener.onFailure(new IllegalArgumentException("invalid field"));
-            return Void.TYPE;
-        }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
+    private void givenDefaultEndpoints(String... ids) {
+        for (String id : ids) {
+            when(modelRegistry.containsDefaultConfigId(id)).thenReturn(true);
+        }
+    }
 
-        var future = new PlainActionFuture<XPackUsageFeatureResponse>();
-        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
-
-        var usage = future.actionGet(TIMEOUT);
-        var inferenceUsage = (InferenceFeatureSetUsage) usage.getUsage();
-        assertThat(inferenceUsage, is(InferenceFeatureSetUsage.EMPTY));
+    private static void assertStats(XContentSource source, int index, ModelStats stats) {
+        assertThat(source.getValue("models." + index + ".service"), is(stats.service()));
+        assertThat(source.getValue("models." + index + ".task_type"), is(stats.taskType().name()));
+        assertThat(((Integer) source.getValue("models." + index + ".count")).longValue(), equalTo(stats.count()));
+        if (stats.semanticTextStats().isEmpty()) {
+            assertThat(source.getValue("models." + index + ".semantic_text"), is(nullValue()));
+        } else {
+            assertThat(
+                ((Integer) source.getValue("models." + index + ".semantic_text.field_count")).longValue(),
+                equalTo(stats.semanticTextStats().getFieldCount())
+            );
+            assertThat(
+                ((Integer) source.getValue("models." + index + ".semantic_text.indices_count")).longValue(),
+                equalTo(stats.semanticTextStats().getIndicesCount())
+            );
+            assertThat(
+                ((Integer) source.getValue("models." + index + ".semantic_text.inference_id_count")).longValue(),
+                equalTo(stats.semanticTextStats().getInferenceIdCount())
+            );
+        }
     }
 }

@@ -558,6 +558,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
   method: testLargeValueIsStored
   issue: https://github.com/elastic/elasticsearch/issues/134760
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testSourceMatchAllManyValues
+  issue: https://github.com/elastic/elasticsearch/issues/134761
 
 # Examples:
 #

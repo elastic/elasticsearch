@@ -24,6 +24,7 @@ public class ColumnsBlock extends AbstractNonThreadSafeRefCounted implements Blo
     private final BlockFactory blockFactory;
     private final int positionCount;
 
+    // NOCOMMIT should this be an actual array actually? we can assign channels to the names. Then it's just CompositeBlock.
     private final Map<String, Block> columns;
 
     public ColumnsBlock(BlockFactory blockFactory, int positionCount, Map<String, Block> columns) {

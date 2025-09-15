@@ -29,6 +29,8 @@ public interface DataType extends Writeable {
     /**
      * A {@link Map} of sub-fields inside this type, or {@code null} if this
      * type is {@link #atom(AtomType) atomic}.
+     *
+     * NOCOMMIT make this AtomType field(String name) and key Blocks on it.
      */
     Map<String, AtomType> fields();
 

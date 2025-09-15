@@ -19,6 +19,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
@@ -165,7 +167,14 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     private QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-        // TODO: Detect when querying a sparse vector semantic text field here?
+        MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
+        if (modelSettings == null) {
+            // No inference results have been indexed yet
+            return new MatchNoneQueryBuilder();
+        } else if (modelSettings.taskType() != TaskType.TEXT_EMBEDDING) {
+            throw new IllegalArgumentException("Field [" + getField() + "] does not use a [" + TaskType.TEXT_EMBEDDING + "] model");
+        }
+
         VectorData queryVector = originalQuery.queryVector();
         if (queryVector == null) {
             String inferenceId = getQueryVectorBuilderModelId();

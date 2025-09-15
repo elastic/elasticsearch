@@ -23,7 +23,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -273,14 +272,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return location;
     }
 
-    public Translog.Location add(final BytesReference header, @Nullable final BytesReference source, int checksum, final long seqNo)
-        throws IOException {
+    public Translog.Location add(final BytesRefIterator data, int size, int checksum, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
         }
 
-        int bytesToAdd = header.length() + (source == null ? 0 : source.length()) + 4;
+        int bytesToAdd = size + 4;
         final Translog.Location location;
         synchronized (this) {
             ensureOpen();
@@ -290,9 +288,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += bytesToAdd;
-            header.writeTo(buffer);
-            if (source != null) {
-                source.writeTo(buffer);
+            BytesRef next;
+            while ((next = data.next()) != null) {
+                buffer.writeBytes(next.bytes, next.offset, next.length);
             }
             buffer.writeInt(checksum);
 
@@ -309,7 +307,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             // assert assertNoSeqNumberConflict(seqNo, header);
 
             location = new Translog.Location(generation, offset, bytesToAdd);
-            operationListener.operationAdded(header, seqNo, location);
+            operationListener.operationAdded(BytesArray.EMPTY, seqNo, location);
             bufferedBytes = buffer.size();
         }
 

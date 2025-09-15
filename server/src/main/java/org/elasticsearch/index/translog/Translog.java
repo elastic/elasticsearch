@@ -616,10 +616,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             CRC32 checksum = new CRC32();
             writeHeaderWithSize(out, operation);
             final BytesReference header = out.bytes();
+            int size = header.length();
             updateChecksum(header.slice(4, header.length() - 4), checksum);
             final BytesReference source;
             if (operation instanceof Index index) {
                 source = index.source();
+                size += source.length();
                 updateChecksum(source, checksum);
             } else {
                 source = null;
@@ -645,7 +647,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                             + "]"
                     );
                 }
-                return current.add(header, source, (int) checksum.getValue(), operation.seqNo());
+                return current.add(
+                    new Thing(header.iterator(), source != null ? source.iterator() : null),
+                    size,
+                    (int) checksum.getValue(),
+                    operation.seqNo()
+                );
             } finally {
                 readLock.unlock();
             }
@@ -655,6 +662,15 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
+        }
+    }
+
+    private record Thing(BytesRefIterator header, @Nullable BytesRefIterator source) implements BytesRefIterator {
+
+        @Override
+        public BytesRef next() throws IOException {
+            BytesRef headerNext = header.next();
+            return headerNext != null ? headerNext : source != null ? source.next() : null;
         }
     }
 

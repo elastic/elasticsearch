@@ -181,6 +181,9 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         private final TargetShardState[] targetShards;
 
         Split(SourceShardState[] sourceShards, TargetShardState[] targetShards) {
+            // The resharding metadata is deleted when the last source shard transitions to done
+            assert Arrays.stream(sourceShards).allMatch((state) -> state == SourceShardState.DONE) == false;
+
             this.sourceShards = sourceShards;
             this.targetShards = targetShards;
 

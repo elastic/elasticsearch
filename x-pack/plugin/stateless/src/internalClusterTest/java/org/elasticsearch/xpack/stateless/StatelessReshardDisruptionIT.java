@@ -126,18 +126,16 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
     }
 
     // Inspired by StatelessTranslogIT.
-    // We don't touch master node here since it is the only node that can drive resharding to full completion.
-    // Something like restarting the master node can be added when that is fixed.
     private void induceFailure(Failure failure, Index index, int clusterSize, int shardCount) throws Exception {
         switch (failure) {
             case RESTART -> {
-                String nodeToRestart = nonMasterIndexingNode();
+                String nodeToRestart = indexingNode();
                 logger.info("--> restarting node [{}]", nodeToRestart);
                 internalCluster().restartNode(nodeToRestart);
                 ensureStableCluster(clusterSize);
             }
             case REPLACE_FAILED_NODE -> {
-                String nodeToReplace = nonMasterIndexingNode();
+                String nodeToReplace = indexingNode();
                 logger.info("--> replacing node [{}]", nodeToReplace);
                 internalCluster().stopNode(nodeToReplace);
                 startIndexNode();
@@ -156,12 +154,11 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    private static String nonMasterIndexingNode() {
-        String masterName = internalCluster().getMasterName();
+    private static String indexingNode() {
         return Stream.generate(() -> internalCluster().getNodeNameThat(settings -> {
             List<DiscoveryNodeRole> discoveryNodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(settings);
             return discoveryNodeRoles.contains(DiscoveryNodeRole.INDEX_ROLE);
-        })).filter(n -> masterName.equals(n) == false).findFirst().get();
+        })).findFirst().get();
     }
 
     private enum Failure {

@@ -326,7 +326,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testExplicitInferenceIdOverridesDynamicSelection() throws Exception {
         final String fieldName = "field";
         final String explicitInferenceId = "my-custom-model";
-        final XContentBuilder fieldMapping = fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitInferenceId));
+        final XContentBuilder fieldMapping = fieldMapping(
+            b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitInferenceId)
+        );
 
         // Even when EIS is available, explicit inference_id should take precedence
         when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(true);

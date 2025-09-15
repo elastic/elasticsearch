@@ -140,11 +140,11 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
@@ -161,14 +161,7 @@ import static org.hamcrest.Matchers.nullValue;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
-    public static final List<AtomType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
-        BOOLEAN,
-        INTEGER,
-        LONG,
-        DOUBLE,
-        KEYWORD,
-        TEXT
-    );
+    public static final List<AtomType> UNNECESSARY_CASTING_DATA_TYPES = List.of(BOOLEAN, INTEGER, LONG, DOUBLE, KEYWORD, TEXT);
     private static final String PARAM_FORMATTING = "%1$s";
 
     /**
@@ -2466,7 +2459,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // emulate a rule that adds a missing attribute
         FieldAttribute missingAttr = getFieldAttribute("missing attr");
         List<Order> orders = List.of(new Order(plan.source(), missingAttr, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
-        TopNExec topNExec = new TopNExec(plan.source(), plan, orders, new Literal(Source.EMPTY, limit, INTEGER.type()), randomEstimatedRowSize());
+        TopNExec topNExec = new TopNExec(
+            plan.source(),
+            plan,
+            orders,
+            new Literal(Source.EMPTY, limit, INTEGER.type()),
+            randomEstimatedRowSize()
+        );
 
         // We want to verify that the localOptimize detects the missing attribute.
         // However, it also throws an error in one of the rules before we get to the verifier.

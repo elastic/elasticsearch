@@ -155,7 +155,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                filter()
+            );
         }
 
         if (field.foldable()) {
@@ -172,7 +176,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, INTEGER.type()))),
-                new Count(s, Literal.keyword(s, StringUtils.WILDCARD))
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())
             );
         }
 

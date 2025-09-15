@@ -19,10 +19,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.TransportVersions.INFERENCE_API_OPENAI_HEADERS;
 import static org.hamcrest.Matchers.is;
 
 public class OpenAiChatCompletionTaskSettingsTests extends AbstractBWCWireSerializationTestCase<OpenAiChatCompletionTaskSettings> {
+
+    private static final TransportVersion INFERENCE_API_OPENAI_HEADERS = TransportVersion.fromName("ml_inference_openai_headers");
 
     public static OpenAiChatCompletionTaskSettings createRandomWithUser() {
         return new OpenAiChatCompletionTaskSettings(
@@ -166,10 +167,10 @@ public class OpenAiChatCompletionTaskSettingsTests extends AbstractBWCWireSerial
         OpenAiChatCompletionTaskSettings instance,
         TransportVersion version
     ) {
-        if (version.before(INFERENCE_API_OPENAI_HEADERS)) {
-            return new OpenAiChatCompletionTaskSettings(instance.user(), null);
-        } else {
+        if (version.supports(INFERENCE_API_OPENAI_HEADERS)) {
             return instance;
         }
+
+        return new OpenAiChatCompletionTaskSettings(instance.user(), null);
     }
 }

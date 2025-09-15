@@ -34,30 +34,26 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 // Verifies that the value source reader operator is optimized into the reduce driver instead of the data driver.
-public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
-    private final int numDataNodes;
+public abstract class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
     private final int shardCount;
     private final int maxConcurrentNodes;
     private final int taskConcurrency;
 
-    public EsqlTopNFetchPhaseOptimizationIT(@Name("TestCase") TestCase testCase) {
-        this.numDataNodes = testCase.numDataNodes;
+    EsqlTopNFetchPhaseOptimizationIT(@Name("TestCase") TestCase testCase) {
         this.shardCount = testCase.shardCount;
         this.maxConcurrentNodes = testCase.maxConcurrentNodes;
         this.taskConcurrency = testCase.taskConcurrency;
     }
 
-    public record TestCase(int numDataNodes, int shardCount, int maxConcurrentNodes, int taskConcurrency) {}
+    public record TestCase(int shardCount, int maxConcurrentNodes, int taskConcurrency) {}
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var result = new ArrayList<Object[]>();
-        for (int numDataNodes : new int[] { 1, 3 }) {
-            for (int shardCount : new int[] { 1, 5 }) {
-                for (int maxConcurrentNodes : new int[] { 1, 5 }) {
-                    for (int taskConcurrency : new int[] { 1, 5 }) {
-                        result.add(new Object[] { new TestCase(numDataNodes, shardCount, maxConcurrentNodes, taskConcurrency) });
-                    }
+        for (int shardCount : new int[] { 1, 5 }) {
+            for (int maxConcurrentNodes : new int[] { 1, 5 }) {
+                for (int taskConcurrency : new int[] { 1, 5 }) {
+                    result.add(new Object[] { new TestCase(shardCount, maxConcurrentNodes, taskConcurrency) });
                 }
             }
         }
@@ -81,11 +77,6 @@ public class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase 
             .mapToObj(i -> prepareIndex("test").setId(Integer.toString(i)).setSource("read", i, "sorted", i * 2, "filtered", i * 3))
             .toList();
         indexRandom(true, builders);
-    }
-
-    @Override
-    protected int getNumDataNodes() {
-        return numDataNodes;
     }
 
     @SuppressWarnings("unchecked")

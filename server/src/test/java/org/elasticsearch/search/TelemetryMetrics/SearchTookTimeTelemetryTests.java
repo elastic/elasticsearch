@@ -11,10 +11,16 @@ package org.elasticsearch.search.TelemetryMetrics;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -22,6 +28,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -38,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -194,13 +203,49 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
     }
 
-    // TODO test PIT (e.g. open PIT does not record took time
-
-    // TODO test resolve indices with data stream
+    //TODO test PIT (e.g. open PIT does not record took time
 
     // TODO test resolved indices (and alias) with security enabled
 
     // TODO do we actually want the concrete indices? We should be fine either way with the starts with logic
+
+    public void testDataStream() {
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("id");
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("foo-*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "foo"
+        );
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+
+        prepareIndex("foo").setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchResponse searchResponse = client().prepareSearch("foo").addSort(new FieldSortBuilder("@timestamp")).setQuery(new RangeQueryBuilder("@timestamp").from("2024-01-01")).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        Map<String, Object> attributes = measurement.attributes();
+        assertEquals(4, attributes.size());
+        assertEquals("user", attributes.get("target"));
+        assertEquals("hits_only", attributes.get("query_type"));
+        assertEquals("@timestamp", attributes.get("sort"));
+        assertEquals(true, attributes.get("range_timestamp"));
+    }
 
     /**
      * Make sure that despite can match and query rewrite, we see the time range filter and record its corresponding attribute

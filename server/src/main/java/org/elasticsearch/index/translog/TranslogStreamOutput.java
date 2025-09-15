@@ -25,6 +25,35 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         super(recycler);
     }
 
+    public void writeFullOperation(Translog.WriteOp writeOperation) throws IOException {
+        final int preWritePageOffset = this.currentPageOffset;
+        if (writeOperation.length() <= (pageSize - preWritePageOffset)) {
+            BytesRef first = writeOperation.next();
+            int firstLength = first.length;
+            BytesRef second = writeOperation.next();
+            int offset = bytesRefOffset + preWritePageOffset;
+            byte[] localBytesRef = bytesRefBytes;
+            System.arraycopy(first.bytes, first.offset, localBytesRef, offset, firstLength);
+            if (second != null) {
+                int secondLength = second.length;
+                System.arraycopy(second.bytes, second.offset, localBytesRef, offset + firstLength, secondLength);
+                this.currentPageOffset = preWritePageOffset + firstLength + secondLength;
+                BytesRef remaining;
+                while ((remaining = writeOperation.next()) != null) {
+                    writeBytes(remaining.bytes, remaining.offset, remaining.length);
+                }
+            }
+            VH_BE_INT.set(localBytesRef, offset + writeOperation.length() - 4, writeOperation.checksum());
+            this.currentPageOffset = preWritePageOffset + writeOperation.length();
+        } else {
+            BytesRef next;
+            while ((next = writeOperation.next()) != null) {
+                writeBytes(next.bytes, next.offset, next.length);
+            }
+            writeInt(writeOperation.checksum());
+        }
+    }
+
     public void writeIndexHeader(Translog.Index indexOperation) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (FIXED_INDEX_HEADER_SIZE <= (pageSize - currentPageOffset)) {

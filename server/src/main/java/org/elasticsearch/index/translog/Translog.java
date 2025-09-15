@@ -648,9 +648,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     );
                 }
                 return current.add(
-                    new Thing(header.iterator(), source != null ? source.iterator() : null),
-                    size,
-                    (int) checksum.getValue(),
+                    new WriteOp(header.iterator(), source != null ? source.iterator() : null, size + 4, (int) checksum.getValue()),
                     operation.seqNo()
                 );
             } finally {
@@ -665,7 +663,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private record Thing(BytesRefIterator header, @Nullable BytesRefIterator source) implements BytesRefIterator {
+    public record WriteOp(BytesRefIterator header, @Nullable BytesRefIterator source, int length, int checksum)
+        implements
+            BytesRefIterator {
 
         @Override
         public BytesRef next() throws IOException {

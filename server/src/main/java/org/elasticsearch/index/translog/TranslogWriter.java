@@ -82,7 +82,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private RecyclerBytesStreamOutput buffer;
+    private TranslogStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -245,7 +245,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
+                buffer = new TranslogStreamOutput(bigArrays.bytesRefRecycler());
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
@@ -272,27 +272,23 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         return location;
     }
 
-    public Translog.Location add(final BytesRefIterator data, int size, int checksum, final long seqNo) throws IOException {
+    public Translog.Location add(final Translog.WriteOp data, final long seqNo) throws IOException {
         long bufferedBytesBeforeAdd = this.bufferedBytes;
         if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
             writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
         }
 
-        int bytesToAdd = size + 4;
+        int bytesToAdd = data.length();
         final Translog.Location location;
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler());
+                buffer = new TranslogStreamOutput(bigArrays.bytesRefRecycler());
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
             totalOffset += bytesToAdd;
-            BytesRef next;
-            while ((next = data.next()) != null) {
-                buffer.writeBytes(next.bytes, next.offset, next.length);
-            }
-            buffer.writeInt(checksum);
+            buffer.writeFullOperation(data);
 
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;

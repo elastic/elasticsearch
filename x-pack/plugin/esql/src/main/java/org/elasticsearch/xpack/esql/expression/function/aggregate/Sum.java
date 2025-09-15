@@ -66,6 +66,14 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         this(source, field, Literal.TRUE, SummationMode.COMPENSATED_LITERAL);
     }
 
+    public Sum(
+        Source source,
+        @Param(name = "number", type = { "aggregate_metric_double", "double", "integer", "long" }) Expression field,
+        Expression filter
+    ) {
+        this(source, field, filter, SummationMode.COMPENSATED_LITERAL);
+    }
+
     public Sum(Source source, Expression field, Expression filter, Expression summationMode) {
         super(source, field, filter, List.of(summationMode));
         this.summationMode = summationMode;
@@ -163,6 +171,6 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         }
 
         // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
-        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD))) : null;
+        return field.foldable() ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())) : null;
     }
 }

@@ -555,6 +555,9 @@ tests:
 - class: org.elasticsearch.discovery.DiscoveryDisruptionIT
   method: testElectMasterWithLatestVersion
   issue: https://github.com/elastic/elasticsearch/issues/134748
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testLargeValueIsStored
+  issue: https://github.com/elastic/elasticsearch/issues/134760
 
 # Examples:
 #

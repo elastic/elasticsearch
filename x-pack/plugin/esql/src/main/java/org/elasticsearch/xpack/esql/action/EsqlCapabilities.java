@@ -766,7 +766,15 @@ public class EsqlCapabilities {
          * Support for the mv_expand target attribute should be retained in its original position.
          * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
          */
-        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER;
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED;
 
         private final boolean enabled;
 

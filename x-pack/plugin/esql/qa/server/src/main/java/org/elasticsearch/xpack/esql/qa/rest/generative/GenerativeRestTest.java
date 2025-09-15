@@ -199,22 +199,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     @Override
     @SuppressWarnings("unchecked")
-    public QueryExecuted execute(String command, int depth) {
+    public QueryExecuted execute(String query, int depth) {
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
+                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC
             );
             List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new QueryExecuted(command, depth, outputSchema, values, null);
+            return new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new QueryExecuted(command, depth, null, null, e);
+            return new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new QueryExecuted(command, depth, null, null, new RuntimeException(ae.getMessage()));
+            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
 
     }

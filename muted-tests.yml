@@ -552,6 +552,9 @@ tests:
 - class: org.elasticsearch.search.vectors.CachingEnableFilterQueryTests
   method: testTermQuery
   issue: https://github.com/elastic/elasticsearch/issues/134723
+- class: org.elasticsearch.discovery.DiscoveryDisruptionIT
+  method: testElectMasterWithLatestVersion
+  issue: https://github.com/elastic/elasticsearch/issues/134748
 
 # Examples:
 #

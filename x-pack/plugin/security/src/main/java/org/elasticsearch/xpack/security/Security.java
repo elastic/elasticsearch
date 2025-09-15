@@ -208,6 +208,7 @@ import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenSt
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectSearchIndexExpressionsRewriter;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1131,6 +1132,9 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+
+        final CrossProjectSearchIndexExpressionsRewriter crossProjectSearchIndexExpressionsRewriter =
+            getCrossProjectSearchIndexExpressionsRewriter(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1148,7 +1152,10 @@ public class Security extends Plugin
             restrictedIndices,
             authorizationDenialMessages.get(),
             linkedProjectConfigService,
-            projectResolver
+            projectResolver,
+            crossProjectSearchIndexExpressionsRewriter == null
+                ? new CrossProjectSearchIndexExpressionsRewriter.Default()
+                : crossProjectSearchIndexExpressionsRewriter
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1288,6 +1295,15 @@ public class Security extends Plugin
             }
             return customAuthenticators;
         }
+    }
+
+    private CrossProjectSearchIndexExpressionsRewriter getCrossProjectSearchIndexExpressionsRewriter(
+        SecurityExtension.SecurityComponents extensionComponents
+    ) {
+        return findValueFromExtensions(
+            "cross-project search index expressions rewriter",
+            extension -> extension.getCrossProjectSearchIndexExpressionsRewriter(extensionComponents)
+        );
     }
 
     private ServiceAccountService createServiceAccountService(

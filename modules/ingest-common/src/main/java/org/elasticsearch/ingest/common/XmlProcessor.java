@@ -19,15 +19,21 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.w3c.dom.Document;
+import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Text;
+import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
+import org.xml.sax.helpers.DefaultHandler;
 
 import java.io.ByteArrayInputStream;
 import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -558,7 +564,7 @@ public final class XmlProcessor extends AbstractProcessor {
      * SAX ContentHandler that builds structured JSON output and optionally constructs a DOM tree during parsing.
      * Handles XML-to-JSON conversion with support for all processor configuration options.
      */
-    private class XmlStreamingWithDomHandler extends org.xml.sax.helpers.DefaultHandler {
+    private class XmlStreamingWithDomHandler extends DefaultHandler {
 
         /**
          * Record to encapsulate the parsing state for each XML element level.
@@ -572,20 +578,20 @@ public final class XmlProcessor extends AbstractProcessor {
         ) {}
 
         // Streaming parser state (for structured output)
-        private final java.util.Deque<ElementParsingState> elementStack = new java.util.ArrayDeque<>();
+        private final Deque<ElementParsingState> elementStack = new ArrayDeque<>();
         private Object rootResult = null;
 
         // DOM building state (for XPath processing when needed)
         private final boolean buildDom;
         private Document domDocument = null;
-        private final java.util.Deque<org.w3c.dom.Element> domElementStack = new java.util.ArrayDeque<>();
+        private final Deque<Element> domElementStack = new ArrayDeque<>();
 
         XmlStreamingWithDomHandler(boolean buildDom) {
             this.buildDom = buildDom;
         }
 
         @Override
-        public void startDocument() throws org.xml.sax.SAXException {
+        public void startDocument() throws SAXException {
             // Initialize DOM document if needed
             if (buildDom) {
                 try {
@@ -595,13 +601,13 @@ public final class XmlProcessor extends AbstractProcessor {
                     DocumentBuilder builder = XmlFactories.DOM_FACTORY.newDocumentBuilder();
                     domDocument = builder.newDocument();
                 } catch (Exception e) {
-                    throw new org.xml.sax.SAXException("Failed to create DOM document", e);
+                    throw new SAXException("Failed to create DOM document", e);
                 }
             }
         }
 
         @Override
-        public void startElement(String uri, String localName, String qName, org.xml.sax.Attributes attributes) {
+        public void startElement(String uri, String localName, String qName, Attributes attributes) {
             String elementName = getElementName(uri, localName, qName);
 
             // Build structured representation (always)
@@ -623,7 +629,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
             // Build DOM element simultaneously if needed
             if (buildDom && domDocument != null) {
-                org.w3c.dom.Element domElement;
+                Element domElement;
                 if (uri != null && uri.isEmpty() == false && removeNamespaces == false) {
                     domElement = domDocument.createElementNS(uri, qName);
                 } else {
@@ -666,7 +672,7 @@ public final class XmlProcessor extends AbstractProcessor {
             if (buildDom && domElementStack.isEmpty() == false) {
                 String text = new String(ch, start, length);
                 if (text.isBlank() == false || removeEmptyValues == false) {
-                    org.w3c.dom.Text textNode = domDocument.createTextNode(text);
+                    Text textNode = domDocument.createTextNode(text);
                     domElementStack.peek().appendChild(textNode);
                 }
             }

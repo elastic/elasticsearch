@@ -438,13 +438,13 @@ public final class BulkRequestParser {
                                         throw new IllegalArgumentException(
                                             "Malformed action/metadata line ["
                                                 + line
-                                            + "], expected a simple value for field ["
-                                            + currentFieldName
-                                            + "] but found ["
-                                            + token
-                                            + "]"
-                                    );
-                                }
+                                                + "], expected a simple value for field ["
+                                                + currentFieldName
+                                                + "] but found ["
+                                                + token
+                                                + "]"
+                                        );
+                                    }
                     }
                 } else if (token != XContentParser.Token.END_OBJECT) {
                     throw new IllegalArgumentException(

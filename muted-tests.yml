@@ -564,6 +564,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
   method: testQueryResultsSameAsMatchOnlyText
   issue: https://github.com/elastic/elasticsearch/issues/134762
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testSmallValueNotStored
+  issue: https://github.com/elastic/elasticsearch/issues/134763
 
 # Examples:
 #

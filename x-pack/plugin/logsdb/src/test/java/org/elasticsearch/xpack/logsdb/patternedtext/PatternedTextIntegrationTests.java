@@ -94,7 +94,9 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     @After
     public void cleanup() {
-        assertAcked(admin().indices().prepareDelete(INDEX));
+        if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()) {
+            assertAcked(admin().indices().prepareDelete(INDEX));
+        }
     }
 
     public void testSourceMatchAllManyValues() throws IOException {

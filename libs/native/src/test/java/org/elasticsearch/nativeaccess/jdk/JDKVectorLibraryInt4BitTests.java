@@ -17,9 +17,6 @@ import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
-import static org.hamcrest.Matchers.not;
-
 public class JDKVectorLibraryInt4BitTests extends VectorSimilarityFunctionsTests {
 
     public JDKVectorLibraryInt4BitTests(int size) {
@@ -40,7 +37,6 @@ public class JDKVectorLibraryInt4BitTests extends VectorSimilarityFunctionsTests
     public static Iterable<Object[]> parametersFactory() {
         return VectorSimilarityFunctionsTests.parametersFactory();
     }
-
 
     @Override
     public boolean supported() {

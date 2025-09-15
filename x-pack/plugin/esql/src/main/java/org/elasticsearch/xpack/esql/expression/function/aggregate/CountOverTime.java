@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -33,7 +36,14 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
         CountOverTime::new
     );
 
-    @FunctionInfo(returnType = { "long" }, description = "The count over time value of a field.", type = FunctionType.AGGREGATE)
+    @FunctionInfo(
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        returnType = { "long" },
+        description = "The count over time value of a field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "count_over_time") }
+    )
     public CountOverTime(
         Source source,
         @Param(
@@ -42,9 +52,15 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
                 "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",

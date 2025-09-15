@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -21,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator encoded;
@@ -47,6 +51,13 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += encoded.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, LongBlock encodedBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -71,7 +82,7 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
   @Override
   public String toString() {
-    return "StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", bounds=" + bounds + "]";
+    return "StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + "]";
   }
 
   @Override
@@ -96,10 +107,10 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
     private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final StGeotile.GeoTileBoundedGrid bounds;
+    private final Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
-        StGeotile.GeoTileBoundedGrid bounds) {
+        Function<DriverContext, StGeotile.GeoTileBoundedGrid> bounds) {
       this.source = source;
       this.encoded = encoded;
       this.bounds = bounds;
@@ -107,12 +118,12 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
 
     @Override
     public StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds, context);
+      return new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", bounds=" + bounds + "]";
+      return "StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + "]";
     }
   }
 }

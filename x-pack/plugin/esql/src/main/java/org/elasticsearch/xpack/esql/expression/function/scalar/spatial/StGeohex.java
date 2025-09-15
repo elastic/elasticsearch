@@ -15,9 +15,14 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.h3.CellBoundary;
 import org.elasticsearch.h3.H3;
+import org.elasticsearch.h3.LatLng;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -25,14 +30,18 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
@@ -47,12 +56,10 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
      */
     protected static class GeoHexBoundedGrid implements BoundedGrid {
         private final int precision;
-        private final GeoBoundingBox bbox;
         private final GeoHexBoundedPredicate bounds;
 
-        public GeoHexBoundedGrid(int precision, GeoBoundingBox bbox) {
+        private GeoHexBoundedGrid(int precision, GeoBoundingBox bbox) {
             this.precision = checkPrecisionRange(precision);
-            this.bbox = bbox;
             this.bounds = new GeoHexBoundedPredicate(bbox);
         }
 
@@ -62,7 +69,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             if (bounds.validHex(geohex)) {
                 return geohex;
             }
-            // TODO: Are we sure negative numbers are not valid
+            // H3 explicitly requires the highest bit to be zero, freeing up all negative numbers as invalid ids. See H3.isValidHex()
             return -1L;
         }
 
@@ -71,9 +78,18 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             return precision;
         }
 
-        @Override
-        public String toString() {
-            return "[" + bbox + "]";
+        protected static class Factory {
+            private final int precision;
+            private final GeoBoundingBox bbox;
+
+            Factory(int precision, GeoBoundingBox bbox) {
+                this.precision = checkPrecisionRange(precision);
+                this.bbox = bbox;
+            }
+
+            public GeoHexBoundedGrid get(DriverContext context) {
+                return new GeoHexBoundedGrid(precision, bbox);
+            }
         }
     }
 
@@ -88,7 +104,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     );
 
     private static int checkPrecisionRange(int precision) {
-        if (precision < 1 || precision > H3.MAX_H3_RES) {
+        if (precision < 0 || precision > H3.MAX_H3_RES) {
             throw new IllegalArgumentException(
                 "Invalid geohex_grid precision of " + precision + ". Must be between 0 and " + H3.MAX_H3_RES + "."
             );
@@ -97,10 +113,14 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @FunctionInfo(
-        returnType = "long",
+        returnType = "geohex",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = """
             Calculates the `geohex`, the H3 cell-id, of the supplied geo_point at the specified precision.
-            The result is long encoded. Use [ST_GEOHEX_TO_STRING](#esql-st_geohex_to_string) to convert the result to a string.
+            The result is long encoded. Use [TO_STRING](#esql-to_string) to convert the result to a string,
+            [TO_LONG](#esql-to_long) to convert it to a `long`, or [TO_GEOSHAPE](#esql-to_geoshape) to calculate
+            the `geo_shape` bounding geometry.
 
             These functions are related to the [`geo_grid` query](/reference/query-languages/query-dsl/query-dsl-geo-grid-query.md)
             and the [`geohex_grid` aggregation](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).""",
@@ -150,7 +170,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return LONG;
+        return GEOHEX;
     }
 
     @Override
@@ -174,10 +194,14 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
             }
             GeoBoundingBox bbox = asGeoBoundingBox(bounds.fold(toEvaluator.foldCtx()));
             int precision = (int) parameter.fold(toEvaluator.foldCtx());
-            GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
+            GeoHexBoundedGrid.Factory bounds = new GeoHexBoundedGrid.Factory(precision, bbox);
             return spatialDocsValues
-                ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), bounds)
-                : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds);
+                ? new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
+                    source(),
+                    toEvaluator.apply(spatialField()),
+                    bounds::get
+                )
+                : new StGeohexFromFieldAndLiteralAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), bounds::get);
         } else {
             int precision = checkPrecisionRange((int) parameter.fold(toEvaluator.foldCtx()));
             return spatialDocsValues
@@ -195,7 +219,8 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             GeoBoundingBox bbox = asGeoBoundingBox(bounds().fold(ctx));
             GeoHexBoundedGrid bounds = new GeoHexBoundedGrid(precision, bbox);
-            return bounds.calculateGridId(GEO.wkbAsPoint(point));
+            long gridId = bounds.calculateGridId(GEO.wkbAsPoint(point));
+            return gridId < 0 ? null : gridId;
         }
     }
 
@@ -210,7 +235,12 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static void fromFieldAndLiteralAndLiteral(LongBlock.Builder results, int p, BytesRefBlock in, @Fixed GeoHexBoundedGrid bounds) {
+    static void fromFieldAndLiteralAndLiteral(
+        LongBlock.Builder results,
+        int p,
+        BytesRefBlock in,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHexBoundedGrid bounds
+    ) {
         fromWKB(results, p, in, bounds);
     }
 
@@ -219,8 +249,27 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
         LongBlock.Builder results,
         int p,
         LongBlock encoded,
-        @Fixed GeoHexBoundedGrid bounds
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) GeoHexBoundedGrid bounds
     ) {
         fromEncodedLong(results, p, encoded, bounds);
+    }
+
+    public static BytesRef toBounds(long gridId) {
+        return fromCellBoundary(H3.h3ToGeoBoundary(gridId));
+    }
+
+    private static BytesRef fromCellBoundary(CellBoundary cell) {
+        double[] x = new double[cell.numPoints() + 1];
+        double[] y = new double[cell.numPoints() + 1];
+        for (int i = 0; i < cell.numPoints(); i++) {
+            LatLng vertex = cell.getLatLon(i);
+            x[i] = vertex.getLonDeg();
+            y[i] = vertex.getLatDeg();
+        }
+        x[cell.numPoints()] = x[0];
+        y[cell.numPoints()] = y[0];
+        LinearRing ring = new LinearRing(x, y);
+        Polygon polygon = new Polygon(ring);
+        return SpatialCoordinateTypes.GEO.asWkb(polygon);
     }
 }

@@ -43,6 +43,7 @@ import java.util.TreeSet;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST;
+import static org.elasticsearch.TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19;
 
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
@@ -276,7 +277,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         attributeNames.name = in.readOptionalString();
         attributeNames.roles = in.readOptionalString();
 
-        if (in.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+        if (in.getTransportVersion().isPatchFrom(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+            || in.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
             attributeNames.extensions = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
 
@@ -305,7 +307,8 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         out.writeOptionalString(attributeNames.name);
         out.writeOptionalString(attributeNames.roles);
 
-        if (out.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
+        if (out.getTransportVersion().isPatchFrom(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
+            || out.getTransportVersion().onOrAfter(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)) {
             out.writeStringCollection(attributeNames.extensions);
         }
 

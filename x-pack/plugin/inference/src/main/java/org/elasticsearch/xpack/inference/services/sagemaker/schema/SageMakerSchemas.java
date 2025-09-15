@@ -12,6 +12,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticCompletionPayload;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticRerankPayload;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticSparseEmbeddingPayload;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic.ElasticTextEmbeddingPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiCompletionPayload;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.openai.OpenAiTextEmbeddingPayload;
 
@@ -41,7 +45,14 @@ public class SageMakerSchemas {
         /*
          * Add new model API to the register call.
          */
-        schemas = register(new OpenAiTextEmbeddingPayload(), new OpenAiCompletionPayload());
+        schemas = register(
+            new OpenAiTextEmbeddingPayload(),
+            new OpenAiCompletionPayload(),
+            new ElasticTextEmbeddingPayload(),
+            new ElasticSparseEmbeddingPayload(),
+            new ElasticCompletionPayload(),
+            new ElasticRerankPayload()
+        );
 
         streamSchemas = schemas.entrySet()
             .stream()

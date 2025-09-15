@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +52,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettings() throws Exception {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -76,15 +75,19 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping))
+            List.of(new CompressedXContent(mapping)),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -96,7 +99,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined() throws Exception {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -106,7 +109,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 "_doc": {
                     "properties": {
                         "field1": {
-                            "type": "keyword"
+                            "type": "keyword",
                             "time_series_dimension": true
                         },
                         "field2": {
@@ -121,15 +124,19 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping))
+            List.of(new CompressedXContent(mapping)),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -140,7 +147,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsMappingsMerging() throws Exception {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
@@ -191,15 +198,19 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
                 }
             }
             """;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3))
+            List.of(new CompressedXContent(mapping1), new CompressedXContent(mapping2), new CompressedXContent(mapping3)),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -211,20 +222,24 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsNoMappings() {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         Settings settings = Settings.EMPTY;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of()
+            List.of(),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -235,21 +250,25 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() throws Exception {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_ahead_time", lookAheadTime.getStringRep()).build();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent("{}")),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -260,21 +279,25 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsLookBackTime() throws Exception {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         TimeValue lookBackTime = TimeValue.timeValueHours(12);
         Settings settings = builder().put("index.mode", "time_series").put("index.look_back_time", lookBackTime.getStringRep()).build();
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent("{}")),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -290,22 +313,27 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
         Instant sixHoursAgo = Instant.now().minus(6, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
         Instant currentEnd = sixHoursAgo.plusMillis(lookAheadTime.getMillis());
-        ProjectMetadata projectMetadata = DataStreamTestHelper.getClusterStateWithDataStream(
+        ProjectMetadata projectMetadata = DataStreamTestHelper.getProjectWithDataStream(
+            randomProjectIdOrDefault(),
             dataStreamName,
             List.of(new Tuple<>(sixHoursAgo, currentEnd))
-        ).getMetadata().getProject();
+        );
 
         Instant now = sixHoursAgo.plus(6, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
-        var result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent("{}"))
+            List.of(new CompressedXContent("{}")),
+            additionalSettings,
+            (k, v) -> {}
         );
+        var result = additionalSettings.build();
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo(FORMATTER.format(currentEnd)));
         assertThat(
@@ -317,31 +345,33 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreatedTimeSettingsMissing() {
         String dataStreamName = "logs-app1";
         Instant twoHoursAgo = Instant.now().minus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(
+            DataStreamTestHelper.getProjectWithDataStreams(
                 List.of(Tuple.tuple(dataStreamName, 1)),
                 List.of(),
                 twoHoursAgo.toEpochMilli(),
                 builder().build(),
                 1
-            ).getMetadata()
+            )
         );
-        DataStream ds = mb.dataStream(dataStreamName);
-        mb.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
-        ProjectMetadata projectMetadata = mb.build().getProject();
+        DataStream ds = projectBuilder.dataStream(dataStreamName);
+        projectBuilder.put(ds.copy().setIndexMode(IndexMode.TIME_SERIES).build());
+        ProjectMetadata projectMetadata = projectBuilder.build();
 
         Instant now = twoHoursAgo.plus(2, ChronoUnit.HOURS);
         Settings settings = Settings.EMPTY;
         Exception e = expectThrows(
             IllegalStateException.class,
-            () -> provider.getAdditionalIndexSettings(
+            () -> provider.provideAdditionalMetadata(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
                 IndexMode.TIME_SERIES,
                 projectMetadata,
                 now,
                 settings,
-                null
+                null,
+                builder(),
+                (k, v) -> {}
             )
         );
         assertThat(
@@ -356,19 +386,23 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsNonTsdbTemplate() {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
 
         Settings settings = Settings.EMPTY;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             null,
             projectMetadata,
             Instant.ofEpochMilli(1L),
             settings,
-            null
+            null,
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
     }
 
@@ -377,21 +411,24 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).build();
         DataStream existingDataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
-        ProjectMetadata projectMetadata = Metadata.builder()
+        ProjectMetadata projectMetadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .dataStreams(Map.of(dataStreamName, existingDataStream), Map.of())
-            .build()
-            .getProject();
+            .build();
 
         Settings settings = Settings.EMPTY;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of()
+            List.of(),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
@@ -404,27 +441,27 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     public void testGetAdditionalIndexSettingsDowngradeFromTsdb() {
         String dataStreamName = "logs-app1";
         Instant twoHoursAgo = Instant.now().minus(4, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS);
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple(dataStreamName, 1)),
-                List.of(),
-                twoHoursAgo.toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        ProjectMetadata projectMetadata = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            twoHoursAgo.toEpochMilli(),
+            builder().build(),
+            1
         );
-        ProjectMetadata projectMetadata = mb.build().getProject();
 
-        Settings settings = Settings.EMPTY;
-        Settings result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
             projectMetadata,
             Instant.ofEpochMilli(1L),
-            settings,
-            List.of()
+            Settings.EMPTY,
+            List.of(),
+            additionalSettings,
+            (k, v) -> {}
         );
+        Settings result = additionalSettings.build();
         assertThat(result.size(), equalTo(0));
     }
 
@@ -691,19 +728,23 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
     }
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {
-        ProjectMetadata projectMetadata = Metadata.EMPTY_METADATA.getProject();
+        ProjectMetadata projectMetadata = emptyProject();
         String dataStreamName = "logs-app1";
         Settings settings = Settings.EMPTY;
 
-        var result = provider.getAdditionalIndexSettings(
+        Settings.Builder additionalSettings = builder();
+        provider.provideAdditionalMetadata(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
             IndexMode.TIME_SERIES,
             projectMetadata,
             now,
             settings,
-            List.of(new CompressedXContent(mapping))
+            List.of(new CompressedXContent(mapping)),
+            additionalSettings,
+            (k, v) -> {}
         );
+        var result = additionalSettings.build();
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         return builder().put(result).put("index.mode", "time_series").build();

@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,7 +35,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -43,6 +43,7 @@ import org.elasticsearch.compute.operator.OutputOperator;
 import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -71,6 +72,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -133,6 +135,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
     private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+    private final ProjectResolver projectResolver;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
      * If this is {@code true} we'll run a {@link MergePositionsOperator} to merge
@@ -153,7 +156,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         BigArrays bigArrays,
         BlockFactory blockFactory,
         boolean mergePages,
-        CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest
+        CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest,
+        ProjectResolver projectResolver
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
@@ -166,6 +170,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.blockFactory = blockFactory;
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
+        this.projectResolver = projectResolver;
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -187,12 +192,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     /**
      * Build a list of queries to perform inside the actual lookup.
      */
-    protected abstract QueryList queryList(
+    protected abstract LookupEnrichQueryGenerator queryList(
         T request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
         Block inputBlock,
-        @Nullable DataType inputDataType,
         Warnings warnings
     );
 
@@ -226,8 +230,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
      */
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
+        var projectState = projectResolver.getProjectState(clusterState);
         List<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
+            .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
@@ -266,23 +271,24 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
-        Block inputBlock = request.inputPage.getBlock(0);
-        if (inputBlock.areAllValuesNull()) {
-            List<Page> nullResponse = mergePages
-                ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
-                : List.of();
-            listener.onResponse(nullResponse);
-            return;
+        for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
+            Block inputBlock = request.inputPage.getBlock(j);
+            if (inputBlock.areAllValuesNull()) {
+                List<Page> nullResponse = mergePages
+                    ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                    : List.of();
+                listener.onResponse(nullResponse);
+                return;
+            }
         }
         final List<Releasable> releasables = new ArrayList<>(6);
         boolean started = false;
         try {
-
-            ProjectMetadata projMeta = clusterService.state().metadata().getProject();
+            var projectState = projectResolver.getProjectState(clusterService.state());
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
-                clusterService.state().projectState(),
+                projectState,
                 request.shardId.getIndex().getName(),
-                indexNameExpressionResolver.resolveExpressions(projMeta, request.indexPattern)
+                indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indexPattern)
             );
 
             LookupShardContext shardContext = lookupShardContextFactory.create(request.shardId);
@@ -301,6 +307,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             final int[] mergingChannels = IntStream.range(0, request.extractFields.size()).map(i -> i + 2).toArray();
             final Operator finishPages;
             final OrdinalBytesRefBlock ordinalsBytesRefBlock;
+            Block inputBlock = request.inputPage.getBlock(0);
             if (mergePages  // TODO fix this optimization for Lookup.
                 && inputBlock instanceof BytesRefBlock bytesRefBlock
                 && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
@@ -330,24 +337,23 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
-            QueryList queryList = queryList(
-                request,
-                shardContext.executionContext,
-                aliasFilter,
-                inputBlock,
-                request.inputDataType,
-                warnings
-            );
+            LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, inputBlock, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,
                 queryList,
-                shardContext.context.searcher().getIndexReader(),
+                shardContext.context,
                 warnings
             );
             releasables.add(queryOperator);
-            var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
-            releasables.add(extractFieldsOperator);
+
+            List<Operator> operators = new ArrayList<>();
+            if (request.extractFields.isEmpty() == false) {
+                var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
+                releasables.add(extractFieldsOperator);
+                operators.add(extractFieldsOperator);
+            }
+            operators.add(finishPages);
 
             /*
              * Collect all result Pages in a synchronizedList mostly out of paranoia. We'll
@@ -369,7 +375,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 driverContext,
                 request::toString,
                 queryOperator,
-                List.of(extractFieldsOperator, finishPages),
+                operators,
                 outputOperator,
                 Driver.DEFAULT_STATUS_INTERVAL,
                 Releasables.wrap(shardContext.release, localBreaker)
@@ -415,8 +421,13 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     ) {
         List<ValuesSourceReaderOperator.FieldInfo> fields = new ArrayList<>(extractFields.size());
         for (NamedExpression extractField : extractFields) {
+            String fieldName = extractField instanceof FieldAttribute fa ? fa.fieldName().string()
+                // Cases for Alias and ReferenceAttribute: only required for ENRICH (Alias in case of ENRICH ... WITH x = field)
+                // (LOOKUP JOIN uses FieldAttributes)
+                : extractField instanceof Alias a ? ((NamedExpression) a.child()).name()
+                : extractField.name();
             BlockLoader loader = shardContext.blockLoader(
-                extractField instanceof Alias a ? ((NamedExpression) a.child()).name() : extractField.name(),
+                fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE
             );
@@ -424,6 +435,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 new ValuesSourceReaderOperator.FieldInfo(
                     extractField.name(),
                     PlannerUtils.toElementType(extractField.dataType()),
+                    false,
                     shardIdx -> {
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");
@@ -435,6 +447,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
         return new ValuesSourceReaderOperator(
             driverContext.blockFactory(),
+            Long.MAX_VALUE,
             fields,
             List.of(
                 new ValuesSourceReaderOperator.ShardContext(
@@ -520,11 +533,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final String sessionId;
         final ShardId shardId;
         final String indexPattern;
-        /**
-         * For mixed clusters with nodes &lt;8.14, this will be null.
-         */
-        @Nullable
-        final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
         final Source source;
@@ -536,7 +544,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             String sessionId,
             ShardId shardId,
             String indexPattern,
-            DataType inputDataType,
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
@@ -545,7 +552,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             this.sessionId = sessionId;
             this.shardId = shardId;
             this.indexPattern = indexPattern;
-            this.inputDataType = inputDataType;
             this.inputPage = inputPage;
             this.toRelease = toRelease;
             this.extractFields = extractFields;
@@ -605,8 +611,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 + sessionId
                 + " ,shard="
                 + shardId
-                + " ,input_type="
-                + inputDataType
                 + " ,extract_fields="
                 + extractFields
                 + " ,positions="
@@ -686,6 +690,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             return new LookupShardContext(
                 new EsPhysicalOperationProviders.DefaultShardContext(
                     0,
+                    context,
                     context.getSearchExecutionContext(),
                     context.request().getAliasFilter()
                 ),

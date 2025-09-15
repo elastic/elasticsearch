@@ -17,10 +17,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -34,16 +36,20 @@ import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class DirectIOIT extends ESIntegTestCase {
 
     @BeforeClass
-    public static void checkSupported() throws IOException {
+    public static void checkSupported() {
+        assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
+
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");
@@ -119,7 +125,17 @@ public class DirectIOIT extends ESIntegTestCase {
             indexVectors();
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, null, null));
+            var knn = List.of(
+                new KnnSearchBuilder(
+                    "fooVector",
+                    new VectorData(null, new byte[64]),
+                    10,
+                    20,
+                    IVF_FORMAT.isEnabled() ? 10f : null,
+                    null,
+                    null
+                )
+            );
             assertHitCount(prepareSearch("foo-vectors").setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.datastreams;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -40,6 +41,10 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
 
     public static final String NAME = "indices:admin/data_stream/settings/update";
     public static final UpdateDataStreamSettingsAction INSTANCE = new UpdateDataStreamSettingsAction();
+
+    private static final TransportVersion DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS = TransportVersion.fromName(
+        "data_stream_write_index_only_settings"
+    );
 
     public UpdateDataStreamSettingsAction() {
         super(NAME);
@@ -83,7 +88,8 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super(in);
             this.dataStreamNames = in.readStringArray();
             this.settings = Settings.readSettingsFromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
                 this.dryRun = in.readBoolean();
             } else {
                 this.dryRun = false;
@@ -95,7 +101,8 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             super.writeTo(out);
             out.writeStringArray(dataStreamNames);
             settings.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS_DRY_RUN)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
                 out.writeBoolean(dryRun);
             }
         }
@@ -230,19 +237,26 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
 
         public record IndicesSettingsResult(
             List<String> appliedToDataStreamOnly,
+            List<String> appliedToDataStreamAndWriteIndex,
             List<String> appliedToDataStreamAndBackingIndices,
             List<IndexSettingError> indexSettingErrors
         ) implements ToXContent, Writeable {
 
-            public static final IndicesSettingsResult EMPTY = new IndicesSettingsResult(List.of(), List.of(), List.of());
+            public static final IndicesSettingsResult EMPTY = new IndicesSettingsResult(List.of(), List.of(), List.of(), List.of());
 
             public IndicesSettingsResult(StreamInput in) throws IOException {
-                this(in.readStringCollectionAsList(), in.readStringCollectionAsList(), in.readCollectionAsList(IndexSettingError::new));
+                this(
+                    in.readStringCollectionAsList(),
+                    in.getTransportVersion().supports(DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS) ? in.readStringCollectionAsList() : List.of(),
+                    in.readStringCollectionAsList(),
+                    in.readCollectionAsList(IndexSettingError::new)
+                );
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field("applied_to_data_stream_only", appliedToDataStreamOnly);
+                builder.field("applied_to_data_stream_and_write_indices", appliedToDataStreamAndWriteIndex);
                 builder.field("applied_to_data_stream_and_backing_indices", appliedToDataStreamAndBackingIndices);
                 if (indexSettingErrors.isEmpty() == false) {
                     builder.field("errors", indexSettingErrors);
@@ -253,6 +267,9 @@ public class UpdateDataStreamSettingsAction extends ActionType<UpdateDataStreamS
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeStringCollection(appliedToDataStreamOnly);
+                if (out.getTransportVersion().supports(DATA_STREAM_WRITE_INDEX_ONLY_SETTINGS)) {
+                    out.writeStringCollection(appliedToDataStreamAndWriteIndex);
+                }
                 out.writeStringCollection(appliedToDataStreamAndBackingIndices);
                 out.writeCollection(indexSettingErrors, (out1, value) -> value.writeTo(out1));
             }

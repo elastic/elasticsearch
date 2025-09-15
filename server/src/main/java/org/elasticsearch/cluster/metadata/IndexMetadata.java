@@ -316,6 +316,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return block;
         }
 
+        @Override
+        public String toString() {
+            return name;
+        }
+
         public static APIBlock fromName(String name) {
             for (APIBlock block : APIBlock.values()) {
                 if (block.name.equals(name)) {
@@ -2125,6 +2130,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder removeAllAliases() {
             aliases.clear();
+            return this;
+        }
+
+        public Builder putCustom(Map<String, ? extends Map<String, String>> customMetadata) {
+            customMetadata.forEach(this::putCustom);
             return this;
         }
 

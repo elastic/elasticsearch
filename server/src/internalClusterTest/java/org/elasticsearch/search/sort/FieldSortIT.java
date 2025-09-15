@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.http.util.EntityUtils;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
@@ -20,6 +21,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -36,6 +40,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -84,6 +89,12 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestIssueLogging(
+    issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
+    value = "org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction:DEBUG,"
+        + "org.elasticsearch.action.search.SearchPhaseController:DEBUG,"
+        + "org.elasticsearch.search:TRACE"
+)
 public class FieldSortIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
@@ -110,6 +121,10 @@ public class FieldSortIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
+    }
+
+    protected boolean addMockHttpTransport() {
+        return false;
     }
 
     public void testIssue8226() {
@@ -2145,7 +2160,7 @@ public class FieldSortIT extends ESIntegTestCase {
         );
     }
 
-    public void testSortMixedFieldTypes() {
+    public void testSortMixedFieldTypes() throws IOException {
         assertAcked(
             prepareCreate("index_long").setMapping("foo", "type=long"),
             prepareCreate("index_integer").setMapping("foo", "type=integer"),
@@ -2158,6 +2173,16 @@ public class FieldSortIT extends ESIntegTestCase {
         prepareIndex("index_double").setId("1").setSource("foo", "123").get();
         prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
         refresh();
+
+        // for debugging, we try to see where the documents are located
+        try (RestClient restClient = createRestClient()) {
+            Request checkShardsRequest = new Request(
+                "GET",
+                "/_cat/shards/index_long,index_double,index_keyword?format=json&h=index,node,shard,prirep,state,docs,index"
+            );
+            Response response = restClient.performRequest(checkShardsRequest);
+            logger.info("FieldSortIT#testSortMixedFieldTypes document distribution: " + EntityUtils.toString(response.getEntity()));
+        }
 
         { // mixing long and integer types is ok, as we convert integer sort to long sort
             assertNoFailures(prepareSearch("index_long", "index_integer").addSort(new FieldSortBuilder("foo")).setSize(10));

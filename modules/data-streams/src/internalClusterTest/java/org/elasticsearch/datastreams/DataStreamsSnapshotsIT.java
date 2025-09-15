@@ -47,6 +47,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -1394,7 +1395,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
-        SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        Snapshot snapshot = createSnapshotResponse.getSnapshotInfo().snapshot();
         assertEquals(RestStatus.OK, status);
 
         assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
@@ -1423,7 +1424,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             client,
             request,
             "Snapshot ["
-                + snapshotId
+                + snapshot
                 + "] contains data stream ["
                 + datastreamName
                 + "] but custer does not have a matching index "

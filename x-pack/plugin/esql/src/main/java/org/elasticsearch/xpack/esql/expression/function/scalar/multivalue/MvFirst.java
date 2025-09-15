@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -31,7 +30,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
@@ -49,6 +49,9 @@ public class MvFirst extends AbstractMultivalueFunction {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -80,6 +83,9 @@ public class MvFirst extends AbstractMultivalueFunction {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -104,7 +110,7 @@ public class MvFirst extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), DataType::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCounters(field(), sourceText(), DEFAULT);
     }
 
     @Override

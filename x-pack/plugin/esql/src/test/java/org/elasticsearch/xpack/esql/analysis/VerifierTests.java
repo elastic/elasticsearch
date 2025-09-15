@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 
@@ -37,6 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
@@ -50,6 +52,9 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -62,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
@@ -69,6 +75,8 @@ public class VerifierTests extends ESTestCase {
     private static final EsqlParser parser = new EsqlParser();
     private final Analyzer defaultAnalyzer = AnalyzerTestUtils.expandedDefaultAnalyzer();
     private final Analyzer fullTextAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-full_text_search.json", "test"));
+    private final Analyzer sampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-sample_data.json", "test"));
+    private final Analyzer oddSampleDataAnalyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-odd-timestamp.json", "test"));
     private final Analyzer tsdb = AnalyzerTestUtils.analyzer(AnalyzerTestUtils.tsdbIndexResolution());
 
     private final List<String> TIME_DURATIONS = List.of("millisecond", "second", "minute", "hour");
@@ -359,7 +367,7 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(max(salary)) by first_name")
         );
         assertEquals(
-            "1:25: argument of [avg(first_name)] must be [numeric except unsigned_long or counter types],"
+            "1:25: argument of [avg(first_name)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],"
                 + " found value [first_name] type [keyword]",
             error("from test | stats count(avg(first_name)) by first_name")
         );
@@ -386,6 +394,16 @@ public class VerifierTests extends ESTestCase {
             "1:19: grouping key [e] already specified in the STATS BY clause",
             error("from test | stats e BY e = languages + emp_no")
         );
+        if (EsqlCapabilities.Cap.NAME_QUALIFIERS.isEnabled()) {
+            assertEquals(
+                "1:19: grouping key [[q].[e]] already specified in the STATS BY clause",
+                error("from test | stats [q].[e] BY [q].[e]")
+            );
+            assertEquals(
+                "1:19: Cannot specify grouping expression [[q].[e]] as an aggregate",
+                error("from test | stats [q].[e] BY x = [q].[e]")
+            );
+        }
 
         var message = error("from test | stats languages + emp_no BY e = languages + emp_no");
         assertThat(
@@ -1049,6 +1067,19 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:36: cannot sort on cartesian_point", error("FROM airports_web | LIMIT 5 | sort location", airportsWeb));
         assertEquals("1:38: cannot sort on geo_shape", error("FROM countries_bbox | LIMIT 5 | sort shape", countriesBbox));
         assertEquals("1:42: cannot sort on cartesian_shape", error("FROM countries_bbox_web | LIMIT 5 | sort shape", countriesBboxWeb));
+        for (String grid : new String[] { "geohash", "geotile", "geohex" }) {
+            String gridFunc = "ST_" + grid.toUpperCase(Locale.ROOT);
+            String literalQuery = prefix + "| EVAL grid = " + gridFunc + "(TO_GEOPOINT(wkt),1) | limit 5 | sort grid";
+            String indexQuery = "FROM airports | LIMIT 5 | EVAL grid = " + gridFunc + "(location, 1) | sort grid";
+            String literalError = "1:" + (136 + grid.length()) + ": cannot sort on " + grid;
+            String indexError = "1:" + (63 + grid.length()) + ": cannot sort on " + grid;
+            if (EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled() == false) {
+                literalError = "1:95: Unknown function [" + gridFunc + "]";
+                indexError = "1:39: Unknown function [" + gridFunc + "]";
+            }
+            assertThat(grid, error(literalQuery), startsWith(literalError));
+            assertThat(grid, error(indexQuery, airports), startsWith(indexError));
+        }
     }
 
     public void testSourceSorting() {
@@ -1079,7 +1110,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1088,7 +1119,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1104,8 +1135,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testGroupByCounter() {
         assertThat(
-            error("FROM tests | STATS count(*) BY network.bytes_in", tsdb),
-            equalTo("1:32: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+            error("FROM test | STATS count(*) BY network.bytes_in", tsdb),
+            equalTo("1:31: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+
+        assertThat(
+            error("FROM test | STATS present(name) BY network.bytes_in", tsdb),
+            equalTo("1:36: cannot group by on [counter_long] type for grouping [network.bytes_in]")
         );
     }
 
@@ -1137,7 +1173,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testNotAllowRateOutsideMetrics() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("FROM tests | STATS avg(rate(network.bytes_in))", tsdb),
             equalTo("1:24: time_series aggregate[rate(network.bytes_in)] can only be used with the TS command")
@@ -1157,7 +1193,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testRateNotEnclosedInAggregate() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires metric command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertThat(
             error("TS tests | STATS rate(network.bytes_in)", tsdb),
             equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
@@ -1211,7 +1247,9 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchInsideEval() throws Exception {
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE and STATS commands\n"
+            "1:36: [:] operator is only supported in WHERE and STATS commands"
+                + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                + "\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
@@ -1235,7 +1273,7 @@ public class VerifierTests extends ESTestCase {
             checkFieldBasedWithNonIndexedColumn("Term", "term(text, \"cat\")", "function");
             checkFieldBasedFunctionNotAllowedAfterCommands("Term", "function", "term(title, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkFieldBasedFunctionNotAllowedAfterCommands("KNN", "function", "knn(vector, [1, 2, 3])");
         }
     }
@@ -1368,20 +1406,29 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("MultiMatch", "multi_match(\"Meditation\", title, body)", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkFullTextFunctionsOnlyAllowedInWhere("KNN", "knn(vector, [0, 1, 2])", "function");
         }
+
     }
 
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
         assertThat(
             error("from test | eval y = " + functionInvocation, fullTextAnalyzer),
-            containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+            containsString(
+                "["
+                    + functionName
+                    + "] "
+                    + functionType
+                    + " is only supported in WHERE and STATS commands"
+                    + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+            )
         );
         assertThat(
             error("from test | sort " + functionInvocation + " asc", fullTextAnalyzer),
             containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+
         );
         assertThat(
             error("from test | stats max_id = max(id) by " + functionInvocation, fullTextAnalyzer),
@@ -1390,7 +1437,14 @@ public class VerifierTests extends ESTestCase {
         if ("KQL".equals(functionName) || "QSTR".equals(functionName)) {
             assertThat(
                 error("row a = " + functionInvocation, fullTextAnalyzer),
-                containsString("[" + functionName + "] " + functionType + " is only supported in WHERE and STATS commands")
+                containsString(
+                    "["
+                        + functionName
+                        + "] "
+                        + functionType
+                        + " is only supported in WHERE and STATS commands"
+                        + (EsqlCapabilities.Cap.SCORE_FUNCTION.isEnabled() ? ", or in EVAL within score(.) function" : "")
+                )
             );
         }
     }
@@ -1407,7 +1461,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("term(title, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkWithFullTextFunctionsDisjunctions("knn(vector, [1, 2, 3])");
         }
     }
@@ -1472,7 +1526,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("Term", "term(title, \"Meditation\")", "function");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkFullTextFunctionsWithNonBooleanFunctions("KNN", "knn(vector, [1, 2, 3])", "function");
         }
     }
@@ -1543,8 +1597,8 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             testFullTextFunctionTargetsExistingField("term(fist_name, \"Meditation\")");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2])");
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
+            testFullTextFunctionTargetsExistingField("knn(vector, [0, 1, 2], 10)");
         }
     }
 
@@ -1738,7 +1792,8 @@ public class VerifierTests extends ESTestCase {
         // where
         assertEquals(
             "1:26: first argument of [\"3 days\"::date_period == to_dateperiod(\"3 days\")] must be "
-                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, integer, ip, keyword, "
+                + "[boolean, cartesian_point, cartesian_shape, date_nanos, datetime, double, geo_point, geo_shape, "
+                + "geohash, geohex, geotile, integer, ip, keyword, "
                 + "long, text, unsigned_long or version], found value [\"3 days\"::date_period] type [date_period]",
             error("row x = \"3 days\" | where \"3 days\"::date_period == to_dateperiod(\"3 days\")")
         );
@@ -1952,6 +2007,89 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeInvalidOptionsField() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        assertEquals(
+            "1:31: second argument of [CATEGORIZE(last_name, first_name)] must be a map expression, received [first_name]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, first_name)")
+        );
+        assertEquals(
+            "1:31: Invalid option [blah] in [CATEGORIZE(last_name, { \"blah\": 42 })], "
+                + "expected one of [analyzer, output_format, similarity_threshold]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"blah\": 42 })")
+        );
+    }
+
+    public void testCategorizeOptionOutputFormat() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"regex\" })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"REGEX\" })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"tokens\" })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"ToKeNs\" })");
+        assertEquals(
+            "1:31: invalid output format [blah], expecting one of [REGEX, TOKENS]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": \"blah\" })")
+        );
+        assertEquals(
+            "1:31: invalid output format [42], expecting one of [REGEX, TOKENS]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": 42 })")
+        );
+        assertEquals(
+            "1:31: Invalid option [output_format] in [CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })],"
+                + " expected a [KEYWORD] value",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"output_format\": { \"a\": 123 } })")
+        );
+    }
+
+    public void testCategorizeOptionSimilarityThreshold() {
+        assumeTrue("categorize options must be enabled", EsqlCapabilities.Cap.CATEGORIZE_OPTIONS.isEnabled());
+
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })");
+        query("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 100 })");
+        assertEquals(
+            "1:31: invalid similarity threshold [0], expecting a number between 1 and 100, inclusive",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 0 })")
+        );
+        assertEquals(
+            "1:31: invalid similarity threshold [101], expecting a number between 1 and 100, inclusive",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 101 })")
+        );
+        assertEquals(
+            "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })], "
+                + "cannot cast [blah] to [integer]",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": \"blah\" })")
+        );
+        assertEquals(
+            "1:31: Invalid option [similarity_threshold] in [CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })],"
+                + " expected a [INTEGER] value",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": { \"aaa\": 123 } })")
+        );
+    }
+
+    public void testCategorizeWithInlineStats() {
+        assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
+        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assertEquals(
+            "1:37: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
+                + "INLINESTATS [INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
+            error("FROM test | INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
+        );
+
+        assertEquals("""
+            3:35: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
+            INLINESTATS [INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)]
+            line 2:91: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
+            line 2:32: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
+            INLINESTATS [INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
+            c2 = CATEGORIZE(first_name)]""", error("""
+            FROM test
+            | INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
+            | INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)
+            """));
+    }
+
     public void testChangePoint() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
@@ -1964,7 +2102,9 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_keySortable() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> sortableTypes = List.of(BOOLEAN, DOUBLE, DATE_NANOS, DATETIME, INTEGER, IP, KEYWORD, LONG, UNSIGNED_LONG, VERSION);
-        List<DataType> unsortableTypes = List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
+        List<DataType> unsortableTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+            ? List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, GEOHASH, GEOTILE, GEOHEX)
+            : List.of(CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE);
         for (DataType type : sortableTypes) {
             query(Strings.format("ROW key=NULL::%s, value=0\n | CHANGE_POINT value ON key", type));
         }
@@ -1979,18 +2119,23 @@ public class VerifierTests extends ESTestCase {
     public void testChangePoint_valueNumeric() {
         assumeTrue("change_point must be enabled", EsqlCapabilities.Cap.CHANGE_POINT.isEnabled());
         List<DataType> numericTypes = List.of(DOUBLE, INTEGER, LONG, UNSIGNED_LONG);
-        List<DataType> nonNumericTypes = List.of(
-            BOOLEAN,
-            CARTESIAN_POINT,
-            CARTESIAN_SHAPE,
-            DATE_NANOS,
-            DATETIME,
-            GEO_POINT,
-            GEO_SHAPE,
-            IP,
-            KEYWORD,
-            VERSION
-        );
+        List<DataType> nonNumericTypes = EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled()
+            ? List.of(
+                BOOLEAN,
+                CARTESIAN_POINT,
+                CARTESIAN_SHAPE,
+                DATE_NANOS,
+                DATETIME,
+                GEO_POINT,
+                GEO_SHAPE,
+                GEOHASH,
+                GEOTILE,
+                GEOHEX,
+                IP,
+                KEYWORD,
+                VERSION
+            )
+            : List.of(BOOLEAN, CARTESIAN_POINT, CARTESIAN_SHAPE, DATE_NANOS, DATETIME, GEO_POINT, GEO_SHAPE, IP, KEYWORD, VERSION);
         for (DataType type : numericTypes) {
             query(Strings.format("ROW key=0, value=NULL::%s\n | CHANGE_POINT value ON key", type));
         }
@@ -2011,6 +2156,10 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:22: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | SORT 1 + max(a)"));
         assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("FROM test | SORT count(*)"));
+        assertEquals(
+            "1:18: aggregate function [present(gender)] not allowed outside STATS command",
+            error("FROM test | SORT present(gender)")
+        );
     }
 
     public void testFilterByAggregate() {
@@ -2023,6 +2172,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:24: aggregate function [min(languages)] not allowed outside STATS command",
             error("FROM employees | WHERE min(languages) > 2")
+        );
+        assertEquals(
+            "1:19: aggregate function [present(gender)] not allowed outside STATS command",
+            error("FROM test | WHERE present(gender)")
         );
     }
 
@@ -2051,6 +2204,7 @@ public class VerifierTests extends ESTestCase {
     public void testAggregateInRow() {
         assertEquals("1:13: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 + count(*)"));
         assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", error("ROW a = avg(2)"));
+        assertEquals("1:9: aggregate function [present(123)] not allowed outside STATS command", error("ROW a = present(123)"));
     }
 
     public void testLookupJoinDataTypeMismatch() {
@@ -2071,7 +2225,7 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkOptionDataTypes(MultiMatch.OPTIONS, "FROM test | WHERE MULTI_MATCH(\"Jean\", title, body, {\"%s\": %s})");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkOptionDataTypes(Knn.ALLOWED_OPTIONS, "FROM test | WHERE KNN(vector, [0.1, 0.2, 0.3], {\"%s\": %s})");
         }
     }
@@ -2106,6 +2260,11 @@ public class VerifierTests extends ESTestCase {
                     assertThat(error, containsString("cannot cast [" + optionValue + "] to [" + optionType.typeName() + "]"));
                 }
             }
+
+            // MapExpression are not allowed as option values
+            String query = String.format(Locale.ROOT, queryTemplate, optionName, "{ \"abc\": 123 }");
+
+            assertThat(error(query, fullTextAnalyzer), containsString("Invalid option [" + optionName + "]"));
         }
 
         String errorQuery = String.format(Locale.ROOT, queryTemplate, "unknown_option", "\"any_value\"");
@@ -2159,7 +2318,7 @@ public class VerifierTests extends ESTestCase {
             checkFullTextFunctionNullArgs("term(null, \"query\")", "first");
             checkFullTextFunctionNullArgs("term(title, null)", "second");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkFullTextFunctionNullArgs("knn(null, [0, 1, 2])", "first");
             checkFullTextFunctionNullArgs("knn(vector, null)", "second");
         }
@@ -2169,30 +2328,6 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("from test | where " + functionInvocation, fullTextAnalyzer),
             containsString(argOrdinal + " argument of [" + functionInvocation + "] cannot be null, received [null]")
-        );
-    }
-
-    public void testFullTextFunctionsConstantQuery() throws Exception {
-        checkFullTextFunctionsConstantQuery("match(title, category)", "second");
-        checkFullTextFunctionsConstantQuery("qstr(title)", "");
-        checkFullTextFunctionsConstantQuery("kql(title)", "");
-        checkFullTextFunctionsConstantQuery("match_phrase(title, tags)", "second");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantQuery("multi_match(concat(title, \"world\"), title)", "first");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("term(title, tags)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantQuery("knn(vector, vector)", "second");
-        }
-    }
-
-    private void checkFullTextFunctionsConstantQuery(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | where " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
         );
     }
 
@@ -2214,9 +2349,43 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
             checkFullTextFunctionsInStats("multi_match(\"Meditation\", title, body)");
         }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled()) {
             checkFullTextFunctionsInStats("knn(vector, [0, 1, 2])");
         }
+    }
+
+    public void testDecayFunctionNullArgs() {
+        assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
+
+        // First arg cannot be null
+        assertEquals(
+            "2:23: first argument of [decay(null, origin, scale, "
+                + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row origin = 10, scale = 10\n"
+                    + "| eval decay_result = decay(null, origin, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Second arg cannot be null
+        assertEquals(
+            "2:23: second argument of [decay(value, null, scale, "
+                + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row value = 10, scale = 10\n"
+                    + "| eval decay_result = decay(value, null, scale, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
+
+        // Third arg cannot be null
+        assertEquals(
+            "2:23: third argument of [decay(value, origin, null, "
+                + "{\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})] cannot be null, received [null]",
+            error(
+                "row value = 10, origin = 10\n"
+                    + "| eval decay_result = decay(value, origin, null, {\"offset\": 0, \"decay\": 0.5, \"type\": \"linear\"})"
+            )
+        );
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {
@@ -2234,12 +2403,161 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testVectorSimilarityFunctionsNullArgs() throws Exception {
+        if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_cosine(null, vector)");
+            checkVectorFunctionsNullArgs("v_cosine(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_dot_product(null, vector)");
+            checkVectorFunctionsNullArgs("v_dot_product(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_l1_norm(null, vector)");
+            checkVectorFunctionsNullArgs("v_l1_norm(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_l2_norm(null, vector)");
+            checkVectorFunctionsNullArgs("v_l2_norm(vector, null)");
+        }
+        if (EsqlCapabilities.Cap.MAGNITUDE_SCALAR_VECTOR_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_magnitude(null)");
+        }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorFunctionsNullArgs("v_hamming(null, vector)");
+            checkVectorFunctionsNullArgs("v_hamming(vector, null)");
+        }
+    }
+
+    public void testFullTextFunctionsWithSemanticText() {
+        assumeTrue("requires knn function", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+        checkFullTextFunctionsWithSemanticText("knn(semantic, [0, 1, 2])");
+        checkFullTextFunctionsWithSemanticText("match(semantic, \"hello world\")");
+        checkFullTextFunctionsWithSemanticText("semantic:\"hello world\"");
+    }
+
+    private void checkFullTextFunctionsWithSemanticText(String functionInvocation) {
+        query("from test | where " + functionInvocation, fullTextAnalyzer);
+    }
+
+    public void testToIPInvalidOptions() {
+        String query = "ROW result = to_ip(\"127.0.0.1\", 123)";
+        assertThat(error(query), containsString("second argument of [to_ip(\"127.0.0.1\", 123)] must be a map expression, received [123]"));
+
+        query = "ROW result = to_ip(\"127.0.0.1\", { \"leading_zeros\": { \"foo\": \"bar\" } })";
+        assertThat(error(query), containsString("Invalid option [leading_zeros]"));
+
+        query = "ROW result = to_ip(\"127.0.0.1\", { \"leading_zeros\": \"abcdef\" })";
+        assertThat(error(query), containsString("Illegal leading_zeros [abcdef]"));
+    }
+
+    public void testInvalidTBucketCalls() {
+        assertThat(error("from test | stats max(emp_no) by tbucket(1 hour)"), equalTo("1:34: Unknown column [@timestamp]"));
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(1 hr)", sampleDataAnalyzer, ParsingException.class),
+            equalTo("1:50: Unexpected temporal unit: 'hr'")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
+            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
+        );
+
+        /*
+        To test unsupported @timestamp data type. In this case, we use a boolean as a type for the @timestamp field which is not supported
+        by TBUCKET.
+         */
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
+            equalTo(
+                "1:42: second argument of [tbucket(\"1 hour\")] must be [date_nanos or datetime], found value [@timestamp] type [boolean]"
+            )
+        );
+        for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
+            assertThat(
+                error("from test | stats max(event_duration) by tbucket(\"" + interval + "\")", sampleDataAnalyzer),
+                containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+        }
+    }
+
+    public void testFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+
+        query(queryPrefix + " | fuse");
+        query(queryPrefix + " | fuse rrf");
+        query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123 } ");
+        query(queryPrefix + " | fuse rrf with { \"weights\": { \"fork1\":  123 } }");
+        query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse with { \"rank_constant\": 123 } ");
+        query(queryPrefix + " | fuse with { \"weights\": { \"fork1\":  123 } }");
+        query(queryPrefix + " | fuse with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+
+        assertThat(error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": \"a\" }"),
+            containsString("expected rank_constant to be numeric, got [\"a\"]")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": { \"a\": 123 } }"),
+            containsString("expected rank_constant to be a literal")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": -123 }"),
+            containsString("expected rank_constant to be positive, got [-123]")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": 0 }"),
+            containsString("expected rank_constant to be positive, got [0]")
+        );
+
+        assertThat(error(queryPrefix + " | fuse rrf WITH { \"weights\": 123 }"), containsString("expected weights to be a MapExpression"));
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": \"a\" } }"),
+            containsString("expected weight to be numeric")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
+            containsString("expected weight to be a literal")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": -123 } }"),
+            containsString("expected weight to be positive, got [-123]")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
+            containsString("expected weight to be positive, got [0]")
+        );
+    }
+
+    private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
+        query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }
 
     private void query(String query, Analyzer analyzer) {
-        analyzer.analyze(parser.createStatement(query));
+        analyzer.analyze(parser.createStatement(query, TEST_CFG));
     }
 
     private String error(String query) {
@@ -2270,7 +2588,7 @@ public class VerifierTests extends ESTestCase {
         Throwable e = expectThrows(
             exception,
             "Expected error for query [" + query + "] but no error was raised",
-            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters), TEST_CFG))
         );
         assertThat(e, instanceOf(exception));
 

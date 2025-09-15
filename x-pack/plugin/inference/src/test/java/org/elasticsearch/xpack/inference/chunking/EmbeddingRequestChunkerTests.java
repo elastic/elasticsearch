@@ -46,6 +46,22 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(batches, empty());
     }
 
+    public void testEmptyInput_NoopChunker() {
+        var batches = new EmbeddingRequestChunker<>(List.of(), 10, NoneChunkingSettings.INSTANCE).batchRequestsWithListeners(
+            testListener()
+        );
+        assertThat(batches, empty());
+    }
+
+    public void testAnyInput_NoopChunker() {
+        var randomInput = randomAlphaOfLengthBetween(100, 1000);
+        var batches = new EmbeddingRequestChunker<>(List.of(new ChunkInferenceInput(randomInput)), 10, NoneChunkingSettings.INSTANCE)
+            .batchRequestsWithListeners(testListener());
+        assertThat(batches, hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get(), hasSize(1));
+        assertThat(batches.get(0).batch().inputs().get().get(0), Matchers.is(randomInput));
+    }
+
     public void testWhitespaceInput_SentenceChunker() {
         var batches = new EmbeddingRequestChunker<>(
             List.of(new ChunkInferenceInput("   ")),

@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -19,6 +20,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,13 +40,15 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
@@ -55,7 +59,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
     @Before
     public void createComponents() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         webServer.start();
         gatewayUrl = getUrl(webServer);
         modelRegistry = node().injector().getInstance(ModelRegistry.class);
@@ -191,12 +195,20 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
+                          "model_name": "elser_model_2",
+                          "task_types": ["embed/text/sparse"]
+                        },
+                        {
                           "model_name": "rainbow-sprinkles",
                           "task_types": ["chat"]
                         },
                         {
-                          "model_name": "elser-v2",
-                          "task_types": ["embed/text/sparse"]
+                          "model_name": "multilingual-embed-v1",
+                          "task_types": ["embed/text/dense"]
+                        },
+                        {
+                          "model_name": "rerank-v1",
+                          "task_types": ["rerank/text/text-similarity"]
                         }
                     ]
                 }
@@ -210,27 +222,48 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
-                    is(
-                        List.of(
-                            new InferenceService.DefaultConfigId(
-                                ".elser-v2-elastic",
-                                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
-                                service
+                    containsInAnyOrder(
+                        new InferenceService.DefaultConfigId(
+                            ".elser-2-elastic",
+                            MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".rainbow-sprinkles-elastic",
+                            MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".multilingual-embed-v1-elastic",
+                            MinimalServiceSettings.textEmbedding(
+                                ElasticInferenceService.NAME,
+                                ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                                ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
+                                DenseVectorFieldMapper.ElementType.FLOAT
                             ),
-                            new InferenceService.DefaultConfigId(
-                                ".rainbow-sprinkles-elastic",
-                                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
-                                service
-                            )
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".rerank-v1-elastic",
+                            MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
+                            service
                         )
                     )
                 );
-                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING)));
+                assertThat(
+                    service.supportedTaskTypes(),
+                    is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING, TaskType.RERANK, TaskType.TEXT_EMBEDDING))
+                );
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
-                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
-                assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-2-elastic"));
+                assertThat(
+                    listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(),
+                    is(".multilingual-embed-v1-elastic")
+                );
+                assertThat(listener.actionGet(TIMEOUT).get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 // persists the default endpoints
@@ -246,8 +279,16 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 {
                     "models": [
                         {
-                          "model_name": "elser-v2",
+                          "model_name": "elser_model_2",
                           "task_types": ["embed/text/sparse"]
+                        },
+                        {
+                          "model_name": "rerank-v1",
+                          "task_types": ["rerank/text/text-similarity"]
+                        },
+                        {
+                          "model_name": "multilingual-embed-v1",
+                          "task_types": ["embed/text/dense"]
                         }
                     ]
                 }
@@ -261,17 +302,33 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertThat(
                     service.defaultConfigIds(),
-                    is(
-                        List.of(
-                            new InferenceService.DefaultConfigId(
-                                ".elser-v2-elastic",
-                                MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
-                                service
-                            )
+                    containsInAnyOrder(
+                        new InferenceService.DefaultConfigId(
+                            ".elser-2-elastic",
+                            MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".multilingual-embed-v1-elastic",
+                            MinimalServiceSettings.textEmbedding(
+                                ElasticInferenceService.NAME,
+                                ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                                ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
+                                DenseVectorFieldMapper.ElementType.FLOAT
+                            ),
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".rerank-v1-elastic",
+                            MinimalServiceSettings.rerank(ElasticInferenceService.NAME),
+                            service
                         )
                     )
                 );
-                assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
+                assertThat(
+                    service.supportedTaskTypes(),
+                    is(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK))
+                );
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);
@@ -295,7 +352,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             createWithEmptySettings(threadPool),
             ElasticInferenceServiceSettingsTests.create(gatewayUrl),
             modelRegistry,
-            new ElasticInferenceServiceAuthorizationRequestHandler(gatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(gatewayUrl, threadPool),
+            mockClusterServiceEmpty()
         );
     }
 }

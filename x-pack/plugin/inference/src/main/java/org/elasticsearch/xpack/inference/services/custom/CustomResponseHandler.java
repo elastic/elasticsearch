@@ -8,21 +8,34 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.custom.response.ErrorResponseParser;
+
+import java.nio.charset.StandardCharsets;
+import java.util.function.Function;
 
 /**
  * Defines how to handle various response types returned from the custom integration.
  */
 public class CustomResponseHandler extends BaseResponseHandler {
-    public CustomResponseHandler(String requestType, ResponseParser parseFunction, ErrorResponseParser errorParser) {
-        super(requestType, parseFunction, errorParser);
+    // default for testing
+    static final Function<HttpResult, ErrorResponse> ERROR_PARSER = (httpResult) -> {
+        try {
+            return new ErrorResponse(new String(httpResult.body(), StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            return new ErrorResponse(Strings.format("Failed to parse error response body: %s", e.getMessage()));
+        }
+    };
+
+    public CustomResponseHandler(String requestType, ResponseParser parseFunction) {
+        super(requestType, parseFunction, ERROR_PARSER);
     }
 
     @Override

@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html
 navigation_title: Store
+applies_to:
+  stack: all
 ---
 
 # Index store settings [index-modules-store]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 The store module allows you to control how index data is stored and accessed on disk.
 

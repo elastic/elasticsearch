@@ -66,7 +66,7 @@ public class DependenciesUtils {
                         .stream()
                         .filter(dep -> dep instanceof ResolvedDependencyResult)
                         .map(dep -> (ResolvedDependencyResult) dep)
-                        .filter(dep -> dep.getResolvedVariant().getDisplayName() == ShadowBasePlugin.COMPONENT_NAME)
+                        .filter(dep -> dep.getResolvedVariant().getDisplayName() == ShadowBasePlugin.SHADOW)
                         .filter(dep -> dep.getSelected() instanceof ResolvedComponentResult)
                         .map(dep -> dep.getSelected().getId())
                         .collect(Collectors.toSet())

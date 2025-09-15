@@ -2,9 +2,14 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-history-retention.html
 navigation_title: History retention
+applies_to:
+  stack: all
 ---
 
 # History retention settings [index-modules-history-retention]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 {{es}} sometimes needs to replay some of the operations that were performed on a shard. For instance, if a replica is briefly offline then it may be much more efficient to replay the few operations it missed while it was offline than to rebuild it from scratch. Similarly, {{ccr}} works by performing operations on the leader cluster and then replaying those operations on the follower cluster.
 

@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
 
@@ -42,7 +44,7 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { DataType.GEO_POINT }, StGeohashTests::valueOf, StGeohashTests::boundedValueOf);
+        addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEOHASH, StGeohashTests::valueOf, StGeohashTests::boundedValueOf);
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
@@ -50,9 +52,10 @@ public class StGeohashTests extends SpatialGridFunctionTestCase {
         return StGeohash.unboundedGrid.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb), precision);
     }
 
-    private static long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
-        StGeohash.GeoHashBoundedGrid bounds = new StGeohash.GeoHashBoundedGrid(precision, bbox);
-        return bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
+    private static Long boundedValueOf(BytesRef wkb, int precision, GeoBoundingBox bbox) {
+        StGeohash.GeoHashBoundedGrid bounds = new StGeohash.GeoHashBoundedGrid.Factory(precision, bbox).get(null);
+        long gridId = bounds.calculateGridId(UNSPECIFIED.wkbAsPoint(wkb));
+        return gridId < 0 ? null : gridId;
     }
 
     @Override

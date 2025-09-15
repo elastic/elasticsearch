@@ -639,7 +639,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertBusy(() -> {
             long restorePause = 0L;
             for (RepositoriesService repositoriesService : internalCluster().getDataNodeInstances(RepositoriesService.class)) {
-                restorePause += repositoriesService.repository("test-repo").getRestoreThrottleTimeInNanos();
+                restorePause += repositoriesService.repository("test-repo").getSnapshotStats().totalReadThrottledNanos();
             }
             assertThat(restorePause, greaterThan(TimeValue.timeValueSeconds(randomIntBetween(1, 5)).nanos()));
             assertFalse(restoreSnapshotResponse.isDone());

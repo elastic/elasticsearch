@@ -3396,12 +3396,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveWriteIndexAbstraction() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
         );
-        ProjectMetadata finalState = ProjectMetadata.builder(state.metadata().getProject())
-            .put(IndexMetadata.builder(state.getMetadata().getProject().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+        ProjectMetadata finalProject = ProjectMetadata.builder(project)
+            .put(IndexMetadata.builder(project.index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
             .build();
         Function<String, List<DocWriteRequest<?>>> docWriteRequestsForName = (name) -> List.of(
             new IndexRequest(name).opType(DocWriteRequest.OpType.INDEX),
@@ -3411,40 +3411,38 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("logs-foobar")) {
             if (request.opType() == DocWriteRequest.OpType.CREATE) {
-                IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+                IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request);
                 assertThat(result.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
                 assertThat(result.getName(), equalTo("logs-foobar"));
             } else {
                 IndexNotFoundException infe = expectThrows(
                     IndexNotFoundException.class,
-                    () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request)
+                    () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request)
                 );
                 assertThat(infe.toString(), containsString("logs-foobar"));
                 assertThat(infe.getMetadataKeys().contains(IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY), is(true));
             }
         }
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-index")) {
-            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request);
             assertThat(result.getName(), equalTo("my-index"));
             assertThat(result.getType(), equalTo(IndexAbstraction.Type.CONCRETE_INDEX));
         }
         for (DocWriteRequest<?> request : docWriteRequestsForName.apply("my-alias")) {
-            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalState, request);
+            IndexAbstraction result = indexNameExpressionResolver.resolveWriteIndexAbstraction(finalProject, request);
             assertThat(result.getName(), equalTo("my-alias"));
             assertThat(result.getType(), equalTo(IndexAbstraction.Type.ALIAS));
         }
     }
 
     public void testResolveWriteIndexAbstractionNoWriteIndexForAlias() {
-        ClusterState state1 = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project1 = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index", "my-index2")
         );
-        ProjectMetadata project2 = ProjectMetadata.builder(state1.getMetadata().getProject())
-            .put(IndexMetadata.builder(state1.getMetadata().getProject().index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
-            .put(
-                IndexMetadata.builder(state1.getMetadata().getProject().index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias"))
-            )
+        ProjectMetadata project2 = ProjectMetadata.builder(project1)
+            .put(IndexMetadata.builder(project1.index("my-index")).putAlias(new AliasMetadata.Builder("my-alias")))
+            .put(IndexMetadata.builder(project1.index("my-index2")).putAlias(new AliasMetadata.Builder("my-alias")))
             .build();
 
         DocWriteRequest<?> request = new IndexRequest("my-alias");
@@ -3462,18 +3460,16 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveWriteIndexAbstractionMissing() {
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(
             List.of(new Tuple<>("logs-foobar", 1)),
             List.of("my-index")
-        ).getMetadata().getProject();
+        );
         DocWriteRequest<?> request = new IndexRequest("logs-my-index");
         expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.resolveWriteIndexAbstraction(project, request));
     }
 
     public void testResolveWriteIndexAbstractionMultipleMatches() {
-        ProjectMetadata project = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"))
-            .getMetadata()
-            .getProject();
+        ProjectMetadata project = DataStreamTestHelper.getProjectWithDataStreams(List.of(), List.of("logs-foo", "logs-bar"));
         DocWriteRequest<?> request = mock(DocWriteRequest.class);
         when(request.index()).thenReturn("logs-*");
         when(request.indicesOptions()).thenReturn(IndicesOptions.lenientExpandOpen());

@@ -52,6 +52,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -65,7 +66,6 @@ import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -83,8 +83,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -105,6 +108,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -181,15 +185,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         return builder.build();
     }
 
-    @Override
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/88841",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
-    public void testRequestStats() throws Exception {
-        super.testRequestStats();
-    }
-
     public void testAbortRequestStats() throws Exception {
         final String repository = createRepository(randomRepositoryName(), false);
 
@@ -233,10 +228,6 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/101608",
-        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
-    )
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -438,7 +429,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (randomBoolean()) {
             repository.blobStore()
                 .blobContainer(repository.basePath())
-                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, false);
         } else {
             repository.blobStore()
                 .blobContainer(repository.basePath())
@@ -447,7 +438,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
                     serialized.streamInput(),
                     serialized.length(),
-                    true
+                    false
                 );
         }
 
@@ -581,6 +572,52 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
     }
 
+    public void testFailIfAlreadyExists() throws IOException, InterruptedException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+
+            final byte[] data;
+            if (randomBoolean()) {
+                // single upload
+                data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+            } else {
+                // multipart upload
+                int thresholdInBytes = Math.toIntExact(((S3BlobContainer) container).getLargeBlobThresholdInBytes());
+                data = randomBytes(randomIntBetween(thresholdInBytes, thresholdInBytes + scaledRandomIntBetween(1024, 1 << 16)));
+            }
+
+            // initial write blob
+            AtomicInteger exceptionCount = new AtomicInteger(0);
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                for (int i = 0; i < 2; i++) {
+                    executor.submit(() -> {
+                        try {
+                            writeBlob(container, blobName, new BytesArray(data), true);
+                        } catch (IOException e) {
+                            exceptionCount.incrementAndGet();
+                        }
+                    });
+                }
+                executor.shutdown();
+                var done = executor.awaitTermination(1, TimeUnit.SECONDS);
+                assertTrue(done);
+            }
+
+            assertEquals(1, exceptionCount.get());
+
+            // overwrite if failIfAlreadyExists is set to false
+            writeBlob(container, blobName, new BytesArray(data), false);
+
+            // throw exception if failIfAlreadyExists is set to true
+            var exception = expectThrows(IOException.class, () -> writeBlob(container, blobName, new BytesArray(data), true));
+
+            assertThat(exception.getMessage(), startsWith("Unable to upload"));
+
+            container.delete(randomPurpose());
+        }
+    }
+
     /**
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
@@ -605,7 +642,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            S3RepositoriesMetrics s3RepositoriesMetrics
+            S3RepositoriesMetrics s3RepositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return new S3Repository(
                 projectId,
@@ -615,7 +653,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                s3RepositoriesMetrics
+                s3RepositoriesMetrics,
+                snapshotMetrics
             ) {
 
                 @Override

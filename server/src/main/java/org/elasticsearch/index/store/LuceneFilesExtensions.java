@@ -12,6 +12,7 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Collections;
 import java.util.Map;
@@ -94,6 +95,9 @@ public enum LuceneFilesExtensions {
      * that checks that all encountered file extensions are known to this class.
      * In the future, we would like to add a proper plugin extension point for this.
      */
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     private static boolean allowUnknownLuceneFileExtensions() {
         return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }

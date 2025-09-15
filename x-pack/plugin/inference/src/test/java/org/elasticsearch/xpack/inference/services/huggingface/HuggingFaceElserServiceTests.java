@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
@@ -67,7 +67,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -81,7 +81,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     public void testChunkedInfer_CallsInfer_Elser_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 [
@@ -137,7 +137,8 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         try (
             var service = new HuggingFaceElserService(
                 HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-                createWithEmptySettings(threadPool)
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
             )
         ) {
             String content = XContentHelper.stripWhitespace("""

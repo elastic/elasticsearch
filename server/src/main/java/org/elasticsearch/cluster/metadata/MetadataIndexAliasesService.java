@@ -92,7 +92,7 @@ public class MetadataIndexAliasesService {
         final IndicesAliasesClusterStateUpdateRequest request,
         final ActionListener<IndicesAliasesResponse> listener
     ) {
-        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
+        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), request.masterNodeTimeout());
     }
 
     /**

@@ -19,25 +19,58 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-// unfortunately we can't use UnresolvedNamedExpression
+/**
+ * An unresolved attribute. We build these while walking the syntax
+ * tree and then resolve them into other {@link Attribute} subclasses during
+ * analysis.
+ * <p>
+ *     For example, if they reference the data directly from lucene they'll be
+ *     {@link FieldAttribute}s. If they reference the results of another calculation
+ *     they will be {@link ReferenceAttribute}s.
+ * </p>
+ */
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final String unresolvedMsg;
     private final Object resolutionMetadata;
 
+    // TODO: Check usage of constructors without qualifiers, that's likely where qualifiers need to be plugged into resolution logic.
     public UnresolvedAttribute(Source source, String name) {
         this(source, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
-        this(source, name, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, String name, @Nullable String unresolvedMessage) {
+        this(source, null, name, unresolvedMessage);
+    }
+
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, @Nullable String unresolvedMessage) {
+        this(source, qualifier, name, null, unresolvedMessage, null);
+    }
+
+    public UnresolvedAttribute(
+        Source source,
+        String name,
+        @Nullable NameId id,
+        @Nullable String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
+        this(source, null, name, id, unresolvedMessage, resolutionMetadata);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, String unresolvedMessage, Object resolutionMetadata) {
-        super(source, name, id);
+    public UnresolvedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        @Nullable NameId id,
+        @Nullable String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
+        super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null
+            ? errorMessage(qualifier() != null ? qualifiedName() : name(), null)
+            : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 
@@ -53,7 +86,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected NodeInfo<UnresolvedAttribute> info() {
-        return NodeInfo.create(this, UnresolvedAttribute::new, name(), id(), unresolvedMsg, resolutionMetadata);
+        return NodeInfo.create(this, UnresolvedAttribute::new, qualifier(), name(), id(), unresolvedMsg, resolutionMetadata);
     }
 
     public Object resolutionMetadata() {
@@ -70,12 +103,21 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        // TODO: This looks like a bug; making clones should allow for changes.
         return this;
     }
 
     public UnresolvedAttribute withUnresolvedMessage(String unresolvedMessage) {
-        return new UnresolvedAttribute(source(), name(), id(), unresolvedMessage, resolutionMetadata());
+        return new UnresolvedAttribute(source(), qualifier(), name(), id(), unresolvedMessage, resolutionMetadata());
     }
 
     @Override
@@ -90,12 +132,24 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + name();
+        return UNRESOLVED_PREFIX + qualifiedName();
     }
 
     @Override
     protected String label() {
         return UNRESOLVED_PREFIX;
+    }
+
+    @Override
+    public boolean isDimension() {
+        // We don't want to use this during the analysis phase, and this class does not exist after analysis
+        throw new UnsupportedOperationException("This should never be called before the attribute is resolved");
+    }
+
+    @Override
+    public boolean isMetric() {
+        // We don't want to use this during the analysis phase, and this class does not exist after analysis
+        throw new UnsupportedOperationException("This should never be called before the attribute is resolved");
     }
 
     @Override

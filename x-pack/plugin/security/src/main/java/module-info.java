@@ -25,7 +25,6 @@ module org.elasticsearch.security {
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
-    requires org.apache.log4j;
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires org.apache.lucene.core;
@@ -69,7 +68,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.action.settings to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.operator to org.elasticsearch.internal.operator, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authz to org.elasticsearch.internal.security;
-    exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent;
+    exports org.elasticsearch.xpack.security.authc to org.elasticsearch.xcontent, org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.authc.saml to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.slowlog to org.elasticsearch.server;
     exports org.elasticsearch.xpack.security.authc.support to org.elasticsearch.internal.security;

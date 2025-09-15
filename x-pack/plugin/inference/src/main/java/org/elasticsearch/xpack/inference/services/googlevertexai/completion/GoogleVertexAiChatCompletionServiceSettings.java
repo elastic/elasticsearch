@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,8 +20,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleDiscoveryEngineRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -35,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        GoogleDiscoveryEngineRateLimitServiceSettings {
+        GoogleVertexAiRateLimitServiceSettings {
 
     public static final String NAME = "google_vertex_ai_chatcompletion_service_settings";
 
@@ -117,8 +118,20 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     }
 
     @Override
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
+    }
+
+    @Override
     public TransportVersion getMinimalSupportedVersion() {
+        assert false : "should never be called when supportsVersion is used";
         return TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED)
+            || version.isPatchFrom(TransportVersions.ML_INFERENCE_VERTEXAI_CHATCOMPLETION_ADDED_8_19);
     }
 
     @Override
@@ -154,7 +167,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     }
 
     @Override
-    public RateLimitSettings rateLimitSettings() {
-        return rateLimitSettings;
+    public String toString() {
+        return Strings.toString(this);
     }
 }

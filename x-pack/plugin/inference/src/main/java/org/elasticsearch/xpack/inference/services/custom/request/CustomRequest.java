@@ -14,7 +14,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -26,7 +25,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -35,15 +33,13 @@ import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSet
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.URL;
 
 public class CustomRequest implements Request {
-    private static final String QUERY = "query";
-    private static final String INPUT = "input";
 
     private final URI uri;
     private final ValidatingSubstitutor jsonPlaceholderReplacer;
     private final ValidatingSubstitutor stringPlaceholderReplacer;
     private final CustomModel model;
 
-    public CustomRequest(String query, List<String> input, CustomModel model) {
+    public CustomRequest(RequestParameters requestParams, CustomModel model) {
         this.model = Objects.requireNonNull(model);
 
         var stringOnlyParams = new HashMap<String, String>();
@@ -54,11 +50,7 @@ public class CustomRequest implements Request {
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
         addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
 
-        if (query != null) {
-            jsonParams.put(QUERY, toJson(query, QUERY));
-        }
-
-        addInputJsonParam(jsonParams, input, model.getTaskType());
+        jsonParams.putAll(requestParams.jsonParameters());
 
         jsonPlaceholderReplacer = new ValidatingSubstitutor(jsonParams, "${", "}");
         stringPlaceholderReplacer = new ValidatingSubstitutor(stringOnlyParams, "${", "}");
@@ -81,14 +73,6 @@ public class CustomRequest implements Request {
         }
     }
 
-    private static void addInputJsonParam(Map<String, String> jsonParams, List<String> input, TaskType taskType) {
-        if (taskType == TaskType.COMPLETION && input.isEmpty() == false) {
-            jsonParams.put(INPUT, toJson(input.get(0), INPUT));
-        } else {
-            jsonParams.put(INPUT, toJson(input, INPUT));
-        }
-    }
-
     private URI buildUri() {
         var replacedUrl = stringPlaceholderReplacer.replace(model.getServiceSettings().getUrl(), URL);
 
@@ -104,7 +88,6 @@ public class CustomRequest implements Request {
         } catch (URISyntaxException e) {
             throw new IllegalStateException(Strings.format("Failed to build URI, error: %s", e.getMessage()), e);
         }
-
     }
 
     @Override

@@ -18,7 +18,7 @@ For the most up-to-date API details, refer to [Migration APIs](https://www.elast
 
 
 ::::{tip}
-These APIs are designed for indirect use by {{kib}}'s **Upgrade Assistant**. We strongly recommend you use the **Upgrade Assistant** to upgrade from 8.17 to {{version}}. For upgrade instructions, refer to [Upgrading to Elastic {{version}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
+These APIs are designed for indirect use by {{kib}}'s **Upgrade Assistant**. We strongly recommend you use the **Upgrade Assistant** to upgrade from 8.17 to {{version.stack}}. For upgrade instructions, refer to [Upgrading to Elastic {{version.stack}}](docs-content://deploy-manage/upgrade/deployment-or-cluster.md).
 ::::
 
 
@@ -33,7 +33,7 @@ This api runs in the background because reindexing all indices in a large data s
 
 ## {{api-prereq-title}} [data-stream-reindex-api-prereqs]
 
-* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/elasticsearch-privileges.md#privileges-list-indices) for the data stream.
+* If the {{es}} {{security-features}} are enabled, you must have the `manage` [index privilege](/reference/elasticsearch/security-privileges.md#privileges-list-indices) for the data stream.
 
 
 ## {{api-request-body-title}} [data-stream-reindex-body]

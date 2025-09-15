@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -74,7 +76,7 @@ public class MistralService extends SenderService {
     public static final String NAME = "mistral";
 
     private static final String SERVICE_NAME = "Mistral";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.COMPLETION,
         TaskType.CHAT_COMPLETION
@@ -84,8 +86,16 @@ public class MistralService extends SenderService {
         OpenAiChatCompletionResponseEntity::fromResponse
     );
 
-    public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public MistralService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -98,16 +108,10 @@ public class MistralService extends SenderService {
     ) {
         var actionCreator = new MistralActionCreator(getSender(), getServiceComponents());
 
-        switch (model) {
-            case MistralEmbeddingsModel mistralEmbeddingsModel:
-                mistralEmbeddingsModel.accept(actionCreator, taskSettings).execute(inputs, timeout, listener);
-                break;
-            case MistralChatCompletionModel mistralChatCompletionModel:
-                mistralChatCompletionModel.accept(actionCreator).execute(inputs, timeout, listener);
-                break;
-            default:
-                listener.onFailure(createInvalidModelException(model));
-                break;
+        if (model instanceof MistralModel mistralModel) {
+            mistralModel.accept(actionCreator).execute(inputs, timeout, listener);
+        } else {
+            listener.onFailure(createInvalidModelException(model));
         }
     }
 
@@ -162,7 +166,7 @@ public class MistralService extends SenderService {
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
-                var action = mistralEmbeddingsModel.accept(actionCreator, taskSettings);
+                var action = mistralEmbeddingsModel.accept(actionCreator);
                 action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
             }
         } else {
@@ -177,7 +181,7 @@ public class MistralService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -207,7 +211,6 @@ public class MistralService extends SenderService {
                 modelId,
                 taskType,
                 serviceSettingsMap,
-                taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
                 TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
@@ -232,7 +235,7 @@ public class MistralService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
@@ -244,7 +247,6 @@ public class MistralService extends SenderService {
             modelId,
             taskType,
             serviceSettingsMap,
-            taskSettingsMap,
             chunkingSettings,
             secretSettingsMap,
             parsePersistedConfigErrorMsg(modelId, NAME)
@@ -254,7 +256,7 @@ public class MistralService extends SenderService {
     @Override
     public MistralModel parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
         if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
@@ -265,7 +267,6 @@ public class MistralService extends SenderService {
             modelId,
             taskType,
             serviceSettingsMap,
-            taskSettingsMap,
             chunkingSettings,
             null,
             parsePersistedConfigErrorMsg(modelId, NAME)
@@ -286,7 +287,6 @@ public class MistralService extends SenderService {
         String modelId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
         String failureMessage,
@@ -294,16 +294,7 @@ public class MistralService extends SenderService {
     ) {
         switch (taskType) {
             case TEXT_EMBEDDING:
-                return new MistralEmbeddingsModel(
-                    modelId,
-                    taskType,
-                    NAME,
-                    serviceSettings,
-                    taskSettings,
-                    chunkingSettings,
-                    secretSettings,
-                    context
-                );
+                return new MistralEmbeddingsModel(modelId, taskType, NAME, serviceSettings, chunkingSettings, secretSettings, context);
             case CHAT_COMPLETION, COMPLETION:
                 return new MistralChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
             default:
@@ -315,7 +306,6 @@ public class MistralService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secretSettings,
         String failureMessage
@@ -324,7 +314,6 @@ public class MistralService extends SenderService {
             inferenceEntityId,
             taskType,
             serviceSettings,
-            taskSettings,
             chunkingSettings,
             secretSettings,
             failureMessage,
@@ -359,17 +348,17 @@ public class MistralService extends SenderService {
      */
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
                     MODEL_FIELD,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                        "Refer to the Mistral models documentation for the list of available text embedding models."
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "Refer to the Mistral models documentation for the list of available inference models."
                     )
                         .setLabel("Model")
                         .setRequired(true)
@@ -381,7 +370,7 @@ public class MistralService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "Allows you to specify the maximum number of tokens per input."
                     )
                         .setLabel("Maximum Input Tokens")
@@ -392,12 +381,12 @@ public class MistralService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

@@ -690,7 +690,7 @@ Bangalore     | 9                 | 72
 ;
 
 docsCategorize
-required_capability: categorize_v5
+required_capability: categorize_v6
 // tag::docsCategorize[]
 FROM sample_data
 | STATS count=COUNT() BY category=CATEGORIZE(message)

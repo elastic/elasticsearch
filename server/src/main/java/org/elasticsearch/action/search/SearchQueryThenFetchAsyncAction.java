@@ -177,7 +177,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     }
                 }
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            try {
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            } catch (Exception e) {
+                // In case the collecting fails, e.g. because of a formatting error, we log the error and continue
+                logger.debug(
+                    "failed to consume top docs for shard [{}] with sort fields [{}]: {}",
+                    result.getShardIndex(),
+                    Arrays.toString(topDocs.fields),
+                    e
+                );
+            }
         }
         super.onShardResult(result);
     }
@@ -212,7 +222,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final SearchPhaseController.TopDocsStats topDocsStats;
         private final QueryPhaseResultConsumer.MergeResult mergeResult;
 
-        NodeQueryResponse(StreamInput in) throws IOException {
+        public NodeQueryResponse(StreamInput in) throws IOException {
             this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
             this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
             this.topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
@@ -457,6 +467,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeAsSingleRequest(routing, request.shards.getFirst());
                 return;
             }
+            String nodeId = routing.nodeId();
             final Transport.Connection connection;
             try {
                 connection = getConnection(routing.clusterAlias(), routing.nodeId());
@@ -508,6 +519,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     @Override
                     public void handleException(TransportException e) {
                         Exception cause = (Exception) ExceptionsHelper.unwrapCause(e);
+                        logger.debug("handling node search exception coming from [" + nodeId + "]", cause);
                         if (e instanceof SendRequestTransportException || cause instanceof TaskCancelledException) {
                             // two possible special cases here where we do not want to fail the phase:
                             // failure to send out the request -> handle things the same way a shard would fail with unbatched execution
@@ -550,7 +562,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    private static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     static void registerNodeSearchAction(
         SearchTransportService searchTransportService,
@@ -708,8 +720,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                         @Override
                         public void onFailure(Exception e) {
-                            // TODO: count down fully and just respond with an exception if partial results aren't allowed as an
-                            // optimization
+                            // Note: this shard won't be retried until it returns to the coordinating node where the shard iterator lives
+                            // TODO: consider alternatives that don't wait for the entire batch to complete before retrying the shard
                             setFailure(state, dataNodeLocalIdx, e);
                             doneFuture.onResponse(null);
                         }

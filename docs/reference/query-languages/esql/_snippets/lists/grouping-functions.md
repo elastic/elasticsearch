@@ -1,2 +1,3 @@
 * [`BUCKET`](../../functions-operators/grouping-functions.md#esql-bucket)
-* [preview] [`CATEGORIZE`](../../functions-operators/grouping-functions.md#esql-categorize)
+* [`TBUCKET`](../../functions-operators/grouping-functions.md#esql-tbucket)
+* [`CATEGORIZE`](../../functions-operators/grouping-functions.md#esql-categorize)

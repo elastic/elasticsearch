@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Resolve
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,6 +29,7 @@ import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex.ALIASES_FIELD;
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex.ATTRIBUTES_FIELD;
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex.DATA_STREAM_FIELD;
+import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex.MODE_FIELD;
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndexAbstraction.NAME_FIELD;
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response.DATA_STREAMS_FIELD;
 import static org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Response.INDICES_FIELD;
@@ -76,8 +78,9 @@ public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCa
         String[] aliases = randomStringArray(0, 5);
         String[] attributes = randomSubsetOf(List.of("open", "hidden", "frozen")).toArray(Strings.EMPTY_ARRAY);
         String dataStream = randomBoolean() ? randomAlphaOfLength(6) : null;
+        IndexMode mode = randomFrom(IndexMode.values());
 
-        return new ResolvedIndex(name, aliases, attributes, dataStream);
+        return new ResolvedIndex(name, aliases, attributes, dataStream, mode);
     }
 
     private static ResolvedAlias createTestResolvedAliasInstance() {
@@ -109,7 +112,8 @@ public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCa
             (String) args[0],
             args[1] != null ? ((List<String>) args[1]).toArray(Strings.EMPTY_ARRAY) : new String[0],
             ((List<String>) args[2]).toArray(Strings.EMPTY_ARRAY),
-            (String) args[3]
+            (String) args[3],
+            IndexMode.fromString((String) args[4])
         )
     );
     @SuppressWarnings("unchecked")
@@ -133,6 +137,7 @@ public class ResolveIndexResponseTests extends AbstractXContentSerializingTestCa
         INDEX_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), ALIASES_FIELD);
         INDEX_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ATTRIBUTES_FIELD);
         INDEX_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DATA_STREAM_FIELD);
+        INDEX_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), MODE_FIELD);
         ALIAS_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         ALIAS_PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES_FIELD);
         RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> indexFromXContent(p), INDICES_FIELD);

@@ -58,7 +58,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState previousState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(builder).build();
 
-        String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGeneration = dataStream.getIndices().getFirst().getName();
         ClusterState newState = new DeleteSourceAndAddDownsampleToDS(
             Settings.EMPTY,
             builder.getId(),
@@ -83,7 +83,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndex = dataStream.getIndices().getFirst().getName();
         String downsampleIndex = "downsample-1s-" + firstGenIndex;
         IndexMetadata.Builder downsampleIndexMeta = IndexMetadata.builder(downsampleIndex)
             .settings(settings(IndexVersion.current()))
@@ -129,7 +129,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             now
         );
         builder.put(dataStream);
-        String writeIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
+        String writeIndex = dataStream.getIndices().getLast().getName();
         String downsampleIndex = "downsample-1s-" + writeIndex;
         IndexMetadata.Builder downsampleIndexMeta = IndexMetadata.builder(downsampleIndex)
             .settings(settings(IndexVersion.current()))
@@ -162,7 +162,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndex = dataStream.getIndices().getFirst().getName();
         String downsampleIndex = "downsample-1s-" + firstGenIndex;
         IndexMetadata.Builder downsampleIndexMeta = IndexMetadata.builder(downsampleIndex)
             .settings(settings(IndexVersion.current()))
@@ -224,7 +224,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndex = dataStream.getIndices().getFirst().getName();
         String downsampleIndex = "downsample-1s-" + firstGenIndex;
         long downsampleOriginationDate = now - randomLongBetween(10_000, 12_000);
         IndexMetadata.Builder downsampleIndexMeta = IndexMetadata.builder(downsampleIndex)
@@ -275,7 +275,7 @@ public class DeleteSourceAndAddDownsampleToDSTests extends ESTestCase {
             DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.MAX_VALUE).build(),
             now
         );
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String firstGenIndex = dataStream.getIndices().getFirst().getName();
         String downsampleIndex = "downsample-1s-" + firstGenIndex;
         IndexMetadata.Builder downsampleIndexMeta = IndexMetadata.builder(downsampleIndex)
             .settings(settings(IndexVersion.current()))

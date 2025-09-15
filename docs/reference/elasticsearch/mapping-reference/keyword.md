@@ -70,7 +70,19 @@ The following parameters are accepted by `keyword` fields:
 :   Multi-fields allow the same string value to be indexed in multiple ways for different purposes, such as one field for search and a multi-field for sorting and aggregations.
 
 [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md)
-:   Do not index any string longer than this value. Defaults to `2147483647` in standard indices so that all values would be accepted, and `8191` in logsdb indices to protect against Lucene's term byte-length limit of `32766`. Please however note that default dynamic mapping rules create a sub `keyword` field that overrides this default by setting `ignore_above: 256`.
+:   Do not index any field containing a string with more characters than this value. This is important because {{es}}
+    will reject entire documents if they contain keyword fields that exceed `32766` UTF-8 encoded bytes.
+
+    To avoid any risk of document rejection, set this value to `8191` or less. Fields with strings exceeding this
+    length will be excluded from indexing.
+
+    The defaults are complicated:
+
+    | Index type | Default | Effect |
+    | ---------- | ------- | ------ |
+    | Standard indices | `2147483647` (effectively unbounded) | Documents will be rejected if this keyword exceeds `32766` UTF-8 encoded bytes. |
+    | `logsdb` indices | `8191` | This `keyword` field will never cause documents to be rejected. If this field is longer than `8191` characters it won't be indexed but its values are still available from `_source`. |
+    | [dynamic mapping](docs-content://manage-data/data-store/mapping/dynamic-mapping.md) for string fields | `text` field with a [sub](/reference/elasticsearch/mapping-reference/multi-fields.md)-`keyword` field with an `ignore_above` of `256` | All string fields are available. Values longer than 256 characters are only available for full text search and won't have a value in their `.keyword` sub-field, so they can not be used for exact matching over _search. |
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be quickly searchable? Accepts `true` (default) and `false`. `keyword` fields that only have [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) enabled can still be queried, albeit slower.
@@ -295,14 +307,14 @@ It is both allowed to submit documents that don’t have a value for the field o
 ```console
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch",
   "level": "debug"
 }
 
 POST logs-debug/_doc
 {
-  "date": "2019-12-12",
+  "@timestamp": "2019-12-12",
   "message": "Starting up Elasticsearch"
 }
 ```

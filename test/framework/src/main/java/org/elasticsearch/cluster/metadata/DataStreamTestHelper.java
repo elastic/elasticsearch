@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
@@ -58,6 +59,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -85,6 +87,8 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
+import static org.elasticsearch.test.ESTestCase.randomProjectIdOrDefault;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -180,7 +184,11 @@ public final class DataStreamTestHelper {
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
             .setDataStreamOptions(dataStreamOptions)
-            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(failureStores)
+                    .setRolloverOnWrite((replicated == false) && (failureStores.isEmpty()))
+                    .build()
+            )
             .build();
     }
 
@@ -365,6 +373,7 @@ public final class DataStreamTestHelper {
             generation,
             metadata,
             randomSettings(),
+            randomMappings(),
             system ? true : randomBoolean(),
             replicated,
             system,
@@ -386,7 +395,7 @@ public final class DataStreamTestHelper {
                 )
                 .build(),
             DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices)
-                .setRolloverOnWrite(failureStore && replicated == false && randomBoolean())
+                .setRolloverOnWrite(replicated == false && (failureIndices.isEmpty() || randomBoolean()))
                 .setAutoShardingEvent(
                     failureStore && randomBoolean()
                         ? new DataStreamAutoShardingEvent(
@@ -398,6 +407,15 @@ public final class DataStreamTestHelper {
                 )
                 .build()
         );
+    }
+
+    private static CompressedXContent randomMappings() {
+        try {
+            return new CompressedXContent("{\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}");
+        } catch (IOException e) {
+            fail("got an IO exception creating fake mappings: " + e);
+            return null;
+        }
     }
 
     public static DataStreamAlias randomAliasInstance() {
@@ -428,63 +446,36 @@ public final class DataStreamTestHelper {
      * @param dataStreams The names of the data streams to create with their respective number of backing indices
      * @param indexNames  The names of indices to create that do not back any data streams
      */
-    @FixForMultiProject(description = "Don't use default project id")
-    @Deprecated(forRemoval = true)
-    public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
-        return getClusterStateWithDataStreams(Metadata.DEFAULT_PROJECT_ID, dataStreams, indexNames);
+    public static ProjectMetadata getProjectWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
+        return getProjectWithDataStreams(dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, 1);
     }
 
-    /**
-     * Constructs {@code ClusterState} with the specified data streams and indices.
-     *
-     * @param projectId The id of the project to which the data streams should be added to
-     * @param dataStreams The names of the data streams to create with their respective number of backing indices
-     * @param indexNames The names of indices to create that do not back any data streams
-     */
-    public static ClusterState getClusterStateWithDataStreams(
-        ProjectId projectId,
-        List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames
-    ) {
-        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, System.currentTimeMillis(), Settings.EMPTY, 1);
-    }
-
-    @FixForMultiProject(description = "Don't use default project id")
-    @Deprecated(forRemoval = true)
-    public static ClusterState getClusterStateWithDataStreams(
+    public static ProjectMetadata getProjectWithDataStreams(
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
         long currentTime,
         Settings settings,
         int replicas
     ) {
-        return getClusterStateWithDataStreams(Metadata.DEFAULT_PROJECT_ID, dataStreams, indexNames, currentTime, settings, replicas);
+        return getProjectWithDataStreams(dataStreams, indexNames, currentTime, settings, replicas, false, false);
     }
 
-    public static ClusterState getClusterStateWithDataStreams(
-        ProjectId projectId,
-        List<Tuple<String, Integer>> dataStreams,
-        List<String> indexNames,
-        long currentTime,
-        Settings settings,
-        int replicas
-    ) {
-        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, false);
-    }
-
-    public static ClusterState getClusterStateWithDataStreams(
-        ProjectId projectId,
+    public static ProjectMetadata getProjectWithDataStreams(
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
         long currentTime,
         Settings settings,
         int replicas,
-        boolean replicated
+        boolean replicated,
+        Boolean storeFailures
     ) {
-        return getClusterStateWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, replicated, false);
+        final var projectId = randomProjectIdOrDefault();
+        return getProjectWithDataStreams(projectId, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
     }
 
-    public static ClusterState getClusterStateWithDataStreams(
+    @FixForMultiProject() // Remove this method overload when ProactiveStorageDeciderServiceTests no longer needs the default project ID
+    @Deprecated(forRemoval = true)
+    public static ProjectMetadata getProjectWithDataStreams(
         ProjectId projectId,
         List<Tuple<String, Integer>> dataStreams,
         List<String> indexNames,
@@ -548,7 +539,7 @@ public final class DataStreamTestHelper {
         for (IndexMetadata index : allIndices) {
             builder.put(index, false);
         }
-        return ClusterState.builder(new ClusterName("_name")).putProjectMetadata(builder.build()).build();
+        return builder.build();
     }
 
     @FixForMultiProject(description = "Don't use default project id")

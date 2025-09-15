@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -55,12 +56,21 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
  */
 public class Verifier {
 
+    /**
+     * Extra plan verification checks defined in plugins.
+     */
+    private final List<BiConsumer<LogicalPlan, Failures>> extraCheckers;
     private final Metrics metrics;
     private final XPackLicenseState licenseState;
 
     public Verifier(Metrics metrics, XPackLicenseState licenseState) {
+        this(metrics, licenseState, Collections.emptyList());
+    }
+
+    public Verifier(Metrics metrics, XPackLicenseState licenseState, List<BiConsumer<LogicalPlan, Failures>> extraCheckers) {
         this.metrics = metrics;
         this.licenseState = licenseState;
+        this.extraCheckers = extraCheckers;
     }
 
     /**
@@ -84,6 +94,7 @@ public class Verifier {
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
+        planCheckers.addAll(extraCheckers);
 
         // Concrete verifications
         plan.forEachDown(p -> {
@@ -186,6 +197,9 @@ public class Verifier {
         });
     }
 
+    /**
+     * Build a list of checkers based on the components in the plan.
+     */
     private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
         List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
         Consumer<? super Node<?>> collectPlanCheckers = p -> {
@@ -299,6 +313,9 @@ public class Verifier {
         allowed.add(DataType.GEO_SHAPE);
         allowed.add(DataType.CARTESIAN_POINT);
         allowed.add(DataType.CARTESIAN_SHAPE);
+        allowed.add(DataType.GEOHASH);
+        allowed.add(DataType.GEOTILE);
+        allowed.add(DataType.GEOHEX);
         if (bc instanceof Equals || bc instanceof NotEquals) {
             allowed.add(DataType.BOOLEAN);
         }

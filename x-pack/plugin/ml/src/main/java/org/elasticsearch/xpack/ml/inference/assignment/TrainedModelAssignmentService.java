@@ -29,6 +29,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelDeploymentTimeoutException;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 

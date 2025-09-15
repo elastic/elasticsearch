@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.OS
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   description = 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
@@ -33,6 +34,8 @@ dependencies {
   runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   runtimeOnly("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
   runtimeOnly("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  // when you upgrade maxmind dependency, please also do so in libs/logstash-bridge/build.gradle
+  // elastic_integration plugin embeds this module but references through logstash-bridge
   implementation('com.maxmind.db:maxmind-db:3.1.1')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'

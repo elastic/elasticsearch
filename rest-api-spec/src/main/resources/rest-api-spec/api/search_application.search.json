@@ -1,10 +1,10 @@
 {
   "search_application.search": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-application-search.html",
-      "description": "Perform a search against a search application"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-search",
+      "description": "Run a search application search"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [
@@ -36,9 +36,9 @@
       "required": false
     },
     "params": {
-      "typed_keys":{
-        "type":"boolean",
-        "default":false,
+      "typed_keys": {
+        "type": "boolean",
+        "default": false,
         "description": "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
       }
     }

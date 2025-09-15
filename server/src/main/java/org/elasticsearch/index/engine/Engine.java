@@ -32,14 +32,19 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -62,6 +67,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
+import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -132,6 +138,7 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    protected static final String SEGMENTS_STATS_SOURCE = "segments_stats";
     public static final long UNKNOWN_PRIMARY_TERM = -1L;
     public static final String ROOT_DOC_FIELD_NAME = "__root_doc_for_nested";
 
@@ -145,12 +152,17 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    // This should only be enabled in serverless. In stateful clusters, where we have
+    // indexing replicas, if pause throttling gets enabled on replicas, it will indirectly
+    // pause the primary as well which might prevent us from relocating the primary shard.
     protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();
     private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
     private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
     private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
+
+    private final boolean isStateless;
 
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
@@ -180,6 +192,8 @@ public abstract class Engine implements Closeable {
         this.pauseIndexingOnThrottle = IndexingMemoryController.PAUSE_INDEXING_ON_THROTTLE.get(
             engineConfig.getIndexSettings().getSettings()
         );
+
+        this.isStateless = DiscoveryNode.isStateless(engineConfig.getIndexSettings().getNodeSettings());
     }
 
     /**
@@ -257,14 +271,25 @@ public abstract class Engine implements Closeable {
      */
     public ShardFieldStats shardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-            return shardFieldStats(searcher.getLeafContexts());
+            return shardFieldStats(searcher.getLeafContexts(), isStateless);
         }
     }
 
-    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
+    /**
+     * @throws AlreadyClosedException if the shard is closed
+     */
+    public FieldInfos shardFieldInfos() {
+        try (var searcher = acquireSearcher("field_has_value")) {
+            return FieldInfos.getMergedFieldInfos(searcher.getIndexReader());
+        }
+    }
+
+    protected static ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves, boolean isStateless) {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;
+        long totalPostingBytes = 0;
+        long totalLiveDocsBytes = 0;
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -276,8 +301,49 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
+            boolean trackPostingsMemoryEnabled = isStateless;
+            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
+            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
+                if (segmentReader != null) {
+                    if (trackPostingsMemoryEnabled) {
+                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                        );
+                        if (postingBytes != null) {
+                            totalPostingBytes += Long.parseLong(postingBytes);
+                        }
+                    }
+                    if (trackLiveDocsMemoryEnabled) {
+                        var liveDocs = segmentReader.getLiveDocs();
+                        if (liveDocs != null) {
+                            assert validateLiveDocsClass(liveDocs);
+                            long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                            totalLiveDocsBytes += liveDocsBytes;
+                        }
+                    }
+                }
+            }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, totalLiveDocsBytes);
+    }
+
+    // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
+    // This simulates FixedBitSet#ramBytesUsed() does:
+    private static long getLiveDocsBytes(Bits liveDocs) {
+        int words = FixedBitSet.bits2words(liveDocs.length());
+        return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
+            RamUsageEstimator.sizeOf(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words)
+        );
+    }
+
+    private static boolean validateLiveDocsClass(Bits liveDocs) {
+        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
+        String fullClassName = liveDocs.getClass().getName();
+        assert fullClassName.equals("org.apache.lucene.util.FixedBits")
+            || fullClassName.equals("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$AssertingBits")
+            : "unexpected class [" + fullClassName + "]";
+        return true;
     }
 
     /**
@@ -460,7 +526,10 @@ public abstract class Engine implements Closeable {
         private final Condition pauseCondition = pauseIndexingLock.newCondition();
         private final ReleasableLock pauseLockReference = new ReleasableLock(pauseIndexingLock);
         private volatile AtomicBoolean suspendThrottling = new AtomicBoolean();
-        private final boolean pauseWhenThrottled; // Should throttling pause indexing ?
+
+        // Should throttling pause indexing ? This is decided by the
+        // IndexingMemoryController#PAUSE_INDEXING_ON_THROTTLE setting for this node.
+        private final boolean pauseWhenThrottled;
         private volatile ReleasableLock lock = NOOP_LOCK;
 
         public IndexThrottle(boolean pause) {
@@ -491,7 +560,6 @@ public abstract class Engine implements Closeable {
         /** Activate throttling, which switches the lock to be a real lock */
         public void activate() {
             assert lock == NOOP_LOCK : "throttling activated while already active";
-
             startOfThrottleNS = System.nanoTime();
             if (pauseWhenThrottled) {
                 lock = pauseLockReference;
@@ -539,10 +607,14 @@ public abstract class Engine implements Closeable {
             return lock != NOOP_LOCK;
         }
 
+        boolean isIndexingPaused() {
+            return (lock == pauseLockReference);
+        }
+
         /** Suspend throttling to allow another task such as relocation to acquire all indexing permits */
         public void suspendThrottle() {
             if (pauseWhenThrottled) {
-                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                try (Releasable ignored = pauseLockReference.acquire()) {
                     suspendThrottling.setRelease(true);
                     pauseCondition.signalAll();
                 }
@@ -552,7 +624,7 @@ public abstract class Engine implements Closeable {
         /** Reverse what was done in {@link #suspendThrottle()} */
         public void resumeThrottle() {
             if (pauseWhenThrottled) {
-                try (Releasable releasableLock = pauseLockReference.acquire()) {
+                try (Releasable ignored = pauseLockReference.acquire()) {
                     suspendThrottling.setRelease(false);
                     pauseCondition.signalAll();
                 }
@@ -892,6 +964,17 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /**
+     * Whether the document is in the live version map or not.
+     *
+     * This is used in stateless so that the {@link org.elasticsearch.action.termvectors.EnsureDocsSearchableAction} can
+     * judge whether a requested document needs to be refreshed to the search shards before executing the term vector
+     * information API on the search shards.
+     */
+    public boolean isDocumentInLiveVersionMap(BytesRef uid) {
+        return false;
+    }
+
     public abstract GetResult get(
         Get get,
         MappingLookup mappingLookup,
@@ -919,6 +1002,9 @@ public abstract class Engine implements Closeable {
         return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
+    // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
+    protected void onSearcherCreation(String source, SearcherScope scope) {}
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
@@ -937,6 +1023,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
+                    onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
                         acquire,
@@ -989,6 +1076,7 @@ public abstract class Engine implements Closeable {
             SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
+            onSearcherCreation(source, scope);
             return new Searcher(
                 source,
                 searcher.getDirectoryReader(),
@@ -1136,7 +1224,7 @@ public abstract class Engine implements Closeable {
         ensureOpen();
         Set<String> segmentName = new HashSet<>();
         SegmentsStats stats = new SegmentsStats();
-        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.INTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 fillSegmentStats(segmentReader, includeSegmentFileSizes, stats);
@@ -1144,7 +1232,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        try (Searcher searcher = acquireSearcher("segments_stats", SearcherScope.EXTERNAL)) {
+        try (Searcher searcher = acquireSearcher(SEGMENTS_STATS_SOURCE, SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segmentName.contains(segmentReader.getSegmentName()) == false) {
@@ -2189,7 +2277,7 @@ public abstract class Engine implements Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected final void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {
@@ -2257,6 +2345,18 @@ public abstract class Engine implements Closeable {
      * Reverses a previous {@link #activateThrottling} call.
      */
     public abstract void deactivateThrottling();
+
+    /**
+     * If indexing is throttled to the point where it is paused completely,
+     * another task trying to get indexing permits might want to pause throttling
+     * by letting one thread pass at a time so that it does not get starved.
+     */
+    public abstract void suspendThrottling();
+
+    /**
+     * Reverses a previous {@link #suspendThrottling} call.
+     */
+    public abstract void resumeThrottling();
 
     /**
      * This method replays translog to restore the Lucene index which might be reverted previously.
@@ -2406,6 +2506,13 @@ public abstract class Engine implements Closeable {
         return engineConfig;
     }
 
+    public static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
+        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
+        long maxSeqNo = seqNoStats.maxSeqNo();
+        long localCheckpoint = seqNoStats.localCheckpoint();
+        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
+    }
+
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
      *
@@ -2444,10 +2551,21 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public record FlushResult(boolean flushPerformed, long generation) {
+    /**
+     * The result of a {@link FlushRequest}.
+     *
+     * @param skippedDueToCollision signifies whether the flush request was skipped due to a collision detected. Specifically it is
+     *                              <code>true</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, which means
+     *                              the flush request was skipped, else it is <code>false</code>, which means there was no collision and
+     *                              the flush request was processed (even if in the end it did not actually flush anything).
+     * @param generation            the generation of the index commit of the flush. may be {@link FlushResult#UNKNOWN_GENERATION} if
+     *                              unknown, e.g., if the flush was skipped or not performed ultimately.
+     */
+    public record FlushResult(boolean skippedDueToCollision, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
-        public static final FlushResult NO_FLUSH = new FlushResult(false, UNKNOWN_GENERATION);
+        public static final FlushResult FLUSH_REQUEST_SKIPPED_DUE_TO_COLLISION = new FlushResult(true, UNKNOWN_GENERATION);
+        public static final FlushResult FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED = new FlushResult(false, UNKNOWN_GENERATION);
     }
 
     /**

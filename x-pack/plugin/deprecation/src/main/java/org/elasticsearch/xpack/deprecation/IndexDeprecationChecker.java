@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
@@ -44,7 +44,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     public static final String NAME = "index_settings";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-    private final List<TriFunction<IndexMetadata, ClusterState, Map<String, List<String>>, DeprecationIssue>> checks = List.of(
+    private final List<TriFunction<IndexMetadata, ProjectMetadata, Map<String, List<String>>, DeprecationIssue>> checks = List.of(
         this::oldIndicesCheck,
         this::ignoredOldIndicesCheck,
         this::translogRetentionSettingCheck,
@@ -60,17 +60,17 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     @Override
     public Map<String, List<DeprecationIssue>> check(
-        ClusterState clusterState,
+        ProjectMetadata project,
         DeprecationInfoAction.Request request,
         TransportDeprecationInfoAction.PrecomputedData precomputedData
     ) {
         Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
-        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
+        String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(project, request);
         Map<String, List<String>> indexToTransformIds = indexToTransformIds(precomputedData.transformConfigs());
         for (String concreteIndex : concreteIndexNames) {
-            IndexMetadata indexMetadata = clusterState.getMetadata().getProject().index(concreteIndex);
+            IndexMetadata indexMetadata = project.index(concreteIndex);
             List<DeprecationIssue> singleIndexIssues = checks.stream()
-                .map(c -> c.apply(indexMetadata, clusterState, indexToTransformIds))
+                .map(c -> c.apply(indexMetadata, project, indexToTransformIds))
                 .filter(Objects::nonNull)
                 .toList();
             if (singleIndexIssues.isEmpty() == false) {
@@ -90,19 +90,19 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     private DeprecationIssue oldIndicesCheck(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectMetadata project,
         Map<String, List<String>> indexToTransformIds
     ) {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, project)) {
             var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-transform-destination-index",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                     Strings.format(
                         "This index was created in version [%s] and requires action before upgrading to %d.0. The following transforms are "
                             + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
@@ -134,18 +134,18 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     private DeprecationIssue ignoredOldIndicesCheck(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectMetadata project,
         Map<String, List<String>> indexToTransformIds
     ) {
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, project)) {
             var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
-                    "https://ela.st/es-deprecation-9-transform-destination-index",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
                     Strings.format(
                         "This index was created in version [%s] and will be supported as a read-only index in %d.0. The following "
                             + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
@@ -175,13 +175,13 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
-        return clusterState.metadata().getProject().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
+    private boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ProjectMetadata project) {
+        return project.findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
     }
 
     private DeprecationIssue translogRetentionSettingCheck(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectMetadata project,
         Map<String, List<String>> ignored
     ) {
         final boolean softDeletesEnabled = IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexMetadata.getSettings());
@@ -210,7 +210,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         return null;
     }
 
-    private DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata, ClusterState clusterState, Map<String, List<String>> ignored) {
+    private DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata, ProjectMetadata project, Map<String, List<String>> ignored) {
         if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
             final String message = String.format(
                 Locale.ROOT,
@@ -226,7 +226,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     private DeprecationIssue storeTypeSettingCheck(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectMetadata project,
         Map<String, List<String>> ignored
     ) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings());
@@ -247,7 +247,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     private DeprecationIssue legacyRoutingSettingCheck(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectMetadata project,
         Map<String, List<String>> ignored
     ) {
         List<String> deprecatedSettings = LegacyTiersDetection.getDeprecatedFilteredAllocationSettings(indexMetadata.getSettings());
@@ -339,7 +339,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
 
     private DeprecationIssue deprecatedCamelCasePattern(
         IndexMetadata indexMetadata,
-        ClusterState clusterState,
+        ProjectMetadata project,
         Map<String, List<String>> ignored
     ) {
         List<String> fields = new ArrayList<>();

@@ -24,14 +24,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
-import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
-import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
@@ -50,6 +49,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     private static final int MAXIMUM_NUMBER_OF_VERSIONS_TO_TEST = 25;
     private static final String SPARSE_SEMANTIC_FIELD = "sparse_field";
@@ -66,8 +66,8 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-        Utils.storeSparseModel(modelRegistry);
-        Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
+        Utils.storeDenseModel("dense-endpoint", modelRegistry, dimensions, similarity, elementType);
 
         Set<IndexVersion> availableVersions = IndexVersionUtils.allReleasedVersions()
             .stream()
@@ -111,11 +111,11 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .startObject("properties")
                 .startObject(SPARSE_SEMANTIC_FIELD)
                 .field("type", "semantic_text")
-                .field("inference_id", TestSparseInferenceServiceExtension.TestInferenceService.NAME)
+                .field("inference_id", "sparse-endpoint")
                 .endObject()
                 .startObject(DENSE_SEMANTIC_FIELD)
                 .field("type", "semantic_text")
-                .field("inference_id", TestDenseInferenceServiceExtension.TestInferenceService.NAME)
+                .field("inference_id", "dense-endpoint")
                 .endObject()
                 .endObject()
                 .endObject();

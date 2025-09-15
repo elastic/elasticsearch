@@ -1,0 +1,6 @@
+pr: 130330
+summary: "TopNOperator, release Row on failure"
+area: ES|QL
+type: bug
+issues:
+ - 130215

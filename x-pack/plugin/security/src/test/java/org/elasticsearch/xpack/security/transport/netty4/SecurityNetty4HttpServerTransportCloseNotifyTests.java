@@ -32,17 +32,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
-import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.AggregatingDispatcher;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.security.cert.CertificateException;
@@ -107,8 +108,8 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
             dispatcher,
             randomClusterSettings(),
             new SharedGroupFactory(settings),
-            Tracer.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            TelemetryProvider.NOOP,
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );
@@ -255,13 +256,13 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
         }
     }
 
-    private static class QueuedDispatcher implements HttpServerTransport.Dispatcher {
+    private static class QueuedDispatcher extends AggregatingDispatcher {
         BlockingQueue<ReqCtx> reqQueue = new LinkedBlockingDeque<>();
         BlockingDeque<ErrCtx> errQueue = new LinkedBlockingDeque<>();
 
         @Override
-        public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
-            reqQueue.add(new ReqCtx(request, channel, threadContext));
+        public void dispatchAggregatedRequest(RestRequest restRequest, RestChannel restChannel, ThreadContext threadContext) {
+            reqQueue.add(new ReqCtx(restRequest, restChannel, threadContext));
         }
 
         @Override

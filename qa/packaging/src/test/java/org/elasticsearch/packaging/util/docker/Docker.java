@@ -73,7 +73,7 @@ public class Docker {
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
-    public static final int STARTUP_ATTEMPTS_MAX = 30;
+    public static final int STARTUP_ATTEMPTS_MAX = 45;
 
     /**
      * The length of the command exceeds what we can use for COLUMNS so we use

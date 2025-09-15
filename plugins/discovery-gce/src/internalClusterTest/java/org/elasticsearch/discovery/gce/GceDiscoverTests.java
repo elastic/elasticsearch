@@ -67,8 +67,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
         ClusterStateResponse clusterStateResponse = client(masterNode).admin()
             .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+            .prepareState(TimeValue.timeValueSeconds(1))
             .clear()
             .setNodes(true)
             .get();
@@ -79,11 +78,9 @@ public class GceDiscoverTests extends ESIntegTestCase {
         registerGceNode(secondNode);
         clusterStateResponse = client(secondNode).admin()
             .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setMasterNodeTimeout(TimeValue.timeValueSeconds(1))
+            .prepareState(TimeValue.timeValueSeconds(1))
             .clear()
             .setNodes(true)
-            .setLocal(true)
             .get();
         assertNotNull(clusterStateResponse.getState().nodes().getMasterNodeId());
 

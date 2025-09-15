@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
 public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -107,11 +109,12 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = new ArrayList<>(left().output());
-            var rightFieldNames = rightFields.stream().map(Attribute::name).toList();
-            lazyOutput.removeIf(a -> rightFieldNames.contains(a.name()));
-            lazyOutput.addAll(addedFields);
-            lazyOutput.addAll(rightFields);
+            List<Attribute> leftOutputWithoutKeys = left().output().stream().filter(attr -> leftFields.contains(attr) == false).toList();
+            List<Attribute> rightWithAppendedKeys = new ArrayList<>(right().output());
+            rightWithAppendedKeys.removeAll(rightFields);
+            rightWithAppendedKeys.addAll(leftFields);
+
+            lazyOutput = mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys);
         }
         return lazyOutput;
     }

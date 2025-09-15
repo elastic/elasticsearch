@@ -25,6 +25,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -305,7 +306,7 @@ public final class IndexSettings {
     static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
 
         static final String STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE = "es.stateless.allow.index.refresh_interval.override";
-        private static final boolean IS_OVERRIDE_ALLOWED = Boolean.parseBoolean(
+        private static final boolean IS_OVERRIDE_ALLOWED = Booleans.parseBoolean(
             System.getProperty(STATELESS_ALLOW_INDEX_REFRESH_INTERVAL_OVERRIDE, "false")
         );
 
@@ -616,21 +617,11 @@ public final class IndexSettings {
                 if (startTime.toEpochMilli() > value.toEpochMilli()) {
                     throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
                 }
-
-                // The index.time_series.end_time setting can only be specified if the index.mode setting has been set to time_series
-                // This check here is specifically needed because in case of updating index settings the validation the gets executed
-                // in IndexSettings constructor when reading the index.mode setting doesn't get executed.
-                IndexMode indexMode = (IndexMode) settings.get(MODE);
-                if (indexMode != IndexMode.TIME_SERIES) {
-                    throw new IllegalArgumentException(
-                        "[" + TIME_SERIES_END_TIME.getKey() + "] requires [index.mode=" + IndexMode.TIME_SERIES + "]"
-                    );
-                }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME, MODE);
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
                 return settings.iterator();
             }
         },
@@ -814,20 +805,21 @@ public final class IndexSettings {
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
-        IndexSettings::getIgnoreAboveDefaultValue,
+        settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
         0,
         Integer.MAX_VALUE,
         Property.IndexScope,
         Property.ServerlessPublic
     );
 
-    private static String getIgnoreAboveDefaultValue(final Settings settings) {
-        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
-            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
-            return "8191";
-        } else {
-            return String.valueOf(Integer.MAX_VALUE);
+    private static int getIgnoreAboveDefaultValue(final Settings settings) {
+        if (settings == null) {
+            return Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE;
         }
+        return Mapper.IgnoreAbove.getIgnoreAboveDefaultValue(
+            IndexSettings.MODE.get(settings),
+            IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
+        );
     }
 
     public static final Setting<SeqNoFieldMapper.SeqNoIndexOptions> SEQ_NO_INDEX_OPTIONS_SETTING = Setting.enumSetting(
@@ -845,6 +837,14 @@ public final class IndexSettings {
         value -> {},
         Property.IndexScope,
         Property.Final
+    );
+
+    public static final Setting<Boolean> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING = Setting.boolSetting(
+        "index.mapping.exclude_source_vectors",
+        settings -> String.valueOf(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT)),
+        Property.IndexScope,
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     private final Index index;
@@ -890,7 +890,6 @@ public final class IndexSettings {
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
-
     private volatile long retentionLeaseMillis;
 
     /**
@@ -916,6 +915,7 @@ public final class IndexSettings {
     private volatile int maxNgramDiff;
     private volatile int maxShingleDiff;
     private volatile DenseVectorFieldMapper.FilterHeuristic hnswFilterHeuristic;
+    private volatile boolean earlyTermination;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
     private volatile boolean weightMatchesEnabled;
@@ -1113,6 +1113,7 @@ public final class IndexSettings {
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         hnswFilterHeuristic = scopedSettings.get(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC);
+        earlyTermination = scopedSettings.get(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
@@ -1227,6 +1228,7 @@ public final class IndexSettings {
         );
         scopedSettings.addSettingsUpdateConsumer(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING, this::setSkipIgnoredSourceRead);
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC, this::setHnswFilterHeuristic);
+        scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1856,6 +1858,14 @@ public final class IndexSettings {
 
     private void setHnswFilterHeuristic(DenseVectorFieldMapper.FilterHeuristic heuristic) {
         this.hnswFilterHeuristic = heuristic;
+    }
+
+    public boolean getHnswEarlyTermination() {
+        return this.earlyTermination;
+    }
+
+    private void setHnswEarlyTermination(boolean earlyTermination) {
+        this.earlyTermination = earlyTermination;
     }
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {

@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -116,7 +117,11 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                         .put("task_concurrency", between(1, 2))
                         .put("exchange_concurrent_clients", between(1, 2));
                 }
-                try (var response = run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build()))) {
+                try (
+                    var response = run(
+                        syncEsqlQueryRequest().query("from test-* | stats count(user) by tags").pragmas(new QueryPragmas(pragmas.build()))
+                    )
+                ) {
                     // do nothing
                 } catch (Exception | AssertionError e) {
                     logger.warn("Query failed with exception", e);
@@ -247,15 +252,15 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 for (SearchService searchService : searchServices) {
                     SearchContextCounter counter = new SearchContextCounter(pragmas.maxConcurrentShardsPerNode());
                     var mockSearchService = (MockSearchService) searchService;
-                    mockSearchService.setOnPutContext(r -> counter.onNewContext());
+                    mockSearchService.setOnCreateSearchContext(r -> counter.onNewContext());
                     mockSearchService.setOnRemoveContext(r -> counter.onContextReleased());
                 }
-                run(q, pragmas).close();
+                run(syncEsqlQueryRequest().query(q).pragmas(pragmas)).close();
             }
         } finally {
             for (SearchService searchService : searchServices) {
                 var mockSearchService = (MockSearchService) searchService;
-                mockSearchService.setOnPutContext(r -> {});
+                mockSearchService.setOnCreateSearchContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
             }
         }
@@ -277,7 +282,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
-        var query = EsqlQueryRequest.syncEsqlQueryRequest();
+        var query = syncEsqlQueryRequest();
         query.query("from test-* | LIMIT 1");
         query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
 

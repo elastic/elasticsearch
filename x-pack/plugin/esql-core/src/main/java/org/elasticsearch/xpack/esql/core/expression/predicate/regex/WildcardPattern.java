@@ -11,8 +11,12 @@ import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
+import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardToRegExp;
@@ -21,10 +25,10 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardT
  * Similar to basic regex, supporting '?' wildcard for single character (same as regex  ".")
  * and '*' wildcard for multiple characters (same as regex ".*")
  * <p>
- * Allows escaping based on a regular char
+ * Allows escaping based on a regular char.
  *
  */
-public class WildcardPattern extends AbstractStringPattern {
+public class WildcardPattern extends AbstractStringPattern implements Writeable {
 
     private final String wildcard;
     private final String regex;
@@ -33,6 +37,15 @@ public class WildcardPattern extends AbstractStringPattern {
         this.wildcard = pattern;
         // early initialization to force string validation
         this.regex = StringUtils.wildcardToJavaPattern(pattern, '\\');
+    }
+
+    public WildcardPattern(StreamInput in) throws IOException {
+        this(in.readString());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(wildcard);
     }
 
     public String pattern() {
@@ -87,4 +100,5 @@ public class WildcardPattern extends AbstractStringPattern {
         WildcardPattern other = (WildcardPattern) obj;
         return Objects.equals(wildcard, other.wildcard);
     }
+
 }

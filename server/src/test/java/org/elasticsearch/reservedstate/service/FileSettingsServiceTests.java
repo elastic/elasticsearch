@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -452,7 +453,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
 
         Metadata.Builder metadata = Metadata.builder(state.metadata());
-        fileSettingsService.handleSnapshotRestore(state, metadata);
+        fileSettingsService.handleSnapshotRestore(state, ClusterState.builder(state), metadata, ProjectId.DEFAULT);
 
         assertThat(metadata.build().reservedStateMetadata(), anEmptyMap());
     }
@@ -475,7 +476,7 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
 
         Metadata.Builder metadata = Metadata.builder();
-        fileSettingsService.handleSnapshotRestore(state, metadata);
+        fileSettingsService.handleSnapshotRestore(state, ClusterState.builder(state), metadata, ProjectId.DEFAULT);
 
         assertThat(
             metadata.build().reservedStateMetadata(),

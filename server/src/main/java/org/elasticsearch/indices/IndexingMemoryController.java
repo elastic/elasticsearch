@@ -90,7 +90,10 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
     /* Currently, indexing is throttled due to memory pressure in stateful/stateless or disk pressure in stateless.
      * This limits the number of indexing threads to 1 per shard. However, this might not be enough when the number of
      * shards that need indexing is larger than the number of threads. So we might opt to pause indexing completely.
-     * The default value for this setting is false, but it will be set to true in stateless.
+     * The default value for this setting is false, but it can be set to true in stateless.
+     * Note that this should only be enabled in stateless. In stateful clusters, where we have
+     * indexing replicas, if pause throttling gets enabled on replicas, it will indirectly
+     * pause the primary as well which might prevent us from relocating the primary shard.
      */
     public static final Setting<Boolean> PAUSE_INDEXING_ON_THROTTLE = Setting.boolSetting(
         "indices.pause.on.throttle",
@@ -499,7 +502,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
                     totalBytesUsed -= shardAndBytesUsed.bytesUsed;
                     lastShardId = shardAndBytesUsed.shard.shardId();
                     if (doThrottle && throttled.contains(shardAndBytesUsed.shard) == false) {
-                        logger.debug(
+                        logger.info(
                             "now throttling indexing for shard [{}]: segment writing can't keep up",
                             shardAndBytesUsed.shard.shardId()
                         );

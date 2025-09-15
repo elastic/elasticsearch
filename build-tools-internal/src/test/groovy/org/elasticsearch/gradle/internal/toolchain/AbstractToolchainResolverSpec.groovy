@@ -73,6 +73,7 @@ abstract class AbstractToolchainResolverSpec extends Specification {
         _ * languageVersionProperty.get() >> languageVersion
 
         Property<JvmVendorSpec> vendorSpecProperty = Mock()
+        _ * vendorSpecProperty.isPresent() >> true
         _ * vendorSpecProperty.get() >> vendorSpec
         _ * toolchainSpec.getVendor() >> vendorSpecProperty
 

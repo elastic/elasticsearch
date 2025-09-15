@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
  * Tests for FORK. We generate tests for FORK from existing CSV tests.
@@ -29,10 +30,9 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         String testName,
         Integer lineNumber,
         CsvSpecReader.CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override
@@ -46,8 +46,8 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
 
         assumeFalse(
-            "Tests using FORK or RRF already are skipped since we don't support multiple FORKs",
-            testCase.requiredCapabilities.contains(FORK_V7.capabilityName()) || testCase.requiredCapabilities.contains(RRF.capabilityName())
+            "Tests using FORK are skipped since we don't support multiple FORKs",
+            testCase.requiredCapabilities.contains(FORK_V9.capabilityName())
         );
 
         assumeFalse(
@@ -55,11 +55,6 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName())
         );
 
-        assumeFalse(
-            "Tests using implicit_casting_date_and_date_nanos are not supported for now",
-            testCase.requiredCapabilities.contains(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.capabilityName())
-        );
-
-        assumeTrue("Cluster needs to support FORK", hasCapabilities(client(), List.of(FORK_V7.capabilityName())));
+        assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));
     }
 }

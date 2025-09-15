@@ -44,7 +44,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
@@ -62,12 +64,14 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -81,19 +85,23 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -125,6 +133,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
@@ -254,6 +263,7 @@ public class SecurityTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
+            StubLinkedProjectConfigService.INSTANCE,
             TestProjectResolvers.alwaysThrow()
         );
     }
@@ -461,7 +471,9 @@ public class SecurityTests extends ESTestCase {
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
             List.of(),
-            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -945,7 +957,7 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null),
+                new IncrementalBulkService(null, null, MeterRegistry.NOOP),
                 TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
@@ -1228,11 +1240,302 @@ public class SecurityTests extends ESTestCase {
         assertThat(operatorPrivilegesService, is(NOOP_OPERATOR_PRIVILEGES_SERVICE));
     }
 
+    public void testAuthContextForSlowLog_LocalAccess_OriginalRealmUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        Authentication realmAuth = AuthenticationTestHelper.builder().realm().build(false);
+
+        serializer.writeToContext(realmAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+
+        assertThat(authContext.get("user.name"), equalTo(realmAuth.getAuthenticatingSubject().getUser().principal()));
+        assertThat(authContext.get("user.realm"), equalTo(realmAuth.getAuthenticatingSubject().getRealm().getName()));
+
+        // user.full_name is randomized by AuthenticationTestHelper, can be null
+        if (realmAuth.getAuthenticatingSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.full_name"), equalTo(realmAuth.getAuthenticatingSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.full_name"));
+        }
+
+        assertThat(authContext.get("auth.type"), equalTo(realmAuth.getAuthenticationType().name()));
+
+        assertFalse(authContext.containsKey("user.effective.name"));
+        assertFalse(authContext.containsKey("apikey.id"));
+        assertFalse(authContext.containsKey("apikey.name"));
+    }
+
+    public void testAuthContextForSlowLog_LocalAccess_ApiKeyAuthentication() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        String expectedApiKeyId = "test_local_api_key_id_123";
+        Authentication apiKeyAuth = AuthenticationTestHelper.builder().apiKey(expectedApiKeyId).build();
+
+        assertFalse(apiKeyAuth.isRunAs());
+
+        serializer.writeToContext(apiKeyAuth, threadContext);
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        assertNotNull(authContext);
+
+        assertThat(authContext.get("user.name"), equalTo(apiKeyAuth.getAuthenticatingSubject().getUser().principal()));
+        assertThat(authContext.get("user.realm"), equalTo(apiKeyAuth.getAuthenticatingSubject().getRealm().getName()));
+
+        if (apiKeyAuth.getAuthenticatingSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.full_name"), equalTo(apiKeyAuth.getAuthenticatingSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.full_name"));
+        }
+
+        assertThat(authContext.get("auth.type"), equalTo(apiKeyAuth.getAuthenticationType().name()));
+        assertThat(authContext.get("apikey.id"), equalTo(expectedApiKeyId));
+
+        if (apiKeyAuth.getAuthenticatingSubject().getMetadata().containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
+            Object apiKeyName = apiKeyAuth.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName != null) {
+                assertThat(authContext.get("apikey.name"), equalTo(Objects.toString(apiKeyName)));
+            } else {
+                assertFalse(authContext.containsKey("apikey.name"));
+            }
+        } else {
+            assertFalse(authContext.containsKey("apikey.name"));
+        }
+
+        // This scenario is not a run-as, so these fields should be absent.
+        assertFalse(authContext.containsKey("user.effective.name"));
+        assertFalse(authContext.containsKey("user.effective.realm"));
+    }
+
+    public void testAuthContextForSlowLog_LocalAccess_RunAsAuthentication() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        User authenticatingUser = new User(
+            "authenticating_user",
+            new String[] { "admin" },
+            "Authenticating User",
+            "test@example.com",
+            Collections.emptyMap(),
+            true
+        );
+        Authentication.RealmRef authenticatingRealm = new Authentication.RealmRef("local_file_realm", "file", "local_node_authenticators");
+
+        User effectiveUser = new User(
+            "run_as_user",
+            new String[] { "run_as" },
+            "Run As User",
+            "test2@example.com",
+            Collections.emptyMap(),
+            true
+        );
+        Authentication.RealmRef effectiveRealm = new Authentication.RealmRef("local_ldap_realm", "ldap", "local_node_ldap");
+
+        Authentication runAsAuth = AuthenticationTestHelper.builder()
+            .user(authenticatingUser)
+            .realmRef(authenticatingRealm)
+            .runAs()
+            .user(effectiveUser)
+            .realmRef(effectiveRealm)
+            .build();
+
+        assertTrue(runAsAuth.isRunAs());
+
+        serializer.writeToContext(runAsAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+
+        // Assertions for the AUTHENTICATING user
+        assertThat(authContext.get("user.name"), equalTo(runAsAuth.getAuthenticatingSubject().getUser().principal()));
+        assertThat(authContext.get("user.realm"), equalTo(runAsAuth.getAuthenticatingSubject().getRealm().getName()));
+        if (runAsAuth.getAuthenticatingSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.full_name"), equalTo(runAsAuth.getAuthenticatingSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.full_name"));
+        }
+
+        // Assertions for the EFFECTIVE user
+        assertThat(authContext.get("user.effective.name"), equalTo(runAsAuth.getEffectiveSubject().getUser().principal()));
+        assertThat(authContext.get("user.effective.realm"), equalTo(runAsAuth.getEffectiveSubject().getRealm().getName()));
+        if (runAsAuth.getEffectiveSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.effective.full_name"), equalTo(runAsAuth.getEffectiveSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.effective.full_name"));
+        }
+
+        assertThat(authContext.get("auth.type"), equalTo(runAsAuth.getAuthenticationType().name()));
+        assertFalse(authContext.containsKey("apikey.id"));
+        assertFalse(authContext.containsKey("apikey.name"));
+
+    }
+
+    public void testAuthContextForSlowLog_CCA_OriginalRealmUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        Authentication originalAuthentication = AuthenticationTestHelper.builder().realm().build(false);
+
+        assertFalse(originalAuthentication.isRunAs());
+        assertFalse(originalAuthentication.isApiKey());
+
+        CrossClusterAccessSubjectInfo ccasi = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(originalAuthentication);
+
+        String outerApiKeyId = ESTestCase.randomAlphaOfLength(20);
+        User outerApiKeyUser = new User(outerApiKeyId, Strings.EMPTY_ARRAY);
+
+        Authentication outerCrossClusterAccessAuth = AuthenticationTestHelper.builder()
+            .user(outerApiKeyUser)
+            .crossClusterAccess(outerApiKeyId, ccasi)
+            .build();
+
+        assertTrue(outerCrossClusterAccessAuth.isCrossClusterAccess());
+        assertThat(outerCrossClusterAccessAuth.getAuthenticatingSubject().getUser().principal(), equalTo(outerApiKeyId));
+
+        serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+
+        assertThat(authContext.get("user.name"), equalTo(originalAuthentication.getAuthenticatingSubject().getUser().principal()));
+        assertThat(authContext.get("user.realm"), equalTo(originalAuthentication.getAuthenticatingSubject().getRealm().getName()));
+
+        if (originalAuthentication.getAuthenticatingSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.full_name"), equalTo(originalAuthentication.getAuthenticatingSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.full_name"));
+        }
+
+        assertThat(authContext.get("auth.type"), equalTo(originalAuthentication.getAuthenticationType().name()));
+
+        assertFalse(authContext.containsKey("user.effective.name"));
+        assertFalse(authContext.containsKey("user.effective.realm"));
+        assertFalse(authContext.containsKey("apikey.id"));
+        assertFalse(authContext.containsKey("apikey.name"));
+    }
+
+    public void testAuthContextForSlowLog_CCA_OriginalApiKeyUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        Authentication originalAuthentication = AuthenticationTestHelper.builder().apiKey().build();
+
+        assertFalse(originalAuthentication.isRunAs());
+        assertTrue(originalAuthentication.isApiKey());
+
+        CrossClusterAccessSubjectInfo ccasi = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(originalAuthentication);
+
+        String outerApiKeyId = ESTestCase.randomAlphaOfLength(20);
+        User outerApiKeyUser = new User(outerApiKeyId, Strings.EMPTY_ARRAY);
+
+        Authentication outerCrossClusterAccessAuth = AuthenticationTestHelper.builder()
+            .user(outerApiKeyUser)
+            .crossClusterAccess(outerApiKeyId, ccasi)
+            .build();
+
+        assertTrue(outerCrossClusterAccessAuth.isCrossClusterAccess());
+        assertThat(outerCrossClusterAccessAuth.getAuthenticatingSubject().getUser().principal(), equalTo(outerApiKeyId));
+
+        serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+
+        assertThat(authContext.get("user.name"), equalTo(originalAuthentication.getAuthenticatingSubject().getUser().principal()));
+        assertThat(authContext.get("user.realm"), equalTo(originalAuthentication.getAuthenticatingSubject().getRealm().getName()));
+
+        if (originalAuthentication.getAuthenticatingSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.full_name"), equalTo(originalAuthentication.getAuthenticatingSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.full_name"));
+        }
+
+        assertThat(authContext.get("auth.type"), equalTo(originalAuthentication.getAuthenticationType().name()));
+
+        // Assert API key details from the inner API Key user
+        assertThat(
+            authContext.get("apikey.id"),
+            equalTo(originalAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_ID_KEY))
+        );
+        if (originalAuthentication.getAuthenticatingSubject().getMetadata().containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
+            Object apiKeyName = originalAuthentication.getAuthenticatingSubject().getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName != null) {
+                assertThat(authContext.get("apikey.name"), equalTo(Objects.toString(apiKeyName)));
+            } else {
+                assertFalse(authContext.containsKey("apikey.name"));
+            }
+        } else {
+            assertFalse(authContext.containsKey("apikey.name"));
+        }
+
+        assertFalse(authContext.containsKey("user.effective.name"));
+        assertFalse(authContext.containsKey("user.effective.realm"));
+    }
+
+    public void testAuthContextForSlowLog_CCA_OriginalRunAsUser() throws Exception {
+        createComponents(Settings.EMPTY);
+        AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
+
+        Authentication originalAuthentication = AuthenticationTestHelper.builder().runAs().build();
+
+        assertTrue(originalAuthentication.isRunAs());
+        assertFalse(originalAuthentication.isApiKey());
+
+        CrossClusterAccessSubjectInfo ccasi = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo(originalAuthentication);
+
+        String outerApiKeyId = ESTestCase.randomAlphaOfLength(20);
+        User outerApiKeyUser = new User(outerApiKeyId, Strings.EMPTY_ARRAY);
+
+        Authentication outerCrossClusterAccessAuth = AuthenticationTestHelper.builder()
+            .user(outerApiKeyUser)
+            .crossClusterAccess(outerApiKeyId, ccasi)
+            .build();
+
+        assertTrue(outerCrossClusterAccessAuth.isCrossClusterAccess());
+        assertThat(outerCrossClusterAccessAuth.getAuthenticatingSubject().getUser().principal(), equalTo(outerApiKeyId));
+
+        serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
+
+        Map<String, String> authContext = security.getAuthContextForSlowLog();
+
+        assertNotNull(authContext);
+        // Assertions for the fields derived from the inner Run-as user
+        assertThat(authContext.get("user.name"), equalTo(originalAuthentication.getAuthenticatingSubject().getUser().principal()));
+        assertThat(authContext.get("user.realm"), equalTo(originalAuthentication.getAuthenticatingSubject().getRealm().getName()));
+        if (originalAuthentication.getAuthenticatingSubject().getUser().fullName() != null) {
+            assertThat(authContext.get("user.full_name"), equalTo(originalAuthentication.getAuthenticatingSubject().getUser().fullName()));
+        } else {
+            assertFalse(authContext.containsKey("user.full_name"));
+        }
+
+        assertThat(authContext.get("user.effective.name"), equalTo(originalAuthentication.getEffectiveSubject().getUser().principal()));
+        assertThat(authContext.get("user.effective.realm"), equalTo(originalAuthentication.getEffectiveSubject().getRealm().getName()));
+        if (originalAuthentication.getEffectiveSubject().getUser().fullName() != null) {
+            assertThat(
+                authContext.get("user.effective.full_name"),
+                equalTo(originalAuthentication.getEffectiveSubject().getUser().fullName())
+            );
+        } else {
+            assertFalse(authContext.containsKey("user.effective.full_name"));
+        }
+
+        assertThat(authContext.get("auth.type"), equalTo(originalAuthentication.getAuthenticationType().name()));
+
+        assertFalse(authContext.containsKey("apikey.id"));
+        assertFalse(authContext.containsKey("apikey.name"));
+    }
+
     private void verifyHasAuthenticationHeaderValue(Exception e, String... expectedValues) {
         assertThat(e, instanceOf(ElasticsearchSecurityException.class));
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), hasSize(expectedValues.length));
-        assertThat(((ElasticsearchSecurityException) e).getHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), notNullValue());
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), hasSize(expectedValues.length));
+        assertThat(((ElasticsearchSecurityException) e).getBodyHeader("WWW-Authenticate"), containsInAnyOrder(expectedValues));
     }
 
     private String randomCacheHashSetting() {

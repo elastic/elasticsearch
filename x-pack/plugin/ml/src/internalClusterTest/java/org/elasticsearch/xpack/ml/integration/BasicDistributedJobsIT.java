@@ -263,7 +263,6 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102657")
     public void testMaxConcurrentJobAllocations() throws Exception {
         int numMlNodes = 2;
         internalCluster().ensureAtMostNumDataNodes(0);

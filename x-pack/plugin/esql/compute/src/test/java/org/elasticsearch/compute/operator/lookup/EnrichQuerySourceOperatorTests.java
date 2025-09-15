@@ -32,6 +32,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.IOUtils;
@@ -104,7 +105,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 blockFactory,
                 128,
                 queryList,
-                directoryData.reader,
+
+                new LuceneSourceOperatorTests.MockShardContext(directoryData.reader),
                 warnings()
             );
             Page page = queryOperator.getOutput();
@@ -165,7 +167,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 blockFactory,
                 maxPageSize,
                 queryList,
-                directoryData.reader,
+                new LuceneSourceOperatorTests.MockShardContext(directoryData.reader),
                 warnings()
             );
             Map<Integer, Set<Integer>> actualPositions = new HashMap<>();
@@ -214,7 +216,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 blockFactory,
                 128,
                 queryList,
-                directoryData.reader,
+                new LuceneSourceOperatorTests.MockShardContext(directoryData.reader),
                 warnings()
             );
             Page page = queryOperator.getOutput();

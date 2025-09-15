@@ -168,16 +168,13 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 
 #### Checkstyle
 
-If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
-check the Elasticsearch code. However, the Checkstyle configuration file does
-not work by default with the IntelliJ plugin, so instead an IDE-specific config
-file is generated automatically after IntelliJ finishes syncing. You can
-manually generate the file with `./gradlew configureIdeCheckstyle` in case
-it is removed due to a `./gradlew clean` or other action.
+IntelliJ should automatically configure checkstyle. It does so by running
+`configureIdeCheckstyle` on import. That makes `.idea/checkstyle-idea.xml`
+configuration file. IntelliJ points checkstyle at that.
 
-IntelliJ should be automatically configured to use the generated rules after
-import via the `.idea/checkstyle-idea.xml` configuration file. No further
-action is required.
+Things like `./gradlew clean` or `git clean -xdf` can nuke the file. You can
+regenerate it by running `./gradlew -Didea.active=true configureIdeCheckstyle`,
+but generally shouldn't have to.
 
 #### Formatting
 
@@ -205,6 +202,18 @@ Alternative manual steps for IntelliJ.
    2. Gear icon > Import Scheme > Eclipse XML Profile
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
+
+#### Options
+
+When importing to IntelliJ, we offer a few options that can be used to
+configure the behaviour of the import:
+
+| Property                                   | Description                                                                                          | Values (* = default) |
+|--------------------------------------------|------------------------------------------------------------------------------------------------------|----------------------|
+| `org.elasticsearch.idea-configuration-cache` | Should IntelliJ enable the Gradle Configuration cache to speed up builds when generating run configs | *`true`, `false`         |
+| `org.elasticsearch.idea-delegate-to-gradle`  | Should IntelliJ use Gradle for all generated run / test configs or prompt each time                  | `true`, *`false`         |
+
+These options can be set anywhere on the Gradle config path including in `~/.gradle/gradle.properties`
 
 ### REST endpoint conventions
 

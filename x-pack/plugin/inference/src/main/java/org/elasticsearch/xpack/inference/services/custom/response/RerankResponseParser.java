@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
-public class RerankResponseParser extends BaseCustomResponseParser<RankedDocsResults> {
+public class RerankResponseParser extends BaseCustomResponseParser {
 
     public static final String NAME = "rerank_response_parser";
     public static final String RERANK_PARSER_SCORE = "relevance_score";

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -204,4 +205,11 @@ public class RemoteClusterPortSettingsTests extends ESTestCase {
         assertThat(profileSettings.isDefaultProfile, equalTo(false));
     }
 
+    public void testRemoteClusterPortDefaultValue() {
+        assertThat(RemoteClusterPortSettings.PORT.getDefault(Settings.EMPTY), equalTo(9443));
+        assertThat(
+            RemoteClusterPortSettings.PORT.getDefault(Settings.builder().put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true).build()),
+            equalTo(9400)
+        );
+    }
 }

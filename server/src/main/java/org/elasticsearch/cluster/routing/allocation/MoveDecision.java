@@ -232,7 +232,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                     ? Explanations.Rebalance.CANNOT_REBALANCE_CAN_ALLOCATE
                     : Explanations.Rebalance.CANNOT_REBALANCE_CANNOT_ALLOCATE;
                 case THROTTLE -> Explanations.Rebalance.CLUSTER_THROTTLE;
-                case YES -> {
+                case YES, NOT_PREFERRED -> {
                     if (getTargetNode() != null) {
                         yield canMoveDecision == AllocationDecision.THROTTLED
                             ? Explanations.Rebalance.NODE_THROTTLE

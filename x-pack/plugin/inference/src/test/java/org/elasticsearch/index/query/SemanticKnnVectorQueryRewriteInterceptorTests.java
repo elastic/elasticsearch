@@ -7,6 +7,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
@@ -30,6 +32,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 
 public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
 
@@ -60,7 +64,22 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY);
-        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(
+            FIELD_NAME,
+            queryVectorBuilder,
+            10,
+            100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null
+        );
+        if (randomBoolean()) {
+            float boost = randomFloatBetween(1, 10, randomBoolean());
+            original.boost(boost);
+        }
+        if (randomBoolean()) {
+            String queryName = randomAlphaOfLength(5);
+            original.queryName(queryName);
+        }
         testRewrittenInferenceQuery(context, original);
     }
 
@@ -71,7 +90,22 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(
+            FIELD_NAME,
+            queryVectorBuilder,
+            10,
+            100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null
+        );
+        if (randomBoolean()) {
+            float boost = randomFloatBetween(1, 10, randomBoolean());
+            original.boost(boost);
+        }
+        if (randomBoolean()) {
+            String queryName = randomAlphaOfLength(5);
+            original.queryName(queryName);
+        }
         testRewrittenInferenceQuery(context, original);
     }
 
@@ -82,14 +116,23 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(original.boost(), intercepted.boost(), 0.0f);
+        assertEquals(original.queryName(), intercepted.queryName());
         assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
+
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
+        assertEquals(original.boost(), nestedQueryBuilder.boost(), 0.0f);
+        assertEquals(original.queryName(), nestedQueryBuilder.queryName());
         assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
+
         QueryBuilder innerQuery = nestedQueryBuilder.query();
         assertTrue(innerQuery instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) innerQuery;
+        assertEquals(1.0f, knnVectorQueryBuilder.boost(), 0.0f);
+        assertNull(knnVectorQueryBuilder.queryName());
         assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), knnVectorQueryBuilder.getFieldName());
         assertTrue(knnVectorQueryBuilder.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder);
+
         TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder = (TextEmbeddingQueryVectorBuilder) knnVectorQueryBuilder
             .queryVectorBuilder();
         assertEquals(QUERY, textEmbeddingQueryVectorBuilder.getModelText());
@@ -99,7 +142,14 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
     public void testKnnVectorQueryOnNonInferenceFieldRemainsUnchanged() throws IOException {
         QueryRewriteContext context = createQueryRewriteContext(Map.of()); // No inference fields
         QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        QueryBuilder original = new KnnVectorQueryBuilder(FIELD_NAME, queryVectorBuilder, 10, 100, null);
+        QueryBuilder original = new KnnVectorQueryBuilder(
+            FIELD_NAME,
+            queryVectorBuilder,
+            10,
+            100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null
+        );
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to remain knn but was [" + rewritten.getClass().getName() + "]",
@@ -126,7 +176,17 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
             Map.of(index, indexMetadata)
         );
 
-        return new QueryRewriteContext(null, client, null, resolvedIndices, null, createRewriteInterceptor());
+        return new QueryRewriteContext(
+            null,
+            client,
+            null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            resolvedIndices,
+            null,
+            createRewriteInterceptor(),
+            null
+        );
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {

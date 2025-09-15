@@ -70,11 +70,11 @@ public class QueryPlanningBenchmark {
     private EsqlParser defaultParser;
     private Analyzer manyFieldsAnalyzer;
     private LogicalPlanOptimizer defaultOptimizer;
+    private Configuration config;
 
     @Setup
     public void setup() {
-
-        var config = new Configuration(
+        this.config = new Configuration(
             DateUtils.UTC,
             Locale.US,
             null,
@@ -86,13 +86,16 @@ public class QueryPlanningBenchmark {
             false,
             Map.of(),
             System.nanoTime(),
-            false
+            false,
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY)
         );
 
         var fields = 10_000;
         var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
         for (int i = 0; i < fields; i++) {
-            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true));
+            // We're creating a standard index, so none of these fields should be marked as dimensions.
+            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
@@ -116,7 +119,7 @@ public class QueryPlanningBenchmark {
     }
 
     private LogicalPlan plan(EsqlParser parser, Analyzer analyzer, LogicalPlanOptimizer optimizer, String query) {
-        var parsed = parser.createStatement(query, new QueryParams(), telemetry);
+        var parsed = parser.createStatement(query, new QueryParams(), telemetry, config);
         var analyzed = analyzer.analyze(parsed);
         var optimized = optimizer.optimize(analyzed);
         return optimized;

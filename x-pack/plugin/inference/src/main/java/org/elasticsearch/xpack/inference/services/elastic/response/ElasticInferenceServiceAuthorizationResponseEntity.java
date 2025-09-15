@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,6 +15,8 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -39,11 +42,18 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class ElasticInferenceServiceAuthorizationResponseEntity implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results";
+
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceAuthorizationResponseEntity.class);
+    private static final String AUTH_FIELD_NAME = "authorized_models";
     private static final Map<String, TaskType> ELASTIC_INFERENCE_SERVICE_TASK_TYPE_MAPPING = Map.of(
         "embed/text/sparse",
         TaskType.SPARSE_EMBEDDING,
         "chat",
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        "embed/text/dense",
+        TaskType.TEXT_EMBEDDING,
+        "rerank/text/text-similarity",
+        TaskType.RERANK
     );
 
     @SuppressWarnings("unchecked")
@@ -103,6 +113,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
             return builder;
         }
+
+        @Override
+        public String toString() {
+            return Strings.format("{modelName='%s', taskTypes='%s'}", modelName, taskTypes);
+        }
     }
 
     private final List<AuthorizedModel> authorizedModels;
@@ -132,6 +147,11 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     public List<AuthorizedModel> getAuthorizedModels() {
         return authorizedModels;
+    }
+
+    @Override
+    public String toString() {
+        return authorizedModels.stream().map(AuthorizedModel::toString).collect(Collectors.joining(", "));
     }
 
     @Override

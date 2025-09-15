@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -34,15 +33,18 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -52,14 +54,18 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -68,6 +74,7 @@ import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -79,21 +86,21 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
+import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -104,6 +111,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -131,8 +139,12 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLoo
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -159,26 +171,26 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_OPERATOR_QUERY = "from test | where %s:%s";
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
-    private TestPlannerOptimizer plannerOptimizer;
+    protected TestPlannerOptimizer plannerOptimizer;
     private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private Analyzer timeSeriesAnalyzer;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
     };
 
     private final SearchStats CONSTANT_K_STATS = new TestSearchStats() {
         @Override
-        public boolean isSingleValue(String field) {
+        public boolean isSingleValue(FieldAttribute.FieldName field) {
             return true;
         }
 
         @Override
-        public String constantValue(String name) {
-            return name.startsWith("constant_keyword") ? "foo" : null;
+        public String constantValue(FieldAttribute.FieldName name) {
+            return name.string().startsWith("constant_keyword") ? "foo" : null;
         }
     };
 
@@ -210,8 +222,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true))
+                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
                 )
             )
         );
@@ -248,7 +260,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         );
     }
 
-    private Analyzer makeAnalyzer(String mappingFileName) {
+    protected Analyzer makeAnalyzer(String mappingFileName) {
         return makeAnalyzer(mappingFileName, new EnrichResolution());
     }
 
@@ -565,8 +577,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public void testLocalAggOptimizedToLocalRelation() {
         var stats = new TestSearchStats() {
             @Override
-            public boolean exists(String field) {
-                return "emp_no".equals(field) == false;
+            public boolean exists(FieldAttribute.FieldName field) {
+                return "emp_no".equals(field.string()) == false;
             }
         };
 
@@ -1017,21 +1029,23 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     /*
-     * LimitExec[1000[INTEGER]]
+     * LimitExec[1000[INTEGER],12]
      * \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],FINAL,[language_code{r}#12
      * , $$c$count{r}#32, $$c$seen{r}#33],12]
      *   \_ExchangeExec[[language_code{r}#12, $$c$count{r}#32, $$c$seen{r}#33],true]
      *     \_AggregateExec[[language_code{r}#12],[COUNT(emp_no{r}#31,true[BOOLEAN]) AS c#17, language_code{r}#12],INITIAL,[language_code{r}#
-     *          12, $$c$count{r}#34, $$c$seen{r}#35],12]
+     * 12, $$c$count{r}#34, $$c$seen{r}#35],12]
      *       \_LookupJoinExec[[language_code{r}#12],[language_code{f}#29],[]]
-     *         |_GrokExec[first_name{f}#19,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@764e5109],[languag
-     *              e_code{r}#12]]
+     *         |_GrokExec[first_name{f}#19,Parser[pattern=%{NUMBER:language_code:int}, grok=org.elasticsearch.grok.Grok@177d8fd5],[languag
+     * e_code{r}#12]]
      *         | \_MvExpandExec[emp_no{f}#18,emp_no{r}#31]
      *         |   \_ProjectExec[[emp_no{f}#18, languages{r}#21 AS language_code#7, first_name{f}#19]]
      *         |     \_FieldExtractExec[emp_no{f}#18, first_name{f}#19]<[],[]>
      *         |       \_EvalExec[[null[INTEGER] AS languages#21]]
-     *         |         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#36], limit[], sort[] estimatedRowSize[66]
-     *         \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#37], limit[], sort[] estimatedRowSize[4]
+     *         |         \_EsQueryExec[test], indexMode[standard], [_doc{f}#36], limit[], sort[] estimatedRowSize[66]
+     *  queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *         \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * EsRelation[languages_lookup][LOOKUP][language_code{f}#29]<>]]
      */
     public void testMissingFieldsNotPurgingTheJoinLocally() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -1059,22 +1073,26 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var extract = as(project.child(), FieldExtractExec.class);
         var eval = as(extract.child(), EvalExec.class);
         var source = as(eval.child(), EsQueryExec.class);
-        var right = as(join.right(), EsQueryExec.class);
+        var right = as(join.right(), FragmentExec.class);
+        var relation = as(right.fragment(), EsRelation.class);
     }
 
     /*
-     * LimitExec[1000[INTEGER]]
+     * LimitExec[1000[INTEGER],62]
      * \_LookupJoinExec[[language_code{r}#6],[language_code{f}#23],[language_name{f}#24]]
-     *   |_LimitExec[1000[INTEGER]]
+     *   |_LimitExec[1000[INTEGER],12]
      *   | \_AggregateExec[[languages{f}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#10, languages{f}#15 AS language_code#6],FINAL,[language
-     *          s{f}#15, $$c$count{r}#25, $$c$seen{r}#26],62]
+     * s{f}#15, $$c$count{r}#25, $$c$seen{r}#26],62]
      *   |   \_ExchangeExec[[languages{f}#15, $$c$count{r}#25, $$c$seen{r}#26],true]
      *   |     \_AggregateExec[[languages{r}#15],[COUNT(emp_no{f}#12,true[BOOLEAN]) AS c#10, languages{r}#15 AS language_code#6],INITIAL,
-     *              [languages{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
+     * [languages{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
+     * ges{r}#15, $$c$count{r}#27, $$c$seen{r}#28],12]
      *   |       \_FieldExtractExec[emp_no{f}#12]<[],[]>
      *   |         \_EvalExec[[null[INTEGER] AS languages#15]]
-     *   |           \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#29], limit[], sort[] estimatedRowSize[12]
-     *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#30], limit[], sort[] estimatedRowSize[4]
+     *   |           \_EsQueryExec[test], indexMode[standard], [_doc{f}#29], limit[], sort[] estimatedRowSize[12]
+     *  queryBuilderAndTags [[QueryBuilderAndTags{queryBuilder=[null], tags=[]}]]
+     *   \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+     * EsRelation[languages_lookup][LOOKUP][language_code{f}#23, language_name{f}#24]<>]]
      */
     public void testMissingFieldsDoesNotPurgeTheJoinOnCoordinator() {
         var stats = EsqlTestUtils.statsForMissingField("languages");
@@ -1105,9 +1123,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(source.indexPattern(), is("test"));
         assertThat(source.indexMode(), is(IndexMode.STANDARD));
 
-        source = as(join.right(), EsQueryExec.class);
-        assertThat(source.indexPattern(), is("languages_lookup"));
-        assertThat(source.indexMode(), is(IndexMode.LOOKUP));
+        var right = as(join.right(), FragmentExec.class);
+        var relation = as(right.fragment(), EsRelation.class);
+        assertThat(relation.indexPattern(), is("languages_lookup"));
+        assertThat(relation.indexMode(), is(IndexMode.LOOKUP));
     }
 
     /*
@@ -1362,10 +1381,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testKnnOptionsPushDown() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
         String query = """
             from test
             | where KNN(dense_vector, [0.1, 0.2, 0.3],
-                { "k": 5, "similarity": 0.001, "num_candidates": 10, "rescore_oversample": 7, "boost": 3.5 })
+                { "similarity": 0.001, "min_candidates": 5000, "rescore_oversample": 7, "boost": 3.5 })
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
@@ -1376,12 +1398,70 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var expectedQuery = new KnnVectorQueryBuilder(
             "dense_vector",
             new float[] { 0.1f, 0.2f, 0.3f },
-            5,
-            10,
+            5000,
+            5000,
+            null,
             new RescoreVectorBuilder(7),
             0.001f
         ).boost(3.5f);
-        assertThat(expectedQuery.toString(), is(planStr.get()));
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnUsesLimitForK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3])
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, null, null, null, null);
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnKAndMinCandidatesLowerK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 50})
+            | limit 10
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
+        assertEquals(expectedQuery.toString(), planStr.get());
+    }
+
+    public void testKnnKAndMinCandidatesHigherK() {
+        assumeTrue("dense_vector capability not available", EsqlCapabilities.Cap.DENSE_VECTOR_FIELD_TYPE.isEnabled());
+        assumeTrue("knn capability not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where KNN(dense_vector, [0.1, 0.2, 0.3], {"min_candidates": 10})
+            | limit 50
+            """;
+        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new KnnVectorQueryBuilder("dense_vector", new float[] { 0.1f, 0.2f, 0.3f }, 50, 50, null, null, null);
+        assertEquals(expectedQuery.toString(), planStr.get());
     }
 
     /**
@@ -1825,22 +1905,334 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         aggExec.forEachDown(EsQueryExec.class, esQueryExec -> { assertNull(esQueryExec.query()); });
     }
 
-    public void testParallelizeTimeSeriesPlan() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "TS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
-        var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
-        PhysicalPlan plan = optimizer.plan(query);
+    public void testKnnPrefilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2]) and integer > 10
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
         var limit = as(plan, LimitExec.class);
-        var finalAgg = as(limit.child(), AggregateExec.class);
-        var partialAgg = as(finalAgg.child(), AggregateExec.class);
-        var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
-        var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
-        var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
-        var parallel1 = as(timeSeriesPartialAgg.child(), ParallelExec.class);
-        var eval = as(parallel1.child(), EvalExec.class);
-        var fieldExtract = as(eval.child(), FieldExtractExec.class);
-        var parallel2 = as(fieldExtract.child(), ParallelExec.class);
-        as(parallel2.child(), TimeSeriesSourceExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        QueryBuilder expectedFilterQueryBuilder = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 41, "integer > 10")
+        );
+        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        ).addFilterQuery(expectedFilterQueryBuilder);
+        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testKnnPrefiltersWithMultipleFilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2])
+            | where integer > 10
+            | where keyword == "test"
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+        var integerFilter = wrapWithSingleQuery(query, unscore(rangeQuery("integer").gt(10)), "integer", new Source(3, 8, "integer > 10"));
+        var keywordFilter = wrapWithSingleQuery(
+            query,
+            unscore(termQuery("keyword", "test")),
+            "keyword",
+            new Source(4, 8, "keyword == \"test\"")
+        );
+        QueryBuilder expectedFilterQueryBuilder = boolQuery().must(integerFilter).must(keywordFilter);
+        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        ).addFilterQuery(expectedFilterQueryBuilder);
+        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(integerFilter).must(keywordFilter);
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testPushDownConjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2]) and integer > 10
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+
+        // The filter condition should be pushed down to both the KNN query and the main query
+        QueryBuilder expectedFilterQueryBuilder = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 41, "integer > 10")
+        );
+
+        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        ).addFilterQuery(expectedFilterQueryBuilder);
+
+        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
+
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testPushDownNegatedConjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2]) and NOT integer > 10
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+
+        // The filter condition should be pushed down to both the KNN query and the main query
+        QueryBuilder expectedFilterQueryBuilder = wrapWithSingleQuery(
+            query,
+            unscore(boolQuery().mustNot(unscore(rangeQuery("integer").gt(10)))),
+            "integer",
+            new Source(2, 41, "NOT integer > 10")
+        );
+
+        KnnVectorQueryBuilder expectedKnnQueryBuilder = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        ).addFilterQuery(expectedFilterQueryBuilder);
+
+        var expectedQuery = boolQuery().must(expectedKnnQueryBuilder).must(expectedFilterQueryBuilder);
+
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testNotPushDownDisjunctionsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where knn(dense_vector, [0, 1, 2]) or integer > 10
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+
+        // The disjunction should not be pushed down to the KNN query
+        KnnVectorQueryBuilder knnQueryBuilder = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        );
+        QueryBuilder rangeQueryBuilder = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 40, "integer > 10")
+        );
+
+        var expectedQuery = boolQuery().should(knnQueryBuilder).should(rangeQueryBuilder);
+
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testNotPushDownKnnWithNonPushablePrefilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where ((knn(dense_vector, [0, 1, 2]) AND integer > 10) and ((keyword == "test") or length(text) > 10))
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var secondLimit = as(field.child(), LimitExec.class);
+        var filter = as(secondLimit.child(), FilterExec.class);
+        var and = as(filter.condition(), And.class);
+        var knn = as(and.left(), Knn.class);
+        assertEquals("(keyword == \"test\") or length(text) > 10", knn.filterExpressions().get(0).toString());
+        assertEquals("integer > 10", knn.filterExpressions().get(1).toString());
+
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+
+        // The query should only contain the pushable condition
+        QueryBuilder integerGtQuery = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 43, "integer > 10")
+        );
+
+        assertEquals(integerGtQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testPushDownComplexNegationsToKnnPrefilter() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where ((knn(dense_vector, [0, 1, 2]) or NOT integer > 10)
+              and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+
+        QueryBuilder notKeywordQuery = wrapWithSingleQuery(
+            query,
+            unscore(boolQuery().mustNot(unscore(termQuery("keyword", "test")))),
+            "keyword",
+            new Source(3, 12, "keyword == \"test\"")
+        );
+        QueryBuilder notKeywordFilter = wrapWithSingleQuery(
+            query,
+            unscore(boolQuery().mustNot(unscore(termQuery("keyword", "test")))),
+            "keyword",
+            new Source(3, 6, "NOT ((keyword == \"test\") or knn(dense_vector, [4, 5, 6]))")
+        );
+
+        QueryBuilder notIntegerGt10 = wrapWithSingleQuery(
+            query,
+            unscore(boolQuery().mustNot(unscore(rangeQuery("integer").gt(10)))),
+            "integer",
+            new Source(2, 42, "NOT integer > 10")
+        );
+
+        KnnVectorQueryBuilder firstKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 0, 1, 2 }, 1000, null, null, null, null);
+        KnnVectorQueryBuilder secondKnn = new KnnVectorQueryBuilder("dense_vector", new float[] { 4, 5, 6 }, 1000, null, null, null, null);
+
+        firstKnn.addFilterQuery(notKeywordFilter);
+        secondKnn.addFilterQuery(notIntegerGt10);
+
+        // Build the main boolean query structure
+        BoolQueryBuilder expectedQuery = boolQuery().must(notKeywordQuery)  // NOT (keyword == "test")
+            .must(unscore(boolQuery().mustNot(secondKnn)))
+            .must(boolQuery().should(firstKnn).should(notIntegerGt10));
+
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
+    }
+
+    public void testMultipleKnnQueriesInPrefilters() {
+        assumeTrue("knn must be enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+
+        String query = """
+            from test
+            | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
+            """;
+        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var queryExec = as(field.child(), EsQueryExec.class);
+
+        KnnVectorQueryBuilder firstKnnQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 0, 1, 2 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        );
+        // Integer range query (right side of first OR)
+        QueryBuilder integerRangeQuery = wrapWithSingleQuery(
+            query,
+            unscore(rangeQuery("integer").gt(10)),
+            "integer",
+            new Source(2, 42, "integer > 10")
+        );
+
+        // Second KNN query (right side of second OR)
+        KnnVectorQueryBuilder secondKnnQuery = new KnnVectorQueryBuilder(
+            "dense_vector",
+            new float[] { 4, 5, 6 },
+            1000,
+            null,
+            null,
+            null,
+            null
+        );
+
+        // Keyword term query (left side of second OR)
+        QueryBuilder keywordQuery = wrapWithSingleQuery(
+            query,
+            unscore(termQuery("keyword", "test")),
+            "keyword",
+            new Source(2, 62, "keyword == \"test\"")
+        );
+
+        // First OR (knn1 OR integer > 10)
+        var firstOr = boolQuery().should(firstKnnQuery).should(integerRangeQuery);
+        // Second OR (keyword == "test" OR knn2)
+        var secondOr = boolQuery().should(keywordQuery).should(secondKnnQuery);
+        firstKnnQuery.addFilterQuery(keywordQuery);
+        secondKnnQuery.addFilterQuery(integerRangeQuery);
+
+        // Top-level AND combining both ORs
+        var expectedQuery = boolQuery().must(firstOr).must(secondOr);
+        assertEquals(expectedQuery.toString(), queryExec.query().toString());
     }
 
     /**
@@ -2009,7 +2401,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     }
 
     public void testToDateNanosPushDown() {
-        assumeTrue("requires snapshot", EsqlCapabilities.Cap.IMPLICIT_CASTING_DATE_AND_DATE_NANOS.isEnabled());
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
         plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
@@ -2024,10 +2415,10 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertEquals(2, projections.size());
         FieldAttribute fa = as(projections.get(0), FieldAttribute.class);
         assertEquals(DATE_NANOS, fa.dataType());
-        assertEquals("date_and_date_nanos", fa.fieldName());
+        assertEquals("date_and_date_nanos", fa.fieldName().string());
         assertTrue(isMultiTypeEsField(fa)); // mixed date and date_nanos are auto-casted
         UnsupportedAttribute ua = as(projections.get(1), UnsupportedAttribute.class); // mixed date, date_nanos and long are not auto-casted
-        assertEquals("date_and_date_nanos_and_long", ua.fieldName());
+        assertEquals("date_and_date_nanos_and_long", ua.fieldName().string());
         var limit = as(project.child(), LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
         project = as(exchange.child(), ProjectExec.class);
@@ -2038,7 +2429,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         GreaterThanOrEqual gt = as(filter.condition(), GreaterThanOrEqual.class);
         fa = as(gt.left(), FieldAttribute.class);
         assertTrue(isMultiTypeEsField(fa));
-        assertEquals("date_and_date_nanos_and_long", fa.fieldName());
+        assertEquals("date_and_date_nanos_and_long", fa.fieldName().string());
         fieldExtract = as(filter.child(), FieldExtractExec.class); // extract date_and_date_nanos_and_long
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         var source = ((SingleValueQuery.Builder) esQuery.query()).source();
@@ -2053,11 +2444,146 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(expected.toString(), is(esQuery.query().toString()));
     }
 
+    public void testVerifierOnMissingReferences() throws Exception {
+
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        // emulate a rule that adds a missing attribute
+        FieldAttribute missingAttr = getFieldAttribute("missing attr");
+        List<Order> orders = List.of(new Order(plan.source(), missingAttr, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
+        TopNExec topNExec = new TopNExec(plan.source(), plan, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
+
+        // We want to verify that the localOptimize detects the missing attribute.
+        // However, it also throws an error in one of the rules before we get to the verifier.
+        // So we use an implementation of LocalPhysicalPlanOptimizer that does not have any rules.
+        LocalPhysicalPlanOptimizer optimizerWithNoRules = getCustomRulesLocalPhysicalPlanOptimizer(List.of());
+        Exception e = expectThrows(IllegalStateException.class, () -> optimizerWithNoRules.localOptimize(topNExec));
+        assertThat(e.getMessage(), containsString(" optimized incorrectly due to missing references [missing attr"));
+    }
+
+    private LocalPhysicalPlanOptimizer getCustomRulesLocalPhysicalPlanOptimizer(List<RuleExecutor.Batch<PhysicalPlan>> batches) {
+        LocalPhysicalOptimizerContext context = new LocalPhysicalOptimizerContext(
+            new EsqlFlags(true),
+            config,
+            FoldContext.small(),
+            SearchStats.EMPTY
+        );
+        LocalPhysicalPlanOptimizer localPhysicalPlanOptimizer = new LocalPhysicalPlanOptimizer(context) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return batches;
+            }
+        };
+        return localPhysicalPlanOptimizer;
+    }
+
+    public void testVerifierOnAdditionalAttributeAdded() throws Exception {
+
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that adds another output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
+                    // This rule adds a missing attribute to the plan output
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
+                        return new EvalExec(
+                            plan.source(),
+                            plan,
+                            List.of(new Alias(Source.EMPTY, "additionalAttribute", additionalLiteral))
+                        );
+                    }
+                    return plan;
+                }
+            }
+        );
+        LocalPhysicalPlanOptimizer customRulesLocalPhysicalPlanOptimizer = getCustomRulesLocalPhysicalPlanOptimizer(
+            List.of(customRuleBatch)
+        );
+        Exception e = expectThrows(VerificationException.class, () -> customRulesLocalPhysicalPlanOptimizer.localOptimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+        assertThat(e.getMessage(), containsString("additionalAttribute"));
+    }
+
+    public void testVerifierOnAttributeDatatypeChanged() throws Exception {
+
+        PhysicalPlan plan = plannerOptimizer.plan("""
+            from test
+            | stats a = min(salary) by emp_no
+            """);
+
+        var limit = as(plan, LimitExec.class);
+        var aggregate = as(limit.child(), AggregateExec.class);
+        var min = as(Alias.unwrap(aggregate.aggregates().get(0)), Min.class);
+        var salary = as(min.field(), NamedExpression.class);
+        assertThat(salary.name(), is("salary"));
+        Holder<Integer> appliedCount = new Holder<>(0);
+        // use a custom rule that changes the datatype of an output attribute
+        var customRuleBatch = new RuleExecutor.Batch<>(
+            "CustomRuleBatch",
+            RuleExecutor.Limiter.ONCE,
+            new PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LocalPhysicalOptimizerContext>() {
+                @Override
+                public PhysicalPlan rule(PhysicalPlan plan, LocalPhysicalOptimizerContext context) {
+                    // We only want to apply it once, so we use a static counter
+                    if (appliedCount.get() == 0) {
+                        appliedCount.set(appliedCount.get() + 1);
+                        LimitExec limit = as(plan, LimitExec.class);
+                        LimitExec newLimit = new LimitExec(
+                            plan.source(),
+                            limit.child(),
+                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            randomEstimatedRowSize()
+                        ) {
+                            @Override
+                            public List<Attribute> output() {
+                                List<Attribute> oldOutput = super.output();
+                                List<Attribute> newOutput = new ArrayList<>(oldOutput);
+                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                return newOutput;
+                            }
+                        };
+                        return newLimit;
+                    }
+                    return plan;
+                }
+            }
+        );
+        LocalPhysicalPlanOptimizer customRulesLocalPhysicalPlanOptimizer = getCustomRulesLocalPhysicalPlanOptimizer(
+            List.of(customRuleBatch)
+        );
+        Exception e = expectThrows(VerificationException.class, () -> customRulesLocalPhysicalPlanOptimizer.localOptimize(plan));
+        assertThat(e.getMessage(), containsString("Output has changed from"));
+    }
+
     private boolean isMultiTypeEsField(Expression e) {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
-    private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
+    protected static QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
         return FilterTests.singleValueQuery(query, inner, fieldName, source);
     }
 
@@ -2097,7 +2623,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
 
         protected FullTextFunctionTestCase(Class<? extends FullTextFunction> fullTextFunction) {
-            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(1, 10));
+            this(fullTextFunction, randomFrom("text", "keyword"), randomAlphaOfLengthBetween(5, 10));
         }
 
         public Class<? extends FullTextFunction> fullTextFunction() {
@@ -2185,6 +2711,35 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         @Override
         public String esqlQuery() {
             return "qstr(\"" + fieldName() + ": " + queryString() + "\")";
+        }
+    }
+
+    private class KnnFunctionTestCase extends FullTextFunctionTestCase {
+
+        final int k;
+
+        KnnFunctionTestCase() {
+            super(Knn.class, "dense_vector", randomVector());
+            k = randomIntBetween(1, 10);
+        }
+
+        private static Object randomVector() {
+            int numDims = randomIntBetween(10, 20);
+            float[] vector = new float[numDims];
+            for (int i = 0; i < numDims; i++) {
+                vector[i] = randomFloat();
+            }
+            return vector;
+        }
+
+        @Override
+        public QueryBuilder queryBuilder() {
+            return new KnnVectorQueryBuilder(fieldName(), (float[]) queryString(), k, null, null, null, null);
+        }
+
+        @Override
+        public String esqlQuery() {
+            return "knn(" + fieldName() + ", " + Arrays.toString(((float[]) queryString())) + ", " + k + ")";
         }
     }
 }

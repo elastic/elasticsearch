@@ -7,6 +7,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -20,6 +21,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
@@ -36,6 +38,8 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     private static final String FIELD_NAME = "fieldName";
     private static final String VALUE = "value";
+    private static final String QUERY_NAME = "match_query";
+    private static final float BOOST = 5.0f;
 
     @Before
     public void setup() {
@@ -79,6 +83,29 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
         assertEquals(original, rewritten);
     }
 
+    public void testBoostAndQueryNameInMatchQueryRewrite() throws IOException {
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            FIELD_NAME,
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
+        );
+        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
+        QueryBuilder original = createTestQueryBuilder();
+        original.boost(BOOST);
+        original.queryName(QUERY_NAME);
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof InterceptedQueryBuilderWrapper
+        );
+        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
+        assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
+        SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;
+        assertEquals(FIELD_NAME, semanticQueryBuilder.getFieldName());
+        assertEquals(VALUE, semanticQueryBuilder.getQuery());
+    }
+
     private MatchQueryBuilder createTestQueryBuilder() {
         return new MatchQueryBuilder(FIELD_NAME, VALUE);
     }
@@ -101,7 +128,17 @@ public class SemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
             Map.of(index, indexMetadata)
         );
 
-        return new QueryRewriteContext(null, client, null, resolvedIndices, null, createRewriteInterceptor());
+        return new QueryRewriteContext(
+            null,
+            client,
+            null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            resolvedIndices,
+            null,
+            createRewriteInterceptor(),
+            null
+        );
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {

@@ -64,6 +64,14 @@ if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
   unset data
 fi
 
+if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
+  vault_path="kv/ci-shared/release-eng/team-release-secrets/es-delivery/gpg"
+  ORG_GRADLE_PROJECT_signingKey=$(vault kv get --field="private_key" $vault_path)
+  ORG_GRADLE_PROJECT_signingPassword=$(vault kv get --field="passphase" $vault_path)
+  export ORG_GRADLE_PROJECT_signingKey
+  export ORG_GRADLE_PROJECT_signingPassword
+fi
+
 if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
   DRA_VAULT_ROLE_ID_SECRET=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
   export DRA_VAULT_ROLE_ID_SECRET
@@ -96,7 +104,7 @@ fi
 
 if [[ "${USE_PERF_CREDENTIALS:-}" == "true" ]]; then
   PERF_METRICS_HOST=$(vault read -field=es_host /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
-  PERF_METRICS_USERNAME=$(vault read -field=es_username /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_USERNAME=$(vault read -field=es_user /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
   PERF_METRICS_PASSWORD=$(vault read -field=es_password /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
 
   export PERF_METRICS_HOST

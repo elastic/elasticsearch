@@ -43,6 +43,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -79,6 +80,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -175,7 +177,9 @@ public class RefreshListenersTests extends ESTestCase {
             null,
             true,
             EngineTestCase.createMapperService(),
-            new EngineResetLock()
+            new EngineResetLock(),
+            MergeMetrics.NOOP,
+            Function.identity()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);
@@ -186,6 +190,10 @@ public class RefreshListenersTests extends ESTestCase {
 
     @After
     public void tearDownListeners() throws Exception {
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
         IOUtils.close(engine, store, nodeEnvironment, () -> terminate(threadPool));
     }
 

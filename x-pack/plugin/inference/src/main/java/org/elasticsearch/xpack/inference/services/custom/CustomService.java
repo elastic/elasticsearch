@@ -11,31 +11,45 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.custom.request.CompletionParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.CustomRequest;
+import org.elasticsearch.xpack.inference.services.custom.request.EmbeddingParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RequestParameters;
+import org.elasticsearch.xpack.inference.services.custom.request.RerankParameters;
+import org.elasticsearch.xpack.inference.services.validation.CustomServiceIntegrationValidator;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -45,12 +59,14 @@ import java.util.Map;
 import static org.elasticsearch.inference.TaskType.unsupportedTaskTypeErrorMsg;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
-public class CustomService extends SenderService {
+public class CustomService extends SenderService implements RerankingInferenceService {
+
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
 
@@ -61,8 +77,16 @@ public class CustomService extends SenderService {
         TaskType.COMPLETION
     );
 
-    public CustomService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public CustomService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public CustomService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -81,12 +105,15 @@ public class CustomService extends SenderService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
+            var chunkingSettings = extractChunkingSettings(config, taskType);
+
             CustomModel model = createModel(
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
                 taskSettingsMap,
                 serviceSettingsMap,
+                chunkingSettings,
                 ConfigurationParseContext.REQUEST
             );
 
@@ -94,10 +121,47 @@ public class CustomService extends SenderService {
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
             throwIfNotEmptyMap(taskSettingsMap, NAME);
 
+            validateConfiguration(model);
+
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
+    }
+
+    /**
+     * This does some initial validation with mock inputs to determine if any templates are missing a field to fill them.
+     */
+    private static void validateConfiguration(CustomModel model) {
+        try {
+            new CustomRequest(createParameters(model), model).createHttpRequest();
+        } catch (IllegalStateException e) {
+            var validationException = new ValidationException();
+            validationException.addValidationError(Strings.format("Failed to validate model configuration: %s", e.getMessage()));
+            throw validationException;
+        }
+    }
+
+    private static RequestParameters createParameters(CustomModel model) {
+        return switch (model.getTaskType()) {
+            case RERANK -> RerankParameters.of(new QueryAndDocsInputs("test query", List.of("test input")));
+            case COMPLETION -> CompletionParameters.of(new ChatCompletionInput(List.of("test input")));
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> EmbeddingParameters.of(
+                new EmbeddingsInput(List.of("test input"), null, null),
+                model.getServiceSettings().getInputTypeTranslator()
+            );
+            default -> throw new IllegalStateException(
+                Strings.format("Unsupported task type [%s] for custom service", model.getTaskType())
+            );
+        };
+    }
+
+    private static ChunkingSettings extractChunkingSettings(Map<String, Object> config, TaskType taskType) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            return ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return null;
     }
 
     @Override
@@ -125,7 +189,8 @@ public class CustomService extends SenderService {
         TaskType taskType,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secretSettings
+        @Nullable Map<String, Object> secretSettings,
+        @Nullable ChunkingSettings chunkingSettings
     ) {
         return createModel(
             inferenceEntityId,
@@ -133,6 +198,7 @@ public class CustomService extends SenderService {
             serviceSettings,
             taskSettings,
             secretSettings,
+            chunkingSettings,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -143,12 +209,13 @@ public class CustomService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         @Nullable Map<String, Object> secretSettings,
+        @Nullable ChunkingSettings chunkingSettings,
         ConfigurationParseContext context
     ) {
         if (supportedTaskTypes.contains(taskType) == false) {
             throw new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         }
-        return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, context);
+        return new CustomModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings, chunkingSettings, context);
     }
 
     @Override
@@ -162,7 +229,16 @@ public class CustomService extends SenderService {
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
-        return createModelWithoutLoggingDeprecations(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, secretSettingsMap);
+        var chunkingSettings = extractChunkingSettings(config, taskType);
+
+        return createModelWithoutLoggingDeprecations(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap,
+            chunkingSettings
+        );
     }
 
     @Override
@@ -170,7 +246,16 @@ public class CustomService extends SenderService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
 
-        return createModelWithoutLoggingDeprecations(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, null);
+        var chunkingSettings = extractChunkingSettings(config, taskType);
+
+        return createModelWithoutLoggingDeprecations(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            chunkingSettings
+        );
     }
 
     @Override
@@ -199,7 +284,8 @@ public class CustomService extends SenderService {
 
     @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
-        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+        // The custom service doesn't do any validation for the input type because if the input type is supported a default
+        // must be supplied within the service settings.
     }
 
     @Override
@@ -211,7 +297,27 @@ public class CustomService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        listener.onFailure(new ElasticsearchStatusException("Chunking not supported by the {} service", RestStatus.BAD_REQUEST, NAME));
+        if (model instanceof CustomModel == false) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+
+        var customModel = (CustomModel) model;
+        var overriddenModel = CustomModel.of(customModel, taskSettings);
+
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(SERVICE_NAME);
+        var manager = CustomRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
+            inputs.getInputs(),
+            customModel.getServiceSettings().getBatchSize(),
+            customModel.getConfigurations().getChunkingSettings()
+        ).batchRequestsWithListeners(listener);
+
+        for (var request : batchedRequests) {
+            var action = new SenderExecutableAction(getSender(), manager, failedToSendRequestErrorMessage);
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+        }
     }
 
     @Override
@@ -238,25 +344,35 @@ public class CustomService extends SenderService {
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
 
         return new CustomServiceSettings(
-            new CustomServiceSettings.TextEmbeddingSettings(
-                similarityToUse,
-                embeddingSize,
-                serviceSettings.getMaxInputTokens(),
-                serviceSettings.elementType()
-            ),
+            new CustomServiceSettings.TextEmbeddingSettings(similarityToUse, embeddingSize, serviceSettings.getMaxInputTokens()),
             serviceSettings.getUrl(),
             serviceSettings.getHeaders(),
             serviceSettings.getQueryParameters(),
             serviceSettings.getRequestContentString(),
             serviceSettings.getResponseJsonParser(),
             serviceSettings.rateLimitSettings(),
-            serviceSettings.getErrorParser()
+            serviceSettings.getBatchSize(),
+            serviceSettings.getInputTypeTranslator()
         );
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+    }
+
+    @Override
+    public boolean hideFromConfigurationApi() {
+        // The Custom service is very configurable so we're going to hide it from being exposed in the service API.
+        return true;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // The model's max input length is not known at this point,
+        // return a small default that will work with the smallest models
+        // TODO add a way to configure this setting
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     public static class Configuration {
@@ -275,5 +391,14 @@ public class CustomService extends SenderService {
                     .build();
             }
         );
+    }
+
+    @Override
+    public ServiceIntegrationValidator getServiceIntegrationValidator(TaskType taskType) {
+        if (taskType == TaskType.RERANK) {
+            return new CustomServiceIntegrationValidator();
+        }
+
+        return null;
     }
 }

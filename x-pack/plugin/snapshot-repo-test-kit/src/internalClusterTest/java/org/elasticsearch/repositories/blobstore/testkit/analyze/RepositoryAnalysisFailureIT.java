@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -76,6 +77,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
@@ -385,6 +387,55 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
+    public void testFailsOnLostIncrement() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+                if (expected.equals(updated) == false // not the initial read
+                    && updated.length() == Long.BYTES // not the final write
+                    && randomBoolean()
+                    && register.get().equals(expected) // would have succeeded
+                    && registerWasCorrupted.compareAndSet(false, true)) {
+
+                    // indicate success without actually applying the update
+                    return expected;
+                }
+
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue(
+                    "did not lose increment, so why did the verification fail?",
+                    // clear flag for final assertion
+                    registerWasCorrupted.compareAndSet(true, false)
+                );
+                assertThat(
+                    asInstanceOf(
+                        RepositoryVerificationException.class,
+                        ExceptionsHelper.unwrapCause(repositoryVerificationException.getCause())
+                    ).getMessage(),
+                    matchesPattern("""
+                        \\[test-repo] Successfully completed all \\[.*] atomic increments of register \\[test-register-contended-.*] \
+                        so its expected value is \\[OptionalBytesReference\\[.*]], but reading its value with \\[.*] unexpectedly \
+                        yielded \\[OptionalBytesReference\\[.*]]\\. This anomaly may indicate an atomicity failure amongst concurrent \
+                        compare-and-exchange operations on registers in this repository\\.""")
+                );
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
+            }
+        })));
+
+        assertFalse(registerWasCorrupted.get());
+    }
+
     public void testFailsIfRegisterHoldsSpuriousValue() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
 
@@ -542,7 +593,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
@@ -553,7 +605,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    BlobPath.EMPTY
+                    BlobPath.EMPTY,
+                    snapshotMetrics
                 )
             );
         }
@@ -570,9 +623,10 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {

@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -81,8 +80,8 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(EsqlPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(EsqlActionBreakerIT.EsqlTestPluginWithMockBlockFactory.class);
         plugins.add(InternalExchangePlugin.class);
         plugins.add(LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
@@ -127,7 +126,7 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         final Client client;
         if (randomBoolean()) {
             client = client(randomFrom(clusterService().state().nodes().getCoordinatingOnlyNodes().values()).getName());

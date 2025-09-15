@@ -98,11 +98,16 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             public BlockLoader.AllReader reader(LeafReaderContext context) throws IOException {
                 return new BlockLoader.AllReader() {
                     @Override
-                    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
+                    public BlockLoader.Block read(
+                        BlockLoader.BlockFactory factory,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        boolean nullsFiltered
+                    ) throws IOException {
                         var binaryDocValues = context.reader().getBinaryDocValues(fieldName);
                         var reader = new GeometryDocValueReader();
-                        try (var builder = factory.ints(docs.count())) {
-                            for (int i = 0; i < docs.count(); i++) {
+                        try (var builder = factory.ints(docs.count() - offset)) {
+                            for (int i = offset; i < docs.count(); i++) {
                                 read(binaryDocValues, docs.get(i), reader, builder);
                             }
                             return builder.build();

@@ -14,6 +14,9 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -35,9 +38,12 @@ public class CountDistinctOverTime extends TimeSeriesAggregateFunction implement
     private final Expression precision;
 
     @FunctionInfo(
+        type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
         description = "The count of distinct values over time for a field.",
-        type = FunctionType.AGGREGATE
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "count_distinct_over_time") }
     )
     public CountDistinctOverTime(
         Source source,

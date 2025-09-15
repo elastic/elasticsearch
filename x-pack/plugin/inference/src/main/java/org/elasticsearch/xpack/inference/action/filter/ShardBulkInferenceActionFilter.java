@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -46,6 +47,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -63,7 +65,6 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,11 +77,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunks;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunksLegacy;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -388,6 +388,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 .collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
+
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
                     try (onFinish) {
@@ -455,12 +456,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     TimeValue.MAX_VALUE,
                     completionListener
                 );
+
         }
 
         private void recordRequestCountMetrics(Model model, int incrementBy, Throwable throwable) {
             Map<String, Object> requestCountAttributes = new HashMap<>();
-            requestCountAttributes.putAll(modelAttributes(model));
-            requestCountAttributes.putAll(responseAttributes(throwable));
+            requestCountAttributes.putAll(modelAndResponseAttributes(model, throwable));
             requestCountAttributes.put("inference_source", "semantic_text_bulk");
             inferenceStats.requestCount().incrementBy(incrementBy, requestCountAttributes);
         }
@@ -631,13 +632,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (indexRequest.isIndexingPressureIncremented() == false) {
                 try {
                     // Track operation count as one operation per document source update
-                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().source().ramBytesUsed());
+                    coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().indexSource().byteLength());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
                     addInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
-                            "Insufficient memory available to update source on document [" + indexRequest.getIndexRequest().id() + "]",
+                            "Unable to insert inference results into document ["
+                                + indexRequest.getIndexRequest().id()
+                                + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                             e
                         )
                     );
@@ -724,32 +727,36 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 inferenceFieldsMap.put(fieldName, result);
             }
 
-            BytesReference originalSource = indexRequest.source();
+            IndexSource indexSource = indexRequest.indexSource();
+            int originalSourceSize = indexSource.byteLength();
+            BytesReference originalSource = indexSource.bytes();
             if (useLegacyFormat) {
-                var newDocMap = indexRequest.sourceAsMap();
+                var newDocMap = indexSource.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
-                    SemanticTextUtils.insertValue(entry.getKey(), newDocMap, entry.getValue());
+                    XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
-                indexRequest.source(newDocMap, indexRequest.getContentType());
+                indexSource.source(newDocMap, indexSource.contentType());
             } else {
-                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
-                    indexRequest.source(builder);
+                try (XContentBuilder builder = XContentBuilder.builder(indexSource.contentType().xContent())) {
+                    appendSourceAndInferenceMetadata(builder, indexSource.bytes(), indexSource.contentType(), inferenceFieldsMap);
+                    indexSource.source(builder);
                 }
             }
-            long modifiedSourceSize = indexRequest.source().ramBytesUsed();
+            long modifiedSourceSize = indexSource.byteLength();
 
             // Add the indexing pressure from the source modifications.
             // Don't increment operation count because we count one source update as one operation, and we already accounted for those
             // in addFieldInferenceRequests.
             try {
-                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSource.ramBytesUsed());
+                coordinatingIndexingPressure.increment(0, modifiedSourceSize - originalSourceSize);
             } catch (EsRejectedExecutionException e) {
-                indexRequest.source(originalSource, indexRequest.getContentType());
+                indexSource.source(originalSource, indexSource.contentType());
                 item.abort(
                     item.index(),
                     new InferenceException(
-                        "Insufficient memory available to insert inference results into document [" + indexRequest.id() + "]",
+                        "Unable to insert inference results into document ["
+                            + indexRequest.id()
+                            + "] due to memory pressure. Please retry the bulk request with fewer documents or smaller document sizes.",
                         e
                     )
                 );

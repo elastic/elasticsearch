@@ -26,8 +26,4 @@ public class ElserModels {
         return model != null && VALID_ELSER_MODEL_IDS.contains(model);
     }
 
-    public static boolean isValidEisModel(String model) {
-        return ELSER_V2_MODEL.equals(model);
-    }
-
 }

@@ -454,6 +454,17 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
+     * Returns a {@link SourceLoader.SyntheticVectorsLoader} instance responsible for loading
+     * synthetic vector values from the index.
+     *
+     * @return a {@link SourceLoader.SyntheticVectorsLoader} used to extract synthetic vectors,
+     *         or {@code null} if no loader is provided or applicable in this context
+     */
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        return null;
+    }
+
+    /**
      * <p>
      * Specifies the mode of synthetic source support by the mapper.
      * <br>
@@ -1312,6 +1323,26 @@ public abstract class FieldMapper extends Mapper {
 
         public static Parameter<Boolean> docValuesParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
             return Parameter.boolParam("doc_values", false, initializer, defaultValue);
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, boolean defaultValue) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValue)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Boolean> normsParam(Function<FieldMapper, Boolean> initializer, Supplier<Boolean> defaultValueSupplier) {
+            // norms can be updated from 'true' to 'false' but not vice-versa
+            return Parameter.boolParam("norms", true, initializer, defaultValueSupplier)
+                .setMergeValidator((prev, curr, c) -> prev == curr || (prev && curr == false));
+        }
+
+        public static Parameter<Integer> ignoreAboveParam(Function<FieldMapper, Integer> initializer, int defaultValue) {
+            return Parameter.intParam("ignore_above", true, initializer, defaultValue).addValidator(v -> {
+                if (v < 0) {
+                    throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
+                }
+            });
         }
 
         /**

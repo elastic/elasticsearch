@@ -51,6 +51,7 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
+
         return inferenceRequest(promptReader.readPrompt(currentPos++));
     }
 
@@ -58,6 +59,10 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
      * Wraps a single prompt string into an {@link InferenceAction.Request}.
      */
     private InferenceAction.Request inferenceRequest(String prompt) {
+        if (prompt == null) {
+            return null;
+        }
+
         return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
     }
 
@@ -115,7 +120,8 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
 
         @Override
         public void close() {
-
+            promptBlock.allowPassingToDifferentDriver();
+            Releasables.close(promptBlock);
         }
     }
 }

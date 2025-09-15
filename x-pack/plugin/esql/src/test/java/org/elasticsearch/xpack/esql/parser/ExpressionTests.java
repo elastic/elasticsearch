@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -49,6 +51,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
 import static org.hamcrest.Matchers.containsString;
@@ -585,7 +588,7 @@ public class ExpressionTests extends ESTestCase {
         String[] oldName = new String[] { "b", "a.c", "x.y", "a" };
         List<?> renamings;
         for (int i = 0; i < newName.length; i++) {
-            Rename r = renameExpression(oldName[i] + " AS " + newName[i]);
+            Rename r = renameExpression(randomBoolean() ? (oldName[i] + " AS " + newName[i]) : (newName[i] + " = " + oldName[i]));
             renamings = r.renamings();
             assertThat(renamings.size(), equalTo(1));
             assertThat(renamings.get(0), instanceOf(Alias.class));
@@ -612,6 +615,7 @@ public class ExpressionTests extends ESTestCase {
 
     public void testForbidWildcardProjectRename() {
         assertParsingException(() -> renameExpression("b* AS a*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [b* AS a*]");
+        assertParsingException(() -> renameExpression("a* = b*"), "line 1:17: Using wildcards [*] in RENAME is not allowed [a* = b*]");
     }
 
     public void testSimplifyInWithSingleElementList() {
@@ -656,10 +660,13 @@ public class ExpressionTests extends ESTestCase {
     }
 
     private LogicalPlan parse(String s) {
-        return parser.createStatement(s);
+        return parser.createStatement(s, EsqlTestUtils.TEST_CFG);
     }
 
     private Literal l(Object value, DataType type) {
+        if (value instanceof String && (type == TEXT || type == KEYWORD)) {
+            value = BytesRefs.toBytesRef(value);
+        }
         return new Literal(null, value, type);
     }
 

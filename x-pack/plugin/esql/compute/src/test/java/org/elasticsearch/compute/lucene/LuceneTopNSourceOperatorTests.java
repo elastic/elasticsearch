@@ -24,10 +24,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
@@ -47,17 +48,18 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.assertAllRefCountedSameInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
+public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
     private Directory directory = newDirectory();
     private IndexReader reader;
 
     @After
-    private void closeIndex() throws IOException {
+    public void closeIndex() throws IOException {
         IOUtils.close(reader, directory);
     }
 
@@ -101,6 +103,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
@@ -109,6 +112,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
             maxPageSize,
             limit,
             sorts,
+            estimatedPerRowSortSize,
             scoring
         );
     }
@@ -206,6 +210,7 @@ public class LuceneTopNSourceOperatorTests extends AnyOperatorTestCase {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
             }
         }
+        assertAllRefCountedSameInstance(results);
         int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
         assertThat(results, hasSize(pages));
     }

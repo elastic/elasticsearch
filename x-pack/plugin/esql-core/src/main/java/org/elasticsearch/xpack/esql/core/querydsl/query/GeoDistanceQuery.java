@@ -75,4 +75,9 @@ public class GeoDistanceQuery extends Query {
     protected String innerToString() {
         return field + ":" + "(" + distance + "," + "(" + lat + ", " + lon + "))";
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

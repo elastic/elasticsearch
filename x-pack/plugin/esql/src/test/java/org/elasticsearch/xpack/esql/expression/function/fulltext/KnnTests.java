@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -27,12 +28,13 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,19 +52,33 @@ public class KnnTests extends AbstractFunctionTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("KNN is not enabled", EsqlCapabilities.Cap.KNN_FUNCTION.isEnabled());
+        assumeTrue("KNN is not enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
     }
 
     private static List<TestCaseSupplier> testCaseSuppliers() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         suppliers.add(
-            TestCaseSupplier.testCaseSupplier(
-                new TestCaseSupplier.TypedDataSupplier("dense_vector field", KnnTests::randomDenseVector, DENSE_VECTOR),
-                new TestCaseSupplier.TypedDataSupplier("query", KnnTests::randomDenseVector, DENSE_VECTOR, true),
-                (d1, d2) -> equalTo("string"),
-                BOOLEAN,
-                (o1, o2) -> true
+            new TestCaseSupplier(
+                List.of(DENSE_VECTOR, DENSE_VECTOR, DataType.INTEGER),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            new FieldAttribute(
+                                Source.EMPTY,
+                                randomIdentifier(),
+                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                            ),
+                            DENSE_VECTOR,
+                            "dense_vector field"
+                        ),
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query"),
+                        new TestCaseSupplier.TypedData(randomIntBetween(1, 1000), DataType.INTEGER, "k")
+                    ),
+                    equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
+                    BOOLEAN,
+                    equalTo(true)
+                )
             )
         );
 
@@ -91,7 +107,7 @@ public class KnnTests extends AbstractFunctionTestCase {
                 List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
                 values.add(
                     new TestCaseSupplier.TypedData(
-                        new MapExpression(Source.EMPTY, List.of(new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD))),
+                        new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))),
                         UNSUPPORTED,
                         "options"
                     ).forceLiteral()
@@ -128,5 +144,22 @@ public class KnnTests extends AbstractFunctionTestCase {
         );
         // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
         return newExpression.replaceChildren(expression.children());
+    }
+
+    public void testSerializationOfSimple() {
+        // do nothing
+        assumeTrue("can't serialize function", canSerialize());
+        Expression expression = buildFieldExpression(testCase);
+        if (expression instanceof Knn knn) {
+            // The K parameter is not serialized, so we need to remove it from the children
+            // before we compare the serialization results
+            List<Expression> newChildren = knn.children();
+            newChildren.set(2, null); // remove the k parameter
+            Expression knnWithoutK = knn.replaceChildren(newChildren);
+            assertSerialization(knnWithoutK, testCase.getConfiguration());
+        } else {
+            // If not a Knn instance we fail the test as it is supposed to be a Knn function
+            fail("Expression is not Knn");
+        }
     }
 }

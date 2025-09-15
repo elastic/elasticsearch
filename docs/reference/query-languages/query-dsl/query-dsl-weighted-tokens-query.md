@@ -66,7 +66,7 @@ POST _search
     :   (Optional, boolean) If `true` we only input pruned tokens into scoring, and discard non-pruned tokens. It is strongly recommended to set this to `false` for the main query, but this can be set to `true` for a rescore query to get more relevant results. Default: `false`.
 
     ::::{note}
-    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSER that provided the most optimal results.
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSER that provided the optimal results.
     ::::
 
 
@@ -75,7 +75,7 @@ POST _search
 
 The following example adds a pruning configuration to the `text_expansion` query. The pruning configuration identifies non-significant tokens to prune from the query in order to improve query performance.
 
-Token pruning happens at the shard level. While this should result in the same tokens being labeled as insignificant across shards, this is not guaranteed based on the composition of each shard. Therefore, if you are running `text_expansion` with a `pruning_config` on a multi-shard index, we strongly recommend adding a [Rescore filtered search results](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) function with the tokens that were originally pruned from the query. This will help mitigate any shard-level inconsistency with pruned tokens and provide better relevance overall.
+Token pruning happens at the shard level. While this should result in the same tokens being labeled as insignificant across shards, this is not guaranteed based on the composition of each shard. Therefore, if you are running `text_expansion` with a `pruning_config` on a multi-shard index, we strongly recommend adding a [Rescore filtered search results](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) function with the tokens that were originally pruned from the query. This will help mitigate any shard-level inconsistency with pruned tokens and provide better relevance overall.
 
 ```console
 GET my-index/_search

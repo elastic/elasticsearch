@@ -11,7 +11,6 @@ package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -304,7 +303,13 @@ public interface BlobContainer {
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
-     * Keys not yet used start at initial value 0. Returns the current value (before it was updated).
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
+     * <p>
+     * This operation, together with {@link #compareAndSetRegister}, must have linearizable semantics: a collection of such operations must
+     * act as if they operate serially, with each operation taking place at some instant in between its invocation and its completion.
+     * <p>
+     * If the listener completes exceptionally then the write operation should be considered as continuing to run and may therefore appear
+     * to occur at some later point in time.
      *
      * @param purpose  The purpose of the operation
      * @param key      key of the value to update
@@ -323,9 +328,15 @@ public interface BlobContainer {
 
     /**
      * Atomically sets the value stored at the given key to {@code updated} if the {@code current value == expected}.
-     * Keys not yet used start at initial value 0.
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
+     * <p>
+     * This operation, together with {@link #compareAndExchangeRegister}, must have linearizable semantics: a collection of such operations
+     * must act as if they operate serially, with each operation taking place at some instant in between its invocation and its completion.
+     * <p>
+     * If the listener completes exceptionally then the write operation should be considered as continuing to run and may therefore appear
+     * to occur at some later point in time.
      *
-     * @param purpose
+     * @param purpose  The purpose of the operation
      * @param key      key of the value to update
      * @param expected the expected value
      * @param updated  the new value
@@ -350,16 +361,22 @@ public interface BlobContainer {
 
     /**
      * Gets the value set by {@link #compareAndSetRegister} or {@link #compareAndExchangeRegister} for a given key.
-     * If a key has not yet been used, the initial value is an empty {@link BytesReference}.
+     * If a key has not yet been used as a register, its initial value is an empty {@link BytesReference}.
+     * <p>
+     * This operation has read-after-write consistency with respect to writes performed using {@link #compareAndExchangeRegister} and
+     * {@link #compareAndSetRegister}, but does not guarantee full linearizability. In particular, a {@code getRegister} performed during
+     * one of these write operations may return either the old or the new value, and a caller may therefore observe the old value
+     * <i>after</i> observing the new value, as long as both such read operations take place before the success of the write operation.
+     * <p>
+     * Write operations which complete exceptionally may behave as if they continue to run, thus yielding old or new values for an extended
+     * period of time. If multiple writes fail then {@code getRegister} may return any of the written values.
      *
      * @param purpose The purpose of the operation
      * @param key      key of the value to get
      * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
      *                 could not be read due to concurrent activity (which should not happen).
      */
-    default void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-        compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
-    }
+    void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener);
 
     /**
      * Verify that the {@link OperationPurpose} is (somewhat) suitable for the name of the blob to which it applies:

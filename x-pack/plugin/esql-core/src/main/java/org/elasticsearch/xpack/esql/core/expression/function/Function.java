@@ -17,13 +17,10 @@ import java.util.Objects;
 import java.util.StringJoiner;
 
 /**
- * Any SQL expression with parentheses, like {@code MAX()}, or {@code ABS()}. A
- * function is always a {@code NamedExpression}.
+ * Any ESQL function; generally this is translated into a computation to be evaluated on arguments, including scalar functions (e.g. in
+ * {@code EVAL}) or aggregation functions ({@code STATS}).
  */
 public abstract class Function extends Expression {
-
-    private final String functionName = getClass().getSimpleName().toUpperCase(Locale.ROOT);
-
     // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
     protected Function(Source source, List<Expression> children) {
         super(source, children);
@@ -34,7 +31,7 @@ public abstract class Function extends Expression {
     }
 
     public String functionName() {
-        return functionName;
+        return getClass().getSimpleName().toUpperCase(Locale.ROOT);
     }
 
     @Override

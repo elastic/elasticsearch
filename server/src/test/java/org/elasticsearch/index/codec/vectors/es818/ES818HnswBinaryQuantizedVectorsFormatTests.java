@@ -47,6 +47,7 @@ import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.SameThreadExecutorService;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -106,6 +107,9 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         for (VectorSimilarityFunction similarityFunction : VectorSimilarityFunction.values()) {
             try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
                 Document doc = new Document();
+                if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                    VectorUtil.l2normalize(vector);
+                }
                 doc.add(new KnnFloatVectorField("f", vector, similarityFunction));
                 w.addDocument(doc);
                 w.commit();
@@ -118,6 +122,9 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                         assertArrayEquals(vector, vectorValues.vectorValue(docIndexIterator.index()), 0.00001f);
                     }
                     float[] randomVector = randomVector(vector.length);
+                    if (similarityFunction == VectorSimilarityFunction.COSINE) {
+                        VectorUtil.l2normalize(randomVector);
+                    }
                     float trueScore = similarityFunction.compare(vector, randomVector);
                     TopDocs td = r.searchNearestVectors("f", randomVector, 1, null, Integer.MAX_VALUE);
                     assertEquals(1, td.totalHits.value());
@@ -221,6 +228,8 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
     }
 
     static void checkDirectIOSupported() {
+        assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
+
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");

@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -34,9 +35,12 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s");
-        return settings.build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL, "1s")
+            // We disable shard rebalancing to avoid shard relocations timing out the `ensureGreen` call at the end of the test. See #131394
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            .build();
     }
 
     public void testDataStreamLifecycleDownsampleRollingRestart() throws Exception {
@@ -85,7 +89,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends DownsamplingInteg
 
         ensureDownsamplingStatus(targetIndex, IndexMetadata.DownsampleTaskStatus.SUCCESS, TimeValue.timeValueSeconds(120));
         ensureGreen(targetIndex);
-        logger.info("-> Relocation has finished");
+        logger.info("-> Index is green and downsampling completed successfully.");
     }
 
     private void ensureDownsamplingStatus(String downsampledIndex, IndexMetadata.DownsampleTaskStatus expectedStatus, TimeValue timeout) {

@@ -33,14 +33,19 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.operator.PlanProfile;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -231,6 +236,22 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
+                case GEOHASH -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(
+                        Geohash.longEncode(p.getX(), p.getY(), randomIntBetween(1, Geohash.PRECISION))
+                    );
+                }
+                case GEOTILE -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(
+                        GeoTileUtils.longEncode(p.getX(), p.getY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM))
+                    );
+                }
+                case GEOHEX -> {
+                    Point p = GeometryTestUtils.randomPoint();
+                    ((LongBlock.Builder) builder).appendLong(H3.geoToH3(p.getLat(), p.getLon(), randomIntBetween(1, H3.MAX_H3_RES)));
+                }
                 case AGGREGATE_METRIC_DOUBLE -> {
                     BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
                     aggBuilder.min().appendDouble(randomDouble());
@@ -311,7 +332,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             }
             default -> throw new IllegalArgumentException();
         }
-        ;
         return new EsqlQueryResponse(columns, pages, documentsFound, valuesLoaded, profile, columnar, isAsync, executionInfo);
     }
 
@@ -973,7 +993,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             List.of(new OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
-                    )
+                    ),
+                    List.of(new PlanProfile("test", "elasticsearch", "node-1", "plan tree"))
                 ),
                 false,
                 false,
@@ -1027,6 +1048,14 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                           "first" : [ ],
                           "last" : [ ]
                         }
+                      }
+                    ],
+                    "plans" : [
+                      {
+                        "description" : "test",
+                        "cluster_name" : "elasticsearch",
+                        "node_name" : "node-1",
+                        "plan" : "plan tree"
                       }
                     ]
                   }
@@ -1197,6 +1226,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
                     }
+                    case GEOHASH -> ((LongBlock.Builder) builder).appendLong(Geohash.longEncode(value.toString()));
+                    case GEOTILE -> ((LongBlock.Builder) builder).appendLong(GeoTileUtils.longEncode(value.toString()));
+                    case GEOHEX -> ((LongBlock.Builder) builder).appendLong(H3.stringToH3(value.toString()));
                     case AGGREGATE_METRIC_DOUBLE -> {
                         BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
                         aggBuilder.min().appendDouble(((Number) value).doubleValue());

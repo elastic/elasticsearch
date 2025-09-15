@@ -5,6 +5,14 @@ l:long
 5
 ;
 
+maxOfUnsignedLong
+required_capability: agg_max_min_unsigned_long
+from ul_logs | stats ul = max(bytes_in);
+
+ul:ul
+18446744073709551615
+;
+
 maxOfInteger
 // tag::max[]
 FROM employees
@@ -16,6 +24,21 @@ FROM employees
 MAX(languages):integer
 5
 // end::max-result[]
+;
+
+minOfLong
+from employees | stats l = min(languages.long);
+
+l:long
+1
+;
+
+minOfUnsignedLong
+required_capability: agg_max_min_unsigned_long
+from ul_logs | stats ul = min(bytes_in);
+
+ul:ul
+0
 ;
 
 minOfInteger

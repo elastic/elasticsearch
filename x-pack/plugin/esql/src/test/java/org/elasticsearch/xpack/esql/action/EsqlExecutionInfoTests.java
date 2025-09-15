@@ -57,7 +57,7 @@ public class EsqlExecutionInfoTests extends ESTestCase {
         assertFalse(info.hasMetadataToReport());
         info.swapCluster(key, (k, v) -> {
             EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(v);
-            builder.setFailures(List.of(new ShardSearchFailure(new IllegalStateException("shard failure"))));
+            builder.addFailures(List.of(new ShardSearchFailure(new IllegalStateException("shard failure"))));
             return builder.build();
         });
         assertTrue(info.hasMetadataToReport());

@@ -124,11 +124,6 @@ esplugin.bundleSpec.from('config/repository-s3') {
     into 'config'
 }
 
-tasks.named("internalClusterTest").configure {
-  // TODO: remove once https://github.com/elastic/elasticsearch/issues/101608 is fixed
-  systemProperty 'es.insecure_network_trace_enabled', 'true'
-}
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // missing/unused classes

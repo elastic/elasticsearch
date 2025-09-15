@@ -170,6 +170,11 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
     }
 
     public void testSnapshotDeletionsInProgressSerialization() throws Exception {
+        TransportVersion version = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersion.minimumCompatible(),
+            TransportVersion.current()
+        );
 
         boolean includeRestore = randomBoolean();
 
@@ -179,6 +184,9 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
                 SnapshotDeletionsInProgress.of(
                     List.of(
                         new SnapshotDeletionsInProgress.Entry(
+                            version.onOrAfter(TransportVersions.PROJECT_ID_IN_SNAPSHOTS_DELETIONS_AND_REPO_CLEANUP)
+                                ? randomProjectIdOrDefault()
+                                : ProjectId.DEFAULT,
                             "repo1",
                             Collections.singletonList(new SnapshotId("snap1", UUIDs.randomBase64UUID())),
                             randomNonNegativeLong(),
@@ -210,11 +218,6 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with current version
         BytesStreamOutput outStream = new BytesStreamOutput();
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersion.current()
-        );
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
@@ -409,7 +412,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.MINIMUM_COMPATIBLE;
+            return TransportVersion.minimumCompatible();
         }
 
     }
@@ -448,7 +451,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with minimum compatibile version
         outStream = new BytesStreamOutput();
-        version = TransportVersions.MINIMUM_COMPATIBLE;
+        version = TransportVersion.minimumCompatible();
         outStream.setTransportVersion(version);
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();

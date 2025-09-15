@@ -913,18 +913,18 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(updatedClusterInfo, not(equalTo(clusterInfoRef.get())));
 
             // First node has reduced utilization and zero latency since shard0 has moved away
-            final var fistNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
+            final var firstNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
                 .get(firstNode.getId())
                 .threadPoolUsageStatsMap()
                 .get("write");
             assertThat(
-                fistNodeUpdatedStats.averageThreadPoolUtilization(),
+                firstNodeUpdatedStats.averageThreadPoolUtilization(),
                 equalTo(
                     initialThreadPoolStats.get(firstNode.getId()).threadPoolUsageStatsMap().get("write").averageThreadPoolUtilization()
                         - 1.0f
                 )
             );
-            assertThat(fistNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
+            assertThat(firstNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
 
             // Second node has increased utilization since shard0 moved onto it. Latency does not change for incoming shards
             final var secondNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()

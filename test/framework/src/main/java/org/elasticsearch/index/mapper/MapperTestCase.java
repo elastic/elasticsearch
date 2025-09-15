@@ -857,8 +857,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         var fdt = fielddataContext.fielddataOperation();
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder(fielddataContext)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            ft.fielddataBuilder(fielddataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);

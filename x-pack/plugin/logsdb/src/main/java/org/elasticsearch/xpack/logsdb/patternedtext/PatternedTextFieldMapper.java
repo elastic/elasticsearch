@@ -73,7 +73,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static class Builder extends BuilderWithExtendedSyntheticSourceSupport {
+    public static class Builder extends BuilderWithSyntheticSourceSupport {
 
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();

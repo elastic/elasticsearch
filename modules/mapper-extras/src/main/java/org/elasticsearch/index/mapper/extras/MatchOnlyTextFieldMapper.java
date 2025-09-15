@@ -100,7 +100,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     }
 
-    public static class Builder extends BuilderWithExtendedSyntheticSourceSupport {
+    public static class Builder extends BuilderWithSyntheticSourceSupport {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

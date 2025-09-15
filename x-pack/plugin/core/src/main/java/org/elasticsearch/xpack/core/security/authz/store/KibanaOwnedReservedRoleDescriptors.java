@@ -600,6 +600,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".entities.*history*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*reset*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
@@ -32,7 +33,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
@@ -44,14 +45,18 @@ public class First extends AggregateFunction implements ToAggregator {
     // TODO: support all types of values
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double" },
+        returnType = { "long", "integer", "double", "keyword" },
         description = "The earliest value of a field.",
         appliesTo = @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE),
         examples = @Example(file = "stats_first", tag = "first")
     )
     public First(
         Source source,
-        @Param(name = "value", type = { "long", "integer", "double" }, description = "Values to return") Expression field,
+        @Param(
+            name = "value",
+            type = { "long", "integer", "double", "keyword", "text" },
+            description = "Values to return"
+        ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
     ) {
         this(source, field, Literal.TRUE, sort);
@@ -91,23 +96,43 @@ public class First extends AggregateFunction implements ToAggregator {
         return new First(source(), field(), filter, sort);
     }
 
+    public Expression sort() {
+        return sort;
+    }
+
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noText();
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long")
-            .and(
-                isType(
-                    sort,
-                    dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
-                    sourceText(),
-                    SECOND,
-                    "long or date_nanos or datetime"
-                )
-            );
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        return isType(
+            field(),
+            dt -> dt == DataType.BOOLEAN
+                || dt == DataType.DATETIME
+                || DataType.isString(dt)
+                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+            sourceText(),
+            FIRST,
+            "boolean",
+            "date",
+            "ip",
+            "string",
+            "numeric except unsigned_long or counter types"
+        ).and(
+            isType(
+                sort,
+                dt -> dt == DataType.LONG || dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
+                sourceText(),
+                SECOND,
+                "long or date_nanos or datetime"
+            )
+        );
     }
 
     @Override
@@ -118,6 +143,7 @@ public class First extends AggregateFunction implements ToAggregator {
             case INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT -> new FirstBytesRefByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

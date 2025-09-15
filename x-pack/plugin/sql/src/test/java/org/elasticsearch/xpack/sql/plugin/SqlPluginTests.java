@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -18,29 +16,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SqlPluginTests extends ESTestCase {
 
     public void testSqlDisabledIsNoOp() {
         Settings settings = Settings.builder().put("xpack.sql.enabled", false).build();
         SqlPlugin plugin = new SqlPlugin(settings);
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterName()).thenReturn(new ClusterName(randomAlphaOfLength(10)));
-        when(clusterService.getClusterSettings()).thenReturn(
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
         assertThat(
             plugin.createComponents(
                 mock(Client.class),
                 Settings.EMPTY,
-                clusterService,
+                randomAlphaOfLength(10),
+                StubLinkedProjectConfigService.INSTANCE,
                 new NamedWriteableRegistry(Cursors.getNamedWriteables())
             ),
             hasSize(3)

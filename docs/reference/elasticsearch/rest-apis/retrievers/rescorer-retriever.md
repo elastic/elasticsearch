@@ -24,9 +24,9 @@ When using the `rescorer`, an error is returned if the following conditions are 
 ## Parameters [rescorer-retriever-parameters]
 
 `rescore`
-:   (Required. [A rescorer definition or an array of rescorer definitions](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore))
+:   (Required. [A rescorer definition or an array of rescorer definitions](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore))
 
-    Defines the [rescorers](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) applied sequentially to the top documents returned by the child retriever.
+    Defines the [rescorers](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore) applied sequentially to the top documents returned by the child retriever.
 
 
 `retriever`

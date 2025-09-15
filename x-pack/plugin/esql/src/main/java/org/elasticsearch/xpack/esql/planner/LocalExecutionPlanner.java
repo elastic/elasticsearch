@@ -47,7 +47,6 @@ import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.StringExtractOperator;
-import org.elasticsearch.compute.operator.exchange.DirectExchange;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
@@ -92,7 +91,9 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.RrfConfig;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -105,6 +106,8 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
@@ -112,14 +115,11 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RrfScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
@@ -292,10 +292,6 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
-        } else if (node instanceof ParallelExec parallelExec) {
-            return planParallelNode(parallelExec, context);
-        } else if (node instanceof TimeSeriesSourceExec ts) {
-            return planTimeSeriesSource(ts, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -310,8 +306,8 @@ public class LocalExecutionPlanner {
             return planOutput(outputExec, context);
         } else if (node instanceof ExchangeSinkExec exchangeSink) {
             return planExchangeSink(exchangeSink, context);
-        } else if (node instanceof RrfScoreEvalExec rrf) {
-            return planRrfScoreEvalExec(rrf, context);
+        } else if (node instanceof FuseScoreEvalExec fuse) {
+            return planFuseScoreEvalExec(fuse, context);
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
@@ -330,17 +326,18 @@ public class LocalExecutionPlanner {
         return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
     }
 
-    private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
-        PhysicalOperation source = plan(rrf.child(), context);
+    private PhysicalOperation planFuseScoreEvalExec(FuseScoreEvalExec fuse, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(fuse.child(), context);
 
         int scorePosition = -1;
-        int forkPosition = -1;
+        int discriminatorPosition = -1;
         int pos = 0;
-        for (Attribute attr : rrf.child().output()) {
-            if (attr.name().equals(Fork.FORK_FIELD)) {
-                forkPosition = pos;
+
+        for (Attribute attr : fuse.child().output()) {
+            if (attr.name().equals(fuse.discriminator().name())) {
+                discriminatorPosition = pos;
             }
-            if (attr.name().equals(MetadataAttribute.SCORE)) {
+            if (attr.name().equals(fuse.score().name())) {
                 scorePosition = pos;
             }
 
@@ -348,13 +345,18 @@ public class LocalExecutionPlanner {
         }
 
         if (scorePosition == -1) {
-            throw new IllegalStateException("can't find _score attribute position");
+            throw new IllegalStateException("can't find score attribute position");
         }
-        if (forkPosition == -1) {
-            throw new IllegalStateException("can'find _fork attribute position");
+        if (discriminatorPosition == -1) {
+            throw new IllegalStateException("can'find discriminator attribute position");
         }
 
-        return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
+        RrfConfig config = (RrfConfig) fuse.fuseConfig();
+
+        return source.with(
+            new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config.rankConstant(), config.weights()),
+            source.layout
+        );
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
@@ -364,10 +366,6 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         return physicalOperationProviders.sourcePhysicalOperation(esQueryExec, context);
-    }
-
-    private PhysicalOperation planTimeSeriesSource(TimeSeriesSourceExec ts, LocalExecutionPlannerContext context) {
-        return physicalOperationProviders.timeSeriesSourceOperation(ts, context);
     }
 
     private PhysicalOperation planEsStats(EsStatsQueryExec statsQuery, LocalExecutionPlannerContext context) {
@@ -456,33 +454,6 @@ public class LocalExecutionPlanner {
         return PhysicalOperation.fromSource(new ExchangeSourceOperatorFactory(exchangeSourceSupplier), layout);
     }
 
-    private PhysicalOperation planParallelNode(ParallelExec parallelExec, LocalExecutionPlannerContext context) {
-        var exchange = new DirectExchange(context.queryPragmas.exchangeBufferSize());
-        {
-            PhysicalOperation source = plan(parallelExec.child(), context);
-            var sinkOperator = source.withSink(new ExchangeSinkOperatorFactory(exchange::exchangeSink), source.layout);
-            final TimeValue statusInterval = configuration.pragmas().statusInterval();
-            context.addDriverFactory(
-                new DriverFactory(
-                    new DriverSupplier(
-                        context.description,
-                        ClusterName.CLUSTER_NAME_SETTING.get(settings).value(),
-                        Node.NODE_NAME_SETTING.get(settings),
-                        context.bigArrays,
-                        context.blockFactory,
-                        sinkOperator,
-                        statusInterval,
-                        settings
-                    ),
-                    DriverParallelism.SINGLE
-                )
-            );
-            context.driverParallelism.set(DriverParallelism.SINGLE);
-        }
-        var exchangeSource = new ExchangeSourceExec(parallelExec.source(), parallelExec.output(), false);
-        return planExchangeSource(exchangeSource, exchange::exchangeSource);
-    }
-
     private PhysicalOperation planTopN(TopNExec topNExec, LocalExecutionPlannerContext context) {
         final Integer rowSize = topNExec.estimatedRowSize();
         assert rowSize != null && rowSize > 0 : "estimated row size [" + rowSize + "] wasn't set";
@@ -500,7 +471,7 @@ public class LocalExecutionPlanner {
                 case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
                     OBJECT, SCALED_FLOAT, UNSIGNED_LONG, DOC_DATA_TYPE, TSID_DATA_TYPE -> TopNEncoder.DEFAULT_SORTABLE;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE,
-                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR -> TopNEncoder.DEFAULT_UNSORTABLE;
+                    AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
                 case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
@@ -740,8 +711,8 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
-        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+        EsRelation esRelation = findEsRelation(join.lookup());
+        if (esRelation == null || esRelation.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
@@ -749,10 +720,10 @@ public class LocalExecutionPlanner {
         // 1. We've just got one entry - this should be the one relevant to the join, and it should be for this cluster
         // 2. We have got multiple entries - this means each cluster has its own one, and we should extract one relevant for this cluster
         Map.Entry<String, IndexMode> entry;
-        if (localSourceExec.indexNameWithModes().size() == 1) {
-            entry = localSourceExec.indexNameWithModes().entrySet().iterator().next();
+        if (esRelation.indexNameWithModes().size() == 1) {
+            entry = esRelation.indexNameWithModes().entrySet().iterator().next();
         } else {
-            var maybeEntry = localSourceExec.indexNameWithModes()
+            var maybeEntry = esRelation.indexNameWithModes()
                 .entrySet()
                 .stream()
                 .filter(e -> RemoteClusterAware.parseClusterAlias(e.getKey()).equals(clusterAlias))
@@ -788,7 +759,6 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new MatchConfig(right, input));
         }
-
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -796,13 +766,24 @@ public class LocalExecutionPlanner {
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 ctx -> lookupFromIndexService,
-                localSourceExec.indexPattern(),
+                esRelation.indexPattern(),
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
-                join.source()
+                join.source(),
+                join.right()
             ),
             layout
         );
+    }
+
+    private static EsRelation findEsRelation(PhysicalPlan node) {
+        if (node instanceof FragmentExec fragmentExec) {
+            List<LogicalPlan> esRelations = fragmentExec.fragment().collectFirstChildren(x -> x instanceof EsRelation);
+            if (esRelations.size() == 1) {
+                return (EsRelation) esRelations.get(0);
+            }
+        }
+        return null;
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

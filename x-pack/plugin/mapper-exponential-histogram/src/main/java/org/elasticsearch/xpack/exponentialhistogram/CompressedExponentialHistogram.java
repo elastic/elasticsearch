@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.exponentialhistogram;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.exponentialhistogram.AbstractExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.CopyableBucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -27,12 +28,15 @@ import java.util.OptionalLong;
  * While this implementation is optimized for a minimal memory footprint, it is still a fully compliant {@link ExponentialHistogram}
  * and can therefore be directly consumed for merging / quantile estimation without requiring any prior copying or decoding.
  */
-public class CompressedExponentialHistogram implements ExponentialHistogram {
+public class CompressedExponentialHistogram extends AbstractExponentialHistogram {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CompressedExponentialHistogram.class);
 
     private double zeroThreshold;
     private long valueCount;
+    private double sum;
+    private double min;
+    private double max;
     private ZeroBucket lazyZeroBucket;
 
     private final EncodedHistogramData encodedData = new EncodedHistogramData();
@@ -48,9 +52,29 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
     public ZeroBucket zeroBucket() {
         if (lazyZeroBucket == null) {
             long zeroCount = valueCount - negativeBuckets.valueCount() - positiveBuckets.valueCount();
-            lazyZeroBucket = new ZeroBucket(zeroThreshold, zeroCount);
+            lazyZeroBucket = ZeroBucket.create(zeroThreshold, zeroCount);
         }
         return lazyZeroBucket;
+    }
+
+    @Override
+    public double sum() {
+        return sum;
+    }
+
+    @Override
+    public long valueCount() {
+        return valueCount;
+    }
+
+    @Override
+    public double min() {
+        return min;
+    }
+
+    @Override
+    public double max() {
+        return max;
     }
 
     @Override
@@ -68,20 +92,30 @@ public class CompressedExponentialHistogram implements ExponentialHistogram {
      *
      * @param zeroThreshold the zeroThreshold for the histogram, which needs to be stored externally
      * @param valueCount the total number of values the histogram contains, needs to be stored externally
+     * @param sum the total sum of the values the histogram contains, needs to be stored externally
+     * @param min the minimum of the values the histogram contains, needs to be stored externally.
+     *            Must be {@link Double#NaN} if the histogram is empty, non-Nan otherwise.
+     * @param max the maximum of the values the histogram contains, needs to be stored externally.
+     *            Must be {@link Double#NaN} if the histogram is empty, non-Nan otherwise.
      * @param encodedHistogramData the encoded histogram bytes which previously where generated via
      * {@link #writeHistogramBytes(StreamOutput, int, List, List)}.
      */
-    public void reset(double zeroThreshold, long valueCount, BytesRef encodedHistogramData) throws IOException {
+    public void reset(double zeroThreshold, long valueCount, double sum, double min, double max, BytesRef encodedHistogramData)
+        throws IOException {
         lazyZeroBucket = null;
         this.zeroThreshold = zeroThreshold;
         this.valueCount = valueCount;
+        this.sum = sum;
+        this.min = min;
+        this.max = max;
         encodedData.decode(encodedHistogramData);
         negativeBuckets.resetCachedData();
         positiveBuckets.resetCachedData();
     }
 
     /**
-     * Serializes the given histogram, so that exactly the same data can be reconstructed via {@link #reset(double, long, BytesRef)}.
+     * Serializes the given histogram, so that exactly the same data can be reconstructed via
+     * {@link #reset(double, long, double, double, double, BytesRef)}.
      *
      * @param output the output to write the serialized bytes to
      * @param scale the scale of the histogram

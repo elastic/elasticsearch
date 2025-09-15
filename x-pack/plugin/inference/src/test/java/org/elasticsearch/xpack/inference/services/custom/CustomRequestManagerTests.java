@@ -25,7 +25,7 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -37,7 +37,7 @@ public class CustomRequestManagerTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After

@@ -62,6 +62,11 @@ public class RateTests extends AbstractAggregationTestCase {
     }
 
     @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
     public void testAggregateIntermediate() {
         assumeTrue("time-series aggregation doesn't support ungrouped", false);
     }
@@ -115,7 +120,7 @@ public class RateTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                "Rate[field=Attribute[channel=0],timestamp=Attribute[channel=1]]",
+                standardAggregatorName("Rate", fieldTypedData.type()),
                 DataType.DOUBLE,
                 matcher
             );

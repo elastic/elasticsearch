@@ -54,9 +54,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *
      * The exact overhead per block would be (more correctly) {@link RamUsageEstimator#NUM_BYTES_OBJECT_REF},
      * but we approximate it with {@link RamUsageEstimator#NUM_BYTES_OBJECT_ALIGNMENT} to avoid further alignments
-     * to object size (at the end of the alignment, it would make no practical difference).
+     * to object size (at the end of the alignment, it would make no practical difference). We uplift it {@code * 4}
+     * based on experiments with many small pages.
      */
-    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
+    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT * 4;
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -256,6 +257,12 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
             return builder.build();
         }
     }
+
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    Block deepCopy(BlockFactory blockFactory);
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.

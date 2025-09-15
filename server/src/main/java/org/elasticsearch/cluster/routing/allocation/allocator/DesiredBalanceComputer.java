@@ -555,7 +555,6 @@ public class DesiredBalanceComputer {
             if (sourceNodeId != null) {
                 alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
             }
-            logger.info("--> simulate already started shard [{}] from [{}]", startedShard, sourceNodeId);
             clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
         }
     }

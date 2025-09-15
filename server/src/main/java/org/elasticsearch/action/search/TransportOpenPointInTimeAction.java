@@ -174,8 +174,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     timeProvider,
                     task,
                     false,
-                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
-                )
+                    searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
+                                searchService.getIndicesService().getCanMatchPhaseMetrics())
                     .addListener(
                         listener.delegateFailureAndWrap(
                             (searchResponseActionListener, searchShardIterators) -> runOpenPointInTimePhase(

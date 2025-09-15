@@ -810,8 +810,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             MapperMetrics.NOOP,
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
-        );
+            MergeMetrics.NOOP,
+            canMatchPhaseMetrics);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {

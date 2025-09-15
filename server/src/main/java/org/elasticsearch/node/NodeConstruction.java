@@ -122,6 +122,7 @@ import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -940,6 +941,7 @@ class NodeConstruction {
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .slowLogFieldProvider(slowLogFieldProvider)
+            .canMatchPhaseMetrics(new CanMatchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()))
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);

@@ -119,6 +119,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -279,6 +280,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final TimestampFieldMapperService timestampFieldMapperService;
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     private final MapperMetrics mapperMetrics;
+    private final CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics;
     private final PostRecoveryMerger postRecoveryMerger;
     private final List<SearchOperationListener> searchOperationListeners;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
@@ -362,6 +364,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
         this.mergeMetrics = builder.mergeMetrics;
+        this.canMatchPhaseAPMMetrics = builder.canMatchPhaseMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -806,7 +809,8 @@ public class IndicesService extends AbstractLifecycleComponent
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics
+            mergeMetrics,
+            canMatchPhaseAPMMetrics
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -906,7 +910,8 @@ public class IndicesService extends AbstractLifecycleComponent
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics
+            mergeMetrics,
+            canMatchPhaseAPMMetrics
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -1995,5 +2000,9 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
+    }
+
+    public CanMatchPhaseAPMMetrics getCanMatchPhaseMetrics() {
+        return canMatchPhaseAPMMetrics;
     }
 }

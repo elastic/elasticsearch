@@ -68,6 +68,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
+import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.GlobalCheckpointSyncer;
@@ -174,6 +175,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -213,7 +215,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         QueryRewriteInterceptor queryRewriteInterceptor,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics
+        MergeMetrics mergeMetrics,
+        CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -301,6 +304,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
+        this.canMatchPhaseAPMMetrics = canMatchPhaseAPMMetrics;
         updateFsyncTaskIfNecessary();
     }
 
@@ -593,7 +597,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics
+                mergeMetrics,
+                canMatchPhaseAPMMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

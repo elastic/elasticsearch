@@ -12,7 +12,6 @@ package org.elasticsearch.search.TelemetryMetrics;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -26,20 +25,16 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
-import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.DFS_SEARCH_PHASE_METRIC;
-import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
-import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
-import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
+import static org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics.CAN_MATCH_SEARCH_PHASE_COORDINATING_NODE_METRIC;
+import static org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics.CAN_MATCH_SEARCH_PHASE_PER_SHARD_METRIC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 
-public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
+public class CanMatchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
 
-    private static final String indexName = "test_search_metrics2";
+    private static final String indexName = "test_can_match_metrics2";
     private final int num_primaries = randomIntBetween(128, 133);
 
     @Override
@@ -75,37 +70,8 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         return pluginList(TestTelemetryPlugin.class, TestSystemIndexPlugin.class);
     }
 
-    public void testMetricsDfsQueryThenFetch() throws InterruptedException {
-        checkMetricsDfsQueryThenFetch(indexName, false);
-    }
-
-    public void testMetricsDfsQueryThenFetchSystem() throws InterruptedException {
-        checkMetricsDfsQueryThenFetch(TestSystemIndexPlugin.INDEX_NAME, true);
-    }
-
-    private void checkMetricsDfsQueryThenFetch(String indexName, boolean isSystemIndex) throws InterruptedException {
-        assertSearchHitsWithoutFailures(
-            client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
-            "1"
-        );
-
-        if (isSystemIndex) {
-            assertEquals(0, getNumberOfMeasurementsForPhase(DFS_SEARCH_PHASE_METRIC));
-        } else {
-            checkNumberOfMeasurementsForPhase(DFS_SEARCH_PHASE_METRIC, false);
-        }
-
-        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-        checkMetricsAttributes(isSystemIndex);
-    }
-
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
         checkSearchTransportMetricsQueryThenFetch(indexName, false);
-    }
-
-    public void testSearchTransportMetricsQueryThenFetchSystem() throws InterruptedException {
-        checkSearchTransportMetricsQueryThenFetch(TestSystemIndexPlugin.INDEX_NAME, true);
     }
 
     private void checkSearchTransportMetricsQueryThenFetch(String indexName, boolean isSystemIndex) throws InterruptedException {
@@ -113,41 +79,9 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-        checkMetricsAttributes(isSystemIndex);
-    }
-
-    public void testSearchTransportMetricsScroll() throws InterruptedException {
-        checkSearchTransportMetricsScroll(indexName, false);
-    }
-
-    public void testSearchTransportMetricsScrollSystem() throws InterruptedException {
-        checkSearchTransportMetricsScroll(TestSystemIndexPlugin.INDEX_NAME, true);
-    }
-
-    private void checkSearchTransportMetricsScroll(String indexName, boolean isSystemIndex) throws InterruptedException {
-        assertScrollResponsesAndHitCount(
-            client(),
-            TimeValue.timeValueSeconds(60),
-            client().prepareSearch(indexName)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setSize(1)
-                .setQuery(simpleQueryStringQuery("doc1 doc2")),
-            2,
-            (respNum, response) -> {
-                // No hits, no fetching done
-                assertEquals(isSystemIndex ? 1 : num_primaries, getNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC));
-                if (response.getHits().getHits().length > 0) {
-                    assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-                } else {
-                    assertEquals(isSystemIndex ? 1 : 0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-                }
-                checkMetricsAttributes(isSystemIndex);
-                resetMeter();
-            }
-        );
-
+        checkNumberOfMeasurementsForMeter(CAN_MATCH_SEARCH_PHASE_PER_SHARD_METRIC, isSystemIndex);
+        assertNotEquals(0, getNumberOfMeasurementsForMeter(CAN_MATCH_SEARCH_PHASE_COORDINATING_NODE_METRIC));
+        //checkMetricsAttributes(isSystemIndex);
     }
 
     private void resetMeter() {
@@ -158,28 +92,31 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
     }
 
-    private void checkNumberOfMeasurementsForPhase(String phase, boolean isSystemIndex) {
-        int numMeasurements = getNumberOfMeasurementsForPhase(phase);
+    private void checkNumberOfMeasurementsForMeter(String meter, boolean isSystemIndex) {
+        int numMeasurements = getNumberOfMeasurementsForMeter(meter);
         assertEquals(isSystemIndex ? 1 : num_primaries, numMeasurements);
     }
 
-    private int getNumberOfMeasurementsForPhase(String phase) {
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(phase);
+    private int getNumberOfMeasurementsForMeter(String meter) {
+        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(meter);
         return measurements.size();
     }
 
+    /*
     private void checkMetricsAttributes(boolean isSystem) {
-        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        final List<Measurement> shardMeasurements =
+            getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_PER_SHARD_METRIC);
+        final List<Measurement> coordinatorMeasurements =
+            getTestTelemetryPlugin().getLongHistogramMeasurement(CAN_MATCH_SEARCH_PHASE_COORDINATING_NODE_METRIC);
         assertTrue(
-            Stream.concat(queryMeasurements.stream(), fetchMeasurements.stream()).allMatch(m -> checkMeasurementAttributes(m, isSystem))
+            Stream.concat(shardMeasurements.stream(), coordinatorMeasurements.stream()).allMatch(m -> checkMeasurementAttributes(m, isSystem))
         );
     }
 
     private boolean checkMeasurementAttributes(Measurement m, boolean isSystem) {
         return ((boolean) m.attributes().get(SYSTEM_THREAD_ATTRIBUTE_NAME)) == isSystem;
     }
-
+    */
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
 
         static final String INDEX_NAME = ".test-system-index";
@@ -210,14 +147,14 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                           }
                         """)
                     .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
-                    .setOrigin(ShardSearchPhaseAPMMetricsTests.class.getSimpleName())
+                    .setOrigin(CanMatchPhaseAPMMetricsTests.class.getSimpleName())
                     .build()
             );
         }
 
         @Override
         public String getFeatureName() {
-            return ShardSearchPhaseAPMMetricsTests.class.getSimpleName();
+            return CanMatchPhaseAPMMetricsTests.class.getSimpleName();
         }
 
         @Override

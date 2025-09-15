@@ -893,7 +893,7 @@ public class Stateless extends Plugin
         final int getVirtualBatchedCompoundCommitChunkMaxThreads;
         final int fillVirtualBatchedCompoundCommitCacheCoreThreads;
         final int fillVirtualBatchedCompoundCommitCacheMaxThreads;
-        final int prewarmMaxThreads = Math.min(processors * 4, 32);
+        final int prewarmMaxThreads;
         final int uploadPrewarmCoreThreads;
         final int uploadPrewarmMaxThreads;
 
@@ -909,6 +909,7 @@ public class Stateless extends Plugin
             getVirtualBatchedCompoundCommitChunkMaxThreads = Math.min(processors, 4);
             fillVirtualBatchedCompoundCommitCacheCoreThreads = 0;
             fillVirtualBatchedCompoundCommitCacheMaxThreads = 1;
+            prewarmMaxThreads = Math.min(processors * 2, 32);
             // These threads are used for prewarming the shared blob cache on upload, and are separate from the prewarm thread pool
             // in order to avoid any deadlocks between the two (e.g., when two fillgaps compete). Since they are used to prewarm on upload,
             // we use the same amount of max threads as the shard write pool.
@@ -926,6 +927,7 @@ public class Stateless extends Plugin
             clusterStateReadWriteMaxThreads = 1;
             getVirtualBatchedCompoundCommitChunkCoreThreads = 0;
             getVirtualBatchedCompoundCommitChunkMaxThreads = 1;
+            prewarmMaxThreads = Math.min(processors * 4, 32);
             // these threads use a sizeable thread-local direct buffer which might take a while to GC, so we prefer to keep some idle
             // threads around to reduce churn and re-use the existing buffers more
             fillVirtualBatchedCompoundCommitCacheCoreThreads = Math.max(processors / 2, 2);

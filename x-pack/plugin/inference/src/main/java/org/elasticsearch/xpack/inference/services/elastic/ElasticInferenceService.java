@@ -459,11 +459,13 @@ public class ElasticInferenceService extends SenderService {
         }
     }
 
+    /**
+     * This shouldn't be called because the configuration changes based on the authorization.
+     * Instead, retrieve the authorization directly from the EIS gateway and use the static method
+     * {@link ElasticInferenceService#createConfiguration(EnumSet)} to create a configuration based on the authorization response.
+     */
     @Override
     public InferenceServiceConfiguration getConfiguration() {
-        // This shouldn't be called because the configuration changes based on the authorization
-        // Instead, retrieve the authorization directly from the EIS gateway and use the static method
-        // ElasticInferenceService.Configuration#createConfiguration() to create a configuration based on the authorization response
         throw new UnsupportedOperationException(
             "The EIS configuration changes depending on authorization, requests should be made directly to EIS instead"
         );

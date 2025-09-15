@@ -313,6 +313,27 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertInferenceEndpoints(mapperServiceWithoutEis, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
     }
 
+    public void testDynamicElserDefaultSelectionEdgeCases() throws Exception {
+        final String fieldName = "field";
+        final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+
+        // Test: ModelRegistry throws exception - should fallback gracefully
+        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenThrow(new RuntimeException("Registry error"));
+        MapperService mapperServiceWithError = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperServiceWithError, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
+    }
+
+    public void testExplicitInferenceIdOverridesDynamicSelection() throws Exception {
+        final String fieldName = "field";
+        final String explicitInferenceId = "my-custom-model";
+        final XContentBuilder fieldMapping = fieldMapping(b -> b.field("type", "semantic_text").field(INFERENCE_ID_FIELD, explicitInferenceId));
+
+        // Even when EIS is available, explicit inference_id should take precedence
+        when(globalModelRegistry.containsDefaultConfigId(".elser-2-elastic")).thenReturn(true);
+        MapperService mapperService = createMapperService(fieldMapping, useLegacyFormat);
+        assertInferenceEndpoints(mapperService, fieldName, explicitInferenceId, explicitInferenceId);
+    }
+
     @Override
     public void testFieldHasValue() {
         MappedFieldType fieldType = getMappedFieldType();

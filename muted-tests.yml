@@ -519,15 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.FiveFork}
   issue: https://github.com/elastic/elasticsearch/issues/134560
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/134600
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/134601
-- class: org.elasticsearch.upgrades.TextRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/134602
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testSnapshotShutdownProgressTracker
   issue: https://github.com/elastic/elasticsearch/issues/134620
@@ -552,6 +543,15 @@ tests:
 - class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTests
   method: testFailIfAlreadyExists
   issue: https://github.com/elastic/elasticsearch/issues/134669
+- class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
+  method: "testEvaluateBlockWithNulls {TestCase=<integer>, <integer>, <integer>, <_source> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/134679
+- class: org.elasticsearch.action.support.nodes.TransportNodesActionTests
+  method: testConcurrentlyCompletionAndCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/134277
+- class: org.elasticsearch.search.vectors.CachingEnableFilterQueryTests
+  method: testTermQuery
+  issue: https://github.com/elastic/elasticsearch/issues/134723
 
 # Examples:
 #

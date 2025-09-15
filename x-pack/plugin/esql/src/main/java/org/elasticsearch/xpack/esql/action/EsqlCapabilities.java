@@ -1494,7 +1494,12 @@ public class EsqlCapabilities {
         /**
          * Support absent_over_time aggregation that gets evaluated per time-series
          */
-        ABSENT_OVER_TIME(Build.current().isSnapshot());
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID;
 
         private final boolean enabled;
 

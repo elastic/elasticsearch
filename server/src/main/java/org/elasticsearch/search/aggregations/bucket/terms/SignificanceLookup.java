@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.FilterableTermsEnum;
 import org.elasticsearch.common.util.BigArrays;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
@@ -160,7 +162,7 @@ class SignificanceLookup {
      * Get the background frequency of a {@link BytesRef} term.
      */
     private long getBackgroundFrequency(BytesRef term) throws IOException {
-        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
+        return getBackgroundFrequency(context.buildQuery(makeBackgroundFrequencyQuery(format.format(term).toString())));
     }
 
     /**
@@ -215,7 +217,18 @@ class SignificanceLookup {
      * Get the background frequency of a {@code long} term.
      */
     private long getBackgroundFrequency(long term) throws IOException {
-        return getBackgroundFrequency(context.buildQuery(new TermQueryBuilder(fieldType.name(), format.format(term).toString())));
+        return getBackgroundFrequency(context.buildQuery(makeBackgroundFrequencyQuery(format.format(term).toString())));
+    }
+
+    private QueryBuilder makeBackgroundFrequencyQuery(String value) {
+        QueryBuilder queryBuilder = new TermQueryBuilder(fieldType.name(), value);
+
+        var nestedParentField = context.nestedLookup().getNestedParent(fieldType.name());
+        if (nestedParentField != null) {
+            queryBuilder = new NestedQueryBuilder(nestedParentField, queryBuilder, ScoreMode.Avg);
+        }
+
+        return queryBuilder;
     }
 
     private long getBackgroundFrequency(Query query) throws IOException {

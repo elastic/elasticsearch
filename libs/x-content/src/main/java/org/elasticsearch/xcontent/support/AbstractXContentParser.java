@@ -15,8 +15,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -85,7 +87,13 @@ public abstract class AbstractXContentParser implements XContentParser {
     public boolean isBooleanValue() throws IOException {
         return switch (currentToken()) {
             case VALUE_BOOLEAN -> true;
-            case VALUE_STRING -> Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+            case VALUE_STRING -> {
+                if (hasTextCharacters()) {
+                    yield Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+                } else {
+                    yield Booleans.isBoolean(text());
+                }
+            }
             default -> false;
         };
     }
@@ -94,7 +102,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
-            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            if (hasTextCharacters()) {
+                return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            } else {
+                return Booleans.parseBoolean(text(), false /* irrelevant */);
+            }
         }
         return doBooleanValue();
     }
@@ -256,6 +268,19 @@ public abstract class AbstractXContentParser implements XContentParser {
             return null;
         }
         return text();
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        return new Text(text());
+    }
+
+    @Override
+    public final XContentString optimizedTextOrNull() throws IOException {
+        if (currentToken() == Token.VALUE_NULL) {
+            return null;
+        }
+        return optimizedText();
     }
 
     @Override

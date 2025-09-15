@@ -4,3 +4,6 @@
 
 `query`::
 Query string in Lucene query string format.
+
+`options`::
+(Optional) Additional options for Query String as <<esql-function-named-params,function named parameters>>. See <<query-dsl-query-string-query,query string query>> for more information.

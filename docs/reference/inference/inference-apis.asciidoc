@@ -10,16 +10,21 @@ trained models. However, if you do not plan to use the {infer} APIs to use these
 models or if you want to use non-NLP models, use the
 <<ml-df-trained-models-apis>>.
 
-The {infer} APIs enable you to create {infer} endpoints and use {ml} models of
-different providers - such as Amazon Bedrock, Anthropic, Azure AI Studio,
-Cohere, Google AI, Mistral, OpenAI, or HuggingFace - as a service. Use
-the following APIs to manage {infer} models and perform {infer}:
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
+The {infer} APIs enable you to create {infer} endpoints and integrate with {ml} models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+Use the following APIs to manage {infer} models and perform {infer}:
 
 * <<delete-inference-api>>
 * <<get-inference-api>>
 * <<post-inference-api>>
 * <<put-inference-api>>
 * <<stream-inference-api>>
+* <<chat-completion-inference-api>>
 * <<update-inference-api>>
 
 [[inference-landscape]]
@@ -28,28 +33,39 @@ image::images/inference-landscape.jpg[A representation of the Elastic inference 
 
 An {infer} endpoint enables you to use the corresponding {ml} model without
 manual deployment and apply it to your data at ingestion time through
-<<semantic-search-semantic-text, semantic text>>. 
+<<semantic-search-semantic-text, semantic text>>.
 
-Choose a model from your provider or use ELSER – a retrieval model trained by 
-Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
-Now use <<semantic-search-semantic-text, semantic text>> to perform
-<<semantic-search, semantic search>> on your data.
+Choose a model from your service or use ELSER – a retrieval model trained by Elastic –, then create an {infer} endpoint by the <<put-inference-api>>.
+Now use <<semantic-search-semantic-text, semantic text>> to perform <<semantic-search, semantic search>> on your data.
 
-//[discrete]
-//[[default-enpoints]]
-//=== Default {infer} endpoints
+[discrete]
+[[adaptive-allocations]]
+=== Adaptive allocations
 
-//Your {es} deployment contains some preconfigured {infer} endpoints that makes it easier for you to use them when defining `semantic_text` fields or {infer} processors.
-//The following list contains the default {infer} endpoints listed by `inference_id`:
+Adaptive allocations allow inference services to dynamically adjust the number of model allocations based on the current load.
 
-//* `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)
-//* `.multilingual-e5-small-elasticsearch`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts)
+When adaptive allocations are enabled:
 
-//Use the `inference_id` of the endpoint in a <<semantic-text,`semantic_text`>> field definition or when creating an <<inference-processor,{infer} processor>>.
-//The API call will automatically download and deploy the model which might take a couple of minutes.
-//Default {infer} enpoints have {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations] enabled.
-//For these models, the minimum number of allocations is `0`. 
-//If there is no {infer} activity that uses the endpoint, the number of allocations will scale down to `0` automatically after 15 minutes.
+* The number of allocations scales up automatically when the load increases.
+- Allocations scale down to a minimum of 0 when the load decreases, saving resources.
+
+For more information about adaptive allocations and resources, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] documentation.
+
+[discrete]
+[[default-enpoints]]
+=== Default {infer} endpoints
+
+Your {es} deployment contains preconfigured {infer} endpoints which makes them easier to use when defining `semantic_text` fields or using {infer} processors.
+The following list contains the default {infer} endpoints listed by `inference_id`:
+
+* `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)
+* `.multilingual-e5-small-elasticsearch`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts)
+
+Use the `inference_id` of the endpoint in a <<semantic-text,`semantic_text`>> field definition or when creating an <<inference-processor,{infer} processor>>.
+The API call will automatically download and deploy the model which might take a couple of minutes.
+Default {infer} enpoints have {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[adaptive allocations] enabled.
+For these models, the minimum number of allocations is `0`.
+If there is no {infer} activity that uses the endpoint, the number of allocations will scale down to `0` automatically after 15 minutes.
 
 
 [discrete]
@@ -65,7 +81,7 @@ Returning a long document in search results is less useful than providing the mo
 Each chunk will include the text subpassage and the corresponding embedding generated from it.
 
 By default, documents are split into sentences and grouped in sections up to 250 words with 1 sentence overlap so that each chunk shares a sentence with the previous chunk.
-Overlapping ensures continuity and prevents vital contextual information in the input text from being lost by a hard break. 
+Overlapping ensures continuity and prevents vital contextual information in the input text from being lost by a hard break.
 
 {es} uses the https://unicode-org.github.io/icu-docs/[ICU4J] library to detect word and sentence boundaries for chunking.
 https://unicode-org.github.io/icu/userguide/boundaryanalysis/#word-boundary[Word boundaries] are identified by following a series of rules, not just the presence of a whitespace character.
@@ -116,6 +132,7 @@ PUT _inference/sparse_embedding/small_chunk_size
 include::delete-inference.asciidoc[]
 include::get-inference.asciidoc[]
 include::post-inference.asciidoc[]
+include::chat-completion-inference.asciidoc[]
 include::put-inference.asciidoc[]
 include::stream-inference.asciidoc[]
 include::update-inference.asciidoc[]
@@ -130,6 +147,8 @@ include::service-elser.asciidoc[]
 include::service-google-ai-studio.asciidoc[]
 include::service-google-vertex-ai.asciidoc[]
 include::service-hugging-face.asciidoc[]
+include::service-jinaai.asciidoc[]
 include::service-mistral.asciidoc[]
 include::service-openai.asciidoc[]
+include::service-voyageai.asciidoc[]
 include::service-watsonx-ai.asciidoc[]

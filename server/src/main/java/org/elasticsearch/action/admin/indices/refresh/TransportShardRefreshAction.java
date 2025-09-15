@@ -118,17 +118,13 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             IndexShardRoutingTable indexShardRoutingTable,
             ActionListener<Void> listener
         ) {
-            assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
-            UnpromotableShardRefreshRequest unpromotableReplicaRequest = new UnpromotableShardRefreshRequest(
-                indexShardRoutingTable,
-                replicaRequest.primaryRefreshResult.primaryTerm(),
-                replicaRequest.primaryRefreshResult.generation(),
-                false
-            );
+            var primaryTerm = replicaRequest.primaryRefreshResult.primaryTerm();
+            var generation = replicaRequest.primaryRefreshResult.generation();
+
             transportService.sendRequest(
                 transportService.getLocalNode(),
                 TransportUnpromotableShardRefreshAction.NAME,
-                unpromotableReplicaRequest,
+                new UnpromotableShardRefreshRequest(indexShardRoutingTable, primaryTerm, generation, false),
                 new ActionListenerResponseHandler<>(listener.safeMap(r -> null), in -> ActionResponse.Empty.INSTANCE, refreshExecutor)
             );
         }

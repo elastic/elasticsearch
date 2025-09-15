@@ -75,26 +75,26 @@ Follow these steps:
 * Leave the *Redirect URIs* blank for now.
 * *Register* the application.
 * Find and keep the **Application (client) ID** and **Directory (tenant) ID** handy.
-* Locate the **Secret** by navigating to **Client credentials: Certificates & Secrets**.
-* Select **New client secret**
-* Pick a name for your client secret.
-Select an expiration date. (At this expiration date, you will need to generate a new secret and update your connector configuration.)
-** Save the client secret **Secret ID** before leaving this screen.
-** Save the client secret **Value** before leaving this screen.
+* Create a certificate and private key. This can, for example, be done by running `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure_app.key -out azure_app.crt` command. Store both in a safe and secure place
+* Locate the **Certificates** by navigating to **Client credentials: Certificates & Secrets**.
+* Select **Upload certificate**
+* Upload the certificate created in one of previous steps: `azure_app.crt`
 * Set up the permissions the OAuth App will request from the Azure Portal service account.
 ** Navigate to **API Permissions** and click **Add Permission**.
 ** Add **application permissions** until the list looks like the following:
 +
 ```
 Graph API
-- Sites.Read.All
+- Sites.Selected
 - Files.Read.All
 - Group.Read.All
 - User.Read.All
 
 Sharepoint
-- Sites.Read.All
+- Sites.Selected
 ```
+NOTE: If the `Comma-separated list of sites` configuration is set to `*` or if a user enables the toggle button `Enumerate all sites`, the connector requires `Sites.Read.All` permission.
+
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.
 
@@ -111,6 +111,24 @@ When entities are not available via the Graph API the connector falls back to us
 
 [discrete#es-connectors-sharepoint-online-oauth-app-permissions]
 ====== SharePoint permissions
+
+Microsoft is https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs[retiring Azure Access Control Service (ACS)]. This affects permission configuration:
+
+* *Tenants created after November 1st, 2024*: Certificate authentication is required
+* *Tenants created before November 1st, 2024*: Secret-based authentication must be migrated to certificate authentication by April 2nd, 2026
+
+[discrete#es-connectors-sharepoint-online-oauth-app-certificate-auth]
+===== Certificate Authentication
+
+This authentication method does not require additional setup other than creating and uploading certificates to the OAuth App.
+
+[discrete#es-connectors-sharepoint-online-oauth-app-secret-auth]
+===== Secret Authentication
+
+[IMPORTANT]
+====
+This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.
+====
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -131,6 +149,58 @@ The application name will appear in the Title box.
 </AppPermissionRequests>
 ----
 
+[discrete#es-connectors-sharepoint-online-sites-selected-permissions]
+====== Granting `Sites.Selected` permissions
+
+To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
+
+. Sign in to the https://portal.azure.com/[Azure Active Directory portal^].
+. Navigate to **App registrations** and locate the application created for the connector.
+. Under **API permissions**, click **Add permission**.
+. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.
+. Click **Grant admin consent** to approve the permission.
+
+[TIP]
+====
+Refer to the official https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft documentation] for managing permissions in Azure AD.
+====
+
+To assign access to specific SharePoint sites using `Sites.Selected`:
+
+. Use Microsoft Graph Explorer or PowerShell to grant access.
+. To fetch the site ID, run the following Graph API query:
++
+[source, http]
+----
+GET https://graph.microsoft.com/v1.0/sites?select=webUrl,Title,Id&$search="<Name of the site>*"
+----
++
+This will return the `id` of the site.
+
+. Use the `id` to assign read or write access:
++
+[source, http]
+----
+POST https://graph.microsoft.com/v1.0/sites/<siteId>/permissions
+{
+    "roles": ["read"], // or "write"
+    "grantedToIdentities": [
+        {
+            "application": {
+                "id": "<App_Client_ID>",
+                "displayName": "<App_Display_Name>"
+            }
+        }
+    ]
+}
+----
+
+[NOTE]
+====
+When using the `Comma-separated list of sites` configuration field, ensure the sites specified match those granted `Sites.Selected` permission in SharePoint.
+If the `Comma-separated list of sites` field is set to `*` or the `Enumerate all sites` toggle is enabled, the connector will attempt to access all sites. This requires broader permissions, which are not supported with `Sites.Selected`.
+====
+
 .Graph API permissions
 ****
 Microsoft recommends using Graph API for all operations with Sharepoint Online. Graph API is well-documented and more efficient at fetching data, which helps avoid throttling.
@@ -138,7 +208,7 @@ Refer to https://learn.microsoft.com/en-us/sharepoint/dev/general-development/ho
 
 Here's a summary of why we use these Graph API permissions:
 
-* *Sites.Read.All* is used to fetch the sites and their metadata
+* *Sites.Selected* is used to fetch the sites and their metadata
 * *Files.Read.All* is used to fetch Site Drives and files in these drives
 * *Groups.Read.All* is used to fetch groups for document-level permissions
 * *User.Read.All* is used to fetch user information for document-level permissions
@@ -165,8 +235,17 @@ The tenant name for the Azure account hosting the Sharepoint Online instance.
 Client ID::
 The client id to authenticate with SharePoint Online.
 
+Authentication Method::
+Authentication method to use to connector to Sharepoint Online and Rest APIs. `secret` is deprecated and `certificate` is recommended.
+
 Secret value::
-The secret value to authenticate with SharePoint Online.
+The secret value to authenticate with SharePoint Online, if Authentication Method: `secret` is chosen.
+
+Content of certificate file::
+Content of certificate file if Authentication Method: `certificate` is chosen.
+
+Content of private key file::
+Content of private key file if Authentication Method: `certificate` is chosen.
 
 Comma-separated list of sites::
 List of site collection names or paths to fetch from SharePoint.
@@ -275,7 +354,7 @@ Example:
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations]
-======= Limitations of sync rules with incremental syncs
+*Limitations of sync rules with incremental syncs*
 
 Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<es-connectors-sync-types-incremental,incremental syncs>>.
 
@@ -286,7 +365,7 @@ Incremental syncs ensure _updates_ from 3rd-party system, but do not modify exis
 Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-added]
-======== Example: Restrictive basic sync rule added after a full sync
+*Example: Restrictive basic sync rule added after a full sync*
 
 Imagine your Sharepoint Online drive contains the following drive items:
 
@@ -320,7 +399,7 @@ If no files were changed, incremental sync will not receive information about ch
 After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-removed]
-======== Example: Restrictive basic sync rules removed after a full sync
+*Example: Restrictive basic sync rules removed after a full sync*
 
 Imagine that Sharepoint Online drive has the following drive items:
 
@@ -352,7 +431,7 @@ Afterwards, we can remove the filtering rule and run an incremental sync. If no 
 Only a *full sync* will include the items previously ignored by the sync rule.
 
 [discrete#es-connectors-sharepoint-online-sync-rules-limitations-restrictive-changed]
-======== Example: Advanced sync rules edge case
+*Example: Advanced sync rules edge case*
 
 Advanced sync rules can be applied to limit which documents will have content extracted.
 For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
@@ -534,26 +613,26 @@ Follow these steps:
 * Leave the *Redirect URIs* blank for now.
 * *Register* the application.
 * Find and keep the **Application (client) ID** and **Directory (tenant) ID** handy.
-* Locate the **Secret** by navigating to **Client credentials: Certificates & Secrets**.
-* Select **New client secret**
-* Pick a name for your client secret.
-Select an expiration date. (At this expiration date, you will need to generate a new secret and update your connector configuration.)
-** Save the client secret **Secret ID** before leaving this screen.
-** Save the client secret **Value** before leaving this screen.
+* Create a certificate and private key. This can, for example, be done by running `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure_app.key -out azure_app.crt` command. Store both in a safe and secure place
+* Locate the **Certificates** by navigating to **Client credentials: Certificates & Secrets**.
+* Select **Upload certificate**
+* Upload the certificate created in one of previous steps: `azure_app.crt`
 * Set up the permissions the OAuth App will request from the Azure Portal service account.
 ** Navigate to **API Permissions** and click **Add Permission**.
 ** Add **application permissions** until the list looks like the following:
 +
 ```
 Graph API
-- Sites.Read.All
+- Sites.Selected
 - Files.Read.All
 - Group.Read.All
 - User.Read.All
 
 Sharepoint
-- Sites.Read.All
+- Sites.Selected
 ```
+NOTE: If the `Comma-separated list of sites` configuration is set to `*` or if a user enables the toggle button `Enumerate all sites`, the connector requires `Sites.Read.All` permission.
+
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.
 
@@ -570,6 +649,23 @@ When entities are not available via the Graph API the connector falls back to us
 
 [discrete#es-connectors-sharepoint-online-client-oauth-app-permissions]
 ====== SharePoint permissions
+
+Microsoft is https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs[retiring Azure Access Control Service (ACS)]. This affects permission configuration:
+* *Tenants created after November 1st, 2024*: Certificate authentication is required
+* *Tenants created before November 1st, 2024*: Secret-based authentication must be migrated to certificate authentication by April 2nd, 2026
+
+[discrete#es-connectors-sharepoint-online-client-oauth-app-certificate-auth]
+===== Certificate Authentication
+
+This authentication method does not require additional setup other than creating and uploading certificates to the OAuth App.
+
+[discrete#es-connectors-sharepoint-online-client-oauth-app-secret-auth]
+===== Secret Authentication
+
+[IMPORTANT]
+====
+This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.
+====
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -590,6 +686,59 @@ The application name will appear in the Title box.
 </AppPermissionRequests>
 ----
 
+[discrete#es-connectors-sharepoint-online-sites-selected-permissions-self-managed]
+====== Granting `Sites.Selected` permissions
+
+To configure `Sites.Selected` permissions, follow these steps in the Azure Active Directory portal. These permissions enable precise access control to specific SharePoint sites.
+
+. Sign in to the https://portal.azure.com/[Azure Active Directory portal^].
+. Navigate to **App registrations** and locate the application created for the connector.
+. Under **API permissions**, click **Add permission**.
+. Select **Microsoft Graph** > **Application permissions**, then add `Sites.Selected`.
+. Click **Grant admin consent** to approve the permission.
+
+[TIP]
+====
+Refer to the official https://learn.microsoft.com/en-us/graph/permissions-reference[Microsoft documentation] for managing permissions in Azure AD.
+====
+
+
+To assign access to specific SharePoint sites using `Sites.Selected`:
+
+. Use Microsoft Graph Explorer or PowerShell to grant access.
+. To fetch the site ID, run the following Graph API query:
++
+[source, http]
+----
+GET https://graph.microsoft.com/v1.0/sites?select=webUrl,Title,Id&$search="<Name of the site>*"
+----
++
+This will return the `id` of the site.
+
+. Use the `id` to assign read or write access:
++
+[source, http]
+----
+POST https://graph.microsoft.com/v1.0/sites/<siteId>/permissions
+{
+    "roles": ["read"], // or "write"
+    "grantedToIdentities": [
+        {
+            "application": {
+                "id": "<App_Client_ID>",
+                "displayName": "<App_Display_Name>"
+            }
+        }
+    ]
+}
+----
+
+[NOTE]
+====
+When using the `Comma-separated list of sites` configuration field, ensure the sites specified match those granted `Sites.Selected` permission in SharePoint.
+If the `Comma-separated list of sites` field is set to `*` or the `Enumerate all sites` toggle is enabled, the connector will attempt to access all sites. This requires broader permissions, which are not supported with `Sites.Selected`.
+====
+
 .Graph API permissions
 ****
 Microsoft recommends using Graph API for all operations with Sharepoint Online. Graph API is well-documented and more efficient at fetching data, which helps avoid throttling.
@@ -597,7 +746,7 @@ Refer to https://learn.microsoft.com/en-us/sharepoint/dev/general-development/ho
 
 Here's a summary of why we use these Graph API permissions:
 
-* *Sites.Read.All* is used to fetch the sites and their metadata
+* *Sites.Selected* is used to fetch the sites and their metadata
 * *Files.Read.All* is used to fetch Site Drives and files in these drives
 * *Groups.Read.All* is used to fetch groups for document-level permissions
 * *User.Read.All* is used to fetch user information for document-level permissions
@@ -633,8 +782,17 @@ The tenant name for the Azure account hosting the Sharepoint Online instance.
 `client_id`::
 The client id to authenticate with SharePoint Online.
 
+`auth_method`::
+Authentication method to use to connector to Sharepoint Online and Rest APIs. `secret` is deprecated and `certificate` is recommended.
+
 `secret_value`::
-The secret value to authenticate with SharePoint Online.
+The secret value to authenticate with SharePoint Online, if auth_method: `secret` is chosen.
+
+`certificate`::
+Content of certificate file if auth_method: `certificate` is chosen.
+
+`private_key`::
+Content of private key file if auth_method: `certificate` is chosen.
 
 `site_collections`::
 List of site collection names or paths to fetch from SharePoint.
@@ -759,7 +917,7 @@ Example:
 This rule will not extract content of any drive items (files in document libraries) that haven't been modified for 60 days or more.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations]
-======= Limitations of sync rules with incremental syncs
+*Limitations of sync rules with incremental syncs*
 
 Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using <<es-connectors-sync-types-incremental,incremental syncs>>.
 
@@ -770,7 +928,7 @@ Incremental syncs ensure _updates_ from 3rd-party system, but do not modify exis
 Let's take a look at several examples where incremental syncs might lead to inconsistent data on your index.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-added]
-======== Example: Restrictive basic sync rule added after a full sync
+*Example: Restrictive basic sync rule added after a full sync*
 
 Imagine your Sharepoint Online drive contains the following drive items:
 
@@ -804,7 +962,7 @@ If no files were changed, incremental sync will not receive information about ch
 After a *full sync*, the index will be updated and files that are excluded by sync rules will be removed.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-removed]
-======== Example: Restrictive basic sync rules removed after a full sync
+*Example: Restrictive basic sync rules removed after a full sync*
 
 Imagine that Sharepoint Online drive has the following drive items:
 
@@ -836,7 +994,7 @@ Afterwards, we can remove the filtering rule and run an incremental sync. If no 
 Only a *full sync* will include the items previously ignored by the sync rule.
 
 [discrete#es-connectors-sharepoint-online-client-sync-rules-limitations-restrictive-changed]
-======== Example: Advanced sync rules edge case
+*Example: Advanced sync rules edge case*
 
 Advanced sync rules can be applied to limit which documents will have content extracted.
 For example, it's possible to set a rule so that documents older than 180 days won't have content extracted.
@@ -971,7 +1129,19 @@ If the configuration `Enumerate All Sites?` is enabled, incremental syncs may no
 Drive Item documents that were deleted between incremental syncs may not be detected as deleted.
 +
 *Workaround*: Disable `Enumerate All Sites?`, and configure full site paths for all desired sites.
-
++
+** *ACL is not properly inherited for Site Pages and List Items inside of a folder with Unique Permissions when DLS is enabled with Fetch unique list item permissions, Fetch unique page permissions or Fetch drive item permissions*
++
+There is a known issue with ACL propagation when List Items, Site Pages or Drive Items are located inside of a folder that has Unique permissions enabled. Consider the following example:
++
+```
+[0] Root Site (Access: All)
+[1]  Subsite Travel (Access: inherit)
+[2]    Folder "/es" (Access: Spanish Employees)
+[3]      Page "destinations.html" (Access: inherit)
+```
+Expected permissions for `destinations.html` should be `Access: Spanish Employees`, but will be `Access: All`, because permissions will be assumed from Subsite Travel, rather than folder "/es".
++
 Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-sharepoint-online-client-troubleshooting]

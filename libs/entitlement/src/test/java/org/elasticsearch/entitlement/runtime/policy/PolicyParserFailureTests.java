@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class PolicyParserFailureTests extends ESTestCase {
@@ -20,63 +19,103 @@ public class PolicyParserFailureTests extends ESTestCase {
     public void testParserSyntaxFailures() {
         PolicyParserException ppe = expectThrows(
             PolicyParserException.class,
-            () -> new PolicyParser(new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml")
+            () -> new PolicyParser(new ByteArrayInputStream("[]".getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false)
                 .parsePolicy()
         );
         assertEquals("[1:1] policy parsing error for [test-failure-policy.yaml]: expected object <scope name>", ppe.getMessage());
     }
 
-    public void testEntitlementDoesNotExist() throws IOException {
+    public void testEntitlementDoesNotExist() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              entitlements:
-                - does_not_exist: {}
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+              - does_not_exist: {}
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
-            "[3:7] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name]: "
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name]: "
                 + "unknown entitlement type [does_not_exist]",
             ppe.getMessage()
         );
     }
 
-    public void testEntitlementMissingParameter() throws IOException {
+    public void testEntitlementMissingParameter() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              entitlements:
-                - file: {}
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+              - files:
+                  - path: test-path
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
-            "[3:14] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [file]: missing entitlement parameter [path]",
-            ppe.getMessage()
-        );
-
-        ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              entitlements:
-                - file:
-                    path: test-path
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
-        assertEquals(
-            "[5:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [file]: missing entitlement parameter [actions]",
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+                + "for entitlement type [files]: files entitlement must contain 'mode' for every listed file",
             ppe.getMessage()
         );
     }
 
-    public void testEntitlementExtraneousParameter() throws IOException {
+    public void testEntitlementMissingDependentParameter() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
-              entitlements:
-                - file:
-                    path: test-path
-                    actions:
-                      - read
-                    extra: test
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml").parsePolicy());
+              - files:
+                  - relative_path: test-path
+                    mode: read
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
-            "[8:1] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [file]: extraneous entitlement parameter(s) {extra=test}",
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+                + "for entitlement type [files]: files entitlement with a 'relative_path' must specify 'relative_to'",
+            ppe.getMessage()
+        );
+    }
+
+    public void testEntitlementMutuallyExclusiveParameters() {
+        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                  - relative_path: test-path
+                    path: test-path
+                    mode: read
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
+        assertEquals(
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+                + "for entitlement type [files]: a files entitlement entry must contain one of "
+                + "[path, relative_path, path_setting]",
+            ppe.getMessage()
+        );
+    }
+
+    public void testEntitlementAtLeastOneParameter() {
+        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                  - mode: read
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
+        assertEquals(
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+                + "for entitlement type [files]: a files entitlement entry must contain one of "
+                + "[path, relative_path, path_setting]",
+            ppe.getMessage()
+        );
+    }
+
+    public void testEntitlementExtraneousParameter() {
+        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                  - path: test-path
+                    mode: read
+                    extra: test
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
+        assertEquals(
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+                + "for entitlement type [files]: unknown key(s) [{extra=test}] in a listed file for files entitlement",
+            ppe.getMessage()
+        );
+    }
+
+    public void testEntitlementIsNotForExternalPlugins() {
+        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - create_class_loader
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", true).parsePolicy());
+        assertEquals(
+            "[2:5] policy parsing error for [test-failure-policy.yaml]: entitlement type [create_class_loader] is allowed only on modules",
             ppe.getMessage()
         );
     }

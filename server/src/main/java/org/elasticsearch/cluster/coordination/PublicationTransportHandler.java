@@ -130,7 +130,7 @@ public class PublicationTransportHandler {
         ActionListener<PublishWithJoinResponse> publishResponseListener
     ) throws IOException {
         assert ThreadPool.assertCurrentThreadPool(GENERIC);
-        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        final Compressor compressor = CompressorFactory.compressorForUnknownXContentType(request.bytes());
         StreamInput in = request.bytes().streamInput();
         try {
             if (compressor != null) {

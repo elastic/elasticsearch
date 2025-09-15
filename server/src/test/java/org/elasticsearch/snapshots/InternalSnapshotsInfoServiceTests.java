@@ -361,7 +361,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                     .build(),
                 snapshotsInfoService
             );
-            assertCriticalWarnings(
+            assertWarnings(
                 "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
             );
             applyClusterState(

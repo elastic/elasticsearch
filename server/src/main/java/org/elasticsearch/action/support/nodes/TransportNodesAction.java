@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -47,6 +46,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -104,6 +104,7 @@ public abstract class TransportNodesAction<
             final ActionContext actionContext = createActionContext(task, request);
             final ArrayList<NodeResponse> responses = new ArrayList<>(concreteNodes.length);
             final ArrayList<FailedNodeException> exceptions = new ArrayList<>(0);
+            final AtomicBoolean responsesHandled = new AtomicBoolean(false);
 
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
@@ -114,12 +115,14 @@ public abstract class TransportNodesAction<
             private void addReleaseOnCancellationListener() {
                 if (task instanceof CancellableTask cancellableTask) {
                     cancellableTask.addListener(() -> {
-                        final List<NodeResponse> drainedResponses;
-                        synchronized (responses) {
-                            drainedResponses = List.copyOf(responses);
-                            responses.clear();
+                        if (responsesHandled.compareAndSet(false, true)) {
+                            final List<NodeResponse> drainedResponses;
+                            synchronized (responses) {
+                                drainedResponses = List.copyOf(responses);
+                                responses.clear();
+                            }
+                            Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
                         }
-                        Releasables.wrap(Iterators.map(drainedResponses.iterator(), r -> r::decRef)).close();
                     });
                 }
             }
@@ -166,10 +169,18 @@ public abstract class TransportNodesAction<
 
             @Override
             protected CheckedConsumer<ActionListener<NodesResponse>, Exception> onCompletion() {
-                // ref releases all happen-before here so no need to be synchronized
                 return l -> {
-                    try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
-                        newResponseAsync(task, request, actionContext, responses, exceptions, l);
+                    if (responsesHandled.compareAndSet(false, true)) {
+                        // ref releases all happen-before here so no need to be synchronized
+                        try (var ignored = Releasables.wrap(Iterators.map(responses.iterator(), r -> r::decRef))) {
+                            newResponseAsync(task, request, actionContext, responses, exceptions, l);
+                        }
+                    } else {
+                        logger.debug("task cancelled after all responses were collected");
+                        assert task instanceof CancellableTask : "expect CancellableTask, but got: " + task;
+                        final var cancellableTask = (CancellableTask) task;
+                        assert cancellableTask.isCancelled();
+                        cancellableTask.notifyIfCancelled(l);
                     }
                 };
             }
@@ -277,7 +288,6 @@ public abstract class TransportNodesAction<
      * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
      * @param in            The {@link StreamInput} in which to skip the unneeded data.
      */
-    @UpdateForV9 // no longer necessary in v9
     public static void skipLegacyNodesRequestHeader(TransportVersion fixVersion, StreamInput in) throws IOException {
         if (in.getTransportVersion().before(fixVersion)) {
             TaskId.readFromStream(in);
@@ -296,7 +306,6 @@ public abstract class TransportNodesAction<
      * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
      * @param out           The {@link StreamOutput} to which to send the dummy data.
      */
-    @UpdateForV9 // no longer necessary in v9
     public static void sendLegacyNodesRequestHeader(TransportVersion fixVersion, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(fixVersion)) {
             TaskId.EMPTY_TASK_ID.writeTo(out);

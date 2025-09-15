@@ -77,7 +77,7 @@ public class RangeQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         RangeQueryBuilder queryBuilder = rangeQuery(field).from(lower, includeLower).to(upper, includeUpper);
         if (Strings.hasText(format)) {
             queryBuilder.format(format);
@@ -117,5 +117,10 @@ public class RangeQuery extends Query {
     @Override
     protected String innerToString() {
         return field + ":" + (includeLower ? "[" : "(") + lower + ", " + upper + (includeUpper ? "]" : ")") + "@" + zoneId.getId();
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

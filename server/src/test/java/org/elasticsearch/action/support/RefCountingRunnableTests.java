@@ -100,7 +100,7 @@ public class RefCountingRunnableTests extends ESTestCase {
         final var completionLatch = new CountDownLatch(1);
         final var executorService = EsExecutors.newScaling(
             "test",
-            0,
+            1,
             between(1, 10),
             10,
             TimeUnit.SECONDS,

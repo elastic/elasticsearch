@@ -6,13 +6,25 @@ setup:
 
 ---
 "Test Deprecations":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_migration/deprecations
+          capabilities: [ data_streams, ilm_policies, templates ]
+      test_runner_features: [capabilities, allowed_warnings]
+      reason: "Support for data streams, ILM policies and templates"
   - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
       migration.deprecations:
         index: "*"
   - length: { cluster_settings: 0 }
   - length: { node_settings: 0 }
   - length: { index_settings: 0 }
   - length: { ml_settings: 0 }
+  - length: { data_streams: 0 }
+  - length: { templates: 0 }
+  - length: { ilm_policies: 0 }
 
 ---
 "Test ml":

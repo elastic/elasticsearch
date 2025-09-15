@@ -86,7 +86,36 @@ public class PolicyParserException extends RuntimeException {
         }
     }
 
+    public static PolicyParserException newPolicyParserException(
+        XContentLocation location,
+        String policyName,
+        String scopeName,
+        String entitlementType,
+        PolicyValidationException cause
+    ) {
+        assert (scopeName != null);
+        return new PolicyParserException(
+            "["
+                + location.lineNumber()
+                + ":"
+                + location.columnNumber()
+                + "] policy parsing error for ["
+                + policyName
+                + "] in scope ["
+                + scopeName
+                + "] for entitlement type ["
+                + entitlementType
+                + "]: "
+                + cause.getMessage(),
+            cause
+        );
+    }
+
     private PolicyParserException(String message) {
         super(message);
+    }
+
+    private PolicyParserException(String message, PolicyValidationException cause) {
+        super(message, cause);
     }
 }

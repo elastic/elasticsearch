@@ -20,8 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,17 +71,17 @@ public class AllocateAction implements LifecycleAction {
         Map<String, String> require
     ) {
         if (include == null) {
-            this.include = Collections.emptyMap();
+            this.include = Map.of();
         } else {
             this.include = include;
         }
         if (exclude == null) {
-            this.exclude = Collections.emptyMap();
+            this.exclude = Map.of();
         } else {
             this.exclude = exclude;
         }
         if (require == null) {
-            this.require = Collections.emptyMap();
+            this.require = Map.of();
         } else {
             this.require = require;
         }
@@ -201,7 +199,7 @@ public class AllocateAction implements LifecycleAction {
         }
         UpdateSettingsStep allocateStep = new UpdateSettingsStep(allocateKey, allocationRoutedKey, client, newSettings.build());
         AllocationRoutedStep routedCheckStep = new AllocationRoutedStep(allocationRoutedKey, nextStepKey);
-        return Arrays.asList(allocateStep, routedCheckStep);
+        return List.of(allocateStep, routedCheckStep);
     }
 
     @Override

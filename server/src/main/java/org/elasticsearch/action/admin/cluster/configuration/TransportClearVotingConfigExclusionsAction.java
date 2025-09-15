@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -54,7 +53,6 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Reconfigurator reconfigurator
     ) {
         super(
@@ -65,7 +63,6 @@ public class TransportClearVotingConfigExclusionsAction extends TransportMasterN
             threadPool,
             actionFilters,
             ClearVotingConfigExclusionsRequest::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -56,11 +56,11 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(ofDuration(Duration.ofSeconds(30), ts, "2023-02-17T10:25:30.00Z"));
         suppliers.add(randomSecond());
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
-            case 0 -> "dateperiod or timeduration";
-            case 1 -> "date_nanos or datetime";
-            default -> null;
-        });
+        // arbitrary period of months and years
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(7), ts, "2022-11-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofYears(5), ts, "2021-01-01T00:00:00.00Z"));
+
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static List<TestCaseSupplier> ofDatePeriod(Period period, long value, String expectedDate) {
@@ -136,10 +136,10 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                 + pad(randomIntBetween(0, 59));
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval"),
+                    new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataType.DATETIME, "date")
                 ),
-                "DateTruncDatetimeEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(dateFragment + ".00Z"))
             );

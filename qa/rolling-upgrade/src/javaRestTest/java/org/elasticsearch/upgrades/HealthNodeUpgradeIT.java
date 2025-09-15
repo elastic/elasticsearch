@@ -28,15 +28,21 @@ public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testHealthNode() throws Exception {
+        // Assert that the response from _cat/tasks returns health-node provided the health.supports_health feature is present
         if (clusterHasFeature("health.supports_health")) {
             assertBusy(() -> {
                 Response response = client().performRequest(new Request("GET", "_cat/tasks"));
                 String tasks = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
                 assertThat(tasks, Matchers.containsString("health-node"));
             });
+        }
+
+        // Assert that _health_report endpoint returns a green status provided the health.supports_health_report_api feature is present
+        // N.B. If this feature is not present, the cluster may have a mixture of nodes which serve the health endpoint at /_health_report
+        // and older nodes which serve it at /_internal/_health. There is no sensible and reliable way to test the endpoint in this case.
+        if (clusterHasFeature("health.supports_health_report_api")) {
             assertBusy(() -> {
-                String path = clusterHasFeature("health.supports_health_report_api") ? "_health_report" : "_internal/_health";
-                Response response = client().performRequest(new Request("GET", path));
+                Response response = client().performRequest(new Request("GET", "_health_report"));
                 Map<String, Object> health_report = entityAsMap(response.getEntity());
                 assertThat(health_report.get("status"), equalTo("green"));
             });

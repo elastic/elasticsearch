@@ -29,6 +29,7 @@ public class Div extends EsqlArithmeticOperation implements BinaryComparisonInve
     private DataType type;
 
     @FunctionInfo(
+        operator = "/",
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Divide one number by another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

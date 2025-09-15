@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -105,33 +106,17 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
     private final SimilarityMeasure similarityMeasure;
     private final DenseVectorFieldMapper.ElementType elementType;
 
-    public CustomElandInternalTextEmbeddingServiceSettings(
-        int numAllocations,
-        int numThreads,
-        String modelId,
-        AdaptiveAllocationsSettings adaptiveAllocationsSettings
-    ) {
-        this(
-            numAllocations,
-            numThreads,
-            modelId,
-            adaptiveAllocationsSettings,
-            null,
-            SimilarityMeasure.COSINE,
-            DenseVectorFieldMapper.ElementType.FLOAT
-        );
-    }
-
-    public CustomElandInternalTextEmbeddingServiceSettings(
-        int numAllocations,
+    CustomElandInternalTextEmbeddingServiceSettings(
+        Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        @Nullable String deploymentId,
         Integer dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) {
-        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, deploymentId);
         this.dimensions = dimensions;
         this.similarityMeasure = Objects.requireNonNull(similarityMeasure);
         this.elementType = Objects.requireNonNull(elementType);
@@ -159,7 +144,8 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
             commonFields.internalServiceSettings.getNumAllocations(),
             commonFields.internalServiceSettings.getNumThreads(),
             commonFields.internalServiceSettings.modelId(),
-            commonFields.internalServiceSettings.getAdaptiveAllocationsSettings()
+            commonFields.internalServiceSettings.getAdaptiveAllocationsSettings(),
+            commonFields.internalServiceSettings.getDeploymentId()
         );
         this.dimensions = dimensions;
         similarityMeasure = commonFields.similarityMeasure;

@@ -131,6 +131,7 @@
  *         the moment, but it's good to extend {@code AbstractScalarFunctionTestCase}. All of
  *         these tests are parameterized and expect to spend some time finding good parameters.
  *         Also add serialization tests that extend {@code AbstractExpressionSerializationTests<>}.
+ *         And also add type error tests that extends {@code ErrorsForCasesWithoutExamplesTestCase}.
  *     </li>
  *     <li>
  *         Once you are happy with the tests run the auto formatter:

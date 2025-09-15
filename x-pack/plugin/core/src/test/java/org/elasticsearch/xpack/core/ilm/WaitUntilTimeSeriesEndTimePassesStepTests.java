@@ -30,7 +30,7 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
     protected WaitUntilTimeSeriesEndTimePassesStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
-        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(stepKey, nextStepKey, Instant::now);
     }
 
     @Override
@@ -42,12 +42,12 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
             case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
         }
-        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(key, nextKey, Instant::now);
     }
 
     @Override
     protected WaitUntilTimeSeriesEndTimePassesStep copyInstance(WaitUntilTimeSeriesEndTimePassesStep instance) {
-        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now, client);
+        return new WaitUntilTimeSeriesEndTimePassesStep(instance.getKey(), instance.getNextStepKey(), Instant::now);
     }
 
     public void testEvaluateCondition() {
@@ -68,17 +68,17 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
         WaitUntilTimeSeriesEndTimePassesStep step = new WaitUntilTimeSeriesEndTimePassesStep(
             randomStepKey(),
             randomStepKey(),
-            () -> currentTime,
-            client
+            () -> currentTime
         );
         {
             // end_time has lapsed already so condition must be met
             Index previousGeneration = dataStream.getIndices().get(0);
 
-            step.evaluateCondition(clusterState.metadata(), previousGeneration, new AsyncWaitStep.Listener() {
+            IndexMetadata indexMetadata = clusterState.metadata().index(previousGeneration);
+            step.evaluateCondition(clusterState.metadata(), indexMetadata, new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(true));
                 }
 
@@ -93,12 +93,12 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
             // end_time is in the future
             Index writeIndex = dataStream.getIndices().get(1);
 
-            step.evaluateCondition(clusterState.metadata(), writeIndex, new AsyncWaitStep.Listener() {
+            step.evaluateCondition(clusterState.metadata(), clusterState.metadata().index(writeIndex), new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(false));
-                    String information = Strings.toString(infomationContext);
+                    String information = Strings.toString(informationContext);
                     assertThat(
                         information,
                         containsString(
@@ -127,10 +127,10 @@ public class WaitUntilTimeSeriesEndTimePassesStepTests extends AbstractStepTestC
                 .build();
 
             Metadata newMetadata = Metadata.builder(clusterState.metadata()).put(indexMeta, true).build();
-            step.evaluateCondition(newMetadata, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
+            step.evaluateCondition(newMetadata, indexMeta, new AsyncWaitStep.Listener() {
 
                 @Override
-                public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                public void onResponse(boolean complete, ToXContentObject informationContext) {
                     assertThat(complete, is(true));
                 }
 

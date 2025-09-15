@@ -23,6 +23,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -82,37 +83,58 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
         logger.info("--> executing esql query with disruption {} ", request.query());
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        EsqlQueryResponse resp = null;
         try {
-            return future.actionGet(2, TimeUnit.MINUTES);
+            resp = future.actionGet(2, TimeUnit.MINUTES);
+            if (resp.isPartial() == false) {
+                return resp;
+            }
         } catch (Exception ignored) {
 
         } finally {
             clearDisruption();
         }
-        try {
-            return future.actionGet(2, TimeUnit.MINUTES);
-        } catch (Exception e) {
-            logger.info(
-                "running tasks: {}",
-                client().admin()
-                    .cluster()
-                    .prepareListTasks()
-                    .get()
-                    .getTasks()
-                    .stream()
-                    .filter(
-                        // Skip the tasks we that'd get in the way while debugging
-                        t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
-                            && false == t.action().contains(HealthNode.TASK_NAME)
-                    )
-                    .toList()
-            );
-            assertTrue("request must be failed or completed after clearing disruption", future.isDone());
-            ensureBlocksReleased();
-            logger.info("--> failed to execute esql query with disruption; retrying...", e);
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
+        // wait for the response after clear disruption
+        if (resp == null) {
+            try {
+                resp = future.actionGet(2, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                logger.info(
+                    "running tasks: {}",
+                    client().admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .get()
+                        .getTasks()
+                        .stream()
+                        .filter(
+                            // Skip the tasks we that'd get in the way while debugging
+                            t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                                && false == t.action().contains(HealthNode.TASK_NAME)
+                        )
+                        .toList()
+                );
+                assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+                ensureBlocksReleased();
+                logger.info("--> failed to execute esql query with disruption; retrying...", e);
+                EsqlTestUtils.assertEsqlFailure(e);
+            }
         }
+        // use the response if it's not partial
+        if (resp != null) {
+            if (resp.isPartial() == false) {
+                return resp;
+            }
+            try (var ignored = resp) {
+                assertTrue(request.allowPartialResults());
+            }
+        }
+        // re-run the query
+        return super.run(request);
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {

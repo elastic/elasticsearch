@@ -101,10 +101,11 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
             case PlanStreamOutput.NEW_BLOCK_KEY -> {
                 int id = readVInt();
                 // TODO track blocks read over the wire.... Or slice them from BigArrays? Something.
-                Block b = new BlockStreamInput(
+                var in = new BlockStreamInput(
                     this,
                     new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                ).readNamedWriteable(Block.class);
+                );
+                Block b = Block.readTypedBlock(in);
                 cachedBlocks.put(id, b);
                 yield b;
             }
@@ -182,8 +183,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @Override
     @SuppressWarnings("unchecked")
     public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {
@@ -222,8 +222,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @SuppressWarnings("unchecked")
     public <A extends EsField> A readEsFieldWithCache() throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
             // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
             int cacheId = Math.toIntExact(readZLong());
             if (cacheId < 0) {

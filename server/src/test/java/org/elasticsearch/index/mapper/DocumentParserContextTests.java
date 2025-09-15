@@ -133,6 +133,5 @@ public class DocumentParserContextTests extends ESTestCase {
         assertEquals(ObjectMapper.Defaults.DYNAMIC, resultFromParserContext.getDynamic());
         assertEquals(MapperService.MergeReason.MAPPING_UPDATE, resultFromParserContext.getMergeReason());
         assertFalse(resultFromParserContext.isInNestedContext());
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
     }
 }

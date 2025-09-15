@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,7 +34,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -50,6 +48,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -105,8 +104,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     protected void doExecute(Task task, OpenPointInTimeRequest request, ActionListener<OpenPointInTimeResponse> listener) {
         final ClusterState clusterState = clusterService.state();
         // Check if all the nodes in this cluster know about the service
-        if (request.allowPartialSearchResults()
-            && clusterState.getMinTransportVersion().before(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+        if (request.allowPartialSearchResults() && clusterState.getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     format(
@@ -148,11 +146,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         }
 
         @Override
-        public SearchPhase newSearchPhase(
+        public void runNewSearchPhase(
             SearchTask task,
             SearchRequest searchRequest,
             Executor executor,
-            GroupShardsIterator<SearchShardIterator> shardIterators,
+            List<SearchShardIterator> shardIterators,
             TransportSearchAction.SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -166,7 +164,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             // that is signaled to the local can match through the SearchShardIterator#prefiltered flag. Local shards do need to go
             // through the local can match phase.
             if (SearchService.canRewriteToMatchNone(searchRequest.source())) {
-                return new CanMatchPreFilterSearchPhase(
+                new CanMatchPreFilterSearchPhase(
                     logger,
                     searchTransportService,
                     connectionLookup,
@@ -180,7 +178,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                     false,
                     searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                     listener.delegateFailureAndWrap(
-                        (searchResponseActionListener, searchShardIterators) -> openPointInTimePhase(
+                        (searchResponseActionListener, searchShardIterators) -> runOpenPointInTimePhase(
                             task,
                             searchRequest,
                             executor,
@@ -191,11 +189,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                             aliasFilter,
                             concreteIndexBoosts,
                             clusters
-                        ).start()
+                        )
                     )
-                );
+                ).start();
             } else {
-                return openPointInTimePhase(
+                runOpenPointInTimePhase(
                     task,
                     searchRequest,
                     executor,
@@ -210,11 +208,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             }
         }
 
-        SearchPhase openPointInTimePhase(
+        void runOpenPointInTimePhase(
             SearchTask task,
             SearchRequest searchRequest,
             Executor executor,
-            GroupShardsIterator<SearchShardIterator> shardIterators,
+            List<SearchShardIterator> shardIterators,
             TransportSearchAction.SearchTimeProvider timeProvider,
             BiFunction<String, String, Transport.Connection> connectionLookup,
             ClusterState clusterState,
@@ -224,7 +222,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
         ) {
             assert searchRequest.getMaxConcurrentShardRequests() == pitRequest.maxConcurrentShardRequests()
                 : searchRequest.getMaxConcurrentShardRequests() + " != " + pitRequest.maxConcurrentShardRequests();
-            return new AbstractSearchAsyncAction<>(
+            new AbstractSearchAsyncAction<>(
                 actionName,
                 logger,
                 namedWriteableRegistry,
@@ -244,25 +242,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 clusters
             ) {
                 @Override
-                protected String missingShardsErrorMessage(StringBuilder missingShards) {
-                    return "[open_point_in_time] action requires all shards to be available. Missing shards: ["
-                        + missingShards
-                        + "].  Consider using `allow_partial_search_results` setting to bypass this error.";
-                }
-
-                @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,
-                    SearchShardTarget shard,
+                    Transport.Connection connection,
                     SearchActionListener<SearchPhaseResult> phaseListener
                 ) {
-                    final Transport.Connection connection;
-                    try {
-                        connection = connectionLookup.apply(shardIt.getClusterAlias(), shard.getNodeId());
-                    } catch (Exception e) {
-                        phaseListener.onFailure(e);
-                        return;
-                    }
                     transportService.sendChildRequest(
                         connection,
                         OPEN_SHARD_READER_CONTEXT_NAME,
@@ -280,7 +264,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 protected SearchPhase getNextPhase() {
                     return new SearchPhase(getName()) {
                         @Override
-                        public void run() {
+                        protected void run() {
                             sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                         }
                     };
@@ -290,7 +274,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 boolean buildPointInTimeFromSearchResults() {
                     return true;
                 }
-            };
+            }.start();
         }
     }
 

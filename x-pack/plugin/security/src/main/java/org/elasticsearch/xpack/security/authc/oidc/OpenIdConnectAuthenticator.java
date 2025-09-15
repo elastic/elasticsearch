@@ -235,7 +235,7 @@ public class OpenIdConnectAuthenticator {
             // Don't wrap in a new ElasticsearchSecurityException
             listener.onFailure(e);
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response. ", e));
+            listener.onFailure(new ElasticsearchSecurityException("Failed to consume the OpenID connect response.", e));
         }
     }
 
@@ -365,7 +365,7 @@ public class OpenIdConnectAuthenticator {
      * @throws IOException    if the file cannot be read
      */
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
-        final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
+        final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
         try {
             String jwkSet = AccessController.doPrivileged(
@@ -477,7 +477,20 @@ public class OpenIdConnectAuthenticator {
             if (httpResponse.getStatusLine().getStatusCode() == 200) {
                 if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
-                    validateUserInfoResponse(userInfoClaims, verifiedIdTokenClaims.getSubject(), claimsListener);
+                    String expectedSub = verifiedIdTokenClaims.getSubject();
+                    if (userInfoClaims.getSubject() == null || userInfoClaims.getSubject().isEmpty()) {
+                        claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
+                        return;
+                    } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
+                        claimsListener.onFailure(
+                            new ElasticsearchSecurityException(
+                                "Userinfo Response is not valid as it is for " + "subject [{}] while the ID Token was for subject [{}]",
+                                userInfoClaims.getSubject(),
+                                expectedSub
+                            )
+                        );
+                        return;
+                    }
                     if (LOGGER.isTraceEnabled()) {
                         LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims);
                     }
@@ -524,27 +537,6 @@ public class OpenIdConnectAuthenticator {
             }
         } catch (Exception e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint.", e));
-        }
-    }
-
-    /**
-     * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
-     */
-    private static void validateUserInfoResponse(
-        JWTClaimsSet userInfoClaims,
-        String expectedSub,
-        ActionListener<JWTClaimsSet> claimsListener
-    ) {
-        if (userInfoClaims.getSubject().isEmpty()) {
-            claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
-        } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
-            claimsListener.onFailure(
-                new ElasticsearchSecurityException(
-                    "Userinfo Response is not valid as it is for " + "subject [{}] while the ID Token was for subject [{}]",
-                    userInfoClaims.getSubject(),
-                    expectedSub
-                )
-            );
         }
     }
 
@@ -629,18 +621,20 @@ public class OpenIdConnectAuthenticator {
     /**
      * Handle the Token Response from the OpenID Connect Provider. If successful, extract the (yet not validated) Id Token
      * and access token and call the provided listener.
+     * (Package private for testing purposes)
      */
-    private static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
+    static void handleTokenResponse(HttpResponse httpResponse, ActionListener<Tuple<AccessToken, JWT>> tokensListener) {
         try {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();
             final Header contentHeader = entity.getContentType();
-            if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json") == false) {
+            final String contentHeaderValue = contentHeader == null ? null : ContentType.parse(contentHeader.getValue()).getMimeType();
+            if (contentHeaderValue == null || contentHeaderValue.equals("application/json") == false) {
                 tokensListener.onFailure(
                     new IllegalStateException(
                         "Unable to parse Token Response. Content type was expected to be "
                             + "[application/json] but was ["
-                            + contentHeader.getValue()
+                            + contentHeaderValue
                             + "]"
                     )
                 );
@@ -688,7 +682,7 @@ public class OpenIdConnectAuthenticator {
         } catch (Exception e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException(
-                    "Failed to exchange code for Id Token using the Token Endpoint. " + "Unable to parse Token Response",
+                    "Failed to exchange code for Id Token using the Token Endpoint. Unable to parse Token Response",
                     e
                 )
             );
@@ -814,7 +808,7 @@ public class OpenIdConnectAuthenticator {
     }
 
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
-        final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
+        final Path path = realmConfig.env().configDir().resolve(jwkSetPath);
         FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);

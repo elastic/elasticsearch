@@ -564,7 +564,8 @@ c:long | gender:keyword | trunk_worked_seconds:long
  0     | null           | 200000000
 ;
 
-byStringAndLongWithAlias
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+byStringAndLongWithAlias#[skip:-8.12.99]
 FROM employees
 | EVAL trunk_worked_seconds = avg_worked_seconds / 100000000 * 100000000
 | RENAME  gender as g, trunk_worked_seconds as tws
@@ -719,7 +720,8 @@ c:long |           d:date         | gender:keyword | languages:integer
      2 | 1987-01-01T00:00:00.000Z | M              | 1
 ;
 
-byDateAndKeywordAndIntWithAlias
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+byDateAndKeywordAndIntWithAlias#[skip:-8.12.99]
 from employees | eval d = date_trunc(1 year, hire_date) | rename gender as g, languages as l, emp_no as e | keep d, g, l, e | stats c = count(e) by d, g, l | sort c desc, d, l desc, g desc | limit 10;
 
 c:long |           d:date         | g:keyword | l:integer
@@ -928,6 +930,15 @@ M              | null
 null           | 1950
 null           | 1960
 ;
+
+countAllOnly
+from employees | stats c = count()
+;
+
+c:l
+100
+;
+
 
 countFieldNoGrouping
 from employees | where emp_no < 10050 | stats c = count(salary);
@@ -2678,6 +2689,57 @@ c2:l |c2_f:l |m2:i |m2_f:i |c:l
 1    |1      |5    |5      |21
 ;
 
+simpleCountOnFieldWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(emp_no) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnFieldWithFilteringOnDifferentFieldAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(hire_date) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountOnStarWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(*) where emp_no < 10042
+;
+
+c1:long
+41
+;
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithNulls
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(birth_date) where emp_no <= 10050
+;
+
+c1:long
+40
+;
+
+
+simpleCountWithFilteringAndNoGroupingOnFieldWithMultivalues
+required_capability: per_agg_filtering
+from employees
+| stats c1 = count(job_positions) where emp_no <= 10003
+;
+
+c1:long
+3
+;
+
 commonFilterExtractionWithAliasing
 required_capability: per_agg_filtering
 from employees
@@ -2756,6 +2818,18 @@ FROM employees | eval x = [1,2,3], y = 5 + 6 | stats m = max(y) by y+1
 
 m:integer | y+1:integer
 11        | 12
+;
+
+statsByConstantExpressionWithAliasAndSort
+required_capability: fix_stats_by_foldable_expression_2
+FROM employees
+| EVAL y = "a"
+| STATS count = COUNT() BY x = y
+| SORT x
+;
+
+count:long | x:keyword
+100        | a
 ;
 
 filterIsAlwaysTrue
@@ -3022,4 +3096,28 @@ ROW a = [1,2,3], b = 5
 
 STD_DEV(a):double | STD_DEV(b):double
 0.816496580927726 | 0.0
+;
+
+resolveGroupingsBeforeResolvingImplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date) BY d = (date == "2025-01-01")
+;
+
+m:datetime               | d:boolean
+1999-04-30T00:00:00.000Z | true
+;
+
+resolveGroupingsBeforeResolvingExplicitReferencesToGroupings
+required_capability: resolve_groupings_before_resolving_references_to_groupings_in_aggregations
+
+FROM employees
+| EVAL date = "2025-01-01"::datetime
+| stats m = MAX(hire_date), x = d::int + 1 BY d = (date == "2025-01-01")
+;
+
+m:datetime               | x:integer | d:boolean
+1999-04-30T00:00:00.000Z | 2         | true
 ;

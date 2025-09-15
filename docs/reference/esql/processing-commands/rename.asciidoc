@@ -11,6 +11,15 @@ The `RENAME` processing command renames one or more columns.
 RENAME old_name1 AS new_name1[, ..., old_nameN AS new_nameN]
 ----
 
+The following syntax is also supported:
+
+[source,esql]
+----
+RENAME new_name1 = old_name1[, ..., new_nameN = old_nameN]
+----
+
+TIP: Both syntax options can be used interchangeably but we recommend sticking to one for consistency and readability.
+
 *Parameters*
 
 `old_nameX`::
@@ -26,6 +35,8 @@ name, all but the rightmost column with the same new name are dropped.
 The `RENAME` processing command renames one or more columns. If a column with
 the new name already exists, it will be replaced by the new column.
 
+A `RENAME` with multiple column renames is equivalent to multiple sequential `RENAME` commands.
+
 *Examples*
 
 [source,esql]
@@ -39,4 +50,12 @@ Multiple columns can be renamed with a single `RENAME` command:
 [source,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=renameMultipleColumns]
+----
+
+
+With multiple `RENAME` commands:
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=renameMultipleColumnsDifferentCommands]
 ----

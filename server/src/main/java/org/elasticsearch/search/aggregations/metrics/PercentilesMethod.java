@@ -23,6 +23,10 @@ import java.io.IOException;
 public enum PercentilesMethod implements Writeable {
     /**
      * The TDigest method for calculating percentiles
+     * <p>
+     *     The {@code TDigest} and {@code TDIGEST} names have been deprecated since 8.0,
+     *     but we don't have any plans to remove it so we don't break anyone using it.
+     * </p>
      */
     TDIGEST("tdigest", "TDigest", "TDIGEST") {
         @Override
@@ -32,6 +36,10 @@ public enum PercentilesMethod implements Writeable {
     },
     /**
      * The HDRHistogram method of calculating percentiles
+     * <p>
+     *     The {@code HDR} name has been deprecated since 8.0, but we don't have any plans
+     *     to remove it so we don't break anyone using it.
+     * </p>
      */
     HDR("hdr", "HDR") {
         @Override

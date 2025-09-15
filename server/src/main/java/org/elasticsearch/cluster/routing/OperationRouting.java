@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,9 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class OperationRouting {
 
@@ -90,7 +88,7 @@ public class OperationRouting {
         // If it is stateless, only route promotable shards. This is a temporary workaround until a more cohesive solution can be
         // implemented for search shards.
         if (isStateless && shards != null) {
-            return new PlainShardIterator(
+            return new ShardIterator(
                 shards.shardId(),
                 shards.getShardRoutings().stream().filter(ShardRouting::isPromotableToPrimary).collect(Collectors.toList())
             );
@@ -99,7 +97,7 @@ public class OperationRouting {
         }
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public List<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -108,7 +106,7 @@ public class OperationRouting {
         return searchShards(clusterState, concreteIndices, routing, preference, null, null);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public List<ShardIterator> searchShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -128,30 +126,12 @@ public class OperationRouting {
                 nodeCounts
             );
             if (iterator != null) {
-                final List<ShardRouting> shardsThatCanHandleSearches;
-                if (isStateless) {
-                    shardsThatCanHandleSearches = statelessShardsThatHandleSearches(clusterState, iterator);
-                } else {
-                    shardsThatCanHandleSearches = statefulShardsThatHandleSearches(iterator);
-                }
-                set.add(new PlainShardIterator(iterator.shardId(), shardsThatCanHandleSearches));
+                set.add(ShardIterator.allSearchableShards(iterator));
             }
         }
-        return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
-    }
-
-    private static List<ShardRouting> statefulShardsThatHandleSearches(ShardIterator iterator) {
-        final List<ShardRouting> shardsThatCanHandleSearches = new ArrayList<>(iterator.size());
-        for (ShardRouting shardRouting : iterator) {
-            if (shardRouting.isSearchable()) {
-                shardsThatCanHandleSearches.add(shardRouting);
-            }
-        }
-        return shardsThatCanHandleSearches;
-    }
-
-    private static List<ShardRouting> statelessShardsThatHandleSearches(ClusterState clusterState, ShardIterator iterator) {
-        return iterator.getShardRoutings().stream().filter(shardRouting -> canSearchShard(shardRouting, clusterState)).toList();
+        List<ShardIterator> res = new ArrayList<>(set);
+        CollectionUtil.timSort(res);
+        return res;
     }
 
     public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
@@ -300,22 +280,8 @@ public class OperationRouting {
         return indexMetadata;
     }
 
-    public ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
+    public static ShardId shardId(ClusterState clusterState, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(clusterState, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
-    }
-
-    public static boolean canSearchShard(ShardRouting shardRouting, ClusterState clusterState) {
-        // TODO: remove if and always return isSearchable (ES-9563)
-        if (INDEX_FAST_REFRESH_SETTING.get(clusterState.metadata().index(shardRouting.index()).getSettings())) {
-            // Until all the cluster is upgraded, we send searches/gets to the primary (even if it has been upgraded) to execute locally.
-            if (clusterState.getMinTransportVersion().onOrAfter(FAST_REFRESH_RCO_2)) {
-                return shardRouting.isSearchable();
-            } else {
-                return shardRouting.isPromotableToPrimary();
-            }
-        } else {
-            return shardRouting.isSearchable();
-        }
     }
 }

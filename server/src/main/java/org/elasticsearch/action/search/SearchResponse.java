@@ -14,12 +14,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
@@ -91,7 +93,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
         this.hits = SearchHits.readFrom(in, true);
-        this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
+        if (in.readBoolean()) {
+            // deserialize the aggregations trying to deduplicate the object created
+            // TODO: use DelayableWriteable instead.
+            this.aggregations = InternalAggregations.readFrom(
+                DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
+            );
+        } else {
+            this.aggregations = null;
+        }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();
@@ -382,17 +392,24 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
-        return ChunkedToXContent.builder(params).xContentObject(innerToXContentChunked(params));
+        return getToXContentIterator(true, params);
     }
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params)
-            .append(SearchResponse.this::headerToXContent)
-            .append(clusters)
-            .append(hits)
-            .appendIfPresent(aggregations)
-            .appendIfPresent(suggest)
-            .appendIfPresent(profileResults);
+        return getToXContentIterator(false, params);
+    }
+
+    private Iterator<ToXContent> getToXContentIterator(boolean wrapInObject, ToXContent.Params params) {
+        return Iterators.concat(
+            wrapInObject ? ChunkedToXContentHelper.startObject() : Collections.emptyIterator(),
+            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            Iterators.single(clusters),
+            hits.toXContentChunked(params),
+            aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(aggregations),
+            suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(suggest),
+            profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(profileResults),
+            wrapInObject ? ChunkedToXContentHelper.endObject() : Collections.emptyIterator()
+        );
     }
 
     public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

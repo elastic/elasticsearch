@@ -47,8 +47,12 @@ public class RestValidateQueryAction extends BaseRestHandler {
             new Route(POST, "/_validate/query"),
             new Route(GET, "/{index}/_validate/query"),
             new Route(POST, "/{index}/_validate/query"),
-            Route.builder(GET, "/{index}/{type}/_validate/query").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_validate/query").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/_validate/query")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_validate/query")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

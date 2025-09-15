@@ -36,7 +36,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -57,6 +55,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -145,6 +145,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     private final Client clientWithOrigin;
     private final String systemIndexName;
     private final ThreadPool threadPool;
+    private final SystemIndexDescriptor systemIndexDescriptor;
 
     private volatile Scheduler.Cancellable periodicTask;
     private volatile TimeValue periodicTaskInterval;
@@ -158,10 +159,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
+        SystemIndices systemIndices,
         String systemIndexName
     ) {
         this.clientWithOrigin = new OriginSettingClient(Objects.requireNonNull(client), SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.systemIndexName = Objects.requireNonNull(systemIndexName);
+        this.systemIndexDescriptor = Objects.requireNonNull(systemIndices.findMatchingDescriptor(systemIndexName));
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.periodicTaskInterval = SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.get(settings);
@@ -181,10 +184,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             return; // state not fully recovered
         }
-        final ShardRouting primary = systemIndexPrimaryShard(state);
-        if (primary == null
-            || primary.active() == false
-            || Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId()) == false) {
+        if (systemIndexPrimaryShardActiveAndAssignedToLocalNode(state) == false) {
             // system index primary shard does not exist or is not assigned to this data node
             stopPeriodicTask();
             return;
@@ -242,16 +242,20 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
     }
 
-    @Nullable
-    private ShardRouting systemIndexPrimaryShard(final ClusterState state) {
-        final IndexMetadata indexMetadata = state.metadata().index(systemIndexName);
-        if (indexMetadata != null) {
-            final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
-            if (indexRoutingTable != null) {
-                return indexRoutingTable.shard(0).primaryShard();
+    private boolean systemIndexPrimaryShardActiveAndAssignedToLocalNode(final ClusterState state) {
+        for (IndexMetadata indexMetadata : state.metadata()) {
+            if (indexMetadata.isSystem() && systemIndexDescriptor.matchesIndexPattern(indexMetadata.getIndex().getName())) {
+                final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
+                if (indexRoutingTable == null || indexRoutingTable.shard(0) == null) {
+                    continue;
+                }
+                final var primary = indexRoutingTable.shard(0).primaryShard();
+                if (primary != null && primary.active() && Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId())) {
+                    return true;
+                }
             }
         }
-        return null;
+        return false;
     }
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {

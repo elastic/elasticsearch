@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 
 /**
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
@@ -46,7 +47,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState = new BulkRequest.IncrementalState(in);
         } else {
             incrementalState = BulkRequest.IncrementalState.EMPTY;
@@ -151,7 +152,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         out.writeArray(responses);
         out.writeVLong(tookInMillis);
         out.writeZLong(ingestTookInMillis);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.BULK_INCREMENTAL_STATE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             incrementalState.writeTo(out);
         }
     }
@@ -166,5 +167,33 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             }
             return b;
         }).array(ITEMS, Iterators.forArray(responses)));
+    }
+
+    /**
+     * Combine many bulk responses into one.
+     */
+    public static BulkResponse combine(List<BulkResponse> responses) {
+        long tookInMillis = 0;
+        long ingestTookInMillis = NO_INGEST_TOOK;
+        int itemResponseCount = 0;
+        for (BulkResponse response : responses) {
+            tookInMillis += response.getTookInMillis();
+            if (response.getIngestTookInMillis() != NO_INGEST_TOOK) {
+                if (ingestTookInMillis == NO_INGEST_TOOK) {
+                    ingestTookInMillis = 0;
+                }
+                ingestTookInMillis += response.getIngestTookInMillis();
+            }
+            itemResponseCount += response.getItems().length;
+        }
+        BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemResponseCount];
+        int i = 0;
+        for (BulkResponse response : responses) {
+            for (BulkItemResponse itemResponse : response.getItems()) {
+                bulkItemResponses[i++] = itemResponse;
+            }
+        }
+
+        return new BulkResponse(bulkItemResponses, tookInMillis, ingestTookInMillis);
     }
 }

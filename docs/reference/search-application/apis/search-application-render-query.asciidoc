@@ -1,12 +1,17 @@
 [role="xpack"]
 [[search-application-render-query]]
 === Render Search Application Query
-
-preview::[]
-
 ++++
 <titleabbrev>Render Search Application Query</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
+preview::[]
 
 Given specified query parameters, generates an {es} query using the search template associated with the search
 application or a default template if none is specified.

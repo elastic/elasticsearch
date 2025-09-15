@@ -13,9 +13,9 @@ apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
 esplugin {
-  name 'x-pack-esql'
-  description 'The plugin that powers ESQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
+  name = 'x-pack-esql'
+  description = 'The plugin that powers ESQL for Elasticsearch'
+  classname ='org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
   extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
 }
 
@@ -33,6 +33,8 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api project(":libs:h3")
   implementation project('arrow')
 
   // Also contains a dummy processor to allow compilation with unused annotations.
@@ -46,16 +48,24 @@ dependencies {
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
   testImplementation project(path: xpackModule('kql'))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
   testImplementation project(path: ':modules:analysis-common')
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:legacy-geo')
+  testImplementation project(path: ':modules:data-streams')
+  testImplementation project(path: ':modules:mapper-extras')
+  testImplementation project(xpackModule('esql:compute:test'))
   testImplementation('net.nextencia:rrdiagram:0.9.4')
   testImplementation('org.webjars.npm:fontsource__roboto-mono:4.5.7')
 
   internalClusterTestImplementation project(":modules:mapper-extras")
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
 }
 
 def generatedPath = "src/main/generated"
@@ -76,7 +86,7 @@ interface Injected {
 }
 
 tasks.named("test").configure {
-  if (buildParams.isCi() == false) {
+  if (buildParams.ci == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)
     doFirst {
@@ -85,7 +95,6 @@ tasks.named("test").configure {
       }
     }
     File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File signatureFolder = file("build/testrun/test/temp/esql/functions/signature")
     File typesFolder = file("build/testrun/test/temp/esql/functions/types")
     def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
     def effectiveProjectDir = projectDir
@@ -147,7 +156,7 @@ tasks.named("test").configure {
  *  Enable QA/rest integration tests for snapshot builds only   *
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
-if (buildParams.isSnapshotBuild()) {
+if (buildParams.snapshotBuild) {
   addQaCheckDependencies(project)
 }
 
@@ -174,6 +183,7 @@ pluginManager.withPlugin('com.diffplug.spotless') {
         "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBaseParser*.java",
         "src/main/generated/**/*.java",
         "src/main/generated-src/generated/**/*.java"
+      toggleOffOn('begin generated imports', 'end generated imports')
     }
   }
 }
@@ -271,15 +281,16 @@ tasks.register("regen") {
   }
 }
 
-tasks.named("spotlessJava") { dependsOn stringTemplates }
+tasks.named("spotlessJava") { dependsOn "stringTemplates" }
 tasks.named('checkstyleMain').configure {
   excludes = [ "**/*.java.st" ]
   exclude { normalize(it.file.toString()).contains("src/main/generated-src/generated") }
   exclude { normalize(it.file.toString()).contains("src/main/generated") }
 }
 
-def prop(Type, type, TYPE, BYTES, Array) {
+def prop(Name, Type, type, TYPE, BYTES, Array) {
   return [
+    "Name" : Name,
     "Type" : Type,
     "type" : type,
     "TYPE" : TYPE,
@@ -291,15 +302,19 @@ def prop(Type, type, TYPE, BYTES, Array) {
     "double" : type == "double" ? "true" : "",
     "BytesRef" : type == "BytesRef" ? "true" : "",
     "boolean" : type == "boolean" ? "true" : "",
+    "nanosMillis" : Name == "NanosMillis" ? "true" : "",
+    "millisNanos" : Name == "MillisNanos" ? "true" : "",
   ]
 }
 
 tasks.named('stringTemplates').configure {
-  var intProperties = prop("Int", "int", "INT", "Integer.BYTES", "IntArray")
-  var longProperties = prop("Long", "long", "LONG", "Long.BYTES", "LongArray")
-  var doubleProperties = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
-  var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
-  var booleanProperties = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
+  var intProperties = prop("Int", "Int", "int", "INT", "Integer.BYTES", "IntArray")
+  var longProperties = prop("Long", "Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var nanosMillisProperties = prop("NanosMillis", "Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var millisNanosProperties = prop("MillisNanos", "Long", "long", "LONG", "Long.BYTES", "LongArray")
+  var doubleProperties = prop("Double", "Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
+  var bytesRefProperties = prop("BytesRef", "BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
+  var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -318,6 +333,16 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InLongEvaluator.java"
   }
   template {
+    it.properties = nanosMillisProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InNanosMillisEvaluator.java"
+  }
+  template {
+    it.properties = millisNanosProperties
+    it.inputFile =  inInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InMillisNanosEvaluator.java"
+  }
+  template {
     it.properties = doubleProperties
     it.inputFile =  inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InDoubleEvaluator.java"
@@ -326,5 +351,49 @@ tasks.named('stringTemplates').configure {
     it.properties = bytesRefProperties
     it.inputFile =  inInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/InBytesRefEvaluator.java"
+  }
+
+  File coalesceInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/nulls/X-CoalesceEvaluator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBooleanEvaluator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceIntEvaluator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongEvaluator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceDoubleEvaluator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile =  coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceBytesRefEvaluator.java"
+  }
+
+  File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToInt.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToLong.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = roundToInput
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/math/RoundToDouble.java"
   }
 }

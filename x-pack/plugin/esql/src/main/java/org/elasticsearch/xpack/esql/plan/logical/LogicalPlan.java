@@ -75,8 +75,6 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         return lazyResolved;
     }
 
-    public abstract String commandName();
-
     public abstract boolean expressionsResolved();
 
     @Override

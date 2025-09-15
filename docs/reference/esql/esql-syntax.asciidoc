@@ -169,3 +169,47 @@ Timespan literals are not whitespace sensitive. These expressions are all valid:
 * `1 day`
 * `1       day`
 
+[discrete]
+[[esql-function-named-params]]
+==== Function named parameters
+
+Some functions like <<esql-match,match>> use named parameters to provide additional options.
+
+Named parameters allow specifying name value pairs, using the following syntax:
+
+`{"option_name": option_value, "another_option_name": another_value}`
+
+Valid value types are strings, numbers and booleans.
+
+An example using <<esql-match,match>>:
+
+[source,console]
+----
+POST /_query
+{
+"query": """
+FROM library
+| WHERE match(author, "Frank Herbert", {"minimum_should_match": 2, "operator": "AND"})
+| LIMIT 5
+"""
+}
+----
+// TEST[setup:library]
+
+You can also use <<esql-rest-params,query parameters>> in function named parameters:
+
+[source,console]
+----
+POST /_query
+{
+"query": """
+FROM library
+| EVAL year = DATE_EXTRACT("year", release_date)
+| WHERE page_count > ? AND match(author, ?, {"minimum_should_match": ?})
+| LIMIT 5
+""",
+"params": [300, "Frank Herbert", 2]
+}
+----
+// TEST[setup:library]
+

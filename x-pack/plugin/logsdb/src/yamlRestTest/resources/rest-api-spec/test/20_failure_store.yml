@@ -33,7 +33,10 @@ Test failure store with logsdb:
         - method: PUT
           path: /_bulk
           capabilities: [ 'failure_store_status' ]
-      reason: "Support for 'logsdb' index mode & failure status capability required"
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+      reason: "Support for 'logsdb' index mode & failure status config in templates"
 
   - do:
       allowed_warnings:
@@ -42,14 +45,16 @@ Test failure store with logsdb:
         name: my-template
         body:
           index_patterns: ["my-logs-fs*"]
-          data_stream:
-            failure_store: true
+          data_stream: {}
           template:
             settings:
               index:
                 mode: logsdb
                 number_of_replicas: 1
                 number_of_shards: 2
+            data_stream_options:
+              failure_store:
+                enabled: true
   - do:
       allowed_warnings:
         - "index template [my-template2] has index patterns [my-logs-db*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"

@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,6 +39,8 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
+import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -87,6 +88,7 @@ import java.util.jar.JarInputStream;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -303,7 +305,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * {@code ctor} that make sense when {@code ctor}
      * builds subclasses of {@link Node}.
      */
-    private Object[] ctorArgs(Constructor<? extends Node<?>> ctor) throws Exception {
+    public static Object[] ctorArgs(Constructor<? extends Node<?>> ctor) {
         Type[] argTypes = ctor.getGenericParameterTypes();
         Object[] args = new Object[argTypes.length];
         for (int i = 0; i < argTypes.length; i++) {
@@ -342,7 +344,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
-    private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
@@ -491,6 +493,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == Configuration.class) {
             return randomConfiguration();
         }
+        if (argClass == EsIndex.class) {
+            return randomEsIndex();
+        }
         if (argClass == JoinConfig.class) {
             return new JoinConfig(
                 JoinTypes.LEFT,
@@ -507,11 +512,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -519,11 +524,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return list;
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -531,7 +536,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return list;
     }
 
-    private Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
         Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
@@ -542,7 +547,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return map;
     }
 
-    private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
         int maxCollectionLength = 10;
 
@@ -566,7 +571,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     }
 
-    public <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+    public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             nodeClass = randomFrom(innerSubclassesOf(nodeClass));
         }
@@ -648,7 +653,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return longest;
     }
 
-    private boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
+    private static boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
         return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
@@ -656,7 +661,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return PhysicalPlan.class.isAssignableFrom(toBuildClass) || LogicalPlan.class.isAssignableFrom(toBuildClass);
     }
 
-    Expression randomResolvedExpression(Class<?> argClass) throws Exception {
+    static Expression randomResolvedExpression(Class<?> argClass) throws Exception {
         assert Expression.class.isAssignableFrom(argClass);
         @SuppressWarnings("unchecked")
         Class<? extends Expression> asNodeSubclass = (Class<? extends Expression>) argClass;
@@ -712,7 +717,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return subclassesOf(clazz, CLASSNAME_FILTER);
     }
 
-    private <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
+    private static <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
         return subclassesOf(clazz, CLASSNAME_FILTER);
     }
 

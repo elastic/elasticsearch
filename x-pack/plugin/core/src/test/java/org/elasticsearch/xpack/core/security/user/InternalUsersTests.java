@@ -12,6 +12,7 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.cleanup.TransportCleanupRepositoryAction;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportDeleteStoredScriptAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -26,13 +27,18 @@ import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettin
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -56,6 +62,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.I
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_TOKENS_INDEX_7;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.SECURITY_TOKENS_ALIAS;
+import static org.elasticsearch.xpack.core.security.user.UsernamesField.REINDEX_DATA_STREAM_NAME;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -264,12 +271,22 @@ public class InternalUsersTests extends ESTestCase {
             TransportAddIndexBlockAction.TYPE.name()
         );
         final String dataStream = randomAlphaOfLengthBetween(3, 12);
+
         checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
         // Also check backing index access
         checkIndexAccess(
             role,
             randomFrom(sampleIndexActions),
             DataStream.BACKING_INDEX_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
+
+        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream + "::failures", true);
+        // Also check failure index access
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.FAILURE_STORE_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
             true
         );
 
@@ -281,9 +298,59 @@ public class InternalUsersTests extends ESTestCase {
                 DataStream.BACKING_INDEX_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
                 true
             );
+
+            checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), allowedSystemDataStream + "::failures", true);
+            checkIndexAccess(
+                role,
+                randomFrom(sampleSystemDataStreamActions),
+                DataStream.FAILURE_STORE_PREFIX + allowedSystemDataStream + randomAlphaOfLengthBetween(4, 8),
+                true
+            );
         });
 
         checkIndexAccess(role, randomFrom(sampleSystemDataStreamActions), randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES), false);
+    }
+
+    public void testReindexDataStreamUser() {
+        assertThat(InternalUsers.getUser(REINDEX_DATA_STREAM_NAME), is(InternalUsers.REINDEX_DATA_STREAM_USER));
+        assertThat(
+            InternalUsers.REINDEX_DATA_STREAM_USER.getLocalClusterRoleDescriptor().get().getMetadata(),
+            equalTo(MetadataUtils.DEFAULT_RESERVED_METADATA)
+        );
+
+        final SimpleRole role = getLocalClusterRole(InternalUsers.REINDEX_DATA_STREAM_USER);
+
+        assertThat(role.cluster(), is(ClusterPermission.NONE));
+        assertThat(role.runAs(), is(RunAsPermission.NONE));
+        assertThat(role.application(), is(ApplicationPermission.NONE));
+        assertThat(role.remoteIndices(), is(RemoteIndicesPermission.NONE));
+
+        final List<String> sampleIndexActions = List.of(
+            TransportDeleteIndexAction.TYPE.name(),
+            "indices:admin/data_stream/index/reindex",
+            "indices:admin/index/create_from_source",
+            TransportAddIndexBlockAction.TYPE.name(),
+            TransportCreateIndexAction.TYPE.name(),
+            TransportClusterSearchShardsAction.TYPE.name(),
+            TransportUpdateSettingsAction.TYPE.name(),
+            RefreshAction.NAME,
+            ReindexAction.NAME,
+            TransportSearchAction.NAME,
+            TransportBulkAction.NAME,
+            TransportIndexAction.NAME,
+            TransportSearchScrollAction.TYPE.name(),
+            ModifyDataStreamsAction.NAME
+        );
+
+        final String dataStream = randomAlphaOfLengthBetween(3, 12);
+        checkIndexAccess(role, randomFrom(sampleIndexActions), dataStream, true);
+        // Also check backing index access
+        checkIndexAccess(
+            role,
+            randomFrom(sampleIndexActions),
+            DataStream.BACKING_INDEX_PREFIX + dataStream + randomAlphaOfLengthBetween(4, 8),
+            true
+        );
     }
 
     public void testRegularUser() {
@@ -327,7 +394,7 @@ public class InternalUsersTests extends ESTestCase {
         final IndexAbstraction.ConcreteIndex index = new IndexAbstraction.ConcreteIndex(metadata);
         assertThat(
             "Role " + role + ", action " + action + " access to " + indexName,
-            role.allowedIndicesMatcher(action).test(index),
+            role.allowedIndicesMatcher(action).test(index, null),
             is(expectedValue)
         );
     }

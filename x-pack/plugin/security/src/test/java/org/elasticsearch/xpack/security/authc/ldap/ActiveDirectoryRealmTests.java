@@ -33,6 +33,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.EntitledTestPackages;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -106,6 +107,7 @@ import static org.mockito.Mockito.when;
  * The username used to authenticate then has to be in the form of CN=user. Finally the username needs to be added as an
  * additional bind DN with a password in the test setup since it really is not a DN in the ldif file
  */
+@EntitledTestPackages(value = { "com.unboundid.ldap.listener" }) // tests start LDAP server that listens for incoming connections
 public class ActiveDirectoryRealmTests extends ESTestCase {
 
     private static final String PASSWORD = "password";

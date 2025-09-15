@@ -222,7 +222,7 @@ public class InternalTimeSeries extends InternalMultiBucketAggregation<InternalT
                     InternalBucket reducedBucket;
                     if (bucketsWithSameKey.size() == 1) {
                         reducedBucket = bucketsWithSameKey.get(0);
-                        reducedBucket.aggregations = InternalAggregations.reduce(List.of(reducedBucket.aggregations), reduceContext);
+                        reducedBucket.aggregations = InternalAggregations.reduce(reducedBucket.aggregations, reduceContext);
                     } else {
                         reducedBucket = reduceBucket(bucketsWithSameKey, reduceContext);
                     }

@@ -1,5 +1,0 @@
-pr: 117404
-summary: Correct bit * byte and bit * float script comparisons
-area: Vector Search
-type: bug
-issues: []

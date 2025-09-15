@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -83,7 +86,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                             // We need to both mark the field to load differently, and change the spatial function to know to use it
                             foundAttributes.add(fieldAttribute);
                             changedAggregates = true;
-                            orderedAggregates.add(as.replaceChild(af.withDocValues()));
+                            orderedAggregates.add(
+                                as.replaceChild(af.withFieldExtractPreference(MappedFieldType.FieldExtractPreference.DOC_VALUES))
+                            );
                         } else {
                             orderedAggregates.add(aggExpr);
                         }
@@ -106,7 +111,10 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
             if (exec instanceof EvalExec evalExec) {
                 List<Alias> fields = evalExec.fields();
                 List<Alias> changed = fields.stream()
-                    .map(f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes)))
+                    .map(
+                        f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                            .transformDown(SpatialGridFunction.class, s -> withDocValues(s, foundAttributes))
+                    )
                     .toList();
                 if (changed.equals(fields) == false) {
                     exec = new EvalExec(exec.source(), exec.child(), changed);
@@ -115,7 +123,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
             if (exec instanceof FilterExec filterExec) {
                 // Note that ST_CENTROID does not support shapes, but SpatialRelatesFunction does, so when we extend the centroid
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
-                var condition = filterExec.condition().transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes));
+                var condition = filterExec.condition()
+                    .transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                    .transformDown(SpatialGridFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
                 }
@@ -145,6 +155,12 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
     }
 
+    private SpatialGridFunction withDocValues(SpatialGridFunction spatial, Set<FieldAttribute> foundAttributes) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean found = foundField(spatial.spatialField(), foundAttributes);
+        return found ? spatial.withDocValues(found) : spatial;
+    }
+
     private boolean hasFieldAttribute(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
         return foundField(spatial.left(), foundAttributes) || foundField(spatial.right(), foundAttributes);
     }
@@ -156,6 +172,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
     /**
      * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
      * This is because comparing two doc-values fields is not supported in the current implementation.
+     * This also rejects fields that do not have doc-values in the field mapping, as well as rejecting geo_shape and cartesian_shape
+     * because we do not yet support full doc-values extraction for non-point geometries. We do have aggregations that support
+     * shapes, and to prevent them triggering this rule on non-point geometries we have to explicitly disallow them here.
      */
     private boolean allowedForDocValues(
         FieldAttribute fieldAttribute,
@@ -164,6 +183,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         Set<FieldAttribute> foundAttributes
     ) {
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
+            return false;
+        }
+        if (fieldAttribute.dataType() == DataType.GEO_SHAPE || fieldAttribute.dataType() == DataType.CARTESIAN_SHAPE) {
             return false;
         }
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);

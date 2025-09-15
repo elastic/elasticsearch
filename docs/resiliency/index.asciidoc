@@ -118,9 +118,10 @@ in the case of each type of failure. The plan is to have a test case that valida
 [discrete]
 === Run Jepsen (STATUS: ONGOING)
 
-We have ported the known scenarios in the Jepsen blogs that check loss of acknowledged writes to our testing infrastructure.
-The new tests are run continuously in our testing farm and are passing. We are also working on running Jepsen independently to verify
-that no failures are found.
+We have ported the known scenarios in the Jepsen blogs that check loss of
+acknowledged writes to our testing infrastructure. The new tests are run
+continuously in our testing farm and are passing. We will also monitor for new
+failure scenarios and adapt our test suite as needed.
 
 == Completed
 

@@ -56,13 +56,6 @@ public class TopN extends UnaryPlan {
     }
 
     @Override
-    public String commandName() {
-        // this is the result of optimizations, it will never appear in a pre-analyzed plan
-        // maybe we should throw exception?
-        return "<top N>";
-    }
-
-    @Override
     public boolean expressionsResolved() {
         return limit.resolved() && Resolvables.resolved(order);
     }

@@ -5,6 +5,12 @@
 <titleabbrev>Set upgrade mode</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml[{ml-cap} APIs].
+--
+
 Sets a cluster wide upgrade_mode setting that prepares {ml} indices for an
 upgrade. 
 

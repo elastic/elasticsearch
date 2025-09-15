@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketAndOrd;
 import org.elasticsearch.search.aggregations.bucket.terms.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.BytesKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
@@ -38,7 +40,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
@@ -115,50 +116,56 @@ class CountedTermsAggregator extends TermsAggregator {
             LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size());
             ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())
         ) {
-            for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
-                int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
-
-                // as users can't control sort order, in practice we'll always sort by doc count descending
-                try (
-                    BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(
-                        size,
-                        bigArrays(),
-                        partiallyBuiltBucketComparator
-                    )
-                ) {
-                    StringTerms.Bucket spare = null;
-                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
-                    Supplier<StringTerms.Bucket> emptyBucketBuilder = () -> new StringTerms.Bucket(
-                        new BytesRef(),
-                        0,
-                        null,
-                        false,
-                        0,
-                        format
-                    );
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts.increment(ordIdx, docCount);
-                        if (spare == null) {
-                            checkRealMemoryCBForInternalBucket();
-                            spare = emptyBucketBuilder.get();
+            try (IntArray bucketsToCollect = bigArrays().newIntArray(owningBucketOrds.size())) {
+                // find how many buckets we are going to collect
+                long ordsToCollect = 0;
+                for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                    int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx)), bucketCountThresholds.getShardSize());
+                    bucketsToCollect.set(ordIdx, size);
+                    ordsToCollect += size;
+                }
+                try (LongArray ordsArray = bigArrays().newLongArray(ordsToCollect)) {
+                    long ordsCollected = 0;
+                    for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
+                        // as users can't control sort order, in practice we'll always sort by doc count descending
+                        try (
+                            BucketPriorityQueue<StringTerms.Bucket> ordered = new BucketPriorityQueue<>(
+                                bucketsToCollect.get(ordIdx),
+                                bigArrays(),
+                                order.partiallyBuiltBucketComparator(this)
+                            )
+                        ) {
+                            BucketAndOrd<StringTerms.Bucket> spare = null;
+                            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
+                            while (ordsEnum.next()) {
+                                long docCount = bucketDocCount(ordsEnum.ord());
+                                otherDocCounts.increment(ordIdx, docCount);
+                                if (spare == null) {
+                                    checkRealMemoryCBForInternalBucket();
+                                    spare = new BucketAndOrd<>(new StringTerms.Bucket(new BytesRef(), 0, null, false, 0, format));
+                                }
+                                ordsEnum.readValue(spare.bucket.getTermBytes());
+                                spare.bucket.setDocCount(docCount);
+                                spare.ord = ordsEnum.ord();
+                                spare = ordered.insertWithOverflow(spare);
+                            }
+                            final int orderedSize = (int) ordered.size();
+                            final StringTerms.Bucket[] buckets = new StringTerms.Bucket[orderedSize];
+                            for (int i = orderedSize - 1; i >= 0; --i) {
+                                BucketAndOrd<StringTerms.Bucket> bucketAndOrd = ordered.pop();
+                                buckets[i] = bucketAndOrd.bucket;
+                                ordsArray.set(ordsCollected + i, bucketAndOrd.ord);
+                                otherDocCounts.increment(ordIdx, -bucketAndOrd.bucket.getDocCount());
+                                bucketAndOrd.bucket.setTermBytes(BytesRef.deepCopyOf(bucketAndOrd.bucket.getTermBytes()));
+                            }
+                            topBucketsPerOrd.set(ordIdx, buckets);
+                            ordsCollected += orderedSize;
                         }
-                        ordsEnum.readValue(spare.getTermBytes());
-                        spare.setDocCount(docCount);
-                        spare.setBucketOrd(ordsEnum.ord());
-                        spare = ordered.insertWithOverflow(spare);
                     }
-
-                    topBucketsPerOrd.set(ordIdx, new StringTerms.Bucket[(int) ordered.size()]);
-                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                        topBucketsPerOrd.get(ordIdx)[i] = ordered.pop();
-                        otherDocCounts.increment(ordIdx, -topBucketsPerOrd.get(ordIdx)[i].getDocCount());
-                        topBucketsPerOrd.get(ordIdx)[i].setTermBytes(BytesRef.deepCopyOf(topBucketsPerOrd.get(ordIdx)[i].getTermBytes()));
-                    }
+                    assert ordsCollected == ordsArray.size();
+                    buildSubAggsForAllBuckets(topBucketsPerOrd, ordsArray, InternalTerms.Bucket::setAggregations);
                 }
             }
-
-            buildSubAggsForAllBuckets(topBucketsPerOrd, InternalTerms.Bucket::getBucketOrd, InternalTerms.Bucket::setAggregations);
 
             return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
                 final BucketOrder reduceOrder;

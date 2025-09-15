@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.ilm.AsyncWaitStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -39,7 +41,6 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.LongSupplier;
@@ -176,6 +177,10 @@ class IndexLifecycleRunner {
      */
     void runPeriodicStep(String policy, Metadata metadata, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
+        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            return;
+        }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final Step currentStep;
         try {
@@ -232,7 +237,7 @@ class IndexLifecycleRunner {
             }
         } else if (currentStep instanceof AsyncWaitStep) {
             logger.debug("[{}] running periodic policy with current-step [{}]", index, currentStep.getKey());
-            ((AsyncWaitStep) currentStep).evaluateCondition(metadata, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            ((AsyncWaitStep) currentStep).evaluateCondition(metadata, indexMetadata, new AsyncWaitStep.Listener() {
 
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject stepInfo) {
@@ -290,13 +295,7 @@ class IndexLifecycleRunner {
             // IndexLifecycleRunner#runPeriodicStep} run the policy will still be in the ERROR step, as we haven't been able
             // to move it back into the failed step, so we'll try again
             submitUnlessAlreadyQueued(
-                String.format(
-                    Locale.ROOT,
-                    "ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}",
-                    policy,
-                    index,
-                    failedStep.getKey()
-                ),
+                Strings.format("ilm-retry-failed-step {policy [%s], index [%s], failedStep [%s]}", policy, index, failedStep.getKey()),
                 new MoveToRetryFailedStepUpdateTask(indexMetadata.getIndex(), policy, currentStep, failedStep)
             );
         } else {
@@ -309,6 +308,10 @@ class IndexLifecycleRunner {
      */
     void maybeRunAsyncAction(ClusterState currentState, IndexMetadata indexMetadata, String policy, StepKey expectedStepKey) {
         String index = indexMetadata.getIndex().getName();
+        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            return;
+        }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final Step currentStep;
         try {
@@ -328,7 +331,11 @@ class IndexLifecycleRunner {
             logger.warn("current step [{}] for index [{}] with policy [{}] is not recognized", currentStepKey, index, policy);
             return;
         }
-
+        if (expectedStepKey.phase() == null && expectedStepKey.name() == null && expectedStepKey.action() == null) {
+            // ILM is stopped, so do not try to run async action
+            logger.debug("expected step for index [{}] with policy [{}] is [{}], not running async action", index, policy, expectedStepKey);
+            return;
+        }
         logger.trace(
             "[{}] maybe running async action step ({}) with current step {}",
             index,
@@ -385,6 +392,10 @@ class IndexLifecycleRunner {
      */
     void runPolicyAfterStateChange(String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
+        if (LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(indexMetadata.getSettings())) {
+            logger.info("[{}] skipping policy [{}] because [{}] is true", index, policy, LifecycleSettings.LIFECYCLE_SKIP);
+            return;
+        }
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         if (busyIndices.contains(Tuple.tuple(indexMetadata.getIndex(), currentStepKey))) {
@@ -444,7 +455,7 @@ class IndexLifecycleRunner {
         } else if (currentStep instanceof ClusterStateActionStep || currentStep instanceof ClusterStateWaitStep) {
             logger.debug("[{}] running policy with current-step [{}]", indexMetadata.getIndex().getName(), currentStep.getKey());
             submitUnlessAlreadyQueued(
-                String.format(Locale.ROOT, "ilm-execute-cluster-state-steps [%s]", currentStep),
+                Strings.format("ilm-execute-cluster-state-steps [%s]", currentStep),
                 new ExecuteStepsUpdateTask(policy, indexMetadata.getIndex(), currentStep, stepRegistry, this, nowSupplier)
             );
         } else {
@@ -459,8 +470,7 @@ class IndexLifecycleRunner {
     private void moveToStep(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey newStepKey) {
         logger.debug("[{}] moving to step [{}] {} -> {}", index.getName(), policy, currentStepKey, newStepKey);
         submitUnlessAlreadyQueued(
-            String.format(
-                Locale.ROOT,
+            Strings.format(
                 "ilm-move-to-step {policy [%s], index [%s], currentStep [%s], nextStep [%s]}",
                 policy,
                 index.getName(),
@@ -486,13 +496,7 @@ class IndexLifecycleRunner {
             e
         );
         submitUnlessAlreadyQueued(
-            String.format(
-                Locale.ROOT,
-                "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}",
-                policy,
-                index.getName(),
-                currentStepKey
-            ),
+            Strings.format("ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
@@ -506,13 +510,7 @@ class IndexLifecycleRunner {
      */
     private void setStepInfo(Index index, String policy, @Nullable Step.StepKey currentStepKey, ToXContentObject stepInfo) {
         submitUnlessAlreadyQueued(
-            String.format(
-                Locale.ROOT,
-                "ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}",
-                policy,
-                index.getName(),
-                currentStepKey
-            ),
+            Strings.format("ilm-set-step-info {policy [%s], index [%s], currentStep [%s]}", policy, index.getName(), currentStepKey),
             new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo)
         );
     }

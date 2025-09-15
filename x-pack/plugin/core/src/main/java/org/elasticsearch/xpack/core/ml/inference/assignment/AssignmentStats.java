@@ -432,6 +432,22 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     private final Instant startTime;
     private final List<AssignmentStats.NodeStats> nodeStats;
 
+    public AssignmentStats(AssignmentStats other) {
+        this.deploymentId = other.deploymentId;
+        this.modelId = other.modelId;
+        this.threadsPerAllocation = other.threadsPerAllocation;
+        this.numberOfAllocations = other.numberOfAllocations;
+        this.adaptiveAllocationsSettings = other.adaptiveAllocationsSettings;
+        this.queueCapacity = other.queueCapacity;
+        this.startTime = other.startTime;
+        this.nodeStats = other.nodeStats;
+        this.state = other.state;
+        this.reason = other.reason;
+        this.allocationStatus = other.allocationStatus;
+        this.cacheSize = other.cacheSize;
+        this.priority = other.priority;
+    }
+
     public AssignmentStats(
         String deploymentId,
         String modelId,
@@ -483,7 +499,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         } else {
             deploymentId = modelId;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         } else {
             adaptiveAllocationsSettings = null;
@@ -533,6 +549,12 @@ public class AssignmentStats implements ToXContentObject, Writeable {
 
     public AssignmentState getState() {
         return state;
+    }
+
+    public AssignmentStats setNodeStats(List<AssignmentStats.NodeStats> nodeStats) {
+        this.nodeStats.clear();
+        this.nodeStats.addAll(nodeStats);
+        return this;
     }
 
     public AssignmentStats setState(AssignmentState state) {
@@ -666,7 +688,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             out.writeString(deploymentId);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_ADAPTIVE_ALLOCATIONS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
     }

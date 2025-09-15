@@ -81,6 +81,7 @@ public class NativeUsersStore {
 
     public static final String USER_DOC_TYPE = "user";
     public static final String RESERVED_USER_TYPE = "reserved-user";
+    public static final String USER_NOT_FOUND_MESSAGE = "user must exist in order to change password";
     private static final Logger logger = LogManager.getLogger(NativeUsersStore.class);
 
     private final Settings settings;
@@ -315,7 +316,7 @@ public class NativeUsersStore {
                             } else {
                                 logger.debug(() -> format("failed to change password for user [%s]", request.username()), e);
                                 ValidationException validationException = new ValidationException();
-                                validationException.addValidationError("user must exist in order to change password");
+                                validationException.addValidationError(USER_NOT_FOUND_MESSAGE);
                                 listener.onFailure(validationException);
                             }
                         } else {

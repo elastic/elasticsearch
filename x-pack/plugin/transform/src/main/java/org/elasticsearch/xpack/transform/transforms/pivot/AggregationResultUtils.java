@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.MultiValue;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
@@ -69,6 +70,7 @@ public final class AggregationResultUtils {
         tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
         tempMap.put(MultiValue.class.getName(), new NumericMultiValueAggExtractor());
         tempMap.put(MultiValueAggregation.class.getName(), new MultiValueAggExtractor());
+        tempMap.put(InternalExtendedStats.class.getName(), new ExtendedStatsExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -171,6 +173,9 @@ public final class AggregationResultUtils {
             // TODO: can the Range extractor be removed?
         } else if (aggregation instanceof Range) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Range.class.getName());
+        } else if (aggregation instanceof InternalExtendedStats) {
+            // note: extended stats is also a multi bucket agg, therefore check range first
+            return TYPE_VALUE_EXTRACTOR_MAP.get(InternalExtendedStats.class.getName());
         } else if (aggregation instanceof MultiValue) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValue.class.getName());
         } else if (aggregation instanceof MultiValueAggregation) {
@@ -278,6 +283,13 @@ public final class AggregationResultUtils {
             } else {
                 return aggregation.getValueAsString();
             }
+        }
+    }
+
+    static class ExtendedStatsExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            return ((InternalExtendedStats) agg).asIndexableMap();
         }
     }
 

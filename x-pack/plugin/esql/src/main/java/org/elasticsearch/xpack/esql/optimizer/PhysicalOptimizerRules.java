@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.util.ReflectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
@@ -61,35 +59,5 @@ public class PhysicalOptimizerRules {
         }
 
         protected abstract PhysicalPlan rule(SubPlan plan);
-    }
-
-    public abstract static class OptimizerExpressionRule<E extends Expression> extends Rule<PhysicalPlan, PhysicalPlan> {
-
-        private final TransformDirection direction;
-        // overriding type token which returns the correct class but does an uncheck cast to LogicalPlan due to its generic bound
-        // a proper solution is to wrap the Expression rule into a Plan rule but that would affect the rule declaration
-        // so instead this is hacked here
-        private final Class<E> expressionTypeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
-
-        public OptimizerExpressionRule(TransformDirection direction) {
-            this.direction = direction;
-        }
-
-        @Override
-        public final PhysicalPlan apply(PhysicalPlan plan) {
-            return direction == TransformDirection.DOWN
-                ? plan.transformExpressionsDown(expressionTypeToken, this::rule)
-                : plan.transformExpressionsUp(expressionTypeToken, this::rule);
-        }
-
-        protected PhysicalPlan rule(PhysicalPlan plan) {
-            return plan;
-        }
-
-        protected abstract Expression rule(E e);
-
-        public Class<E> expressionToken() {
-            return expressionTypeToken;
-        }
     }
 }

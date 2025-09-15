@@ -14,10 +14,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -25,14 +26,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
-import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -40,7 +41,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
@@ -50,6 +50,8 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -91,26 +93,26 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
-            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                List.of("abc"),
+                List.of(new ChunkInferenceInput("abc")),
                 new HashMap<>(),
-                InputType.INGEST,
-                new ChunkingOptions(null, null),
+                InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-
-            MatcherAssert.assertThat(
-                result.asMap(),
-                Matchers.is(
-                    Map.of(
-                        InferenceChunkedSparseEmbeddingResults.FIELD_NAME,
-                        List.of(
-                            Map.of(ChunkedNlpInferenceResults.TEXT, "abc", ChunkedNlpInferenceResults.INFERENCE, Map.of(".", 0.13315596f))
+            assertThat(result, instanceOf(ChunkedInferenceEmbedding.class));
+            var sparseResult = (ChunkedInferenceEmbedding) result;
+            assertThat(
+                sparseResult.chunks(),
+                is(
+                    List.of(
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(List.of(new WeightedToken(".", 0.13315596f)), false),
+                            new ChunkedInference.TextOffset(0, "abc".length())
                         )
                     )
                 )
@@ -139,55 +141,36 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         ) {
             String content = XContentHelper.stripWhitespace("""
                 {
-                       "provider": "hugging_face_elser",
-                       "task_types": [
-                            {
-                                "task_type": "sparse_embedding",
-                                "configuration": {}
-                            }
-                       ],
-                       "configuration": {
+                       "service": "hugging_face_elser",
+                       "name": "Hugging Face ELSER",
+                       "task_types": ["sparse_embedding"],
+                       "configurations": {
                            "api_key": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "API Key for the provider you're connecting to.",
                                "label": "API Key",
-                               "order": 1,
                                "required": true,
                                "sensitive": true,
-                               "tooltip": "API Key for the provider you're connecting to.",
+                               "updatable": true,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            },
                            "rate_limit.requests_per_minute": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "numeric",
+                               "description": "Minimize the number of rate limit errors.",
                                "label": "Rate Limit",
-                               "order": 6,
                                "required": false,
                                "sensitive": false,
-                               "tooltip": "Minimize the number of rate limit errors.",
+                               "updatable": false,
                                "type": "int",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            },
                            "url": {
-                               "default_value": null,
-                               "depends_on": [],
-                               "display": "textbox",
+                               "description": "The URL endpoint to use for the requests.",
                                "label": "URL",
-                               "order": 1,
                                "required": true,
                                "sensitive": false,
-                               "tooltip": "The URL endpoint to use for the requests.",
+                               "updatable": false,
                                "type": "str",
-                               "ui_restrictions": [],
-                               "validations": [],
-                               "value": null
+                               "supported_task_types": ["sparse_embedding"]
                            }
                        }
                    }

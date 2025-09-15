@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.test.ESTestCase;
 
@@ -21,7 +22,7 @@ public class TaskTransportChannelTests extends ESTestCase {
 
     public void testClosesTaskAfterChannelHandoff() throws IOException {
         runCompletionOrderTest(c -> c.sendResponse(new ElasticsearchException("simulated")));
-        runCompletionOrderTest(c -> c.sendResponse(TransportResponse.Empty.INSTANCE));
+        runCompletionOrderTest(c -> c.sendResponse(ActionResponse.Empty.INSTANCE));
     }
 
     private void runCompletionOrderTest(CheckedConsumer<TransportChannel, IOException> channelConsumer) throws IOException {

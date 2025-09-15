@@ -304,10 +304,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
 
         DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
         assertThat(dataStream, notNullValue());
-        assertThat(dataStream.getFailureIndices().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+        assertThat(dataStream.getFailureIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
         for (Index i : indicesToDelete) {
             assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
-            assertFalse(dataStream.getFailureIndices().getIndices().contains(i));
+            assertFalse(dataStream.getFailureIndices().contains(i));
         }
         assertThat(after.metadata().getIndices().size(), equalTo((2 * numBackingIndices) - indexNumbersToDelete.size()));
     }

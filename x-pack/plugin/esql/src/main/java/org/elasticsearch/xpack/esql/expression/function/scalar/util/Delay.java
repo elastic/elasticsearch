@@ -7,18 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.util;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 
@@ -36,6 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 public class Delay extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delay", Delay::new);
 
+    @FunctionInfo(returnType = { "boolean" }, description = "Sleeps for a duration for every row. For debug purposes only.")
     public Delay(Source source, @Param(name = "ms", type = { "time_duration" }, description = "For how long") Expression ms) {
         super(source, ms);
     }
@@ -84,15 +89,15 @@ public class Delay extends UnaryScalarFunction {
     }
 
     @Override
-    public Object fold() {
+    public Object fold(FoldContext ctx) {
         return null;
     }
 
-    private long msValue() {
+    private long msValue(FoldContext ctx) {
         if (field().foldable() == false) {
             throw new IllegalArgumentException("function [" + sourceText() + "] has invalid argument [" + field().sourceText() + "]");
         }
-        var ms = field().fold();
+        var ms = field().fold(ctx);
         if (ms instanceof Duration duration) {
             return duration.toMillis();
         }
@@ -101,21 +106,49 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
-        return new DelayEvaluator.Factory(source(), msValue());
+        return context -> new DelayEvaluator(context, msValue(toEvaluator.foldCtx()));
     }
 
-    @Evaluator
-    static boolean process(@Fixed long ms) {
-        // Only activate in snapshot builds
-        if (Build.current().isSnapshot()) {
+    static final class DelayEvaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DelayEvaluator.class);
+
+        private final DriverContext driverContext;
+        private final long ms;
+
+        DelayEvaluator(DriverContext driverContext, long ms) {
+            if (Build.current().isSnapshot() == false) {
+                throw new IllegalArgumentException("Delay function is only available in snapshot builds");
+            }
+            this.driverContext = driverContext;
+            this.ms = ms;
+        }
+
+        @Override
+        public Block eval(Page page) {
+            int positionCount = page.getPositionCount();
+            for (int p = 0; p < positionCount; p++) {
+                delay(ms);
+            }
+            return driverContext.blockFactory().newConstantBooleanBlockWith(true, positionCount);
+        }
+
+        private void delay(long ms) {
             try {
+                driverContext.checkForEarlyTermination();
                 Thread.sleep(ms);
             } catch (InterruptedException e) {
-                return true;
+                Thread.currentThread().interrupt();
             }
-        } else {
-            throw new IllegalArgumentException("Delay function is only available in snapshot builds");
         }
-        return true;
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public void close() {
+
+        }
     }
 }

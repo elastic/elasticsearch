@@ -72,6 +72,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         final var snapshotFuture = startFullSnapshotBlockedOnDataNode(randomIdentifier(), repoName, originalNode);
+        safeAwait((ActionListener<Void> l) -> flushMasterQueue(clusterService, l));
         final var snapshotCompletesWithoutPausingListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
             final var entriesForRepo = SnapshotsInProgress.get(state).forRepo(repoName);
             if (entriesForRepo.isEmpty()) {
@@ -502,11 +503,16 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("mark node for removal", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final var nodeId = currentState.nodes().resolveNode(nodeName).getId();
+                final var node = currentState.nodes().resolveNode(nodeName);
                 return currentState.copyAndUpdateMetadata(
                     mdb -> mdb.putCustom(
                         NodesShutdownMetadata.TYPE,
-                        new NodesShutdownMetadata(Map.of(nodeId, shutdownMetadataBuilder.setNodeId(nodeId).build()))
+                        new NodesShutdownMetadata(
+                            Map.of(
+                                node.getId(),
+                                shutdownMetadataBuilder.setNodeId(node.getId()).setNodeEphemeralId(node.getEphemeralId()).build()
+                            )
+                        )
                     )
                 );
             }

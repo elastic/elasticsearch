@@ -47,7 +47,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting add and remove aliases requests
@@ -85,7 +85,7 @@ public class MetadataIndexAliasesService {
         final IndicesAliasesClusterStateUpdateRequest request,
         final ActionListener<IndicesAliasesResponse> listener
     ) {
-        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), null); // TODO use request.masterNodeTimeout() here?
+        taskQueue.submitTask("index-aliases", new ApplyAliasesTask(request, listener), request.masterNodeTimeout());
     }
 
     /**

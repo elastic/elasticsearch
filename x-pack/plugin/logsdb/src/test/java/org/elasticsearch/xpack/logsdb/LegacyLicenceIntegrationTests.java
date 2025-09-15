@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.AbstractLicensesIntegrationTestCase;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
@@ -31,8 +31,8 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpriseLicense;
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createGoldOrPlatinumLicense;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseServiceTests.createEnterpriseLicense;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseServiceTests.createGoldOrPlatinumLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -57,25 +57,26 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
     public void testSyntheticSourceUsageDisallowed() {
         createIndexWithSyntheticSourceAndAssertExpectedType("test", "STORED");
 
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, nullValue());
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE, nullValue());
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, nullValue());
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE, nullValue());
     }
 
     public void testSyntheticSourceUsageWithLegacyLicense() {
         createIndexWithSyntheticSourceAndAssertExpectedType(".profiling-stacktraces", "synthetic");
 
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, not(nullValue()));
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE, nullValue());
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, not(nullValue()));
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE, nullValue());
     }
 
     public void testSyntheticSourceUsageWithLegacyLicensePastCutoff() throws Exception {
-        long startPastCutoff = LocalDateTime.of(2025, 11, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        // One day after default cutoff date
+        long startPastCutoff = LocalDateTime.of(2025, 2, 5, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         putLicense(createGoldOrPlatinumLicense(startPastCutoff));
         ensureGreen();
 
         createIndexWithSyntheticSourceAndAssertExpectedType(".profiling-stacktraces", "STORED");
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, nullValue());
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE, nullValue());
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, nullValue());
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE, nullValue());
     }
 
     public void testSyntheticSourceUsageWithEnterpriseLicensePastCutoff() throws Exception {
@@ -86,8 +87,8 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
         createIndexWithSyntheticSourceAndAssertExpectedType(".profiling-traces", "synthetic");
         // also supports non-exceptional indices
         createIndexWithSyntheticSourceAndAssertExpectedType("test", "synthetic");
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, nullValue());
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE, not(nullValue()));
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, nullValue());
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE, not(nullValue()));
     }
 
     public void testSyntheticSourceUsageTracksBothLegacyAndRegularFeature() throws Exception {
@@ -98,16 +99,16 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
 
         createIndexWithSyntheticSourceAndAssertExpectedType(".profiling-traces-v2", "synthetic");
 
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, not(nullValue()));
-        assertFeatureUsage(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE, not(nullValue()));
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY, not(nullValue()));
+        assertFeatureUsage(LogsdbLicenseService.SYNTHETIC_SOURCE_FEATURE, not(nullValue()));
     }
 
     private void createIndexWithSyntheticSourceAndAssertExpectedType(String indexName, String expectedType) {
-        var settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
         createIndex(indexName, settings);
         var response = admin().indices().getSettings(new GetSettingsRequest().indices(indexName)).actionGet();
         assertThat(
-            response.getIndexToSettings().get(indexName).get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()),
+            response.getIndexToSettings().get(indexName).get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()),
             equalTo(expectedType)
         );
     }
@@ -118,7 +119,7 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
 
     private void assertFeatureUsage(LicensedFeature.Momentary syntheticSourceFeature, Matcher<Object> matcher) {
         GetFeatureUsageResponse.FeatureUsageInfo featureUsage = getFeatureUsageInfo().stream()
-            .filter(f -> f.getFamily().equals(SyntheticSourceLicenseService.MAPPINGS_FEATURE_FAMILY))
+            .filter(f -> f.getFamily().equals(LogsdbLicenseService.MAPPINGS_FEATURE_FAMILY))
             .filter(f -> f.getName().equals(syntheticSourceFeature.getName()))
             .findAny()
             .orElse(null);

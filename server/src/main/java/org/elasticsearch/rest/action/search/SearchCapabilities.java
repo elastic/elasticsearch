@@ -9,9 +9,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
-
 import java.util.HashSet;
 import java.util.Set;
 
@@ -32,16 +29,27 @@ public final class SearchCapabilities {
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS = "dense_vector_docvalue_fields";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
-    /** Support multi-dense-vector field mapper. */
-    private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
-    /** Support multi-dense-vector script field access. */
-    private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
-    /** Initial support for multi-dense-vector maxSim functions access. */
-    private static final String MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM = "multi_dense_vector_script_max_sim_with_bugfix";
+    /** Fixed the math in {@code moving_fn}'s {@code linearWeightedAvg}. */
+    private static final String MOVING_FN_RIGHT_MATH = "moving_fn_right_math";
+    /** knn query where k defaults to the request size. */
+    private static final String K_DEFAULT_TO_SIZE = "k_default_to_size";
+
+    /** Support deprecated window_size field in rank. */
+    private static final String RRF_WINDOW_SIZE_SUPPORT_DEPRECATED = "rrf_window_size_support_deprecated";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+    private static final String OPTIMIZED_SCALAR_QUANTIZATION_BBQ = "optimized_scalar_quantization_bbq";
+    private static final String KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE = "knn_quantized_vector_rescore_oversample";
+
+    private static final String INDEX_SELECTOR_SYNTAX = "index_expression_selectors";
+
+    private static final String SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB = "significant_terms_background_filter_as_sub";
+    private static final String SIGNIFICANT_TERMS_ON_NESTED_FIELDS = "significant_terms_on_nested_fields";
+    private static final String EXCLUDE_VECTORS_PARAM = "exclude_vectors_param";
+    private static final String DENSE_VECTOR_UPDATABLE_BBQ = "dense_vector_updatable_bbq";
+    private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -52,14 +60,18 @@ public final class SearchCapabilities {
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
         capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
-        if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
-            capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
-            capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);
-            capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM);
-        }
-        if (Build.current().isSnapshot()) {
-            capabilities.add(KQL_QUERY_SUPPORTED);
-        }
+        capabilities.add(OPTIMIZED_SCALAR_QUANTIZATION_BBQ);
+        capabilities.add(KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE);
+        capabilities.add(MOVING_FN_RIGHT_MATH);
+        capabilities.add(K_DEFAULT_TO_SIZE);
+        capabilities.add(KQL_QUERY_SUPPORTED);
+        capabilities.add(RRF_WINDOW_SIZE_SUPPORT_DEPRECATED);
+        capabilities.add(INDEX_SELECTOR_SYNTAX);
+        capabilities.add(SIGNIFICANT_TERMS_BACKGROUND_FILTER_AS_SUB);
+        capabilities.add(SIGNIFICANT_TERMS_ON_NESTED_FIELDS);
+        capabilities.add(EXCLUDE_VECTORS_PARAM);
+        capabilities.add(DENSE_VECTOR_UPDATABLE_BBQ);
+        capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

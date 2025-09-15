@@ -24,9 +24,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.telemetry.metric.Instrument;
@@ -70,20 +70,44 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     /**
-     * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}.
+     * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}. The pools themselves are constructed
+     * and configured using {@link DefaultBuiltInExecutorBuilders}.
      */
     public static class Names {
         /**
-         * All the tasks that do not relate to the purpose of one of the other thread pools should use this thread pool. Try to pick one of
-         * the other more specific thread pools where possible.
+         * A thread pool with a very high (but finite) maximum size. Use only after careful consideration.
+         * <p>
+         * This pool may be used for one-off CPU-bound activities, but its maximum size is so high that it doesn't really work well to do a
+         * lot of CPU-bound work in parallel here: submitting more CPU-bound tasks than we have CPUs to run them will burn a lot of CPU just
+         * context-switching in order to try and make fair progress on all the threads at once. Better to submit fewer tasks and wait for
+         * them to complete before submitting more, for instance using {@link ThrottledTaskRunner} and friends.
+         * <p>
+         * Likewise you can do IO on this pool, but using it for lots of concurrent IO is likely harmful in clusters with poor concurrent IO
+         * performance (especially if using spinning disks).
+         * <p>
+         * Blocking on a future on this pool risks deadlock if there's a chance that the completion of the future depends on work being done
+         * on this pool. Unfortunately that's pretty likely in most cases because of how often this pool is used; it's really rare to hit
+         * such a deadlock because of the high limit on the pool size, but when it happens it is extremely harmful to the node. For more
+         * information, see e.g. {@code UnsafePlainActionFuture}.
+         * <p>
+         * This pool is for instance used for recovery-related work, which is a mix of CPU-bound and IO-bound work and does not block on
+         * futures. The recovery subsystem bounds its own concurrency, and therefore the amount of recovery work done on the {@code
+         * #GENERIC} pool, via {@code cluster.routing.allocation.node_concurrent_recoveries} and related settings. This pool is a good
+         * choice for recovery work because the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly
+         * sitting idle until cleaned up. Idle threads are surprisingly costly sometimes.
+         * <p>
+         * This pool does not reject any task. Tasks you submit to this executor after the pool starts to shut down may simply never run.
          */
         public static final String GENERIC = "generic";
+
         /**
-         * Important management tasks that keep the cluster from falling apart.
-         * This thread pool ensures cluster coordination tasks do not get blocked by less critical tasks and can continue to make progress.
-         * This thread pool also defaults to a single thread, reducing contention on the Coordinator mutex.
+         * A thread pool solely for the use of the cluster coordination subsystem that relates to cluster state updates, master elections,
+         * cluster membership and so on.
+         * <p>
+         * This pool defaults to a single thread to avoid contention on {@code Coordinator#mutex}.
          */
         public static final String CLUSTER_COORDINATION = "cluster_coordination";
+
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -91,16 +115,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
+
         /**
-         * Cluster management tasks. Tasks that manage data, and tasks that report on cluster health via statistics etc.
-         * Not a latency sensitive thread pool: some tasks may time be long-running; and the thread pool size is limited / relatively small.
+         * A thread pool for running tasks related to cluster management, including collecting and exposing stats in APIs and certain other
+         * internal tasks.
+         * <p>
+         * This pool is deliberately small in order to throttle the rate at which such tasks are executed and avoid diverting resources away
+         * from production-critical work such as indexing and search. You may run long-running (CPU-bound or IO-bound) tasks on this pool,
+         * but if the work relates to a REST API call then it must be cancellable in order to prevent an overexcited client from blocking or
+         * delaying other management work.
+         * <p>
+         * Note that a cluster with overloaded {@code MANAGEMENT} pools will typically struggle to respond to stats APIs and may be hard to
+         * troubleshoot.
          */
         public static final String MANAGEMENT = "management";
+
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
         public static final String SNAPSHOT_META = "snapshot_meta";
+        public static final String MERGE = "merge";
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
@@ -120,11 +155,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public enum ThreadPoolType {
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
@@ -165,6 +198,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.WARMER, ThreadPoolType.SCALING),
         entry(Names.SNAPSHOT, ThreadPoolType.SCALING),
         entry(Names.SNAPSHOT_META, ThreadPoolType.SCALING),
+        entry(Names.MERGE, ThreadPoolType.SCALING),
         entry(Names.FORCE_MERGE, ThreadPoolType.FIXED),
         entry(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING),
         entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
@@ -941,7 +975,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         public Info(StreamInput in) throws IOException {
             name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
+            ThreadPoolType receivedType = ThreadPoolType.fromType(in.readString());
+            type = switch (receivedType) {
+                case DIRECT, FIXED_AUTO_QUEUE_SIZE -> ThreadPoolType.FIXED;
+                default -> receivedType;
+            };
+
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();

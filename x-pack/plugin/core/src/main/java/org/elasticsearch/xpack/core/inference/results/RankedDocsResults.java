@@ -139,7 +139,11 @@ public class RankedDocsResults implements InferenceServiceResults {
         }
 
         public Map<String, Object> asMap() {
-            return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            if (text != null) {
+                return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore, TEXT, text));
+            } else {
+                return Map.of(NAME, Map.of(INDEX, index, RELEVANCE_SCORE, relevanceScore));
+            }
         }
 
         @Override

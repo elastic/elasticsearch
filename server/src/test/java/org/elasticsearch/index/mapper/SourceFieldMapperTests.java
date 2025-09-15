@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING;
@@ -65,7 +66,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             dm -> {
                 assertTrue(dm.metadataMapper(SourceFieldMapper.class).isSynthetic());
-                assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
             }
         );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
@@ -74,7 +74,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             "mode",
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject()),
             topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "stored").endObject()),
-            dm -> assertWarnings(SourceFieldMapper.DEPRECATION_WARNING)
+            d -> {}
         );
     }
 
@@ -211,14 +211,12 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             )
         );
         assertThat(e.getMessage(), containsString("Cannot set both [mode] and [enabled] parameters"));
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
     }
 
     public void testSyntheticUpdates() throws Exception {
         MapperService mapperService = createMapperService("""
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
             """);
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         SourceFieldMapper mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
         assertTrue(mapper.isSynthetic());
@@ -226,7 +224,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "synthetic" } } }
             """);
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         mapper = mapperService.documentMapper().sourceMapper();
         assertTrue(mapper.enabled());
         assertTrue(mapper.isSynthetic());
@@ -239,12 +236,10 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             """));
 
         assertThat(e.getMessage(), containsString("Cannot update parameter [mode] from [synthetic] to [stored]"));
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
 
         merge(mapperService, """
             { "_doc" : { "_source" : { "mode" : "disabled" } } }
             """);
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
 
         mapper = mapperService.documentMapper().sourceMapper();
         assertFalse(mapper.enabled());
@@ -258,14 +253,14 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         });
         DocumentMapper mapper = createTimeSeriesModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{\"_source\":{}}", mapper.sourceMapper().toString());
+        assertEquals("{}", mapper.sourceMapper().toString());
     }
 
     public void testSyntheticSourceWithLogsIndexMode() throws IOException {
         XContentBuilder mapping = fieldMapping(b -> { b.field("type", "keyword"); });
         DocumentMapper mapper = createLogsModeDocumentMapper(mapping);
         assertTrue(mapper.sourceMapper().isSynthetic());
-        assertEquals("{\"_source\":{}}", mapper.sourceMapper().toString());
+        assertEquals("{}", mapper.sourceMapper().toString());
     }
 
     public void testSupportsNonDefaultParameterValues() throws IOException {
@@ -281,7 +276,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 topMapping(b -> b.startObject("_source").field("mode", randomBoolean() ? "synthetic" : "stored").endObject())
             ).documentMapper().sourceMapper();
             assertThat(sourceFieldMapper, notNullValue());
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         Exception e = expectThrows(
             MapperParsingException.class,
@@ -313,8 +307,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 .documentMapper()
                 .sourceMapper()
         );
-        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
-
         assertThat(e.getMessage(), containsString("Parameter [mode=disabled] is not allowed in source"));
 
         e = expectThrows(
@@ -414,16 +406,87 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testRecoverySourceWitInvalidSettings() {
+        {
+            Settings settings = Settings.builder().put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true).build();
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, topMapping(b -> {}))
+            );
+            assertThat(
+                exc.getMessage(),
+                containsString(
+                    String.format(
+                        Locale.ROOT,
+                        "The setting [%s] is only permitted",
+                        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                    )
+                )
+            );
+        }
+
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                .build();
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, topMapping(b -> {}))
+            );
+            assertThat(
+                exc.getMessage(),
+                containsString(
+                    String.format(
+                        Locale.ROOT,
+                        "The setting [%s] is only permitted",
+                        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                    )
+                )
+            );
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                .build();
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> createMapperService(settings, topMapping(b -> {}))
+            );
+            assertThat(
+                exc.getMessage(),
+                containsString(
+                    String.format(
+                        Locale.ROOT,
+                        "The setting [%s] is only permitted",
+                        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                    )
+                )
+            );
+        }
+    }
+
     public void testRecoverySourceWithSyntheticSource() throws IOException {
         {
-            MapperService mapperService = createMapperService(
-                topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("mode", "synthetic").endObject())
-            );
+            Settings settings = Settings.builder()
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+                .build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
-            ParsedDocument doc = docMapper.parse(source(b -> { b.field("field1", "value1"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+            assertNull(doc.rootDoc().getField("_recovery_source"));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(19L));
         }
         {
             Settings settings = Settings.builder().put(INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false).build();
@@ -434,7 +497,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 
@@ -444,8 +506,19 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
+        }
+        {
+            Settings settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName())
+                .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
+                .build();
+            MapperService mapperService = createMapperService(settings, mapping(b -> {}));
+            DocumentMapper docMapper = mapperService.documentMapper();
+            ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
+            assertNotNull(doc.rootDoc().getField("_recovery_source_size"));
+            assertThat(doc.rootDoc().getField("_recovery_source_size").numericValue(), equalTo(27L));
         }
         {
             Settings settings = Settings.builder()
@@ -465,7 +538,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -475,7 +548,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -485,7 +558,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -497,7 +570,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -507,7 +580,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -517,7 +590,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .build();
             var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
             assertEquals("Failed to parse mapping: _source can not be disabled in index using [logsdb] index mode", ex.getMessage());
@@ -539,7 +612,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 """;
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
@@ -561,7 +634,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 """;
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
@@ -583,7 +656,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 """;
             final Settings settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "routing_field")
                 .build();
             var ex = expectThrows(MapperParsingException.class, () -> createMapperService(settings, mappings));
@@ -594,7 +667,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
@@ -603,7 +676,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -612,7 +685,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         {
             final XContentBuilder mappings = topMapping(b -> {});
             final Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.DISABLED)
                 .build();
             final MapperService mapperService = createMapperService(settings, mappings);
             final DocumentMapper docMapper = mapperService.documentMapper();
@@ -627,9 +700,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()
@@ -640,7 +711,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> b.field("@timestamp", "2012-02-13")));
             assertNull(doc.rootDoc().getField("_recovery_source"));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 
@@ -656,11 +726,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             }));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
-            );
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()
@@ -704,12 +770,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
-            );
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            assertNull(doc.rootDoc().getField("_recovery_source"));
         }
         {
             Settings settings = Settings.builder()
@@ -723,7 +784,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
                 source("123", b -> b.field("@timestamp", "2012-02-13").field("field", randomAlphaOfLength(5)), null)
             );
             assertNull(doc.rootDoc().getField("_recovery_source"));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 }

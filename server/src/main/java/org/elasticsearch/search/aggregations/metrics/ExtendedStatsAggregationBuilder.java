@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<
@@ -85,6 +86,11 @@ public class ExtendedStatsAggregationBuilder extends ValuesSourceAggregationBuil
     @Override
     public Set<String> metricNames() {
         return InternalExtendedStats.METRIC_NAMES;
+    }
+
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalExtendedStats.Fields.OUTPUT_FORMAT);
     }
 
     @Override

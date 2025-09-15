@@ -9,37 +9,23 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.entitlement.instrumentation.Transformer;
-import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
-import org.elasticsearch.entitlement.runtime.policy.Scope;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
-import java.io.IOException;
 import java.lang.instrument.Instrumentation;
-import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -49,134 +35,141 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
  * to begin injecting our instrumentation.
  */
 public class EntitlementInitialization {
+    private static final Logger logger = LogManager.getLogger(EntitlementInitialization.class);
 
-    private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    private static final Module ENTITLEMENTS_MODULE = PolicyManager.class.getModule();
 
-    private static ElasticsearchEntitlementChecker manager;
+    public static InitializeArgs initializeArgs;
+    private static ElasticsearchEntitlementChecker checker;
+    private static AtomicReference<RuntimeException> error = new AtomicReference<>();
 
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
-        return manager;
+        return checker;
     }
 
-    // Note: referenced by agent reflectively
-    public static void initialize(Instrumentation inst) throws Exception {
-        manager = initChecker();
-
-        Map<MethodKey, CheckerMethod> methodMap = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
-            "org.elasticsearch.entitlement.bridge.EntitlementChecker"
-        );
-
-        var classesToTransform = methodMap.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
-
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), classesToTransform), true);
-        // TODO: should we limit this array somehow?
-        var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
-        inst.retransformClasses(classesToRetransform);
+    /**
+     * Return any exception that occurred during initialization
+     */
+    public static RuntimeException getError() {
+        return error.get();
     }
 
-    private static Class<?> internalNameToClass(String internalName) {
+    /**
+     * Initializes the Entitlement system:
+     * <ol>
+     * <li>
+     * Initialize dynamic instrumentation via {@link DynamicInstrumentation#initialize}
+     * </li>
+     * <li>
+     * Creates the {@link PolicyManager}
+     * </li>
+     * <li>
+     * Creates the {@link ElasticsearchEntitlementChecker} instance referenced by the instrumented methods
+     * </li>
+     * </ol>
+     * <p>
+     * <strong>NOTE:</strong> this method is referenced by the agent reflectively
+     * </p>
+     *
+     * @param inst the JVM instrumentation class instance
+     */
+    public static void initialize(Instrumentation inst) {
         try {
-            return Class.forName(internalName.replace('/', '.'), false, ClassLoader.getPlatformClassLoader());
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
+            // the checker _MUST_ be set before _any_ instrumentation is done
+            checker = initChecker(initializeArgs.policyManager());
+            initInstrumentation(inst);
+        } catch (Exception e) {
+            // exceptions thrown within the agent will be swallowed, so capture it here
+            // instead so that it can be retrieved by bootstrap
+            error.set(new RuntimeException("Failed to initialize entitlements", e));
         }
     }
 
-    private static PolicyManager createPolicyManager() throws IOException {
-        Map<String, Policy> pluginPolicies = createPluginPolicies(EntitlementBootstrap.bootstrapArgs().pluginData());
-
-        // TODO: What should the name be?
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy("server", List.of());
-        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
-    }
-
-    private static Map<String, Policy> createPluginPolicies(Collection<Tuple<Path, Boolean>> pluginData) throws IOException {
-        Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
-        for (Tuple<Path, Boolean> entry : pluginData) {
-            Path pluginRoot = entry.v1();
-            boolean isModular = entry.v2();
-
-            String pluginName = pluginRoot.getFileName().toString();
-            final Policy policy = loadPluginPolicy(pluginRoot, isModular, pluginName);
-
-            pluginPolicies.put(pluginName, policy);
+    /**
+     * Arguments to {@link #initialize}. Since that's called in a static context from the agent,
+     * we have no way to pass arguments directly, so we stuff them in here.
+     *
+     * @param pathLookup
+     * @param suppressFailureLogPackages
+     * @param policyManager
+     */
+    public record InitializeArgs(PathLookup pathLookup, Set<Package> suppressFailureLogPackages, PolicyManager policyManager) {
+        public InitializeArgs {
+            requireNonNull(pathLookup);
+            requireNonNull(suppressFailureLogPackages);
+            requireNonNull(policyManager);
         }
-        return pluginPolicies;
     }
 
-    private static Policy loadPluginPolicy(Path pluginRoot, boolean isModular, String pluginName) throws IOException {
-        Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
+    private static PolicyCheckerImpl createPolicyChecker(PolicyManager policyManager) {
+        return new PolicyCheckerImpl(
+            initializeArgs.suppressFailureLogPackages(),
+            ENTITLEMENTS_MODULE,
+            policyManager,
+            initializeArgs.pathLookup()
+        );
+    }
 
-        final Set<String> moduleNames = getModuleNames(pluginRoot, isModular);
-        final Policy policy = parsePolicyIfExists(pluginName, policyFile);
-
-        // TODO: should this check actually be part of the parser?
-        for (Scope scope : policy.scopes) {
-            if (moduleNames.contains(scope.name) == false) {
-                throw new IllegalStateException("policy [" + policyFile + "] contains invalid module [" + scope.name + "]");
+    /**
+     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
+     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
+     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
+     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
+     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
+     */
+    private static void ensureClassesSensitiveToVerificationAreInitialized() {
+        var classesToInitialize = Set.of(
+            "sun.net.www.protocol.http.HttpURLConnection",
+            "sun.nio.ch.SocketChannelImpl",
+            "java.net.ProxySelector",
+            "sun.nio.ch.DatagramChannelImpl",
+            "sun.nio.ch.ServerSocketChannelImpl"
+        );
+        for (String className : classesToInitialize) {
+            try {
+                Class.forName(className);
+            } catch (ClassNotFoundException unexpected) {
+                throw new AssertionError(unexpected);
             }
         }
-        return policy;
     }
 
-    private static Policy parsePolicyIfExists(String pluginName, Path policyFile) throws IOException {
-        if (Files.exists(policyFile)) {
-            return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName).parsePolicy();
-        }
-        return new Policy(pluginName, List.of());
-    }
+    static ElasticsearchEntitlementChecker initChecker(PolicyManager policyManager) {
+        final PolicyChecker policyChecker = createPolicyChecker(policyManager);
+        final Class<?> clazz = EntitlementCheckerUtils.getVersionSpecificCheckerClass(
+            ElasticsearchEntitlementChecker.class,
+            Runtime.version().feature()
+        );
 
-    private static Set<String> getModuleNames(Path pluginRoot, boolean isModular) {
-        if (isModular) {
-            ModuleFinder moduleFinder = ModuleFinder.of(pluginRoot);
-            Set<ModuleReference> moduleReferences = moduleFinder.findAll();
-
-            return moduleReferences.stream().map(mr -> mr.descriptor().name()).collect(Collectors.toUnmodifiableSet());
-        }
-        // When isModular == false we use the same "ALL-UNNAMED" constant as the JDK to indicate (any) unnamed module for this plugin
-        return Set.of(ALL_UNNAMED);
-    }
-
-    private static ElasticsearchEntitlementChecker initChecker() throws IOException {
-        final PolicyManager policyManager = createPolicyManager();
-
-        int javaVersion = Runtime.version().feature();
-        final String classNamePrefix;
-        if (javaVersion >= 23) {
-            classNamePrefix = "Java23";
-        } else {
-            classNamePrefix = "";
-        }
-        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
-        Class<?> clazz;
-        try {
-            clazz = Class.forName(className);
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
-        }
         Constructor<?> constructor;
         try {
-            constructor = clazz.getConstructor(PolicyManager.class);
+            constructor = clazz.getConstructor(PolicyChecker.class);
         } catch (NoSuchMethodException e) {
-            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+            throw new AssertionError("entitlement impl is missing required constructor: [" + clazz.getName() + "]", e);
         }
+
+        ElasticsearchEntitlementChecker checker;
         try {
-            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+            checker = (ElasticsearchEntitlementChecker) constructor.newInstance(policyChecker);
         } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
             throw new AssertionError(e);
         }
+
+        return checker;
     }
 
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
-    }
+    static void initInstrumentation(Instrumentation instrumentation) throws Exception {
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
-        "entitlement",
-        InstrumentationService.class,
-        "org.elasticsearch.entitlement.instrumentation",
-        Set.of()
-    ).get();
+        DynamicInstrumentation.initialize(
+            instrumentation,
+            EntitlementCheckerUtils.getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature()),
+            verifyBytecode
+        );
+
+    }
 }

@@ -58,7 +58,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(
@@ -68,7 +67,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             threadPool,
             actionFilters,
             CreateIndexRequest::new,
-            indexNameExpressionResolver,
             CreateIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -143,7 +141,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 listener.onFailure(new IllegalStateException(message));
                 return;
             }
-            updateRequest = buildSystemIndexUpdateRequest(request, cause, descriptor);
+            updateRequest = buildManagedSystemIndexUpdateRequest(request, cause, descriptor);
         } else {
             updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt);
         }
@@ -175,30 +173,54 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             .waitForActiveShards(request.waitForActiveShards());
     }
 
-    private static CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+    private static CreateIndexClusterStateUpdateRequest buildManagedSystemIndexUpdateRequest(
         CreateIndexRequest request,
         String cause,
         SystemIndexDescriptor descriptor
     ) {
-        final Settings settings = Objects.requireNonNullElse(descriptor.getSettings(), Settings.EMPTY);
+        boolean indexMigrationInProgress = cause.equals(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            && request.index().endsWith(SystemIndices.UPGRADED_INDEX_SUFFIX);
 
+        final Settings settings;
+        final String mappings;
         final Set<Alias> aliases;
-        if (descriptor.getAliasName() == null) {
+        final String indexName;
+
+        // if we are migrating a system index to a new index, we use settings/mappings/index name from the request,
+        // since it was created by SystemIndexMigrator
+        if (indexMigrationInProgress) {
+            settings = request.settings();
+            mappings = request.mappings();
+            indexName = request.index();
+            // we will update alias later on
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
+            settings = Objects.requireNonNullElse(descriptor.getSettings(), Settings.EMPTY);
+            mappings = descriptor.getMappings();
+
+            if (descriptor.getAliasName() == null) {
+                aliases = Set.of();
+            } else {
+                aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
+            }
+
+            // Throw an error if we are trying to directly create a system index other
+            // than the primary system index (or the alias, or we are migrating the index)
+            if (request.index().equals(descriptor.getPrimaryIndex()) == false
+                && request.index().equals(descriptor.getAliasName()) == false) {
+                throw new IllegalArgumentException(
+                    "Cannot create system index with name "
+                        + request.index()
+                        + "; descriptor primary index is "
+                        + descriptor.getPrimaryIndex()
+                );
+            }
+            indexName = descriptor.getPrimaryIndex();
         }
 
-        // Throw an error if we are trying to directly create a system index other than the primary system index (or the alias)
-        if (request.index().equals(descriptor.getPrimaryIndex()) == false && request.index().equals(descriptor.getAliasName()) == false) {
-            throw new IllegalArgumentException(
-                "Cannot create system index with name " + request.index() + "; descriptor primary index is " + descriptor.getPrimaryIndex()
-            );
-        }
-
-        return new CreateIndexClusterStateUpdateRequest(cause, descriptor.getPrimaryIndex(), request.index()).aliases(aliases)
+        return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(descriptor.getMappings())
+            .mappings(mappings)
             .settings(settings);
     }
 }

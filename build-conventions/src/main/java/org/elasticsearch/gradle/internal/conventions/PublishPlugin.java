@@ -10,8 +10,8 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import groovy.util.Node;
+import nmcp.NmcpPlugin;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
@@ -27,7 +27,9 @@ import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.MapProperty;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
@@ -37,11 +39,14 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.gradle.plugins.signing.SigningExtension;
+import org.gradle.plugins.signing.SigningPlugin;
 import org.w3c.dom.Element;
 
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
+
 import javax.inject.Inject;
 
 public class PublishPlugin implements Plugin<Project> {
@@ -63,6 +68,8 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
+        project.getPluginManager().apply(NmcpPlugin.class);
+        project.getPluginManager().apply(SigningPlugin.class);
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
@@ -73,6 +80,13 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
+        Provider<String> signingKey = project.getProviders().gradleProperty("signingKey");
+        if (signingKey.isPresent()) {
+            SigningExtension signing = project.getExtensions().getByType(SigningExtension.class);
+            signing.useInMemoryPgpKeys(signingKey.get(), project.getProviders().gradleProperty("signingPassword").get());
+            signing.sign(publication);
+        }
+
         project.afterEvaluate(project1 -> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
                 configureWithShadowPlugin(project1, publication);
@@ -80,8 +94,13 @@ public class PublishPlugin implements Plugin<Project> {
                 publication.from(project.getComponents().getByName("java"));
             }
         });
+        project.getPlugins().withType(JavaPlugin.class, plugin -> {
+            var javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            javaPluginExtension.withJavadocJar();
+            javaPluginExtension.withSourcesJar();
+        });
         @SuppressWarnings("unchecked")
-        var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
+        var projectLicenses = (MapProperty<String, Provider<String>>) project.getExtensions().getExtraProperties().get("projectLicenses");
         publication.getPom().withXml(xml -> {
             var node = xml.asNode();
             node.appendNode("inceptionYear", "2009");
@@ -89,7 +108,7 @@ public class PublishPlugin implements Plugin<Project> {
             projectLicenses.get().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 Node license = licensesNode.appendNode("license");
                 license.appendNode("name", entry.getKey());
-                license.appendNode("url", entry.getValue());
+                license.appendNode("url", entry.getValue().get());
                 license.appendNode("distribution", "repo");
             });
             var developer = node.appendNode("developers").appendNode("developer");
@@ -153,8 +172,9 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        var shadow = project.getExtensions().getByType(ShadowExtension.class);
-        shadow.component(publication);
+        publication.from(project.getComponents().getByName("shadow"));
+        publication.artifact(project.getTasks().named("javadocJar"));
+        publication.artifact(project.getTasks().named("sourcesJar"));
     }
 
     private static void addScmInfo(XmlProvider xml, GitInfo gitInfo) {
@@ -193,7 +213,6 @@ public class PublishPlugin implements Plugin<Project> {
             project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(sourcesJarTask));
         });
     }
-
 
     /**
      * Format the generated pom files to be in a sort of reproducible order.

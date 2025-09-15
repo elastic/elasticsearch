@@ -17,15 +17,27 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.Component2DVisitor;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,7 +48,9 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
 public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
         EvaluatorMapper,
-        SpatialEvaluatorFactory.SpatialSourceSupplier {
+        SpatialEvaluatorFactory.SpatialSourceSupplier,
+        TranslationAware,
+        SurrogateExpression {
 
     protected SpatialRelatesFunction(Source source, Expression left, Expression right, boolean leftDocValues, boolean rightDocValues) {
         super(source, left, right, leftDocValues, rightDocValues, false);
@@ -61,6 +75,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     /**
      * Some spatial functions can replace themselves with alternatives that are more efficient for certain cases.
      */
+    @Override
     public SpatialRelatesFunction surrogate() {
         return this;
     }
@@ -162,6 +177,46 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
                 final Component2D component2D = asLuceneComponent2D(crsType, rightValue, position);
                 builder.appendBoolean(geometryRelatesGeometry(reader, component2D));
             }
+        }
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return super.translatable(pushdownPredicates); // only for the explicit Override, as only this subclass implements TranslationAware
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (left().foldable()) {
+            checkSpatialRelatesFunction(left(), queryRelation());
+            return translate(handler, right(), left());
+        } else {
+            checkSpatialRelatesFunction(right(), queryRelation());
+            return translate(handler, left(), right());
+        }
+
+    }
+
+    private static void checkSpatialRelatesFunction(Expression constantExpression, ShapeRelation queryRelation) {
+        Check.isTrue(
+            constantExpression.foldable(),
+            "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [ST_{}]",
+            constantExpression.sourceLocation().getLineNumber(),
+            constantExpression.sourceLocation().getColumnNumber(),
+            Expressions.name(constantExpression),
+            queryRelation
+        );
+    }
+
+    private Query translate(TranslatorHandler handler, Expression spatialExpression, Expression constantExpression) {
+        TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(spatialExpression);
+        String name = handler.nameOf(attribute);
+
+        try {
+            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
+            return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
+        } catch (IllegalArgumentException e) {
+            throw new QlIllegalArgumentException(e.getMessage(), e);
         }
     }
 }

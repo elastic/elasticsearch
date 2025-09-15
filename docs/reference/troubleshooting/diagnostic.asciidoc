@@ -15,6 +15,10 @@ https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time.
 
 See this https://www.youtube.com/watch?v=Bb6SaqhqYHw[this video] for a walkthrough of capturing an {es} diagnostic.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[diagnostic-tool-requirements]]
 === Requirements

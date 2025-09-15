@@ -5,6 +5,12 @@
 <titleabbrev>Cluster stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
+
 Returns cluster statistics.
 
 [[cluster-stats-api-request]]
@@ -19,7 +25,6 @@ Returns cluster statistics.
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
-
 [[cluster-stats-api-desc]]
 ==== {api-description-title}
 
@@ -1391,7 +1396,7 @@ as a human-readable string.
 
 
 `_search`:::
-(object) Contains the information about the <<modules-cross-cluster-search, {ccs}>> usage in the cluster.
+(object) Contains information about <<modules-cross-cluster-search, {ccs}>> usage.
 +
 .Properties of `_search`
 [%collapsible%open]
@@ -1417,7 +1422,7 @@ as a human-readable string.
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1435,7 +1440,7 @@ as a human-readable string.
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1453,7 +1458,7 @@ as a human-readable string.
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1513,7 +1518,7 @@ This may include requests where partial results were returned, but not requests 
 (integer) The maximum time taken to execute a {ccs} request, in milliseconds.
 
 `avg`:::
-(integer) The median time taken to execute a {ccs} request, in milliseconds.
+(integer) The average time taken to execute a {ccs} request, in milliseconds.
 
 `p90`:::
 (integer) The 90th percentile of the time taken to execute {ccs} requests, in milliseconds.
@@ -1522,7 +1527,11 @@ This may include requests where partial results were returned, but not requests 
 
 =======
 
+
 ======
+`_esql`:::
+(object) Contains information about <<esql-cross-clusters,{esql} {ccs}>> usage.
+The structure of the object is the same as the `_search` object above.
 
 =====
 
@@ -1644,7 +1653,10 @@ The API returns the following response:
         "total_deduplicated_mapping_size": "0b",
         "total_deduplicated_mapping_size_in_bytes": 0,
         "field_types": [],
-        "runtime_field_types": []
+        "runtime_field_types": [],
+        "source_modes" : {
+          "stored": 0
+        }
       },
       "analysis": {
         "char_filter_types": [],

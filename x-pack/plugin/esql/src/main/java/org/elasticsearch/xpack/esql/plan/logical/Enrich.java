@@ -17,12 +17,16 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,11 +44,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
+public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",
@@ -116,7 +123,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
-            EsIndex esIndex = new EsIndex(in);
+            EsIndex esIndex = EsIndex.readFrom(in);
             if (esIndex.concreteIndices().size() > 1) {
                 throw new IllegalStateException("expected a single enrich index; got " + esIndex);
             }
@@ -145,7 +152,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold())); // old policy name
+            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
@@ -195,10 +202,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
     @Override
     protected AttributeSet computeReferences() {
         return matchField.references();
-    }
-
-    public String commandName() {
-        return "ENRICH";
     }
 
     @Override
@@ -273,5 +276,63 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich> {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), mode, policyName, matchField, policy, concreteIndices, enrichFields);
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return Enrich::checkRemoteEnrich;
+    }
+
+    /**
+     * Ensure that no remote enrich is allowed after a reduction or an enrich with coordinator mode.
+     * <p>
+     * TODO:
+     * For Limit and TopN, we can insert the same node after the remote enrich (also needs to move projections around)
+     * to eliminate this limitation. Otherwise, we force users to write queries that might not perform well.
+     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH _remote:` doesn't work.
+     * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
+     * which is equivalent to bringing all data to the coordinating cluster.
+     * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
+     * retaining the originating cluster and restructing pages for routing, which might be complicated.
+     */
+    private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
+        // First look for remote ENRICH, and then look at its children. Going over the whole plan once is trickier as remote ENRICHs can be
+        // in separate FORK branches which are valid by themselves.
+        plan.forEachUp(Enrich.class, enrich -> checkForPlansForbiddenBeforeRemoteEnrich(enrich, failures));
+    }
+
+    /**
+     * For a given remote {@link Enrich}, check if there are any forbidden plans upstream.
+     */
+    private static void checkForPlansForbiddenBeforeRemoteEnrich(Enrich enrich, Failures failures) {
+        if (enrich.mode != Mode.REMOTE) {
+            return;
+        }
+
+        // TODO: shouldn't we also include FORK? Everything downstream from FORK should be coordinator-only.
+        // https://github.com/elastic/elasticsearch/issues/131445
+        boolean[] aggregate = { false };
+        boolean[] coordinatorOnlyEnrich = { false };
+        boolean[] lookupJoin = { false };
+
+        enrich.forEachUp(LogicalPlan.class, u -> {
+            if (u instanceof Aggregate) {
+                aggregate[0] = true;
+            } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
+                coordinatorOnlyEnrich[0] = true;
+            } else if (u instanceof LookupJoin) {
+                lookupJoin[0] = true;
+            }
+        });
+
+        if (aggregate[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
+        }
+        if (coordinatorOnlyEnrich[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+        }
+        if (lookupJoin[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        }
     }
 }

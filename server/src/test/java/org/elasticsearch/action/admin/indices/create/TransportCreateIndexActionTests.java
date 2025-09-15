@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -26,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -46,6 +44,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -119,8 +118,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
 
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -131,7 +128,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             threadPool,
             metadataCreateIndexService,
             mock(ActionFilters.class),
-            indexNameExpressionResolver,
             SYSTEM_INDICES
         );
     }
@@ -225,6 +221,36 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             e.getMessage(),
             equalTo("Cannot create system index with name .my-managed-alternate; descriptor primary index is .my-managed-primary")
         );
+    }
+
+    public void testCreatingSystemIndexForMigration() {
+        CreateIndexRequest request = new CreateIndexRequest();
+        String path = "/test";  // just to test that we pass settings
+        Settings settings = Settings.builder().put(SETTING_INDEX_HIDDEN, true).put(IndexMetadata.SETTING_DATA_PATH, path).build();
+        request.index(MANAGED_SYSTEM_INDEX_NAME + SystemIndices.UPGRADED_INDEX_SUFFIX)
+            .cause(SystemIndices.MIGRATE_SYSTEM_INDEX_CAUSE)
+            .settings(settings);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<CreateIndexResponse> mockListener = mock(ActionListener.class);
+
+        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
+        verify(mockListener, times(0)).onFailure(any());
+        verify(metadataCreateIndexService, times(1)).createIndex(
+            any(TimeValue.class),
+            any(TimeValue.class),
+            any(TimeValue.class),
+            createRequestArgumentCaptor.capture(),
+            any()
+        );
+
+        CreateIndexClusterStateUpdateRequest processedRequest = createRequestArgumentCaptor.getValue();
+        assertTrue(processedRequest.settings().getAsBoolean(SETTING_INDEX_HIDDEN, false));
+        assertThat(processedRequest.settings().get(IndexMetadata.SETTING_DATA_PATH, ""), is(path));
     }
 
 }

@@ -4,6 +4,12 @@
 <titleabbrev>{esql} query API</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-esql[ES|QL APIs].
+--
+
 Returns search results for an <<esql,ES|QL ({es} query language)>> query.
 
 [source,console]
@@ -56,6 +62,12 @@ the `columns` and `values` portion of the results? Defaults to `false`. If
 You can also specify a format using the `Accept` HTTP header. If you specify
 both this parameter and the `Accept` HTTP header, this parameter takes
 precedence.
+
+`allow_partial_results`::
+(Optional, boolean) If `true`, partial results will be returned if there are shard failures, but
+the query can continue to execute on other clusters and shards. This defaults to `true`, unless
+the cluster setting `esql.query.allow_partial_results` is set to `false`, in which case it also
+defaults to `false`.
 
 [discrete]
 [role="child_attributes"]
@@ -114,11 +126,17 @@ returned if `drop_null_columns` is sent with the request.
 (array of arrays)
 Values for the search results.
 
+`is_partial`::
+(boolean)
+Indicates whether the response is partial. Partial responses can happen due to partial shard failures,
+failures in remote clusters, or if the async query was stopped by calling the <<esql-async-query-stop-api,async query stop API>>.
+
 `_clusters`::
 (object)
-Metadata about clusters involved in the execution of a cross-cluster query. Only returned (1) for
-cross-cluster searches and (2) when `include_ccs_metadata` is sent in the body and set to `true`
-and (3) when `format` of the response is set to JSON (the default), CBOR, SMILE, or YAML.
+Metadata about clusters involved in the execution of a query. This field is present in the response in the following cases:
+(1) for cross-cluster searches, when `include_ccs_metadata` is sent in the body and set to `true`;
+(2) the result is partial (`is_partial` is `true`) and there are failures on some clusters.
+It is only returned if the `format` of the response is set to JSON (the default), CBOR, SMILE, or YAML.
 See <<ccq-cluster-details>> for more information.
 
 `profile`::

@@ -200,11 +200,10 @@ public class DownsampleAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            Instant::now,
-            client
+            Instant::now
         );
         // Mark source index as read-only
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client, true);
 
         // Before the downsample action was retry-able, we used to generate a unique downsample index name and delete the previous index in
         // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off, so no
@@ -213,7 +212,7 @@ public class DownsampleAction implements LifecycleAction {
         // upgrade was performed resume the ILM execution and complete the downsample action after upgrade.)
         NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, downsampleKey);
 
-        // Prepare the lifecycleState by generating the name of the target index, that subsequest steps will use.
+        // Prepare the lifecycleState by generating the name of the target index, that subsequent steps will use.
         DownsamplePrepareLifeCycleStateStep generateDownsampleIndexNameStep = new DownsamplePrepareLifeCycleStateStep(
             generateDownsampleIndexNameKey,
             downsampleKey,

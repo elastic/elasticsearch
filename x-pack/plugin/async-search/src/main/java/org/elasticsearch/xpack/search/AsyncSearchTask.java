@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -73,7 +72,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     private volatile long expirationTimeMillis;
     private final AtomicBoolean isCancelling = new AtomicBoolean(false);
 
-    private final SetOnce<MutableSearchResponse> searchResponse = new SetOnce<>();
+    private final MutableSearchResponse searchResponse;
 
     /**
      * Creates an instance of {@link AsyncSearchTask}.
@@ -112,6 +111,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         this.aggReduceContextSupplier = aggReduceContextSupplierFactory.apply(this::isCancelled);
         this.progressListener = new Listener();
         setProgressListener(progressListener);
+        searchResponse = new MutableSearchResponse(threadPool.getThreadContext());
     }
 
     /**
@@ -340,7 +340,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
     }
 
     private AsyncSearchResponse getResponse(boolean restoreResponseHeaders) {
-        MutableSearchResponse mutableSearchResponse = searchResponse.get();
+        MutableSearchResponse mutableSearchResponse = searchResponse;
         assert mutableSearchResponse != null;
         checkCancellation();
         AsyncSearchResponse asyncSearchResponse;
@@ -370,7 +370,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
      * Returns the status from {@link AsyncSearchTask}
      */
     public static AsyncStatusResponse getStatusResponse(AsyncSearchTask asyncTask) {
-        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse.get();
+        MutableSearchResponse mutableSearchResponse = asyncTask.searchResponse;
         assert mutableSearchResponse != null;
         return mutableSearchResponse.toStatusResponse(
             asyncTask.searchId.getEncoded(),
@@ -381,7 +381,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
 
     @Override
     public void close() {
-        Releasables.close(searchResponse.get());
+        Releasables.close(searchResponse);
     }
 
     class Listener extends SearchProgressActionListener {
@@ -420,12 +420,11 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             if (delegate != null) {
                 delegate.onQueryFailure(shardIndex, shardTarget, exc);
             }
-            searchResponse.get()
-                .addQueryFailure(
-                    shardIndex,
-                    // the nodeId is null if all replicas of this shard failed
-                    new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null)
-                );
+            searchResponse.addQueryFailure(
+                shardIndex,
+                // the nodeId is null if all replicas of this shard failed
+                new ShardSearchFailure(exc, shardTarget.getNodeId() != null ? shardTarget : null)
+            );
         }
 
         @Override
@@ -467,9 +466,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                 delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
-            searchResponse.set(
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
-            );
+            searchResponse.updateShardsAndClusters(shards.size() + skipped.size(), skipped.size(), clusters);
             executeInitListeners();
         }
 
@@ -496,7 +493,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
                  */
                 reducedAggs = () -> InternalAggregations.topLevelReduce(singletonList(aggregations), aggReduceContextSupplier.get());
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
+            searchResponse.updatePartialResponse(shards.size(), totalHits, reducedAggs, reducePhase);
         }
 
         /**
@@ -510,7 +507,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             if (delegate != null) {
                 delegate.onFinalReduce(shards, totalHits, aggregations, reducePhase);
             }
-            searchResponse.get().updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
+            searchResponse.updatePartialResponse(shards.size(), totalHits, () -> aggregations, reducePhase);
         }
 
         /**
@@ -522,25 +519,22 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
          */
         @Override
         public void onClusterResponseMinimizeRoundtrips(String clusterAlias, SearchResponse clusterResponse) {
+            checkCancellation();
             // no need to call the delegate progress listener, since this method is only called for minimize_roundtrips=true
-            searchResponse.get().updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
+            searchResponse.updateResponseMinimizeRoundtrips(clusterAlias, clusterResponse);
         }
 
         @Override
         public void onResponse(SearchResponse response) {
-            searchResponse.get().updateFinalResponse(response, ccsMinimizeRoundtrips);
+            searchResponse.updateFinalResponse(response, ccsMinimizeRoundtrips);
             executeCompletionListeners();
         }
 
         @Override
         public void onFailure(Exception exc) {
-            // if the failure occurred before calling onListShards
-            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext());
-            if (searchResponse.trySet(r) == false) {
-                r.close();
-            }
-            searchResponse.get()
-                .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
+            searchResponse.updateWithFailure(
+                new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc)
+            );
             executeInitListeners();
             executeCompletionListeners();
         }

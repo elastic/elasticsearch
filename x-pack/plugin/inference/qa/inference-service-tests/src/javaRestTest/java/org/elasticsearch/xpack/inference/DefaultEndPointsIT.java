@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -49,6 +50,28 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
         assertDefaultE5Config(e5Model);
+
+        var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(rerankModel);
+    }
+
+    public void testDefaultModels() throws IOException {
+        var elserModel = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
+        assertDefaultElserConfig(elserModel);
+
+        var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
+        assertDefaultE5Config(e5Model);
+
+        var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(rerankModel);
+
+        putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        var registeredModels = getMinimalConfigs();
+        assertThat(registeredModels.size(), equalTo(1));
+        assertTrue(registeredModels.containsKey("my-model"));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_E5_ID));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_ELSER_ID));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_RERANK_ID));
     }
 
     @SuppressWarnings("unchecked")
@@ -118,6 +141,42 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
     }
 
     @SuppressWarnings("unchecked")
+    public void testInferDeploysDefaultRerank() throws IOException {
+        var model = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(model);
+
+        var inputs = List.of("Hello World", "Goodnight moon");
+        var query = "but why";
+        var queryParams = Map.of("timeout", "120s");
+        var results = infer(ElasticsearchInternalService.DEFAULT_RERANK_ID, TaskType.RERANK, inputs, query, queryParams);
+        var embeddings = (List<Map<String, Object>>) results.get("rerank");
+        assertThat(results.toString(), embeddings, hasSize(2));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertDefaultRerankConfig(Map<String, Object> modelConfig) {
+        assertEquals(modelConfig.toString(), ElasticsearchInternalService.DEFAULT_RERANK_ID, modelConfig.get("inference_id"));
+        assertEquals(modelConfig.toString(), ElasticsearchInternalService.NAME, modelConfig.get("service"));
+        assertEquals(modelConfig.toString(), TaskType.RERANK.toString(), modelConfig.get("task_type"));
+
+        var serviceSettings = (Map<String, Object>) modelConfig.get("service_settings");
+        assertThat(modelConfig.toString(), serviceSettings.get("model_id"), is(".rerank-v1"));
+        assertEquals(modelConfig.toString(), 1, serviceSettings.get("num_threads"));
+
+        var adaptiveAllocations = (Map<String, Object>) serviceSettings.get("adaptive_allocations");
+        assertThat(
+            modelConfig.toString(),
+            adaptiveAllocations,
+            Matchers.is(Map.of("enabled", true, "min_number_of_allocations", 0, "max_number_of_allocations", 32))
+        );
+
+        var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
+        assertNull(chunkingSettings);
+        var taskSettings = (Map<String, Object>) modelConfig.get("task_settings");
+        assertThat(modelConfig.toString(), taskSettings, Matchers.is(Map.of("return_documents", true)));
+    }
+
+    @SuppressWarnings("unchecked")
     private static void assertDefaultChunkingSettings(Map<String, Object> modelConfig) {
         var chunkingSettings = (Map<String, Object>) modelConfig.get("chunking_settings");
         assertThat(
@@ -151,6 +210,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
             var request = createInferenceRequest(
                 Strings.format("_inference/%s", ElasticsearchInternalService.DEFAULT_ELSER_ID),
                 inputs,
+                null,
                 queryParams
             );
             client().performRequestAsync(request, listener);

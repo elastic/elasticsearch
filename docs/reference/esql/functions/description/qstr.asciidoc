@@ -2,4 +2,4 @@
 
 *Description*
 
-Performs a query string query. Returns true if the provided query string matches the row.
+Performs a <<query-dsl-query-string-query,query string query>>. Returns true if the provided query string matches the row.

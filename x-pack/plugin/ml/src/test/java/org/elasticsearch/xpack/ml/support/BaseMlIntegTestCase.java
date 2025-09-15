@@ -82,7 +82,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
@@ -161,8 +160,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             DataStreamsPlugin.class,
             // To remove errors from parsing build in templates that contain scaled_float
             MapperExtrasPlugin.class,
-            Wildcard.class,
-            InferencePlugin.class
+            Wildcard.class
         );
     }
 
@@ -172,8 +170,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void ensureTemplatesArePresent() throws Exception {
-        awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
+    public void ensureTemplatesArePresent() {
+        awaitClusterState(MachineLearning::criticalTemplatesInstalled);
     }
 
     protected Job.Builder createJob(String id) {

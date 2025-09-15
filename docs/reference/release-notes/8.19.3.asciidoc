@@ -1,0 +1,65 @@
+[[release-notes-8.19.3]]
+== {es} version 8.19.3
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[IMPORTANT]
+====
+The 8.19.3 release contains fixes for potential security vulnerabilities.
+Please see our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
+[[bug-8.19.3]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Force rollover on write to true when data stream indices list is empty {es-pull}133347[#133347] (issue: {es-issue}133176[#133176])
+
+EQL::
+* Fix sequences with conditions involving keys and non-keys {es-pull}133134[#133134]
+
+ES|QL::
+* Fix update expiration for async query {es-pull}133021[#133021] (issue: {es-issue}130619[#130619])
+
+Infra/Plugins::
+* Add complete attribute to .fleet-agents docs {es-pull}127651[#127651]
+
+Ingest Node::
+* Change GeoIpCache and EnrichCache to LongAdder {es-pull}132922[#132922]
+
+License::
+* Limit frequency of feature last-used time updates {es-pull}133004[#133004]
+
+Machine Learning::
+* Disable child span for streaming tasks {es-pull}132945[#132945]
+* Improve EIS auth call logs and fix revocation bug {es-pull}132546[#132546]
+* Preserve lost thread context in node inference action. A lost context causes a memory leak if APM tracing is enabled {es-pull}132973[#132973]
+
+Search::
+* Don't fail search if bottom doc can't be formatted {es-pull}133188[#133188] (issue: {es-issue}125321[#125321])
+
+[[enhancement-8.19.3]]
+[float]
+=== Enhancements
+
+ES|QL::
+* Do not run on transport thread {es-pull}133313[#133313]
+
+Infra/CLI::
+* Use logs dir as working directory {es-pull}124966[#124966]
+
+Infra/REST API::
+* Limit the depth of a filter {es-pull}133113[#133113]
+
+[[upgrade-8.19.3]]
+[float]
+=== Upgrades
+
+Ingest Node::
+* Upgrading to tika 3.2.2 {es-pull}133410[#133410]
+
+Packaging::
+* Update bundled JDK to Java 24.0.2+12 {es-pull}133119[#133119]
+
+

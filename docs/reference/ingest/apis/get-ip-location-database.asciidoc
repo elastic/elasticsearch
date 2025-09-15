@@ -4,6 +4,12 @@
 <titleabbrev>Get IP geolocation database configuration</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Returns information about one or more IP geolocation database configurations.
 
 [source,console]

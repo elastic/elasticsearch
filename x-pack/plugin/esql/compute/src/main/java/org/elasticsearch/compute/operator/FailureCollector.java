@@ -9,29 +9,36 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ArrayBlockingQueue;
 
 /**
  * {@code FailureCollector} is responsible for collecting exceptions that occur in the compute engine.
- * The collected exceptions are categorized into task-cancelled and non-task-cancelled exceptions.
- * To limit memory usage, this class collects only the first 10 exceptions in each category by default.
- * When returning the accumulated failure to the caller, this class prefers non-task-cancelled exceptions
- * over task-cancelled ones as they are more useful for diagnosing issues.
+ * The collected exceptions are categorized into client (4xx), server (5xx), shard-unavailable errors,
+ * and cancellation errors. To limit memory usage, this class collects only the first 10 exceptions in
+ * each category by default. When returning the accumulated failures to the caller, this class prefers
+ * client (4xx) errors over server (5xx) errors, shard-unavailable errors, and cancellation errors,
+ * as they are more useful for diagnosing issues.
  */
 public final class FailureCollector {
-    private final Queue<Exception> cancelledExceptions = ConcurrentCollections.newQueue();
-    private final AtomicInteger cancelledExceptionsCount = new AtomicInteger();
 
-    private final Queue<Exception> nonCancelledExceptions = ConcurrentCollections.newQueue();
-    private final AtomicInteger nonCancelledExceptionsCount = new AtomicInteger();
+    private enum Category {
+        CLIENT,
+        SERVER,
+        SHARD_UNAVAILABLE,
+        CANCELLATION
+    }
 
+    private final Map<Category, Queue<Exception>> categories;
     private final int maxExceptions;
+
     private volatile boolean hasFailure = false;
     private Exception finalFailure = null;
 
@@ -44,9 +51,13 @@ public final class FailureCollector {
             throw new IllegalArgumentException("maxExceptions must be at least one");
         }
         this.maxExceptions = maxExceptions;
+        this.categories = new EnumMap<>(Category.class);
+        for (Category c : Category.values()) {
+            this.categories.put(c, new ArrayBlockingQueue<>(maxExceptions));
+        }
     }
 
-    private static Exception unwrapTransportException(TransportException te) {
+    public static Exception unwrapTransportException(TransportException te) {
         final Throwable cause = te.getCause();
         if (cause == null) {
             return te;
@@ -57,17 +68,24 @@ public final class FailureCollector {
         }
     }
 
-    public void unwrapAndCollect(Exception e) {
-        e = e instanceof TransportException te ? unwrapTransportException(te) : e;
+    private static Category getErrorCategory(Exception e) {
         if (ExceptionsHelper.unwrap(e, TaskCancelledException.class) != null) {
-            if (cancelledExceptionsCount.incrementAndGet() <= maxExceptions) {
-                cancelledExceptions.add(e);
-            }
+            return Category.CANCELLATION;
+        } else if (TransportActions.isShardNotAvailableException(e)) {
+            return Category.SHARD_UNAVAILABLE;
         } else {
-            if (nonCancelledExceptionsCount.incrementAndGet() <= maxExceptions) {
-                nonCancelledExceptions.add(e);
+            final int status = ExceptionsHelper.status(e).getStatus();
+            if (400 <= status && status < 500) {
+                return Category.CLIENT;
+            } else {
+                return Category.SERVER;
             }
         }
+    }
+
+    public void unwrapAndCollect(Exception e) {
+        e = e instanceof TransportException te ? unwrapTransportException(te) : e;
+        categories.get(getErrorCategory(e)).offer(e);
         hasFailure = true;
     }
 
@@ -79,8 +97,8 @@ public final class FailureCollector {
     }
 
     /**
-     * Returns the accumulated failure, preferring non-task-cancelled exceptions over task-cancelled ones.
-     * Once this method builds the failure, incoming failures are discarded.
+     * Returns the accumulated failure, preferring client (4xx) errors over server (5xx) errors and cancellation errors,
+     * as they are more useful for diagnosing issues. Once this method builds the failure, incoming failures are discarded.
      *
      * @return the accumulated failure, or {@code null} if no failure has been collected
      */
@@ -99,19 +117,19 @@ public final class FailureCollector {
     private Exception buildFailure() {
         assert hasFailure;
         assert Thread.holdsLock(this);
-        int total = 0;
         Exception first = null;
-        for (var exceptions : List.of(nonCancelledExceptions, cancelledExceptions)) {
-            for (Exception e : exceptions) {
-                if (first == null) {
-                    first = e;
-                    total++;
-                } else if (first != e) {
-                    first.addSuppressed(e);
-                    total++;
-                }
-                if (total >= maxExceptions) {
-                    return first;
+        int collected = 0;
+        for (Category category : List.of(Category.CLIENT, Category.SERVER, Category.SHARD_UNAVAILABLE, Category.CANCELLATION)) {
+            if (first != null && category == Category.CANCELLATION) {
+                continue; // do not add cancellation errors if other errors present
+            }
+            for (Exception e : categories.get(category)) {
+                if (++collected <= maxExceptions) {
+                    if (first == null) {
+                        first = e;
+                    } else if (first != e) {
+                        first.addSuppressed(e);
+                    }
                 }
             }
         }

@@ -16,16 +16,18 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
@@ -67,6 +69,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
     private final XPackLicenseState licenseState;
+    private final MasterServiceTaskQueue<UpdateLifecyclePolicyTask> taskQueue;
 
     @Inject
     public TransportPutLifecycleAction(
@@ -74,7 +77,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry namedXContentRegistry,
         XPackLicenseState licenseState,
         Client client
@@ -86,13 +88,13 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             threadPool,
             actionFilters,
             PutLifecycleRequest::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.xContentRegistry = namedXContentRegistry;
         this.licenseState = licenseState;
         this.client = client;
+        this.taskQueue = clusterService.createTaskQueue("ilm-put-lifecycle-queue", Priority.NORMAL, new IlmLifecycleExecutor());
     }
 
     @Override
@@ -120,10 +122,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
             }
         }
 
-        submitUnbatchedTask(
-            "put-lifecycle-" + request.getPolicy().getName(),
-            new UpdateLifecyclePolicyTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client)
+        UpdateLifecyclePolicyTask putTask = new UpdateLifecyclePolicyTask(
+            request,
+            listener,
+            licenseState,
+            filteredHeaders,
+            xContentRegistry,
+            client
         );
+        taskQueue.submitTask("put-lifecycle-" + request.getPolicy().getName(), putTask, putTask.timeout());
     }
 
     public static class UpdateLifecyclePolicyTask extends AckedClusterStateUpdateTask {
@@ -226,11 +233,6 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
         }
     }
 
-    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
-        clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
     /**
      * Returns 'true' if the ILM policy is effectually the same (same policy and headers), and thus can be a no-op update.
      */
@@ -331,4 +333,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
     public Set<String> modifiedKeys(PutLifecycleRequest request) {
         return Set.of(request.getPolicy().getName());
     }
+
+    private static class IlmLifecycleExecutor extends SimpleBatchedAckListenerTaskExecutor<UpdateLifecyclePolicyTask> {
+
+        @Override
+        public Tuple<ClusterState, ClusterStateAckListener> executeTask(UpdateLifecyclePolicyTask task, ClusterState clusterState)
+            throws Exception {
+            return Tuple.tuple(task.execute(clusterState), task);
+        }
+
+    }
+
 }

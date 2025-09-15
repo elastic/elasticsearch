@@ -51,10 +51,14 @@ processingCommand
     | grokCommand
     | enrichCommand
     | mvExpandCommand
+    | joinCommand
+    | changePointCommand
+    | completionCommand
+    | sampleCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? joinCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -73,12 +77,13 @@ booleanExpression
     ;
 
 regexBooleanExpression
-    : valueExpression (NOT)? kind=LIKE pattern=string
-    | valueExpression (NOT)? kind=RLIKE pattern=string
+    : valueExpression (NOT)? LIKE string                               #likeExpression
+    | valueExpression (NOT)? RLIKE string                              #rlikeExpression
+    | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
     ;
 
 matchBooleanExpression
-    : fieldExp=qualifiedName COLON queryString=constant
+    : fieldExp=qualifiedName (CAST_OP fieldType=dataType)? COLON matchQuery=constant
     ;
 
 valueExpression
@@ -102,11 +107,19 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
     ;
 
 functionName
     : identifierOrParameter
+    ;
+
+mapExpression
+    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    ;
+
+entryExpression
+    : key=string COLON value=constant
     ;
 
 dataType
@@ -125,15 +138,33 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
+rerankFields
+    : rerankField (COMMA rerankField)*
+    ;
+
+rerankField
+    : qualifiedName (ASSIGN booleanExpression)?
+    ;
+
 fromCommand
     : FROM indexPattern (COMMA indexPattern)* metadata?
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
+    : clusterString COLON unquotedIndexString
+    | unquotedIndexString CAST_OP selectorString
+    | indexString
     ;
 
 clusterString
+    : UNQUOTED_SOURCE
+    ;
+
+selectorString
+    : UNQUOTED_SOURCE
+    ;
+
+unquotedIndexString
     : UNQUOTED_SOURCE
     ;
 
@@ -194,7 +225,8 @@ identifier
 
 identifierPattern
     : ID_PATTERN
-    | {this.isDevVersion()}? parameter
+    | parameter
+    | doubleParameter
     ;
 
 constant
@@ -215,13 +247,19 @@ parameter
     | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
     ;
 
+doubleParameter
+    : DOUBLE_PARAMS                        #inputDoubleParams
+    | NAMED_OR_POSITIONAL_DOUBLE_PARAMS    #inputNamedOrPositionalDoubleParams
+    ;
+
 identifierOrParameter
     : identifier
-    | {this.isDevVersion()}? parameter
+    | parameter
+    | doubleParameter
     ;
 
 limitCommand
-    : LIMIT INTEGER_LITERAL
+    : LIMIT constant
     ;
 
 sortCommand
@@ -246,6 +284,7 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
@@ -306,11 +345,24 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=enrichPolicyName (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichPolicyName
+    : ENRICH_POLICY_NAME
+    | QUOTED_STRING
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
+    ;
+
+changePointCommand
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
+sampleCommand
+    : SAMPLE probability=constant
     ;
 
 //
@@ -325,11 +377,11 @@ inlinestatsCommand
     ;
 
 joinCommand
-    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition
+    : type=(JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT) JOIN joinTarget joinCondition
     ;
 
 joinTarget
-    : index=identifier (AS alias=identifier)?
+    : index=indexPattern
     ;
 
 joinCondition
@@ -338,4 +390,25 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+inferenceCommandOptions
+    : inferenceCommandOption (COMMA inferenceCommandOption)*
+    ;
+
+inferenceCommandOption
+    : identifier ASSIGN inferenceCommandOptionValue
+    ;
+
+inferenceCommandOptionValue
+    : constant
+    | identifier
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    ;
+
+completionCommand
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
     ;

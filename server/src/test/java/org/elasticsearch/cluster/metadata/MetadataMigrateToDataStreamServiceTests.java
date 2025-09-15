@@ -24,11 +24,13 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -423,6 +425,88 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             )
         );
         assertThat(e.getMessage(), containsString("alias [" + dataStreamName + "] must specify a write index"));
+    }
+
+    public void testSettingsVersion() throws IOException {
+        /*
+         * This tests that applyFailureStoreSettings updates the settings version when the settings have been modified, and does not change
+         * it otherwise. Incrementing the settings version when the settings have not changed can result in an assertion failing in
+         * IndexService::updateMetadata.
+         */
+        String indexName = randomAlphaOfLength(30);
+        String dataStreamName = randomAlphaOfLength(50);
+        Function<IndexMetadata, MapperService> mapperSupplier = this::getMapperService;
+        boolean removeAlias = randomBoolean();
+        boolean failureStore = randomBoolean();
+        Settings nodeSettings = Settings.EMPTY;
+
+        {
+            /*
+             * Here the input indexMetadata will have the index.hidden setting set to true. So we expect no change to the settings, and
+             * for the settings version to remain the same
+             */
+            Metadata.Builder metadataBuilder = Metadata.builder();
+            Settings indexMetadataSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .build();
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(indexMetadataSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(getTestMappingWithTimestamp())
+                .build();
+            MetadataMigrateToDataStreamService.prepareBackingIndex(
+                metadataBuilder,
+                indexMetadata,
+                dataStreamName,
+                mapperSupplier,
+                removeAlias,
+                failureStore,
+                false,
+                nodeSettings
+            );
+            Metadata metadata = metadataBuilder.build();
+            assertThat(indexMetadata.getSettings(), equalTo(metadata.index(indexName).getSettings()));
+            assertThat(metadata.index(indexName).getSettingsVersion(), equalTo(indexMetadata.getSettingsVersion()));
+        }
+        {
+            /*
+             * Here the input indexMetadata will not have the index.hidden setting set to true. So prepareBackingIndex will add that,
+             * meaning that the settings and settings version will change.
+             */
+            Metadata.Builder metadataBuilder = Metadata.builder();
+            Settings indexMetadataSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(indexMetadataSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putMapping(getTestMappingWithTimestamp())
+                .build();
+            MetadataMigrateToDataStreamService.prepareBackingIndex(
+                metadataBuilder,
+                indexMetadata,
+                dataStreamName,
+                mapperSupplier,
+                removeAlias,
+                failureStore,
+                false,
+                nodeSettings
+            );
+            Metadata metadata = metadataBuilder.build();
+            assertThat(indexMetadata.getSettings(), not(equalTo(metadata.index(indexName).getSettings())));
+            assertThat(metadata.index(indexName).getSettingsVersion(), equalTo(indexMetadata.getSettingsVersion() + 1));
+        }
+    }
+
+    private String getTestMappingWithTimestamp() {
+        return """
+            {
+              "properties": {
+                "@timestamp": {"type": "date"}
+              }
+            }
+            """;
     }
 
     private MapperService getMapperService(IndexMetadata im) {

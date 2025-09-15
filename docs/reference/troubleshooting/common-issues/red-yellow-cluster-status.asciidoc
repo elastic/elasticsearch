@@ -22,6 +22,10 @@ the remaining problems so management and cleanup activities can proceed.
 See https://www.youtube.com/watch?v=v2mbeSd1vTQ[this video]
 for a walkthrough of monitoring allocation health.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[diagnose-cluster-status]]
 ==== Diagnose your cluster status
@@ -74,34 +78,30 @@ A shard can become unassigned for several reasons. The following tips outline th
 most common causes and their solutions.
 
 [discrete]
-[[fix-cluster-status-reenable-allocation]]
-===== Re-enable shard allocation
+[[fix-cluster-status-only-one-node]]
+===== Single node cluster
 
-You typically disable allocation during a <<restart-cluster,restart>> or other
-cluster maintenance. If you forgot to re-enable allocation afterward, {es} will
-be unable to assign shards. To re-enable allocation, reset the
-`cluster.routing.allocation.enable` cluster setting.
+{es} will never assign a replica to the same node as the primary shard. A single-node cluster will always have yellow status. To change to green, set <<dynamic-index-number-of-replicas,number_of_replicas>> to 0 for all indices.
 
-[source,console]
-----
-PUT _cluster/settings
-{
-  "persistent" : {
-    "cluster.routing.allocation.enable" : null
-  }
-}
-----
-
-See https://www.youtube.com/watch?v=MiKKUdZvwnI[this video] for walkthrough of troubleshooting "no allocations are allowed".
+Therefore, if the number of replicas equals or exceeds the number of nodes, some shards won't be allocated.
 
 [discrete]
 [[fix-cluster-status-recover-nodes]]
 ===== Recover lost nodes
 
 Shards often become unassigned when a data node leaves the cluster. This can
-occur for several reasons, ranging from connectivity issues to hardware failure.
+occur for several reasons:
+
+* A manual node restart will cause a temporary unhealthy cluster state until the node recovers.
+
+* When a node becomes overloaded or fails, it can temporarily disrupt the cluster’s health, leading to an unhealthy state. Prolonged garbage collection (GC) pauses, caused by out-of-memory errors or high memory usage during intensive searches, can trigger this state. See <<fix-cluster-status-jvm,Reduce JVM memory pressure>> for more JVM-related issues.
+
+* Network issues can prevent reliable node communication, causing shards to become out of sync. Check the logs for repeated messages about nodes leaving and rejoining the cluster.
+
 After you resolve the issue and recover the node, it will rejoin the cluster.
 {es} will then automatically allocate any unassigned shards.
+
+You can monitor this process by <<cluster-health,checking your cluster health>>. The number of unallocated shards should progressively decrease until green status is reached.
 
 To avoid wasting resources on temporary issues, {es} <<delayed-allocation,delays
 allocation>> by one minute by default. If you've recovered a node and don’t want
@@ -151,7 +151,7 @@ replica, it remains unassigned. To fix this, you can:
 
 * Change the `index.number_of_replicas` index setting to reduce the number of
 replicas for each primary shard. We recommend keeping at least one replica per
-primary.
+primary for high availability.
 
 [source,console]
 ----
@@ -161,7 +161,6 @@ PUT _settings
 }
 ----
 // TEST[s/^/PUT my-index\n/]
-
 
 [discrete]
 [[fix-cluster-status-disk-space]]
@@ -182,6 +181,8 @@ GET _cat/allocation?v=true&h=node,shards,disk.*
 If your nodes are running low on disk space, you have a few options:
 
 * Upgrade your nodes to increase disk space.
+
+* Add more nodes to the cluster.
 
 * Delete unneeded indices to free up space. If you use {ilm-init}, you can
 update your lifecycle policy to use <<ilm-searchable-snapshot,searchable
@@ -215,11 +216,39 @@ watermark or set it to an explicit byte value.
 PUT _cluster/settings
 {
   "persistent": {
-    "cluster.routing.allocation.disk.watermark.low": "30gb"
+    "cluster.routing.allocation.disk.watermark.low": "90%",
+    "cluster.routing.allocation.disk.watermark.high": "95%"
   }
 }
 ----
-// TEST[s/"30gb"/null/]
+// TEST[s/"90%"/null/]
+// TEST[s/"95%"/null/]
+
+[IMPORTANT]
+====
+This is usually a temporary solution and may cause instability if disk space is not freed up.
+====
+
+[discrete]
+[[fix-cluster-status-reenable-allocation]]
+===== Re-enable shard allocation
+
+You typically disable allocation during a <<restart-cluster,restart>> or other
+cluster maintenance. If you forgot to re-enable allocation afterward, {es} will
+be unable to assign shards. To re-enable allocation, reset the
+`cluster.routing.allocation.enable` cluster setting.
+
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.routing.allocation.enable" : null
+  }
+}
+----
+
+See https://www.youtube.com/watch?v=MiKKUdZvwnI[this video] for walkthrough of troubleshooting "no allocations are allowed".
 
 [discrete]
 [[fix-cluster-status-jvm]]

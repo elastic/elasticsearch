@@ -1,5 +1,0 @@
-pr: 116292
-summary: Add missing header in `put_data_lifecycle` rest-api-spec
-area: Data streams
-type: bug
-issues: []

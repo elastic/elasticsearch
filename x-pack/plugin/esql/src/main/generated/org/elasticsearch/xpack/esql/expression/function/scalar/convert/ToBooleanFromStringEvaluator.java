@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -14,21 +15,27 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToBoolean}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToBooleanFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToBooleanFromStringEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator keyword;
+
+  public ToBooleanFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator keyword,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.keyword = keyword;
   }
 
   @Override
-  public String name() {
-    return "ToBooleanFromString";
+  public EvalOperator.ExpressionEvaluator next() {
+    return keyword;
   }
 
   @Override
@@ -47,7 +54,7 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static boolean evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private boolean evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToBoolean.fromKeyword(value);
   }
@@ -83,29 +90,46 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     }
   }
 
-  private static boolean evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private boolean evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToBoolean.fromKeyword(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToBooleanFromStringEvaluator[" + "keyword=" + keyword + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(keyword);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += keyword.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory keyword;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory keyword) {
       this.source = source;
+      this.keyword = keyword;
     }
 
     @Override
     public ToBooleanFromStringEvaluator get(DriverContext context) {
-      return new ToBooleanFromStringEvaluator(field.get(context), source, context);
+      return new ToBooleanFromStringEvaluator(source, keyword.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToBooleanFromStringEvaluator[field=" + field + "]";
+      return "ToBooleanFromStringEvaluator[" + "keyword=" + keyword + "]";
     }
   }
 }

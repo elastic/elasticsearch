@@ -23,10 +23,15 @@ example:
 POST /_query?format=txt
 {
   "query": """
-FROM sample_data
+FROM kibana_sample_data_logs
   """
 }
 ----
+
+Inside quotes, Console suggests possible commands and functions to autocomplete your query:
+
+image::images/esql/console-esql-autocomplete.png[align="center"]
+
 // end::console[]
 
 

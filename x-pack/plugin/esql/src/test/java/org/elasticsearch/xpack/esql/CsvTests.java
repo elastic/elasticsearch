@@ -27,9 +27,11 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -55,14 +57,17 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -72,6 +77,7 @@ import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -82,13 +88,14 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -97,11 +104,15 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
@@ -111,6 +122,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
 import static org.hamcrest.Matchers.equalTo;
@@ -147,6 +159,17 @@ import static org.hamcrest.Matchers.notNullValue;
  * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
  * <p>
  * To log the results logResults() should return "true".
+ * <p>
+ * This test never pushes to Lucene because there isn't a Lucene index to push to. It always runs everything in
+ * the compute engine. This yields the same results modulo a few things:
+ * <ul>
+ *     <li>Warnings for multivalued fields: See {@link SingleValueMatchQuery} for an in depth discussion, but the
+ *         short version is this class will always emit warnings on multivalued fields but tests that run against
+ *         a real index are only guaranteed to emit a warning if the document would match all filters <strong>except</strong>
+ *         it has a multivalue field.</li>
+ *     <li>Sorting: This class emits values in the order they appear in the {@code .csv} files that power it. A real
+ *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
+ * </ul>
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
@@ -238,14 +261,18 @@ public class CsvTests extends ESTestCase {
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
             assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
             assumeFalse(
+                "can't use rereank in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
+            );
+            assumeFalse(
+                "can't use completion in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.COMPLETION.capabilityName())
+            );
+            assumeFalse(
                 "can't use match in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
             );
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
-            assumeFalse(
-                "multiple indices aren't supported",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.UNION_TYPES.capabilityName())
-            );
             assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
@@ -255,13 +282,34 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "can't use MATCH_PHRASE function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_PHRASE_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "can't use KQL function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
             );
             assumeFalse(
-                "lookup join disabled for csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP.capabilityName())
+                "can't use KNN function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION.capabilityName())
             );
+            assumeFalse(
+                "lookup join disabled for csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName())
+            );
+            assumeFalse(
+                "can't use TERM function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TERM_FUNCTION.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot correctly handle the field caps change",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot currently handle scoring that depends on Lucene",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
+            );
+
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
@@ -310,43 +358,92 @@ public class CsvTests extends ESTestCase {
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
             // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
-            assertBusy(() -> assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L)));
+            assertBusy(
+                () -> assertThat(
+                    "Not all circuits were cleaned up",
+                    bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(),
+                    equalTo(0L)
+                )
+            );
         }
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
         /*
-         * Comment the assertion above and enable the next two lines to see the results returned by ES without any assertions being done.
+         * Enable the next two lines to see the results returned by ES.
          * This is useful when creating a new test or trying to figure out what are the actual results.
          */
         // CsvTestUtils.logMetaData(actual.columnNames(), actual.columnTypes(), LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
+
+        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
     }
 
-    private static IndexResolution loadIndexResolution(String mappingName, String indexName, Map<String, String> typeMapping) {
-        var mapping = new TreeMap<>(loadMapping(mappingName));
-        if ((typeMapping == null || typeMapping.isEmpty()) == false) {
-            for (var entry : typeMapping.entrySet()) {
-                if (mapping.containsKey(entry.getKey())) {
-                    DataType dataType = DataType.fromTypeName(entry.getValue());
-                    EsField field = mapping.get(entry.getKey());
-                    EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
-                    mapping.put(entry.getKey(), editedField);
-                }
+    private static IndexResolution loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        var indexNames = datasets.datasets().stream().map(CsvTestsDataLoader.TestDataset::indexName);
+        Map<String, IndexMode> indexModes = indexNames.collect(Collectors.toMap(x -> x, x -> IndexMode.STANDARD));
+        List<MappingPerIndex> mappings = datasets.datasets()
+            .stream()
+            .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
+            .toList();
+        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergeMappings(mappings), indexModes));
+    }
+
+    private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
+        var mapping = new TreeMap<>(loadMapping(dataset.mappingFileName()));
+        if (dataset.typeMapping() == null) {
+            return mapping;
+        }
+        for (var entry : dataset.typeMapping().entrySet()) {
+            if (mapping.containsKey(entry.getKey())) {
+                DataType dataType = DataType.fromTypeName(entry.getValue());
+                EsField field = mapping.get(entry.getKey());
+                EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                mapping.put(entry.getKey(), editedField);
             }
         }
-        return IndexResolution.valid(new EsIndex(indexName, mapping, Map.of(indexName, IndexMode.STANDARD)));
+        return mapping;
+    }
+
+    record MappingPerIndex(String index, Map<String, EsField> mapping) {}
+
+    private static Map<String, EsField> mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
+        Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
+        for (var mappingPerIndex : mappingsPerIndex) {
+            for (var entry : mappingPerIndex.mapping().entrySet()) {
+                String columnName = entry.getKey();
+                EsField field = entry.getValue();
+                columnNamesToFieldByIndices.computeIfAbsent(columnName, k -> new HashMap<>()).put(mappingPerIndex.index(), field);
+            }
+        }
+
+        return columnNamesToFieldByIndices.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
+    }
+
+    private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
+        var indexFields = columnNameToField.values();
+        if (indexFields.stream().distinct().count() > 1) {
+            var typesToIndices = new HashMap<String, Set<String>>();
+            for (var typeToIndex : columnNameToField.entrySet()) {
+                typesToIndices.computeIfAbsent(typeToIndex.getValue().getDataType().typeName(), k -> new HashSet<>())
+                    .add(typeToIndex.getKey());
+            }
+            return new InvalidMappedField(index, typesToIndices);
+        } else {
+            return indexFields.iterator().next();
+        }
     }
 
     private static EnrichResolution loadEnrichPolicies() {
         EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
-            CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
+            CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
-            EsIndex esIndex = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName(), null).get();
+            EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
             var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
             enrichResolution.addResolvedPolicy(
                 policyConfig.policyName(),
@@ -374,17 +471,20 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
-        var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName(), dataset.typeMapping());
+    private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.MultiIndexTestDataset datasets) {
+        var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
-        var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies, emptyInferenceResolution()),
+            TEST_VERIFIER
+        );
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();
         LOGGER.debug("Analyzed plan:\n{}", plan);
         return plan;
     }
 
-    private static CsvTestsDataLoader.TestsDataset testsDataset(LogicalPlan parsed) {
+    private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.isEmpty()) {
@@ -392,13 +492,13 @@ public class CsvTests extends ESTestCase {
              * If the data set doesn't matter we'll just grab one we know works.
              * Employees is fine.
              */
-            return CSV_DATASET_MAP.get("employees");
+            return CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"));
         } else if (preAnalysis.indices.size() > 1) {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
 
-        String indexName = indices.get(0).id().index();
-        List<CsvTestsDataLoader.TestsDataset> datasets = new ArrayList<>();
+        String indexName = indices.get(0).id().indexPattern();
+        List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);
             for (var entry : CSV_DATASET_MAP.entrySet()) {
@@ -407,26 +507,38 @@ public class CsvTests extends ESTestCase {
                 }
             }
         } else {
-            var dataset = CSV_DATASET_MAP.get(indexName);
-            datasets.add(dataset);
+            for (String index : indexName.split(",")) {
+                var dataset = CSV_DATASET_MAP.get(index);
+                if (dataset == null) {
+                    throw new IllegalArgumentException("unknown CSV dataset for table [" + index + "]");
+                }
+                datasets.add(dataset);
+            }
         }
         if (datasets.isEmpty()) {
             throw new IllegalArgumentException("unknown CSV dataset for table [" + indexName + "]");
         }
-        // TODO: Support multiple datasets
-        return datasets.get(0);
+        return new CsvTestsDataLoader.MultiIndexTestDataset(indexName, datasets);
     }
 
-    private static TestPhysicalOperationProviders testOperationProviders(CsvTestsDataLoader.TestsDataset dataset) throws Exception {
-        var testData = loadPageFromCsv(CsvTests.class.getResource("/" + dataset.dataFileName()), dataset.typeMapping());
-        return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
+    private static TestPhysicalOperationProviders testOperationProviders(
+        FoldContext foldCtx,
+        CsvTestsDataLoader.MultiIndexTestDataset datasets
+    ) throws Exception {
+        var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
+        for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
+            var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
+            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2()));
+        }
+        return TestPhysicalOperationProviders.create(foldCtx, indexPages);
     }
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
-        LogicalPlan parsed = parser.createStatement(testCase.query);
-        var testDataset = testsDataset(parsed);
-        LogicalPlan analyzed = analyzedPlan(parsed, testDataset);
+        LogicalPlan parsed = parser.createStatement(testCase.query, EsqlTestUtils.TEST_CFG);
+        var testDatasets = testDatasets(parsed);
+        LogicalPlan analyzed = analyzedPlan(parsed, testDatasets);
 
+        FoldContext foldCtx = FoldContext.small();
         EsqlSession session = new EsqlSession(
             getTestName(),
             configuration,
@@ -434,20 +546,21 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)),
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
             TEST_VERIFIER,
-            new PlanningMetrics(),
-            null
+            new PlanTelemetry(functionRegistry),
+            null,
+            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
-        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
+        TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
 
         session.executeOptimizedPlan(
             new EsqlQueryRequest(),
             new EsqlExecutionInfo(randomBoolean()),
-            planRunner(bigArrays, physicalOperationProviders),
+            planRunner(bigArrays, foldCtx, physicalOperationProviders),
             session.optimizedPlan(analyzed),
             listener.delegateFailureAndWrap(
                 // Wrap so we can capture the warnings in the calling thread
@@ -486,12 +599,9 @@ public class CsvTests extends ESTestCase {
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
     private void opportunisticallyAssertPlanSerialization(PhysicalPlan plan) {
-
-        // skip plans with localSourceExec
-        if (plan.anyMatch(p -> p instanceof LocalSourceExec || p instanceof HashJoinExec)) {
+        if (plan.anyMatch(p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec)) {
             return;
         }
-
         SerializationTestUtils.assertSerialization(plan, configuration);
     }
 
@@ -507,12 +617,13 @@ public class CsvTests extends ESTestCase {
         testCase.assertWarnings(false).assertWarnings(normalized);
     }
 
-    PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
-        return (physicalPlan, listener) -> executeSubPlan(bigArrays, physicalOperationProviders, physicalPlan, listener);
+    PlanRunner planRunner(BigArrays bigArrays, FoldContext foldCtx, TestPhysicalOperationProviders physicalOperationProviders) {
+        return (physicalPlan, listener) -> executeSubPlan(bigArrays, foldCtx, physicalOperationProviders, physicalPlan, listener);
     }
 
     void executeSubPlan(
         BigArrays bigArrays,
+        FoldContext foldCtx,
         TestPhysicalOperationProviders physicalOperationProviders,
         PhysicalPlan physicalPlan,
         ActionListener<Result> listener
@@ -536,7 +647,7 @@ public class CsvTests extends ESTestCase {
             bigArrays,
             ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
         );
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor, ActionListener.noop());
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
@@ -547,34 +658,43 @@ public class CsvTests extends ESTestCase {
             blockFactory,
             randomNodeSettings(),
             configuration,
-            exchangeSource,
-            exchangeSink,
+            exchangeSource::createExchangeSource,
+            () -> exchangeSink.createExchangeSink(() -> {}),
             Mockito.mock(EnrichLookupService.class),
             Mockito.mock(LookupFromIndexService.class),
-            physicalOperationProviders
+            Mockito.mock(InferenceRunner.class),
+            physicalOperationProviders,
+            List.of()
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
 
         // replace fragment inside the coordinator plan
         List<Driver> drivers = new ArrayList<>();
-        LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
+        LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
+            "final",
+            foldCtx,
+            new OutputExec(coordinatorPlan, collectedPages::add)
+        );
         drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
         if (dataNodePlan != null) {
             var searchStats = new DisabledSearchStats();
-            var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
-            var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
+            var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+            var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+                new LocalPhysicalOptimizerContext(new EsqlFlags(true), configuration, foldCtx, searchStats)
+            );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
             exchangeSource.addRemoteSink(
                 exchangeSink::fetchPageAsync,
                 Randomness.get().nextBoolean(),
+                () -> {},
                 randomIntBetween(1, 3),
                 ActionListener.<Void>noop().delegateResponse((l, e) -> {
                     throw new AssertionError("expected no failure", e);
                 })
             );
-            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
+            LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan("data", foldCtx, csvDataNodePhysicalPlan);
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));
             Randomness.shuffle(drivers);
@@ -587,6 +707,9 @@ public class CsvTests extends ESTestCase {
             }
         };
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
-        runner.runToCompletion(drivers, listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), null)));
+        runner.runToCompletion(
+            drivers,
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, DriverCompletionInfo.EMPTY, null))
+        );
     }
 }

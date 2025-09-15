@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,7 +45,7 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
         Client client,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactoryProvider blockFactoryProvider
     ) {
         super(
             EsqlAsyncGetResultAction.NAME,
@@ -57,7 +58,7 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
             bigArrays,
             EsqlQueryTask.class
         );
-        this.blockFactory = blockFactory;
+        this.blockFactory = blockFactoryProvider.blockFactory();
     }
 
     @Override
@@ -75,7 +76,7 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
 
     /**
      * Unwraps the exception in the case of failure. This keeps the exception types
-     * the same as the sync API, namely ParsingException and ParsingException.
+     * the same as the sync API, namely ParsingException and VerificationException.
      */
     static <R> ActionListener<R> unwrapListener(ActionListener<R> listener) {
         return new ActionListener<>() {

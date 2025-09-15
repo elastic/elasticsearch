@@ -30,8 +30,17 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     }
 
     @Override
-    protected DataStreamFailureStore mutateInstance(DataStreamFailureStore instance) throws IOException {
-        return new DataStreamFailureStore(instance.enabled() == false);
+    protected DataStreamFailureStore mutateInstance(DataStreamFailureStore instance) {
+        var enabled = instance.enabled();
+        var lifecycle = instance.lifecycle();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> enabled = enabled != null && lifecycle != null && randomBoolean() ? null : Boolean.FALSE.equals(enabled);
+            case 1 -> lifecycle = lifecycle != null && enabled != null && randomBoolean()
+                ? null
+                : randomValueOtherThan(lifecycle, DataStreamLifecycleTests::randomFailuresLifecycle);
+            default -> throw new IllegalArgumentException("illegal randomisation branch");
+        }
+        return new DataStreamFailureStore(enabled, lifecycle);
     }
 
     @Override
@@ -40,11 +49,16 @@ public class DataStreamFailureStoreTests extends AbstractXContentSerializingTest
     }
 
     static DataStreamFailureStore randomFailureStore() {
-        return new DataStreamFailureStore(randomBoolean());
+        boolean enabledDefined = randomBoolean();
+        boolean lifecycleDefined = enabledDefined == false || randomBoolean();
+        return new DataStreamFailureStore(
+            enabledDefined ? randomBoolean() : null,
+            lifecycleDefined ? DataStreamLifecycleTests.randomFailuresLifecycle() : null
+        );
     }
 
     public void testInvalidEmptyConfiguration() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore((Boolean) null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataStreamFailureStore(null, null));
         assertThat(exception.getMessage(), containsString("at least one non-null configuration value"));
     }
 }

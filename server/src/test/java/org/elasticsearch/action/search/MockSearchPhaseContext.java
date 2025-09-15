@@ -13,13 +13,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -62,7 +60,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             Runnable::run,
             new SearchRequest(),
             ActionListener.noop(),
-            new GroupShardsIterator<SearchShardIterator>(List.of()),
+            List.of(),
             null,
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
@@ -105,15 +103,14 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 searchContextId
             )
         );
-        Releasables.close(releasables);
-        releasables.clear();
+        doneFuture.onResponse(null);
         if (existing != null) {
             existing.decRef();
         }
     }
 
     @Override
-    public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+    public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
     }
 
@@ -135,32 +132,27 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+    public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
         var nextPhase = nextPhaseSupplier.get();
         try {
             nextPhase.run();
         } catch (Exception e) {
-            onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase.getName(), "phase failed", e);
         }
     }
 
     @Override
     protected void executePhaseOnShard(
         SearchShardIterator shardIt,
-        SearchShardTarget shard,
+        Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
         onShardResult(new SearchPhaseResult() {
-        }, shardIt);
+        });
     }
 
     @Override
-    public void onFailure(Exception e) {
-        Assert.fail("should not be called");
-    }
-
-    @Override
-    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         releasedSearchContexts.add(contextId);
     }
 

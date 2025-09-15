@@ -8,7 +8,8 @@ Finds the _k_ nearest vectors to a query vector, as measured by a similarity
 metric. _knn_ query finds nearest vectors through approximate search on indexed
 dense_vectors. The preferred way to do approximate kNN search is through the
 <<knn-search,top level knn section>> of a search request. _knn_ query is reserved for
-expert cases, where there is a need to combine this query with other queries.
+expert cases, where there is a need to combine this query with other queries, or
+perform a kNN search against a <<semantic-text, semantic_text>> field.
 
 [[knn-query-ex-request]]
 ==== Example request
@@ -77,7 +78,8 @@ POST my-image-index/_search
 +
 --
 (Required, string) The name of the vector field to search against. Must be a
-<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>, or a
+<<semantic-text, `semantic_text` field>> with a compatible dense vector inference model.
 --
 
 `query_vector`::
@@ -93,6 +95,7 @@ Either this or `query_vector_builder` must be provided.
 --
 (Optional, object) Query vector builder.
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builder]
+If all queried fields are of type <<semantic-text, semantic_text>>, the inference ID associated with the `semantic_text` field may be inferred.
 --
 
 `k`::
@@ -100,7 +103,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector-builde
 --
 (Optional, integer) The number of nearest neighbors to return from each shard.
 {es} collects `k` results from each shard, then merges them to find the global top results.
-This value must be less than or equal to `num_candidates`. Defaults to `num_candidates`.
+This value must be less than or equal to `num_candidates`. Defaults to search request size.
 --
 
 `num_candidates`::
@@ -133,6 +136,9 @@ a match. The similarity value calculated relates to the raw
 documents are then scored according to <<dense-vector-similarity, `similarity`>>
 and the provided `boost` is applied.
 --
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
 
 `boost`::
 +
@@ -267,6 +273,36 @@ A sample query can look like below:
 }
 ----
 // NOTCONSOLE
+
+[[knn-query-with-semantic-text]]
+==== Knn query on a semantic_text field
+
+Elasticsearch supports `knn` query over a <<semantic-text, semantic_text>> field.
+
+Here is an example using the `query_vector_builder`:
+
+[source,js]
+----
+{
+  "query": {
+    "knn": {
+      "field": "inference_field",
+      "k": 10,
+      "num_candidates": 100,
+      "query_vector_builder": {
+        "text_embedding": {
+          "model_text": "test"
+        }
+      }
+    }
+  }
+}
+----
+// NOTCONSOLE
+
+Note that for `semantic_text` fields, the `model_id` does not have to be provided as it can be inferred from the `semantic_text` field mapping.
+
+Knn search using query vectors over `semantic_text` fields is also supported, with no change to the API.
 
 [[knn-query-aggregations]]
 ==== Knn query with aggregations

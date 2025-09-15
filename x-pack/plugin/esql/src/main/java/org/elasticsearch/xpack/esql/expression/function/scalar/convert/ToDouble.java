@@ -30,7 +30,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
@@ -40,16 +39,15 @@ public class ToDouble extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToDouble", ToDouble::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DOUBLE, (fieldEval, source) -> fieldEval),
+        Map.entry(DOUBLE, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToDoubleFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
         Map.entry(KEYWORD, ToDoubleFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToDoubleFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToDoubleFromStringEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToDoubleFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
         Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(DataType.COUNTER_DOUBLE, (field, source) -> field),
+        Map.entry(DataType.COUNTER_DOUBLE, (source, field) -> field),
         Map.entry(DataType.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
         Map.entry(DataType.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
     );

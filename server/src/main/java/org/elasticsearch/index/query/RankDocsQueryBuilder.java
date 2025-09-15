@@ -25,8 +25,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.RRF_QUERY_REWRITE;
-
 public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
 
     public static final String NAME = "rank_docs_query";
@@ -44,7 +42,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
-        if (in.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
             this.onlyRankDocs = in.readBoolean();
         } else {
@@ -72,7 +70,9 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
                 changed |= newQueryBuilders[i] != queryBuilders[i];
             }
             if (changed) {
-                return new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+                RankDocsQueryBuilder clone = new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+                clone.queryName(queryName());
+                return clone;
             }
         }
         return super.doRewrite(queryRewriteContext);
@@ -85,7 +85,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeNamedWriteable, rankDocs);
-        if (out.getTransportVersion().onOrAfter(RRF_QUERY_REWRITE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
             out.writeBoolean(onlyRankDocs);
         }
@@ -145,6 +145,6 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RANK_DOCS_RETRIEVER;
+        return TransportVersions.V_8_16_0;
     }
 }

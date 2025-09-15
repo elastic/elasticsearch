@@ -1,0 +1,178 @@
+[[infer-service-voyageai]]
+=== VoyageAI {infer} integration
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
+Creates an {infer} endpoint to perform an {infer} task with the `voyageai` service.
+
+
+[discrete]
+[[infer-service-voyageai-api-request]]
+==== {api-request-title}
+
+`PUT /_inference/<task_type>/<inference_id>`
+
+[discrete]
+[[infer-service-voyageai-api-path-params]]
+==== {api-path-parms-title}
+
+`<inference_id>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=inference-id]
+
+`<task_type>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=task-type]
++
+--
+Available task types:
+
+* `text_embedding`,
+* `rerank`.
+--
+
+[discrete]
+[[infer-service-voyageai-api-request-body]]
+==== {api-request-body-title}
+
+`chunking_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=chunking-settings]
+
+`max_chunk_size`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
+
+`overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-overlap]
+
+`sentence_overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-sentence-overlap]
+
+`strategy`:::
+(Optional, string)
+include::inference-shared.asciidoc[tag=chunking-settings-strategy]
+
+`service`::
+(Required, string)
+The type of service supported for the specified task type. In this case,
+`voyageai`.
+
+`service_settings`::
+(Required, object)
+include::inference-shared.asciidoc[tag=service-settings]
++
+--
+These settings are specific to the `voyageai` service.
+--
+
+`dimensions`:::
+(Optional, integer)
+The number of dimensions the resulting output embeddings should have.
+This setting maps to `output_dimension` in the https://docs.voyageai.com/docs/embeddings[VoyageAI documentation].
+Only for the `text_embedding` task type.
+
+`embedding_type`:::
+(Optional, string)
+The data type for the embeddings to be returned.
+This setting maps to `output_dtype` in the https://docs.voyageai.com/docs/embeddings[VoyageAI documentation].
+Permitted values: `float`, `int8`, `bit`.
+`int8` is a synonym of `byte` in the VoyageAI documentation.
+`bit` is a synonym of `binary` in the VoyageAI documentation.
+Only for the `text_embedding` task type.
+
+`model_id`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+Refer to the VoyageAI documentation for the list of available https://docs.voyageai.com/docs/embeddings[text embedding] and https://docs.voyageai.com/docs/reranker[rerank] models.
+
+`rate_limit`:::
+(Optional, object)
+This setting helps to minimize the number of rate limit errors returned from VoyageAI.
+The `voyageai` service sets a default number of requests allowed per minute depending on the task type.
+For both `text_embedding` and `rerank`, it is set to `2000`.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+include::inference-shared.asciidoc[tag=request-per-minute-example]
+
+More information about the rate limits for OpenAI can be found in your https://platform.openai.com/account/limits[Account limits].
+--
+
+`task_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=task-settings]
++
+.`task_settings` for the `text_embedding` task type
+[%collapsible%closed]
+=====
+`input_type`:::
+(Optional, string)
+Type of the input text.
+Permitted values: `ingest` (maps to `document` in the VoyageAI documentation), `search` (maps to `query` in the VoyageAI documentation).
+
+`truncation`:::
+(Optional, boolean)
+Whether to truncate the input texts to fit within the context length.
+Defaults to `false`.
+=====
++
+.`task_settings` for the `rerank` task type
+[%collapsible%closed]
+=====
+`return_documents`:::
+(Optional, boolean)
+Whether to return the source documents in the response.
+Defaults to `false`.
+
+`top_k`:::
+(Optional, integer)
+The number of most relevant documents to return.
+If not specified, the reranking results of all documents will be returned.
+
+`truncation`:::
+(Optional, boolean)
+Whether to truncate the input texts to fit within the context length.
+Defaults to `false`.
+=====
+
+
+[discrete]
+[[inference-example-voyageai]]
+==== VoyageAI service example
+
+The following example shows how to create an {infer} endpoint called `voyageai-embeddings` to perform a `text_embedding` task type.
+The embeddings created by requests to this endpoint will have 512 dimensions.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/text_embedding/voyageai-embeddings
+{
+    "service": "voyageai",
+    "service_settings": {
+        "model_id": "voyage-3-large",
+        "dimensions": 512
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called `voyageai-rerank` to perform a `rerank` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/voyageai-rerank
+{
+    "service": "voyageai",
+    "service_settings": {
+        "model_id": "rerank-2"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

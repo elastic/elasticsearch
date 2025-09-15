@@ -24,6 +24,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 
@@ -531,6 +533,17 @@ public final class ThreadContext implements Writeable, TraceContext {
     }
 
     /**
+     * Returns the header for the given key or defaultValue if not present
+     */
+    public String getHeaderOrDefault(String key, String defaultValue) {
+        String value = getHeader(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    /**
      * Returns all of the request headers from the thread's context.<br>
      * <b>Be advised, headers might contain credentials.</b>
      * In order to avoid storing, and erroneously exposing, such headers,
@@ -587,6 +600,14 @@ public final class ThreadContext implements Writeable, TraceContext {
      */
     public void putHeader(Map<String, String> header) {
         threadLocal.set(threadLocal.get().putHeaders(header));
+    }
+
+    public void setErrorTraceTransportHeader(RestRequest r) {
+        // set whether data nodes should send back stack trace based on the `error_trace` query parameter
+        if (r.paramAsBoolean("error_trace", RestController.ERROR_TRACE_DEFAULT)) {
+            // We only set it if error_trace is true (defaults to false) to avoid sending useless bytes
+            putHeader("error_trace", "true");
+        }
     }
 
     /**

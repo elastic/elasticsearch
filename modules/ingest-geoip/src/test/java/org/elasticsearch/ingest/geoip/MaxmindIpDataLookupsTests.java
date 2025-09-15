@@ -155,7 +155,7 @@ public class MaxmindIpDataLookupsTests extends ESTestCase {
         );
     }
 
-    public void testAsn() throws IOException {
+    public void testAsn() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
         String databaseName = "GeoLite2-ASN.mmdb";
         String ip = "82.171.64.0";

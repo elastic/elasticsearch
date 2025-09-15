@@ -165,11 +165,40 @@ class JavaDateFormatter implements DateFormatter {
             input,
             printer,
             roundUpParsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new),
-            parsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new)
+            parsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new),
+            false
         );
     }
 
-    private JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {
+    JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {
+        this(
+            format,
+            printer,
+            Arrays.copyOf(roundupParsers, roundupParsers.length, DateTimeParser[].class),
+            Arrays.copyOf(parsers, parsers.length, DateTimeParser[].class),
+            true
+        );
+    }
+
+    private JavaDateFormatter(
+        String format,
+        DateTimePrinter printer,
+        DateTimeParser[] roundupParsers,
+        DateTimeParser[] parsers,
+        boolean doValidate
+    ) {
+        if (doValidate) {
+            if (format.contains("||")) {
+                throw new IllegalArgumentException("This class cannot handle multiple format specifiers");
+            }
+            if (printer == null) {
+                throw new IllegalArgumentException("printer may not be null");
+            }
+            if (parsers.length == 0) {
+                throw new IllegalArgumentException("parsers need to be specified");
+            }
+            verifyPrinterParsers(printer, parsers);
+        }
         this.format = format;
         this.printer = printer;
         this.roundupParsers = roundupParsers;
@@ -247,7 +276,8 @@ class JavaDateFormatter implements DateFormatter {
             format,
             printerMapping.apply(printer),
             mapParsers(parserMapping, this.roundupParsers),
-            mapParsers(parserMapping, this.parsers)
+            mapParsers(parserMapping, this.parsers),
+            false
         );
     }
 

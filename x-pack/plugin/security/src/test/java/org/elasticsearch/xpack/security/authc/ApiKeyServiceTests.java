@@ -2367,6 +2367,50 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertNull(service.getApiKeyAuthCache().get(docId));
     }
 
+    public void testCanCreateApiKeyWithAuthCacheDisabled() {
+        final ApiKeyService service = createApiKeyService(
+            Settings.builder()
+                .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+                .put("xpack.security.authc.api_key.cache.ttl", "0s")
+                .build()
+        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(randomAlphaOfLengthBetween(8, 16), "superuser"))
+            .realmRef(new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)))
+            .build(false);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client));
+        when(client.prepareBulk()).thenReturn(new BulkRequestBuilder(client));
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            @SuppressWarnings("unchecked")
+            final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
+            final IndexResponse indexResponse = new IndexResponse(
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                createApiKeyRequest.getId(),
+                randomLongBetween(1, 99),
+                randomLongBetween(1, 99),
+                randomIntBetween(1, 99),
+                true
+            );
+            listener.onResponse(
+                new BulkResponse(
+                    new BulkItemResponse[] { BulkItemResponse.success(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse) },
+                    randomLongBetween(0, 100)
+                )
+            );
+            return null;
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(BulkRequest.class), any());
+
+        assertThat(service.getFromCache(createApiKeyRequest.getId()), is(nullValue()));
+        final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, Set.of(), listener);
+        final CreateApiKeyResponse createApiKeyResponse = listener.actionGet();
+        assertThat(createApiKeyResponse.getId(), equalTo(createApiKeyRequest.getId()));
+        assertThat(service.getFromCache(createApiKeyResponse.getId()), is(nullValue()));
+    }
+
     public void testGetCreatorRealm() {
         final User user = AuthenticationTests.randomUser();
 

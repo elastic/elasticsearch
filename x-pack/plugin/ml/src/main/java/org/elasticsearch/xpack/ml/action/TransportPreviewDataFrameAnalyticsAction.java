@@ -77,10 +77,10 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         this.clusterService = clusterService;
     }
 
-    private static Map<String, Object> mergeRow(DataFrameDataExtractor.Row row, List<String> fieldNames) {
-        return row.getValues() == null
+    private static Map<String, Object> mergeRow(String[] row, List<String> fieldNames) {
+        return row == null
             ? Collections.emptyMap()
-            : IntStream.range(0, row.getValues().length).boxed().collect(Collectors.toMap(fieldNames::get, i -> row.getValues()[i]));
+            : IntStream.range(0, row.length).boxed().collect(Collectors.toMap(fieldNames::get, i -> row[i]));
     }
 
     @Override
@@ -121,7 +121,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
             ).newExtractor(false);
             extractor.preview(delegate.delegateFailureAndWrap((l, rows) -> {
                 List<String> fieldNames = extractor.getFieldNames();
-                l.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
+                l.onResponse(new Response(rows.stream().map(r -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
             }));
         }));
     }

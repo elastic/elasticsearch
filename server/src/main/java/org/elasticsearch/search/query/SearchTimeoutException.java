@@ -33,4 +33,17 @@ public class SearchTimeoutException extends SearchException {
     public RestStatus status() {
         return RestStatus.GATEWAY_TIMEOUT;
     }
+
+    /**
+     * Propagate a timeout according to whether partial search results are allowed or not.
+     * In case partial results are allowed, a flag will be set to the provided {@link QuerySearchResult} to indicate that there was a
+     * timeout, but the execution will continue and partial results will be returned to the user.
+     * When partial results are disallowed, a {@link SearchTimeoutException} will be thrown and returned to the user.
+     */
+    public static void handleTimeout(boolean allowPartialSearchResults, SearchShardTarget target, QuerySearchResult querySearchResult) {
+        if (allowPartialSearchResults == false) {
+            throw new SearchTimeoutException(target, "Time exceeded");
+        }
+        querySearchResult.searchTimedOut(true);
+    }
 }

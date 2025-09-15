@@ -362,7 +362,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private void checkForPositions() {
             if (getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+                throw new IllegalArgumentException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
 

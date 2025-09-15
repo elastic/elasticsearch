@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,10 +54,10 @@ class PushDownUtils {
     public static <Plan extends UnaryPlan & GeneratingPlan<Plan>> LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(Plan generatingPlan) {
         LogicalPlan child = generatingPlan.child();
         if (child instanceof OrderBy orderBy) {
-            Set<String> evalFieldNames = new LinkedHashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
+            Set<String> generatedFieldNames = new HashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
 
             // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(generatedFieldNames, orderBy.order());
 
             AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
             @SuppressWarnings("unchecked")
@@ -91,8 +90,7 @@ class PushDownUtils {
 
             List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
 
-            @SuppressWarnings("unchecked")
-            Plan generatingPlanWithResolvedExpressions = (Plan) resolveRenamesFromProject(generatingPlan, project);
+            Plan generatingPlanWithResolvedExpressions = resolveRenamesFromProject(generatingPlan, project);
 
             Set<String> namesReferencedInRenames = new HashSet<>();
             for (NamedExpression ne : project.projections()) {
@@ -149,14 +147,14 @@ class PushDownUtils {
         Set<String> attributeNamesToRename,
         List<? extends Expression> expressions
     ) {
-        AttributeMap<Alias> aliasesForReplacedAttributes = new AttributeMap<>();
+        AttributeMap.Builder<Alias> aliasesForReplacedAttributesBuilder = AttributeMap.builder();
         List<Expression> rewrittenExpressions = new ArrayList<>();
 
         for (Expression expr : expressions) {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
-                    Alias renamedAttribute = aliasesForReplacedAttributes.computeIfAbsent(attr, a -> {
-                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
+                    Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
+                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
                         return new Alias(a.source(), tempName, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
@@ -166,7 +164,7 @@ class PushDownUtils {
             }));
         }
 
-        return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributes);
+        return new AttributeReplacement(rewrittenExpressions, aliasesForReplacedAttributesBuilder.build());
     }
 
     private static Map<String, String> newNamesForConflictingAttributes(
@@ -181,7 +179,7 @@ class PushDownUtils {
         for (Attribute attr : potentiallyConflictingAttributes) {
             String name = attr.name();
             if (reservedNames.contains(name)) {
-                renameAttributeTo.putIfAbsent(name, TemporaryNameUtils.locallyUniqueTemporaryName(name, "temp_name"));
+                renameAttributeTo.putIfAbsent(name, TemporaryNameUtils.locallyUniqueTemporaryName(name));
             }
         }
 
@@ -198,12 +196,17 @@ class PushDownUtils {
         }
     }
 
-    private static UnaryPlan resolveRenamesFromProject(UnaryPlan plan, Project project) {
+    private static <P extends LogicalPlan> P resolveRenamesFromProject(P plan, Project project) {
         AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
         project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
         var aliases = aliasBuilder.build();
 
-        return (UnaryPlan) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> aliases.resolve(r, r));
+        return resolveRenamesFromMap(plan, aliases);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <P extends LogicalPlan> P resolveRenamesFromMap(P plan, AttributeMap<Expression> map) {
+        return (P) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> map.resolve(r, r));
     }
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}

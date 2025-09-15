@@ -22,6 +22,7 @@ module org.elasticsearch.transform {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
+    requires org.elasticsearch.plugin;
 
     exports org.elasticsearch.xpack.transform;
     exports org.elasticsearch.xpack.transform.action;

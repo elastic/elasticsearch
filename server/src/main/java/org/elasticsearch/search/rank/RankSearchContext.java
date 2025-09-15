@@ -12,8 +12,8 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -41,6 +41,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -48,6 +49,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.util.List;
 
@@ -211,12 +213,12 @@ public class RankSearchContext extends SearchContext {
     /* ---- ALL METHODS ARE UNSUPPORTED BEYOND HERE ---- */
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         throw new UnsupportedOperationException();
     }
 
@@ -525,7 +527,7 @@ public class RankSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader() {
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
         throw new UnsupportedOperationException();
     }
 

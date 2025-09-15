@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -14,21 +15,27 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromLongEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator lng;
+
+  public ToStringFromLongEvaluator(Source source, EvalOperator.ExpressionEvaluator lng,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.lng = lng;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromLong";
+  public EvalOperator.ExpressionEvaluator next() {
+    return lng;
   }
 
   @Override
@@ -46,7 +53,7 @@ public final class ToStringFromLongEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static BytesRef evalValue(LongVector container, int index) {
+  private BytesRef evalValue(LongVector container, int index) {
     long value = container.getLong(index);
     return ToString.fromDouble(value);
   }
@@ -81,29 +88,46 @@ public final class ToStringFromLongEvaluator extends AbstractConvertFunction.Abs
     }
   }
 
-  private static BytesRef evalValue(LongBlock container, int index) {
+  private BytesRef evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToString.fromDouble(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromLongEvaluator[" + "lng=" + lng + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(lng);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += lng.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory lng;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lng) {
       this.source = source;
+      this.lng = lng;
     }
 
     @Override
     public ToStringFromLongEvaluator get(DriverContext context) {
-      return new ToStringFromLongEvaluator(field.get(context), source, context);
+      return new ToStringFromLongEvaluator(source, lng.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromLongEvaluator[field=" + field + "]";
+      return "ToStringFromLongEvaluator[" + "lng=" + lng + "]";
     }
   }
 }

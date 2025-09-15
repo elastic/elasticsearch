@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
-import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -24,9 +23,20 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         remoteGitRepo = new File(setupGitRemote(), '.git')
-        "git clone ${remoteGitRepo.absolutePath} cloned".execute(Collections.emptyList(), testProjectDir.root).waitFor()
+        execute("git clone ${remoteGitRepo.absolutePath} cloned", testProjectDir.root)
         buildFile = new File(testProjectDir.root, 'cloned/build.gradle')
         settingsFile = new File(testProjectDir.root, 'cloned/settings.gradle')
+        versionPropertiesFile = new File(testProjectDir.root, 'cloned/build-tools-internal/version.properties')
+        versionPropertiesFile.text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
     }
 
     File setupGitRemote() {

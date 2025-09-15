@@ -30,7 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -38,8 +38,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
-
-    static final long MAX_REPEATED_LENGTH = MB.toBytes(1);
 
     private final Expression str;
     private final Expression number;
@@ -101,7 +99,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     @Evaluator(extraName = "Constant", warnExceptions = { IllegalArgumentException.class })
     static BytesRef processConstantNumber(
-        @Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
         BytesRef str,
         @Fixed int number
     ) {
@@ -109,7 +107,11 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static BytesRef process(@Fixed(includeInToString = false, build = true) BreakingBytesRefBuilder scratch, BytesRef str, int number) {
+    static BytesRef process(
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch,
+        BytesRef str,
+        int number
+    ) {
         if (number < 0) {
             throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
         }
@@ -118,9 +120,9 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     static BytesRef processInner(BreakingBytesRefBuilder scratch, BytesRef str, int number) {
         int repeatedLen = str.length * number;
-        if (repeatedLen > MAX_REPEATED_LENGTH) {
+        if (repeatedLen > MAX_BYTES_REF_RESULT_SIZE) {
             throw new IllegalArgumentException(
-                "Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported"
+                "Creating repeated strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
             );
         }
         scratch.grow(repeatedLen);
@@ -146,7 +148,7 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
 
         if (number.foldable()) {
-            int num = (int) number.fold();
+            int num = (int) number.fold(toEvaluator.foldCtx());
             if (num < 0) {
                 throw new IllegalArgumentException("Number parameter cannot be negative, found [" + number + "]");
             }

@@ -43,6 +43,7 @@ import org.elasticsearch.join.query.HasParentQueryBuilder;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -580,13 +581,14 @@ public class CCSDuelIT extends ESRestTestCase {
 
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
-        // set to a value greater than the number of shards to avoid differences due to the skipping of shards
+        // setting aggs to avoid differences due to the skipping of shards when matching none
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
         sourceBuilder.sort("type.keyword", SortOrder.ASC);
         sourceBuilder.sort("creationDate", SortOrder.DESC);
         sourceBuilder.sort("user.keyword", SortOrder.ASC);
+        sourceBuilder.aggregation(AggregationBuilders.max("max").field("creationDate"));
         CheckedConsumer<ObjectPath, IOException> responseChecker = response -> {
             assertHits(response);
             int size = response.evaluateArraySize("hits.hits");
@@ -1331,6 +1333,7 @@ public class CCSDuelIT extends ESRestTestCase {
         Map<String, Object> responseMap = XContentHelper.convertToMap(bytesReference, false, XContentType.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
+        responseMap.remove("terminated_early");
         Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
             List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");

@@ -16,22 +16,14 @@ apply plugin: 'elasticsearch.deploy-test-fixtures'
 dockerFixtures {
   krb5dc {
     dockerContext = projectDir
-    version = "1.0"
-    baseImages = ["ubuntu:14.04"]
+    version = "1.1"
+    baseImages = ["alpine:3.21.0"]
   }
 }
 
 configurations {
   all {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
-  }
-  krb5ConfHdfsFile {
-    canBeConsumed = true
-    canBeResolved = false
-  }
-  krb5KeytabsHdfsDir {
-    canBeConsumed = true
-    canBeResolved = false
   }
 }
 

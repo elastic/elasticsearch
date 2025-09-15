@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -24,10 +23,9 @@ import org.elasticsearch.tasks.TaskId;
 import java.io.IOException;
 import java.util.Map;
 
-@UpdateForV9 // make this class a regular ActionRequest rather than a MasterNodeReadRequest
 public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> implements AliasesRequest {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHidden();
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHiddenNoSelectors();
 
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
@@ -49,7 +47,6 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
      * longer need to support calling this action remotely. Once we remove this we can also make this class a regular ActionRequest instead
      * of a MasterNodeReadRequest.
      */
-    @UpdateForV9 // remove this constructor
     public GetAliasesRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();

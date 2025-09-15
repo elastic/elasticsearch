@@ -13,6 +13,7 @@ apply plugin: 'elasticsearch.rest-resources'
 dependencies {
   javaRestTestImplementation testArtifact(project(xpackModule('snapshot-repo-test-kit')))
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
 }
 
 restResources {

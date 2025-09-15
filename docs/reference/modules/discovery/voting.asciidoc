@@ -2,7 +2,7 @@
 === Voting configurations
 
 Each {es} cluster has a _voting configuration_, which is the set of
-<<master-node,master-eligible nodes>> whose responses are counted when making
+<<master-node-role,master-eligible nodes>> whose responses are counted when making
 decisions such as electing a new master or committing a new cluster state.
 Decisions are made only after a majority (more than half) of the nodes in the
 voting configuration respond.
@@ -63,8 +63,7 @@ departed nodes from the voting configuration manually. Use the
 of resilience.
 
 No matter how it is configured, Elasticsearch will not suffer from a 
-"{wikipedia}/Split-brain_(computing)[split-brain]" inconsistency. 
-The `cluster.auto_shrink_voting_configuration`
+"split-brain" inconsistency. The `cluster.auto_shrink_voting_configuration`
 setting affects only its availability in the event of the failure of some of its
 nodes and the administrative tasks that must be performed as nodes join and
 leave the cluster.

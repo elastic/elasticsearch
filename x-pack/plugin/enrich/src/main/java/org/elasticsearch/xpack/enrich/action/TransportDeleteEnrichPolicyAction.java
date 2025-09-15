@@ -45,6 +45,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteEnrichPolicyAction.Request> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final EnrichPolicyLocks enrichPolicyLocks;
     private final IngestService ingestService;
     private final Client client;
@@ -70,9 +71,9 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             DeleteEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.enrichPolicyLocks = enrichPolicyLocks;
         this.ingestService = ingestService;

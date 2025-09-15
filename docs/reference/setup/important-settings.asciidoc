@@ -19,10 +19,20 @@ of items which *must* be considered before using your cluster in production:
 Our {ess-trial}[{ecloud}] service configures these items automatically, making
 your cluster production-ready by default.
 
+[[path-settings]]
+[discrete]
+==== Path settings
+
 include::important-settings/path-settings.asciidoc[]
+
+Elasticsearch offers a deprecated setting that allows you to specify multiple paths in `path.data`. 
+To learn about this setting, and how to migrate away from it, refer to <<multiple-data-paths>>.
 
 include::important-settings/cluster-name.asciidoc[]
 
+[[node-name]]
+[discrete]
+==== Node name setting
 include::important-settings/node-name.asciidoc[]
 
 include::important-settings/network-host.asciidoc[]
@@ -31,6 +41,7 @@ include::important-settings/discovery-settings.asciidoc[]
 
 include::important-settings/heap-size.asciidoc[]
 
+[[heap-dump-path]]
 include::important-settings/heap-dump-path.asciidoc[]
 
 include::important-settings/gc-logging.asciidoc[]

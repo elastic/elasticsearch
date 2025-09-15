@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -227,7 +229,7 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            if (Boolean.TRUE.equals(condition.condition.fold())) {
+            if (Boolean.TRUE.equals(condition.condition.fold(FoldContext.small() /* TODO remove me - use literal true?*/))) {
                 /*
                  * `fold` can make four things here:
                  * 1. `TRUE`
@@ -264,7 +266,8 @@ public final class Case extends EsqlScalarFunction {
      * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
      * {@code EVAL c=CASE(b, bar, bort)}.
      */
-    public Expression partiallyFold() {
+    public Expression partiallyFold(FoldContext ctx) {
+        // TODO don't throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
         List<Expression> newChildren = new ArrayList<>(children().size());
         boolean modified = false;
         for (Condition condition : conditions) {
@@ -274,7 +277,7 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            if (Boolean.TRUE.equals(condition.condition.fold())) {
+            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
                 /*
                  * `fold` can make four things here:
                  * 1. `TRUE`
@@ -362,6 +365,9 @@ public final class Case extends EsqlScalarFunction {
         EvalOperator.ExpressionEvaluator condition,
         EvalOperator.ExpressionEvaluator value
     ) implements Releasable {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, value);
@@ -374,6 +380,10 @@ public final class Case extends EsqlScalarFunction {
 
         public void registerMultivalue() {
             conditionWarnings.registerException(new IllegalArgumentException("CASE expects a single-valued boolean"));
+        }
+
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + condition.baseRamBytesUsed() + value.baseRamBytesUsed();
         }
     }
 
@@ -412,6 +422,9 @@ public final class Case extends EsqlScalarFunction {
         List<ConditionEvaluator> conditions,
         EvalOperator.ExpressionEvaluator elseVal
     ) implements EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             /*
@@ -460,6 +473,16 @@ public final class Case extends EsqlScalarFunction {
         }
 
         @Override
+        public long baseRamBytesUsed() {
+            long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+            for (ConditionEvaluator condition : conditions) {
+                baseRamBytesUsed += condition.baseRamBytesUsed();
+            }
+            baseRamBytesUsed += elseVal.baseRamBytesUsed();
+            return baseRamBytesUsed;
+        }
+
+        @Override
         public void close() {
             Releasables.closeExpectNoException(() -> Releasables.close(conditions), elseVal);
         }
@@ -502,6 +525,9 @@ public final class Case extends EsqlScalarFunction {
         ConditionEvaluator condition,
         EvalOperator.ExpressionEvaluator elseVal
     ) implements EvalOperator.ExpressionEvaluator {
+
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(CaseLazyEvaluator.class);
+
         @Override
         public Block eval(Page page) {
             try (BooleanBlock lhsOrRhsBlock = (BooleanBlock) condition.condition.eval(page); ToMask lhsOrRhs = lhsOrRhsBlock.toMask()) {
@@ -522,6 +548,9 @@ public final class Case extends EsqlScalarFunction {
                 ) {
                     for (int p = 0; p < lhs.getPositionCount(); p++) {
                         if (lhsOrRhs.mask().getBoolean(p)) {
+                            // TODO Copy the per-type specialization that COALESCE has.
+                            // There's also a slowdown because copying from a block checks to see if there are any nulls and that's slow.
+                            // Vectors do not, so this still shows as fairly fast. But not as fast as the per-type unrolling.
                             builder.copyFrom(lhs, p, p + 1);
                         } else {
                             builder.copyFrom(rhs, p, p + 1);
@@ -535,6 +564,11 @@ public final class Case extends EsqlScalarFunction {
         @Override
         public void close() {
             Releasables.closeExpectNoException(condition, elseVal);
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + condition.baseRamBytesUsed() + elseVal.baseRamBytesUsed();
         }
 
         @Override

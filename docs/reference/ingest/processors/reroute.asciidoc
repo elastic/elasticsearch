@@ -45,6 +45,9 @@ Otherwise, the document will be rejected with a security exception which looks l
 |======
 | Name          | Required  | Default                      | Description
 | `destination` | no        | -                            | A static value for the target. Can't be set when the `dataset` or `namespace` option is set.
+| `type`        | no        | `{{data_stream.type}}`   a| Field references or a static value for the type part of the data stream name. In addition to the criteria for <<indices-create-api-path-params, index names>>, cannot contain `-` and must be no longer than 100 characters. Example values are `logs` and `metrics`.
+
+Supports field references with a mustache-like syntax (denoted as `{{double}}` or `{{{triple}}}` curly braces). When resolving field references, the processor replaces invalid characters with `_`. Uses the `<type>` part of the index name as a fallback if all field references resolve to a `null`, missing, or non-string value.
 | `dataset`     | no        | `{{data_stream.dataset}}`   a| Field references or a static value for the dataset part of the data stream name. In addition to the criteria for <<indices-create-api-path-params, index names>>, cannot contain `-` and must be no longer than 100 characters. Example values are `nginx.access` and `nginx.error`.
 
 Supports field references with a mustache-like syntax (denoted as `{{double}}` or `{{{triple}}}` curly braces). When resolving field references, the processor replaces invalid characters with `_`. Uses the `<dataset>` part of the index name as a fallback if all field references resolve to a `null`, missing, or non-string value.

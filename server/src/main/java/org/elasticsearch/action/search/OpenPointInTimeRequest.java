@@ -10,9 +10,9 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class OpenPointInTimeRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -63,7 +63,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.allowPartialSearchResults = in.readBoolean();
         }
     }
@@ -82,7 +82,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeBoolean(allowPartialSearchResults);
         } else if (allowPartialSearchResults) {
             throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());

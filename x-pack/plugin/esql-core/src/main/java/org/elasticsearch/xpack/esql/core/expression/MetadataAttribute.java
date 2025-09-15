@@ -29,8 +29,10 @@ import java.util.Objects;
 import static org.elasticsearch.core.Tuple.tuple;
 
 public class MetadataAttribute extends TypedAttribute {
-    public static final String TIMESTAMP_FIELD = "@timestamp";
+    public static final String TIMESTAMP_FIELD = "@timestamp"; // this is not a true metadata attribute
     public static final String TSID_FIELD = "_tsid";
+    public static final String SCORE = "_score";
+    public static final String INDEX = "_index";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -41,7 +43,7 @@ public class MetadataAttribute extends TypedAttribute {
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
         tuple(DataType.LONG, false), // _version field is not searchable
-        "_index",
+        INDEX,
         tuple(DataType.KEYWORD, true),
         IdFieldMapper.NAME,
         tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
@@ -50,7 +52,9 @@ public class MetadataAttribute extends TypedAttribute {
         SourceFieldMapper.NAME,
         tuple(DataType.SOURCE, false),
         IndexModeFieldMapper.NAME,
-        tuple(DataType.KEYWORD, true)
+        tuple(DataType.KEYWORD, true),
+        SCORE,
+        tuple(DataType.DOUBLE, false)
     );
 
     private final boolean searchable;
@@ -168,17 +172,19 @@ public class MetadataAttribute extends TypedAttribute {
         return ATTRIBUTES_MAP.containsKey(name);
     }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (false == super.equals(obj)) {
-            return false;
-        }
-        MetadataAttribute other = (MetadataAttribute) obj;
-        return searchable == other.searchable;
+    public static boolean isScoreAttribute(Expression a) {
+        return a instanceof MetadataAttribute ma && ma.name().equals(SCORE);
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), searchable);
+    }
+
+    @Override
+    protected boolean innerEquals(Object o) {
+        var other = (MetadataAttribute) o;
+        return super.innerEquals(other) && searchable == other.searchable;
     }
 }

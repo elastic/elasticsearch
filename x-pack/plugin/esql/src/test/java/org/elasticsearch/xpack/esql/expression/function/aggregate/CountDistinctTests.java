@@ -92,7 +92,6 @@ public class CountDistinctTests extends AbstractAggregationTestCase {
         }
 
         // "No rows" expects 0 here instead of null
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 

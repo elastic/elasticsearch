@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,43 +29,43 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         LookupJoinExec::new
     );
 
-    private final List<Attribute> matchFields;
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;
-    private final List<Attribute> output;
-    private List<Attribute> lazyAddedFields;
+    /**
+     * These cannot be computed from the left + right outputs, because
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes} will replace the {@link EsSourceExec} on
+     * the right hand side by a {@link EsQueryExec}, and thus lose the information of which fields we'll get from the lookup index.
+     */
+    private final List<Attribute> addedFields;
+    private List<Attribute> lazyOutput;
 
     public LookupJoinExec(
         Source source,
         PhysicalPlan left,
         PhysicalPlan lookup,
-        List<Attribute> matchFields,
         List<Attribute> leftFields,
         List<Attribute> rightFields,
-        List<Attribute> output
+        List<Attribute> addedFields
     ) {
         super(source, left, lookup);
-        this.matchFields = matchFields;
         this.leftFields = leftFields;
         this.rightFields = rightFields;
-        this.output = output;
+        this.addedFields = addedFields;
     }
 
     private LookupJoinExec(StreamInput in) throws IOException {
         super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(PhysicalPlan.class), in.readNamedWriteable(PhysicalPlan.class));
-        this.matchFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
+        this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeNamedWriteableCollection(matchFields);
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
-        out.writeNamedWriteableCollection(output);
+        out.writeNamedWriteableCollection(addedFields);
     }
 
     @Override
@@ -78,10 +77,6 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         return right();
     }
 
-    public List<Attribute> matchFields() {
-        return matchFields;
-    }
-
     public List<Attribute> leftFields() {
         return leftFields;
     }
@@ -91,27 +86,24 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     }
 
     public List<Attribute> addedFields() {
-        if (lazyAddedFields == null) {
-            AttributeSet set = outputSet();
-            set.removeAll(left().output());
-            for (Attribute m : matchFields) {
-                set.removeIf(a -> a.name().equals(m.name()));
-            }
-            lazyAddedFields = new ArrayList<>(set);
-            lazyAddedFields.sort(Comparator.comparing(Attribute::name));
-        }
-        return lazyAddedFields;
-    }
-
-    @Override
-    public PhysicalPlan estimateRowSize(State state) {
-        state.add(false, output);
-        return this;
+        return addedFields;
     }
 
     @Override
     public List<Attribute> output() {
-        return output;
+        if (lazyOutput == null) {
+            lazyOutput = new ArrayList<>(left().output());
+            var addedFieldsNames = addedFields.stream().map(Attribute::name).toList();
+            lazyOutput.removeIf(a -> addedFieldsNames.contains(a.name()));
+            lazyOutput.addAll(addedFields);
+        }
+        return lazyOutput;
+    }
+
+    @Override
+    public PhysicalPlan estimateRowSize(State state) {
+        state.add(false, addedFields);
+        return this;
     }
 
     @Override
@@ -128,13 +120,28 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
     }
 
     @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(leftFields);
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        // TODO: currently it's hard coded that we add all fields from the lookup index. But the output we "officially" get from the right
+        // hand side is inconsistent:
+        // - After logical optimization, there's a FragmentExec with an EsRelation on the right hand side with all the fields.
+        // - After local physical optimization, there's just an EsQueryExec here, with no fields other than _doc mentioned and we don't
+        // insert field extractions in the plan, either.
+        return AttributeSet.EMPTY;
+    }
+
+    @Override
     public LookupJoinExec replaceChildren(PhysicalPlan left, PhysicalPlan right) {
-        return new LookupJoinExec(source(), left, right, matchFields, leftFields, rightFields, output);
+        return new LookupJoinExec(source(), left, right, leftFields, rightFields, addedFields);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, LookupJoinExec::new, left(), right(), matchFields, leftFields, rightFields, output);
+        return NodeInfo.create(this, LookupJoinExec::new, left(), right(), leftFields, rightFields, addedFields);
     }
 
     @Override
@@ -148,15 +155,12 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         if (super.equals(o) == false) {
             return false;
         }
-        LookupJoinExec hash = (LookupJoinExec) o;
-        return matchFields.equals(hash.matchFields)
-            && leftFields.equals(hash.leftFields)
-            && rightFields.equals(hash.rightFields)
-            && output.equals(hash.output);
+        LookupJoinExec other = (LookupJoinExec) o;
+        return leftFields.equals(other.leftFields) && rightFields.equals(other.rightFields) && addedFields.equals(other.addedFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), matchFields, leftFields, rightFields, output);
+        return Objects.hash(super.hashCode(), leftFields, rightFields, addedFields);
     }
 }

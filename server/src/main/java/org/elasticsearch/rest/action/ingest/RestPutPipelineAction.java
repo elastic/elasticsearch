@@ -9,9 +9,10 @@
 
 package org.elasticsearch.rest.action.ingest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -55,10 +56,13 @@ public class RestPutPipelineAction extends BaseRestHandler {
             }
         }
 
-        Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
-        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1(), ifVersion);
+        Tuple<XContentType, ReleasableBytesReference> sourceTuple = restRequest.contentOrSourceParam();
+        var content = sourceTuple.v2();
+        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), content, sourceTuple.v1(), ifVersion);
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         request.ackTimeout(getAckTimeout(restRequest));
-        return channel -> client.admin().cluster().putPipeline(request, new RestToXContentListener<>(channel));
+        return channel -> client.admin()
+            .cluster()
+            .putPipeline(request, ActionListener.withRef(new RestToXContentListener<>(channel), content));
     }
 }

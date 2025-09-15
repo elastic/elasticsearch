@@ -264,7 +264,6 @@ public class TopNOperator implements Operator, Accountable {
 
     private final BlockFactory blockFactory;
     private final CircuitBreaker breaker;
-    private final Queue inputQueue;
 
     private final int maxPageSize;
 
@@ -272,11 +271,32 @@ public class TopNOperator implements Operator, Accountable {
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
 
+    private Queue inputQueue;
     private Row spare;
     private int spareValuesPreAllocSize = 0;
     private int spareKeysPreAllocSize = 0;
 
     private Iterator<Page> output;
+
+    /**
+     * Count of pages that have been received by this operator.
+     */
+    private int pagesReceived;
+
+    /**
+     * Count of pages that have been emitted by this operator.
+     */
+    private int pagesEmitted;
+
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
 
     public TopNOperator(
         BlockFactory blockFactory,
@@ -293,7 +313,7 @@ public class TopNOperator implements Operator, Accountable {
         this.elementTypes = elementTypes;
         this.encoders = encoders;
         this.sortOrders = sortOrders;
-        this.inputQueue = new Queue(topCount);
+        this.inputQueue = Queue.build(breaker, topCount);
     }
 
     static int compareRows(Row r1, Row r2) {
@@ -368,7 +388,9 @@ public class TopNOperator implements Operator, Accountable {
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {
-            Releasables.close(() -> page.releaseBlocks());
+            page.releaseBlocks();
+            pagesReceived++;
+            rowsReceived += page.getPositionCount();
         }
     }
 
@@ -397,6 +419,8 @@ public class TopNOperator implements Operator, Accountable {
                 list.add(inputQueue.pop());
             }
             Collections.reverse(list);
+            inputQueue.close();
+            inputQueue = null;
 
             int p = 0;
             int size = 0;
@@ -491,27 +515,38 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Page getOutput() {
-        if (output != null && output.hasNext()) {
-            return output.next();
+        if (output == null || output.hasNext() == false) {
+            return null;
         }
-        return null;
+        Page ret = output.next();
+        pagesEmitted++;
+        rowsEmitted += ret.getPositionCount();
+        return ret;
     }
 
     @Override
     public void close() {
-        /*
-         * If we close before calling finish then spare and inputQueue will be live rows
-         * that need closing. If we close after calling finish then the output iterator
-         * will contain pages of results that have yet to be returned.
-         */
         Releasables.closeExpectNoException(
+            /*
+             * The spare is used during most collections. It's cleared when this Operator
+             * is finish()ed. So it could be null here.
+             */
             spare,
-            inputQueue == null ? null : Releasables.wrap(inputQueue),
+            /*
+             * The inputQueue is a min heap of all live rows. Closing it will close all
+             * the rows it contains and all decrement the breaker for the size of
+             * the heap itself.
+             */
+            inputQueue,
+            /*
+             * If we're in the process of outputting pages then output will contain all
+             * allocated but un-emitted pages.
+             */
             output == null ? null : Releasables.wrap(() -> Iterators.map(output, p -> p::releaseBlocks))
         );
     }
 
-    private static long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
         .shallowSizeOfInstance(List.class) * 3;
 
     @Override
@@ -525,13 +560,22 @@ public class TopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
-        size += inputQueue.ramBytesUsed();
+        if (inputQueue != null) {
+            size += inputQueue.ramBytesUsed();
+        }
         return size;
     }
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed());
+        return new TopNOperatorStatus(
+            inputQueue != null ? inputQueue.size() : 0,
+            ramBytesUsed(),
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted
+        );
     }
 
     @Override
@@ -547,17 +591,23 @@ public class TopNOperator implements Operator, Accountable {
             + "]";
     }
 
-    CircuitBreaker breaker() {
-        return breaker;
-    }
-
-    private static class Queue extends PriorityQueue<Row> implements Accountable {
+    private static class Queue extends PriorityQueue<Row> implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Queue.class);
-        private final int maxSize;
+        private final CircuitBreaker breaker;
+        private final int topCount;
 
-        Queue(int maxSize) {
-            super(maxSize);
-            this.maxSize = maxSize;
+        /**
+         * Track memory usage in the breaker then build the {@link Queue}.
+         */
+        static Queue build(CircuitBreaker breaker, int topCount) {
+            breaker.addEstimateBytesAndMaybeBreak(Queue.sizeOf(topCount), "esql engine topn");
+            return new Queue(breaker, topCount);
+        }
+
+        private Queue(CircuitBreaker breaker, int topCount) {
+            super(topCount);
+            this.breaker = breaker;
+            this.topCount = topCount;
         }
 
         @Override
@@ -567,18 +617,31 @@ public class TopNOperator implements Operator, Accountable {
 
         @Override
         public String toString() {
-            return size() + "/" + maxSize;
+            return size() + "/" + topCount;
         }
 
         @Override
         public long ramBytesUsed() {
             long total = SHALLOW_SIZE;
             total += RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * (maxSize + 1)
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
             );
             for (Row r : this) {
                 total += r == null ? 0 : r.ramBytesUsed();
             }
+            return total;
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(Releasables.wrap(this), () -> breaker.addWithoutBreaking(-Queue.sizeOf(topCount)));
+        }
+
+        public static long sizeOf(int topCount) {
+            long total = SHALLOW_SIZE;
+            total += RamUsageEstimator.alignObjectSize(
+                RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
+            );
             return total;
         }
     }

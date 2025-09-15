@@ -5,10 +5,23 @@
 <titleabbrev>Update Watcher settings</titleabbrev>
 ++++
 
-This API allows a user to modify the settings for the Watcher internal index (`.watches`). Only a subset of settings are allowed to by modified. This includes:
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
+This API allows a user to modify the settings for the Watcher internal index (`.watches`). Only a subset of settings
+are allowed to be modified. This includes:
 
 - `index.auto_expand_replicas`
 - `index.number_of_replicas`
+- Any setting with the prefix `index.routing.allocation.exclude.`
+- Any setting with the prefix `index.routing.allocation.include.`
+- Any setting with the prefix `index.routing.allocation.require.`
+
+Modification of `index.routing.allocation.include._tier_preference` is an exception and is not allowed as the Watcher
+shards must always be in the `data_content` tier.
 
 An example of modifying the Watcher settings:
 

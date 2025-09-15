@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Make sures that we can run many concurrent requests with large number of shards with any data_partitioning.
@@ -69,6 +72,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
             .build();
     }
@@ -90,11 +94,11 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 .setMapping("user", "type=keyword", "tags", "type=keyword")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            int numDocs = between(5, 10);
+            int numDocs = between(10, 25); // every shard has at least 1 doc
             for (int d = 0; d < numDocs; d++) {
                 String user = randomFrom("u1", "u2", "u3");
                 String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                bulk.add(client().prepareIndex().setSource(Map.of("user", user, "tags", tag)));
             }
             bulk.get();
         }
@@ -106,26 +110,27 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         for (int q = 0; q < numQueries; q++) {
             threads[q] = new Thread(() -> {
-                try {
-                    assertTrue(latch.await(1, TimeUnit.MINUTES));
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(latch);
                 final var pragmas = Settings.builder();
                 if (randomBoolean() && canUseQueryPragmas()) {
                     pragmas.put(randomPragmas().getSettings())
                         .put("task_concurrency", between(1, 2))
                         .put("exchange_concurrent_clients", between(1, 2));
                 }
-                run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build())).close();
-            });
+                try (var response = run("from test-* | stats count(user) by tags", new QueryPragmas(pragmas.build()))) {
+                    // do nothing
+                } catch (Exception | AssertionError e) {
+                    logger.warn("Query failed with exception", e);
+                    throw e;
+                }
+            }, "testConcurrentQueries-" + q);
         }
         for (Thread thread : threads) {
             thread.start();
         }
         latch.countDown();
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(10_000);
         }
     }
 
@@ -254,6 +259,44 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 mockSearchService.setOnPutContext(r -> {});
                 mockSearchService.setOnRemoveContext(r -> {});
             }
+        }
+    }
+
+    public void testCancelUnnecessaryRequests() {
+        assumeTrue("Requires pragmas", canUseQueryPragmas());
+        internalCluster().ensureAtLeastNumDataNodes(3);
+
+        var coordinatingNode = internalCluster().getNodeNames()[0];
+
+        var exchanges = new AtomicInteger(0);
+        var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
+        coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
+                exchanges.incrementAndGet();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        var query = EsqlQueryRequest.syncEsqlQueryRequest();
+        query.query("from test-* | LIMIT 1");
+        query.pragmas(new QueryPragmas(Settings.builder().put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1).build()));
+
+        try (var result = safeGet(client().execute(EsqlQueryAction.INSTANCE, query))) {
+            assertThat(Iterables.size(result.rows()), equalTo(1L));
+            assertThat(exchanges.get(), lessThanOrEqualTo(1));// 0 if result is populated from coordinating node
+        } catch (AssertionError e) {
+            client().admin().indices().stats(new IndicesStatsRequest()).actionGet().asMap().forEach((shard, stats) -> {
+                logger.info(
+                    "Shard {} node {} status {} docs {}",
+                    shard.shardId(),
+                    shard.currentNodeId(),
+                    shard.state(),
+                    stats.getStats().getDocs().getCount()
+                );
+            });
+        } finally {
+            coordinatorNodeTransport.clearAllRules();
         }
     }
 }

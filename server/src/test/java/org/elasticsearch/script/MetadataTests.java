@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class MetadataTests extends ESTestCase {
     Metadata md;
     private static final Metadata.FieldProperty<String> STRING_PROP = new Metadata.FieldProperty<>(String.class, true, true, null);
@@ -278,5 +280,12 @@ public class MetadataTests extends ESTestCase {
         // Map.of and Map.copyOf are permissible (the former for code that should be fast, and the latter for e.g. tests)
         new Metadata(Map.of(), Map.of());
         new Metadata(Map.of(), Map.copyOf(new HashMap<>()));
+    }
+
+    public void testGetOrDefault() {
+        md = new Metadata(new HashMap<>(Map.of("foo", "bar")), Map.of("foo", STRING_PROP, "baz", STRING_PROP));
+        assertThat(md.getOrDefault("foo", "wat"), equalTo("bar"));
+        assertThat(md.getOrDefault("bar", "wat"), equalTo("wat"));
+        assertThat(md.getOrDefault("yo", "wat"), equalTo("wat"));
     }
 }

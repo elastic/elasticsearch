@@ -199,7 +199,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             snapshotsInfoService
         );
-        assertCriticalWarnings(
+        assertWarnings(
             "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
         );
         logger.info("Building initial routing table");

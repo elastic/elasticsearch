@@ -38,7 +38,9 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -663,6 +665,29 @@ public final class IndexSettings {
         return es87TSDBCodecEnabled;
     }
 
+    public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
+        "index.logsdb.route_on_sort_fields",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
+        "index.logsdb.add_host_name_field",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
+    public static final Setting<Boolean> LOGSDB_SORT_ON_HOST_NAME = Setting.boolSetting(
+        "index.logsdb.sort_on_host_name",
+        false,
+        Property.IndexScope,
+        Property.PrivateIndex,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -687,6 +712,67 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Final,
         Property.ServerlessPublic
+    );
+
+    public static final Setting<SourceFieldMapper.Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(
+        SourceFieldMapper.Mode.class,
+        settings -> {
+            final IndexMode indexMode = IndexSettings.MODE.get(settings);
+            return indexMode.defaultSourceMode().name();
+        },
+        "index.mapping.source.mode",
+        value -> {},
+        Setting.Property.Final,
+        Setting.Property.IndexScope
+    );
+
+    public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
+        "index.recovery.use_synthetic_source",
+        settings -> {
+            boolean useSyntheticRecoverySource = SETTING_INDEX_VERSION_CREATED.get(settings)
+                .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT);
+            return String.valueOf(
+                useSyntheticRecoverySource
+                    && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)
+            );
+        },
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Boolean value) {}
+
+            @Override
+            public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
+                if (enabled == false) {
+                    return;
+                }
+
+                // Verify if synthetic source is enabled on the index; fail if it is not
+                var indexMode = (IndexMode) settings.get(MODE);
+                if (indexMode.defaultSourceMode() != SourceFieldMapper.Mode.SYNTHETIC) {
+                    var sourceMode = (SourceFieldMapper.Mode) settings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
+                    if (sourceMode != SourceFieldMapper.Mode.SYNTHETIC) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "The setting [%s] is only permitted when [%s] is set to [%s]. Current mode: [%s].",
+                                RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(),
+                                INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                                SourceFieldMapper.Mode.SYNTHETIC.name(),
+                                sourceMode.name()
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> res = List.of(INDEX_MAPPER_SOURCE_MODE_SETTING, MODE);
+                return res.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
     );
 
     /**
@@ -726,23 +812,24 @@ public final class IndexSettings {
 
     public static final Setting<Integer> IGNORE_ABOVE_SETTING = Setting.intSetting(
         "index.mapping.ignore_above",
-        IndexSettings::getIgnoreAboveDefaultValue,
+        settings -> String.valueOf(getIgnoreAboveDefaultValue(settings)),
         0,
         Integer.MAX_VALUE,
         Property.IndexScope,
         Property.ServerlessPublic
     );
 
-    private static String getIgnoreAboveDefaultValue(final Settings settings) {
-        if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
-            && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_ABOVE_LOGSDB)) {
-            return "8191";
-        } else {
-            return String.valueOf(Integer.MAX_VALUE);
+    private static int getIgnoreAboveDefaultValue(final Settings settings) {
+        if (settings == null) {
+            return Mapper.IgnoreAbove.IGNORE_ABOVE_DEFAULT_VALUE;
         }
+        return Mapper.IgnoreAbove.getIgnoreAboveDefaultValue(
+            IndexSettings.MODE.get(settings),
+            IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings)
+        );
     }
 
-    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting");
+    public static final NodeFeature IGNORE_ABOVE_INDEX_LEVEL_SETTING = new NodeFeature("mapper.ignore_above_index_level_setting", true);
 
     private final Index index;
     private final IndexVersion version;
@@ -784,6 +871,9 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean logsdbRouteOnSortFields;
+    private final boolean logsdbSortOnHostName;
+    private final boolean logsdbAddHostNameField;
 
     private volatile long retentionLeaseMillis;
 
@@ -827,6 +917,7 @@ public final class IndexSettings {
     private volatile boolean skipIgnoredSourceRead;
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
+    private final boolean recoverySourceSyntheticEnabled;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -891,6 +982,20 @@ public final class IndexSettings {
      */
     public boolean isDefaultAllowUnmappedFields() {
         return defaultAllowUnmappedFields;
+    }
+
+    /**
+     * Returns <code>true</code> if routing on sort fields is enabled for LogsDB. The default is <code>false</code>
+     */
+    public boolean logsdbRouteOnSortFields() {
+        return logsdbRouteOnSortFields;
+    }
+
+    /**
+     * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
+     */
+    public boolean logsdbAddHostNameField() {
+        return logsdbAddHostNameField;
     }
 
     /**
@@ -985,10 +1090,32 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
+        logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
+        logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
-        indexMappingSourceMode = scopedSettings.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING);
+        indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
+        recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
+            && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        if (recoverySourceSyntheticEnabled) {
+            if (DiscoveryNode.isStateless(settings)) {
+                throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
+            }
+            // Verify that all nodes can handle this setting
+            if (version.before(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "The setting [%s] is unavailable on this cluster because some nodes are running older "
+                            + "versions that do not support it. Please upgrade all nodes to the latest version "
+                            + "and try again.",
+                        RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey()
+                    )
+                );
+            }
+        }
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1678,6 +1805,13 @@ public final class IndexSettings {
      */
     public boolean isRecoverySourceEnabled() {
         return recoverySourceEnabled;
+    }
+
+    /**
+     * @return Whether recovery source should always be bypassed in favor of using synthetic source.
+     */
+    public boolean isRecoverySourceSyntheticEnabled() {
+        return recoverySourceSyntheticEnabled;
     }
 
     /**

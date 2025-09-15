@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.script.ScriptContextStats.Fields.CACHE_EVICTIONS_HISTORY;
 import static org.elasticsearch.script.ScriptContextStats.Fields.COMPILATIONS_HISTORY;
 import static org.elasticsearch.script.ScriptStats.Fields.CACHE_EVICTIONS;
 import static org.elasticsearch.script.ScriptStats.Fields.COMPILATIONS;
@@ -199,7 +200,7 @@ public record ScriptStats(
                 ob.xContentObject(COMPILATIONS_HISTORY, compilationsHistory);
             }
             if (cacheEvictionsHistory != null && cacheEvictionsHistory.areTimingsEmpty() == false) {
-                ob.xContentObject(COMPILATIONS_HISTORY, cacheEvictionsHistory);
+                ob.xContentObject(CACHE_EVICTIONS_HISTORY, cacheEvictionsHistory);
             }
             ob.array(CONTEXTS, contextStats.iterator());
         });

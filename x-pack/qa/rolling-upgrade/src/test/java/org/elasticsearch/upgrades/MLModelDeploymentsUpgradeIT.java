@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -99,7 +98,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeployment() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
         var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
         // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
         assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
@@ -138,7 +136,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     public void testTrainedModelDeploymentStopOnMixedCluster() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
         var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
         // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
         assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);

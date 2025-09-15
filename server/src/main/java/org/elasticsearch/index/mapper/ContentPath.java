@@ -43,8 +43,10 @@ public final class ContentPath {
         path = newPath;
     }
 
-    public void remove() {
-        path[--index] = null;
+    public String remove() {
+        var ret = path[--index];
+        path[index] = null;
+        return ret;
     }
 
     public void setWithinLeafObject(boolean withinLeafObject) {

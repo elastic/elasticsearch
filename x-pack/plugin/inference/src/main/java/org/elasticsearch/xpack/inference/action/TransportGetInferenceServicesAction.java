@@ -21,9 +21,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportGetInferenceServicesAction extends HandledTransportAction<
@@ -72,7 +72,8 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
                 service -> service.getValue().hideFromConfigurationApi() == false
                     && service.getValue().supportedTaskTypes().contains(requestedTaskType)
             )
-            .collect(Collectors.toSet());
+            .sorted(Comparator.comparing(service -> service.getValue().name()))
+            .collect(Collectors.toCollection(ArrayList::new));
 
         getServiceConfigurationsForServices(filteredServices, listener.delegateFailureAndWrap((delegate, configurations) -> {
             delegate.onResponse(new GetInferenceServicesAction.Response(configurations));
@@ -84,14 +85,15 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
             .entrySet()
             .stream()
             .filter(service -> service.getValue().hideFromConfigurationApi() == false)
-            .collect(Collectors.toSet());
+            .sorted(Comparator.comparing(service -> service.getValue().name()))
+            .collect(Collectors.toCollection(ArrayList::new));
         getServiceConfigurationsForServices(availableServices, listener.delegateFailureAndWrap((delegate, configurations) -> {
             delegate.onResponse(new GetInferenceServicesAction.Response(configurations));
         }));
     }
 
     private void getServiceConfigurationsForServices(
-        Set<Map.Entry<String, InferenceService>> services,
+        ArrayList<Map.Entry<String, InferenceService>> services,
         ActionListener<List<InferenceServiceConfiguration>> listener
     ) {
         try {

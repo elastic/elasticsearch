@@ -10,6 +10,9 @@ package org.elasticsearch.compute.data;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -17,13 +20,18 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.data.BlockValueAsserter.assertBlockValues;
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 
 public class BlockBuilderCopyFromTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -81,7 +89,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
         BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         Block.Builder builder = elementType.newBlockBuilder(smallSize, blockFactory);
         builder.copyFrom(block, 0, smallSize);
-        assertBlockValues(builder.build(), BasicBlockTests.valuesAtPositions(block, 0, smallSize));
+        assertBlockValues(builder.build(), valuesAtPositions(block, 0, smallSize));
     }
 
     private void assertEvens(Block block) {
@@ -89,16 +97,24 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
         Block.Builder builder = elementType.newBlockBuilder(block.getPositionCount() / 2, blockFactory);
         List<List<Object>> expected = new ArrayList<>();
         for (int i = 0; i < block.getPositionCount(); i += 2) {
-            builder.copyFrom(block, i, i + 1);
-            expected.add(BasicBlockTests.valuesAtPositions(block, i, i + 1).get(0));
+            switch (elementType) {
+                case BOOLEAN -> ((BooleanBlockBuilder) builder).copyFrom((BooleanBlock) block, i);
+                case BYTES_REF -> ((BytesRefBlockBuilder) builder).copyFrom((BytesRefBlock) block, i, new BytesRef());
+                case DOUBLE -> ((DoubleBlockBuilder) builder).copyFrom((DoubleBlock) block, i);
+                case FLOAT -> ((FloatBlockBuilder) builder).copyFrom((FloatBlock) block, i);
+                case INT -> ((IntBlockBuilder) builder).copyFrom((IntBlock) block, i);
+                case LONG -> ((LongBlockBuilder) builder).copyFrom((LongBlock) block, i);
+                default -> throw new IllegalArgumentException("unsupported type: " + elementType);
+            }
+
+            expected.add(valuesAtPositions(block, i, i + 1).get(0));
         }
         assertBlockValues(builder.build(), expected);
     }
 
     private Block randomBlock() {
         int positionCount = randomIntBetween(1, 16 * 1024);
-        return BasicBlockTests.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition, 0, 0)
-            .block();
+        return RandomBlock.randomBlock(elementType, positionCount, nullAllowed, minValuesPerPosition, maxValuesPerPosition, 0, 0).block();
     }
 
     private Block randomFilteredBlock() {

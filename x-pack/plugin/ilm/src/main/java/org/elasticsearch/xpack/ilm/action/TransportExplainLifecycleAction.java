@@ -188,7 +188,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.shrinkIndexName(),
                     stepInfoBytes,
                     previousStepInfoBytes,
-                    phaseExecutionInfo
+                    phaseExecutionInfo,
+                    LifecycleSettings.LIFECYCLE_SKIP_SETTING.get(idxSettings)
                 );
             } else {
                 indexResponse = null;

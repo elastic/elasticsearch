@@ -171,6 +171,10 @@ public abstract class SlicedInputStream extends InputStream {
                 if (markedSlice < 0 || markedSliceOffset < 0) {
                     throw new IOException("Mark has not been set");
                 }
+                if (initialized && nextSlice == markedSlice + 1 && currentSliceOffset == markedSliceOffset) {
+                    // Reset at the marked offset should return immediately without re-opening the slice
+                    return;
+                }
 
                 nextSlice = markedSlice;
                 initialized = true;

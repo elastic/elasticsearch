@@ -155,6 +155,11 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     }
 
     public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context) throws IOException {
+        return buildSort(sortBuilders, context, true);
+    }
+
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context, boolean optimize)
+        throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
@@ -169,9 +174,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
             if (sortFields.size() > 1) {
                 sort = true;
             } else {
-                SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
-                    sort = false;
+                if (optimize) {
+                    SortField sortField = sortFields.get(0);
+                    if (sortField.getType() == SortField.Type.SCORE && sortField.getReverse() == false) {
+                        sort = false;
+                    } else {
+                        sort = true;
+                    }
                 } else {
                     sort = true;
                 }
@@ -281,6 +290,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     }
 
     public boolean supportsParallelCollection() {
-        return false;
+        return true;
     }
 }

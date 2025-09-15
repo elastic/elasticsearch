@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
@@ -17,19 +18,15 @@ restResources {
 }
 
 esplugin {
-  name 'x-pack-inference'
-  description 'Configuration and evaluation of inference models'
-  classname 'org.elasticsearch.xpack.inference.InferencePlugin'
+  name = 'x-pack-inference'
+  description = 'Configuration and evaluation of inference models'
+  classname = 'org.elasticsearch.xpack.inference.InferencePlugin'
   extendedPlugins = ['x-pack-core']
 }
 
 base {
   archivesName = 'x-pack-inference'
 }
-
-versions << [
-  'aws2': '2.28.13'
-]
 
 dependencies {
   implementation project(path: ':libs:logging')
@@ -39,6 +36,7 @@ dependencies {
   testImplementation(testArtifact(project(':server')))
   testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':modules:reindex')
+  testImplementation project(':modules:mapper-extras')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 
   api "com.ibm.icu:icu4j:${versions.icu4j}"
@@ -61,38 +59,41 @@ dependencies {
   implementation 'io.grpc:grpc-context:1.49.2'
   implementation 'io.opencensus:opencensus-api:0.31.1'
   implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
+  implementation 'org.apache.commons:commons-text:1.4'
 
   /* AWS SDK v2 */
-  implementation ("software.amazon.awssdk:bedrockruntime:${versions.aws2}")
-  api "software.amazon.awssdk:protocol-core:${versions.aws2}"
-  api "software.amazon.awssdk:aws-json-protocol:${versions.aws2}"
-  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws2}"
-  api "software.amazon.awssdk:http-auth-aws:${versions.aws2}"
-  api "software.amazon.awssdk:checksums-spi:${versions.aws2}"
-  api "software.amazon.awssdk:checksums:${versions.aws2}"
-  api "software.amazon.awssdk:sdk-core:${versions.aws2}"
-  api "org.reactivestreams:reactive-streams:1.0.4"
-  api "org.reactivestreams:reactive-streams-tck:1.0.4"
-  api "software.amazon.awssdk:profiles:${versions.aws2}"
-  api "software.amazon.awssdk:retries:${versions.aws2}"
-  api "software.amazon.awssdk:auth:${versions.aws2}"
-  api "software.amazon.awssdk:http-auth-aws-eventstream:${versions.aws2}"
+  implementation("software.amazon.awssdk:bedrockruntime:${versions.awsv2sdk}")
+  implementation("software.amazon.awssdk:sagemakerruntime:${versions.awsv2sdk}")
+  api "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  api "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  api "org.reactivestreams:reactive-streams-tck:${versions.reactive_streams}"
+  api "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:retries:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-auth-aws-eventstream:${versions.awsv2sdk}"
   api "software.amazon.eventstream:eventstream:1.0.1"
-  api "software.amazon.awssdk:http-auth-spi:${versions.aws2}"
-  api "software.amazon.awssdk:http-auth:${versions.aws2}"
-  api "software.amazon.awssdk:identity-spi:${versions.aws2}"
-  api "software.amazon.awssdk:http-client-spi:${versions.aws2}"
-  api "software.amazon.awssdk:regions:${versions.aws2}"
-  api "software.amazon.awssdk:annotations:${versions.aws2}"
-  api "software.amazon.awssdk:utils:${versions.aws2}"
-  api "software.amazon.awssdk:aws-core:${versions.aws2}"
-  api "software.amazon.awssdk:metrics-spi:${versions.aws2}"
-  api "software.amazon.awssdk:json-utils:${versions.aws2}"
-  api "software.amazon.awssdk:endpoints-spi:${versions.aws2}"
-  api "software.amazon.awssdk:retries-spi:${versions.aws2}"
+  api "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  api "software.amazon.awssdk:retries-spi:${versions.awsv2sdk}"
 
   /* Netty (via AWS SDKv2) */
-  implementation "software.amazon.awssdk:netty-nio-client:${versions.aws2}"
+  implementation "software.amazon.awssdk:netty-nio-client:${versions.awsv2sdk}"
   runtimeOnly "io.netty:netty-buffer:${versions.netty}"
   runtimeOnly "io.netty:netty-codec-dns:${versions.netty}"
   runtimeOnly "io.netty:netty-codec-http2:${versions.netty}"
@@ -144,6 +145,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /json-utils.*/, to: 'aws-sdk-2'
   mapping from: /endpoints-spi.*/, to: 'aws-sdk-2'
   mapping from: /bedrockruntime.*/, to: 'aws-sdk-2'
+  mapping from: /sagemakerruntime.*/, to: 'aws-sdk-2'
   mapping from: /netty-nio-client/, to: 'aws-sdk-2'
   /* Cannot use REGEX to match netty-* because netty-nio-client is an AWS package */
   mapping from: /netty-buffer/, to: 'netty'
@@ -395,8 +397,6 @@ tasks.named("thirdPartyAudit").configure {
     'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSignedBodyHeaderType',
     'software.amazon.awssdk.crt.auth.signing.AwsSigningConfig$AwsSigningAlgorithm',
     'software.amazon.awssdk.crt.auth.signing.AwsSigningResult',
-    'software.amazon.awssdk.crt.checksums.CRC32',
-    'software.amazon.awssdk.crt.checksums.CRC32C',
     'software.amazon.awssdk.crt.http.HttpHeader',
     'software.amazon.awssdk.crt.http.HttpRequest',
     'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
@@ -404,6 +404,9 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("Uses the inference API")
 }
 
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

@@ -109,7 +109,14 @@ public class WatcherScheduleEngineBenchmark {
 
         // First clean everything and index the watcher (but not via put alert api!)
         try (
-            Node node = new Node(internalNodeEnv, new PluginsLoader(internalNodeEnv.modulesFile(), internalNodeEnv.pluginsFile())).start()
+            Node node = new Node(
+                internalNodeEnv,
+                PluginsLoader.createPluginsLoader(
+                    PluginsLoader.loadModulesBundles(internalNodeEnv.modulesDir()),
+                    PluginsLoader.loadPluginsBundles(internalNodeEnv.pluginsDir()),
+                    Map.of()
+                )
+            ).start()
         ) {
             final Client client = node.client();
             ClusterHealthResponse response = client.admin().cluster().prepareHealth(TimeValue.THIRTY_SECONDS).setWaitForNodes("2").get();

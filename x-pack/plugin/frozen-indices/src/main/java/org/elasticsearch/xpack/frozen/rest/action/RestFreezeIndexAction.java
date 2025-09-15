@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -40,7 +41,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/{index}/_freeze").deprecated(FREEZE_REMOVED, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_freeze").deprecated(FREEZE_REMOVED, DeprecationLogger.CRITICAL, RestApiVersion.V_7).build(),
             Route.builder(POST, "/{index}/_unfreeze").deprecated(UNFREEZE_DEPRECATED, RestApiVersion.V_8).build()
         );
     }

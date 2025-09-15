@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 
@@ -24,6 +27,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -54,11 +58,11 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     LogicalPlan statement(String e, QueryParams params) {
-        return parser.createStatement(e, params);
+        return parser.createStatement(e, params, EsqlTestUtils.TEST_CFG);
     }
 
     LogicalPlan processingCommand(String e) {
-        return parser.createStatement("row a = 1 | " + e);
+        return parser.createStatement("row a = 1 | " + e, EsqlTestUtils.TEST_CFG);
     }
 
     static UnresolvedAttribute attribute(String name) {
@@ -70,7 +74,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static UnresolvedRelation relation(String name) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, name), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, name), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     static Literal integer(int i) {
@@ -118,11 +122,35 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static Literal literalString(String s) {
-        return new Literal(EMPTY, s, DataType.KEYWORD);
+        return Literal.keyword(EMPTY, s);
     }
 
     static Literal literalStrings(String... strings) {
-        return new Literal(EMPTY, Arrays.asList(strings), DataType.KEYWORD);
+        return new Literal(EMPTY, Arrays.asList(strings).stream().map(BytesRefs::toBytesRef).toList(), DataType.KEYWORD);
+    }
+
+    static MapExpression mapExpression(Map<String, Object> keyValuePairs) {
+        List<Expression> ees = new ArrayList<>(keyValuePairs.size());
+        for (Map.Entry<String, Object> entry : keyValuePairs.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            DataType type = (value instanceof List<?> l) ? DataType.fromJava(l.get(0)) : DataType.fromJava(value);
+            value = stringsToBytesRef(value, type);
+
+            ees.add(Literal.keyword(EMPTY, key));
+            ees.add(new Literal(EMPTY, value, type));
+        }
+        return new MapExpression(EMPTY, ees);
+    }
+
+    private static Object stringsToBytesRef(Object value, DataType type) {
+        if (value instanceof List<?> l) {
+            return l.stream().map(x -> stringsToBytesRef(x, type)).toList();
+        }
+        if (value instanceof String && (type == DataType.TEXT || type == DataType.KEYWORD)) {
+            value = BytesRefs.toBytesRef(value);
+        }
+        return value;
     }
 
     void expectError(String query, String errorMessage) {
@@ -151,11 +179,23 @@ abstract class AbstractStatementParserTests extends ESTestCase {
         expectInvalidIndexNameErrorWithLineNumber(query, "\"" + indexString + "\"", lineNumber, indexString);
     }
 
-    void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String error) {
-        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + error);
+    void expectErrorWithLineNumber(String query, String indexString, String lineNumber, String error) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + error);
+    }
+
+    void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String name) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + name);
+    }
+
+    void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String name, String error) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + name + "], " + error);
     }
 
     void expectDateMathErrorWithLineNumber(String query, String arg, String lineNumber, String error) {
         expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + error);
+    }
+
+    void expectDoubleColonErrorWithLineNumber(String query, String indexString, int lineNumber) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), "line 1:" + lineNumber + ": mismatched input '::'");
     }
 }

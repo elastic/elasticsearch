@@ -200,7 +200,11 @@ public class GatewayMetaStateTests extends ESTestCase {
         }
 
         @Override
-        public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+        public IndexMetadata verifyIndexMetadata(
+            IndexMetadata indexMetadata,
+            IndexVersion minimumIndexCompatibilityVersion,
+            IndexVersion minimumReadOnlyIndexCompatibilityVersion
+        ) {
             return upgrade ? IndexMetadata.builder(indexMetadata).build() : indexMetadata;
         }
     }

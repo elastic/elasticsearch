@@ -2,6 +2,12 @@
 [[watcher-api]]
 == Watcher APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 * <<watcher-api-put-watch>>
 * <<watcher-api-get-watch>>
 * <<watcher-api-query-watches>>

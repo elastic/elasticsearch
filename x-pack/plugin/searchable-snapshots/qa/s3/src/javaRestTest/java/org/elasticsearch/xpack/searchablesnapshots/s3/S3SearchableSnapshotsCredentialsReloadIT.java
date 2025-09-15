@@ -27,7 +27,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -36,6 +35,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.function.UnaryOperator;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
+import static fixture.aws.AwsCredentialsUtils.mutableAccessKey;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 
@@ -44,7 +45,14 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
     private static final String BUCKET = "S3SearchableSnapshotsCredentialsReloadIT-bucket";
     private static final String BASE_PATH = "S3SearchableSnapshotsCredentialsReloadIT-base-path";
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, "ignored");
+    private static volatile String repositoryAccessKey;
+
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        mutableAccessKey(() -> repositoryAccessKey, ANY_REGION, "s3")
+    );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 
@@ -67,22 +75,17 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @Before
-    public void skipFips() {
-        assumeFalse("getting these tests to run in a FIPS JVM is kinda fiddly and we don't really need the extra coverage", inFipsJvm());
-    }
-
     public void testReloadCredentialsFromKeystore() throws IOException {
         final TestHarness testHarness = new TestHarness();
         testHarness.putRepository();
 
         // Set up initial credentials
         final String accessKey1 = randomIdentifier();
-        s3Fixture.setAccessKey(accessKey1);
+        repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
-        keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         testHarness.createFrozenSearchableSnapshotIndex();
 
@@ -92,7 +95,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         // Rotate credentials in blob store
         logger.info("--> rotate credentials");
         final String accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
-        s3Fixture.setAccessKey(accessKey2);
+        repositoryAccessKey = accessKey2;
 
         // Ensure searchable snapshot now does not work due to invalid credentials
         logger.info("--> expect failure");
@@ -102,7 +105,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         logger.info("--> update keystore contents");
         keystoreSettings.put("s3.client.default.access_key", accessKey2);
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         // Check access using refreshed credentials
         logger.info("--> expect success");
@@ -118,13 +121,13 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         final String accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
         final String alternativeClient = randomValueOtherThan("default", ESTestCase::randomIdentifier);
 
-        s3Fixture.setAccessKey(accessKey1);
+        repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
-        keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         keystoreSettings.put("s3.client." + alternativeClient + ".access_key", accessKey2);
-        keystoreSettings.put("s3.client." + alternativeClient + ".secret_key", randomIdentifier());
+        keystoreSettings.put("s3.client." + alternativeClient + ".secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        assertOK(client().performRequest(new Request("POST", "/_nodes/reload_secure_settings")));
+        assertOK(client().performRequest(createReloadSecureSettingsRequest()));
 
         testHarness.createFrozenSearchableSnapshotIndex();
 
@@ -133,7 +136,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
         // Rotate credentials in blob store
         logger.info("--> rotate credentials");
-        s3Fixture.setAccessKey(accessKey2);
+        repositoryAccessKey = accessKey2;
 
         // Ensure searchable snapshot now does not work due to invalid credentials
         logger.info("--> expect failure");
@@ -156,8 +159,8 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         final String accessKey1 = randomIdentifier();
         final String accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
 
-        testHarness.putRepository(b -> b.put("access_key", accessKey1).put("secret_key", randomIdentifier()));
-        s3Fixture.setAccessKey(accessKey1);
+        testHarness.putRepository(b -> b.put("access_key", accessKey1).put("secret_key", randomSecretKey()));
+        repositoryAccessKey = accessKey1;
 
         testHarness.createFrozenSearchableSnapshotIndex();
 
@@ -166,7 +169,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
         // Rotate credentials in blob store
         logger.info("--> rotate credentials");
-        s3Fixture.setAccessKey(accessKey2);
+        repositoryAccessKey = accessKey2;
 
         // Ensure searchable snapshot now does not work due to invalid credentials
         logger.info("--> expect failure");
@@ -174,7 +177,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
 
         // Adjust repository to use new client
         logger.info("--> update repository metadata");
-        testHarness.putRepository(b -> b.put("access_key", accessKey2).put("secret_key", randomIdentifier()));
+        testHarness.putRepository(b -> b.put("access_key", accessKey2).put("secret_key", randomSecretKey()));
 
         // Check access using refreshed credentials
         logger.info("--> expect success");
@@ -268,12 +271,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
             searchRequest.addParameter("size", "10000");
             assertThat(
                 expectThrows(ResponseException.class, () -> client().performRequest(searchRequest)).getMessage(),
-                allOf(
-                    containsString("Bad access key"),
-                    containsString("Status Code: 403"),
-                    containsString("Error Code: AccessDenied"),
-                    containsString("failed to read data from cache")
-                )
+                allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("failed to read data from cache"))
             );
         }
     }

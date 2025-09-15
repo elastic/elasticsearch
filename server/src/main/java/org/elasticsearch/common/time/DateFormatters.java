@@ -12,7 +12,6 @@ package org.elasticsearch.common.time;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.internal.spi.LoggerFactory;
 
 import java.time.Instant;
@@ -59,7 +58,6 @@ public class DateFormatters {
      * Note that this property is sometimes set by {@code ESTestCase.setTestSysProps} to flip between implementations in tests,
      * to ensure both are fully tested
      */
-    @UpdateForV9    // evaluate if we need to deprecate/remove this
     private static final boolean JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false);
 
     static {

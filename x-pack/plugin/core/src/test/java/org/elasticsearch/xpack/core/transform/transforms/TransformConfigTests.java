@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.Remote
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformDeprecations;
@@ -44,6 +46,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -58,6 +61,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     private String transformId;
     private boolean runWithHeaders;
+    private static final String DATA_FRAME_TRANSFORMS_ADMIN_ROLE = "data_frame_transforms_admin";
+    private static final String DATA_FRAME_TRANSFORMS_USER_ROLE = "data_frame_transforms_user";
 
     public static TransformConfig randomTransformConfigWithoutHeaders() {
         return randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10));
@@ -78,10 +83,19 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfigWithoutHeaders(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
+        return randomTransformConfigWithoutHeaders(id, pivotConfig, latestConfig, randomDestConfig());
+    }
+
+    public static TransformConfig randomTransformConfigWithoutHeaders(
+        String id,
+        PivotConfig pivotConfig,
+        LatestConfig latestConfig,
+        DestConfig destConfig
+    ) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
-            randomDestConfig(),
+            destConfig,
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
@@ -147,6 +161,14 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig = LatestConfigTests.randomLatestConfig();
         }
 
+        return randomTransformConfigWithSettings(settingsConfig, pivotConfig, latestConfig);
+    }
+
+    public static TransformConfig randomTransformConfigWithSettings(
+        SettingsConfig settingsConfig,
+        PivotConfig pivotConfig,
+        LatestConfig latestConfig
+    ) {
         return new TransformConfig(
             randomAlphaOfLengthBetween(1, 10),
             randomSourceConfig(),
@@ -162,6 +184,25 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             null
+        );
+    }
+
+    public static TransformConfig randomTransformConfigWithHeaders(Map<String, String> headers) {
+        return new TransformConfig(
+            randomAlphaOfLengthBetween(1, 10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            randomBoolean() ? null : randomSyncConfig(),
+            headers,
+            randomBoolean() ? null : PivotConfigTests.randomPivotConfig(),
+            randomBoolean() ? null : LatestConfigTests.randomLatestConfig(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
+            randomBoolean() ? null : Instant.now(),
+            TransformConfigVersion.CURRENT.toString()
         );
     }
 
@@ -915,10 +956,13 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         }
     }
 
-    public void testCheckForDeprecations() {
+    public void testCheckForDeprecations_NoDeprecationWarnings() throws IOException {
         String id = randomAlphaOfLengthBetween(1, 10);
         assertThat(randomTransformConfig(id, TransformConfigVersion.CURRENT).checkForDeprecations(xContentRegistry()), is(empty()));
+    }
 
+    public void testCheckForDeprecations_WithDeprecatedFields_VersionCurrent() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
         TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.CURRENT);
 
         // check _and_ clear warnings
@@ -940,8 +984,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
-        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_10_0);
+    public void testCheckForDeprecations_WithDeprecatedFields_Version_7_10() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_10_0);
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
@@ -962,8 +1009,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 )
             )
         );
+    }
 
-        deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_4_0);
+    public void testCheckForDeprecations_WithDeprecatedFields_Version_7_4() throws IOException {
+        String id = randomAlphaOfLengthBetween(1, 10);
+        TransformConfig deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, TransformConfigVersion.V_7_4_0);
 
         // check _and_ clear warnings
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
@@ -986,6 +1036,44 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
+                        false,
+                        null
+                    )
+                )
+            )
+        );
+    }
+
+    public void testCheckForDeprecations_WithDeprecatedTransformUserAdmin() throws IOException {
+        testCheckForDeprecations_WithDeprecatedRoles(List.of(DATA_FRAME_TRANSFORMS_ADMIN_ROLE));
+    }
+
+    public void testCheckForDeprecations_WithDeprecatedTransformUserRole() throws IOException {
+        testCheckForDeprecations_WithDeprecatedRoles(List.of(DATA_FRAME_TRANSFORMS_USER_ROLE));
+    }
+
+    public void testCheckForDeprecations_WithDeprecatedTransformRoles() throws IOException {
+        testCheckForDeprecations_WithDeprecatedRoles(List.of(DATA_FRAME_TRANSFORMS_ADMIN_ROLE, DATA_FRAME_TRANSFORMS_USER_ROLE));
+    }
+
+    private void testCheckForDeprecations_WithDeprecatedRoles(List<String> roles) throws IOException {
+        var authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User(randomAlphaOfLength(10), roles.toArray(String[]::new)))
+            .build();
+        Map<String, String> headers = Map.of(AUTHENTICATION_KEY, authentication.encode());
+        TransformConfig deprecatedConfig = randomTransformConfigWithHeaders(headers);
+
+        // important: checkForDeprecations does _not_ create new deprecation warnings
+        assertThat(
+            deprecatedConfig.checkForDeprecations(xContentRegistry()),
+            equalTo(
+                List.of(
+                    new DeprecationIssue(
+                        Level.CRITICAL,
+                        "Transform [" + deprecatedConfig.getId() + "] uses deprecated transform roles " + roles,
+                        TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_BREAKING_CHANGES_URL,
+                        TransformDeprecations.DATA_FRAME_TRANSFORMS_ROLES_IS_DEPRECATED,
                         false,
                         null
                     )

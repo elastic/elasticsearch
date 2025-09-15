@@ -1,0 +1,37 @@
+[[release-notes-8.17.7]]
+== {es} version 8.17.7
+
+coming[8.17.7]
+
+Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
+
+[[breaking-8.17.7]]
+[float]
+=== Breaking changes
+
+Snapshot/Restore::
+* Make S3 custom query parameter optional {es-pull}128043[#128043]
+
+[[bug-8.17.7]]
+[float]
+=== Bug fixes
+
+Audit::
+* Handle streaming request body in audit log {es-pull}127798[#127798]
+
+Downsampling::
+* Downsampling does not consider passthrough fields as dimensions {es-pull}127752[#127752] (issue: {es-issue}125156[#125156])
+
+Infra/Scripting::
+* Avoid nested docs in painless execute api {es-pull}127991[#127991] (issue: {es-issue}41004[#41004])
+
+Relevance::
+* Fix: Add `NamedWriteable` for `RuleQueryRankDoc` {es-pull}128153[#128153] (issue: {es-issue}126071[#126071])
+
+Security::
+* Remove dangling spaces wherever found {es-pull}127475[#127475]
+
+TSDB::
+* Skip the validation when retrieving the index mode during reindexing a time series data stream {es-pull}127824[#127824]
+
+

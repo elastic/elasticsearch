@@ -497,14 +497,14 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = new CompositeSyntheticFieldLoader(
-            leafName(),
-            fullPath(),
-            new HistogramSyntheticFieldLoader(),
-            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+        return new SyntheticSourceSupport.Native(
+            () -> new CompositeSyntheticFieldLoader(
+                leafName(),
+                fullPath(),
+                new HistogramSyntheticFieldLoader(),
+                new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+            )
         );
-
-        return new SyntheticSourceSupport.Native(loader);
     }
 
     private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

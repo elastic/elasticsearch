@@ -21,10 +21,11 @@ public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractReposi
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
-        .configFile("repository-s3/aws-web-identity-token-file", Resource.fromClasspath("aws-web-identity-token-file"))
-        .environment("AWS_WEB_IDENTITY_TOKEN_FILE", System.getProperty("awsWebIdentityTokenExternalLocation"))
-        // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the
-        // S3HttpFixtureWithSTS fixture
+        .configFile(S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION, Resource.fromString("""
+            Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
+            FBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFO\
+            zTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ"""))
+        .environment("AWS_WEB_IDENTITY_TOKEN_FILE", S3Service.CustomWebIdentityTokenCredentialsProvider.WEB_IDENTITY_TOKEN_FILE_LOCATION)
         .environment("AWS_ROLE_ARN", "arn:aws:iam::123456789012:role/FederatedWebIdentityRole")
         .environment("AWS_ROLE_SESSION_NAME", "sts-fixture-test")
         .environment("AWS_STS_REGIONAL_ENDPOINTS", "regional")
@@ -33,6 +34,9 @@ public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractReposi
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
+        // Run just the basic sanity test to make sure ES starts up and loads the S3 repository with a regional endpoint without an error.
+        // It would be great to make actual requests against a test fixture, but setting the region means using a production endpoint.
+        // See #102230 for more details.
         return createParameters(new String[] { "repository_s3/10_basic" });
     }
 

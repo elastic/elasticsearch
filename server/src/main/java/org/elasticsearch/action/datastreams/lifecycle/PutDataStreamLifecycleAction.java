@@ -28,11 +28,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_RETENTION_FIELD;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DOWNSAMPLING_FIELD;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.ENABLED_FIELD;
 
 /**
@@ -47,30 +47,34 @@ public class PutDataStreamLifecycleAction {
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest.Replaceable, ToXContentObject {
 
         public interface Factory {
-            Request create(@Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling);
+            Request create(
+                @Nullable TimeValue dataRetention,
+                @Nullable Boolean enabled,
+                @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling
+            );
         }
 
+        @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "put_data_stream_lifecycle_request",
             false,
-            (args, factory) -> factory.create((TimeValue) args[0], (Boolean) args[1], (Downsampling) args[2])
+            (args, factory) -> factory.create((TimeValue) args[0], (Boolean) args[1], (List<DataStreamLifecycle.DownsamplingRound>) args[2])
         );
 
         static {
             PARSER.declareField(
                 ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), DATA_RETENTION_FIELD.getPreferredName()),
+                (p, c) -> TimeValue.parseTimeValue(p.text(), DATA_RETENTION_FIELD.getPreferredName()),
                 DATA_RETENTION_FIELD,
-                ObjectParser.ValueType.STRING_OR_NULL
+                ObjectParser.ValueType.STRING
             );
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
-            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                    return Downsampling.NULL;
-                } else {
-                    return new Downsampling(AbstractObjectParser.parseArray(p, null, Downsampling.Round::fromXContent));
-                }
-            }, DOWNSAMPLING_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_NULL);
+            PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> AbstractObjectParser.parseArray(p, null, DataStreamLifecycle.DownsamplingRound::fromXContent),
+                DOWNSAMPLING_FIELD,
+                ObjectParser.ValueType.OBJECT_ARRAY
+            );
         }
 
         public static Request parseRequest(XContentParser parser, Factory factory) {
@@ -94,7 +98,7 @@ public class PutDataStreamLifecycleAction {
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(false)
+                    .allowSelectors(false)
                     .build()
             )
             .build();
@@ -141,11 +145,11 @@ public class PutDataStreamLifecycleAction {
             String[] names,
             @Nullable TimeValue dataRetention,
             @Nullable Boolean enabled,
-            @Nullable Downsampling downsampling
+            @Nullable List<DataStreamLifecycle.DownsamplingRound> downsampling
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.names = names;
-            this.lifecycle = DataStreamLifecycle.newBuilder()
+            this.lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                 .dataRetention(dataRetention)
                 .enabled(enabled == null || enabled)
                 .downsampling(downsampling)

@@ -69,6 +69,7 @@ public class DiscoveryNodeUtils {
         private Set<DiscoveryNodeRole> roles = DiscoveryNodeRole.roles();
         private Version version;
         private IndexVersion minIndexVersion;
+        private IndexVersion minReadOnlyIndexVersion;
         private IndexVersion maxIndexVersion;
         private String externalId;
 
@@ -115,6 +116,7 @@ public class DiscoveryNodeUtils {
         public Builder version(Version version, IndexVersion minIndexVersion, IndexVersion maxIndexVersion) {
             this.version = version;
             this.minIndexVersion = minIndexVersion;
+            this.minReadOnlyIndexVersion = minIndexVersion;
             this.maxIndexVersion = maxIndexVersion;
             return this;
         }
@@ -122,6 +124,7 @@ public class DiscoveryNodeUtils {
         public Builder version(VersionInformation versions) {
             this.version = versions.nodeVersion();
             this.minIndexVersion = versions.minIndexVersion();
+            this.minReadOnlyIndexVersion = versions.minReadOnlyIndexVersion();
             this.maxIndexVersion = versions.maxIndexVersion();
             return this;
         }
@@ -149,10 +152,10 @@ public class DiscoveryNodeUtils {
             }
 
             VersionInformation versionInfo;
-            if (minIndexVersion == null || maxIndexVersion == null) {
+            if (minIndexVersion == null || minReadOnlyIndexVersion == null || maxIndexVersion == null) {
                 versionInfo = VersionInformation.inferVersions(version);
             } else {
-                versionInfo = new VersionInformation(version, minIndexVersion, maxIndexVersion);
+                versionInfo = new VersionInformation(version, minIndexVersion, minReadOnlyIndexVersion, maxIndexVersion);
             }
 
             return new DiscoveryNode(name, id, ephemeralId, hostName, hostAddress, address, attributes, roles, versionInfo, externalId);

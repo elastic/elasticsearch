@@ -26,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 
 import java.util.List;
 import java.util.Objects;
@@ -43,7 +44,7 @@ public class DataStreamAutoShardingService {
     private static final Logger logger = LogManager.getLogger(DataStreamAutoShardingService.class);
     public static final String DATA_STREAMS_AUTO_SHARDING_ENABLED = "data_streams.auto_sharding.enabled";
 
-    public static final NodeFeature DATA_STREAM_AUTO_SHARDING_FEATURE = new NodeFeature("data_stream.auto_sharding");
+    public static final NodeFeature DATA_STREAM_AUTO_SHARDING_FEATURE = new NodeFeature("data_stream.auto_sharding", true);
 
     public static final Setting<List<String>> DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING = Setting.listSetting(
         "data_streams.auto_sharding.excludes",
@@ -183,6 +184,11 @@ public class DataStreamAutoShardingService {
                 dataStream.getName(),
                 DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey()
             );
+            return NOT_APPLICABLE_RESULT;
+        }
+
+        if (dataStream.getIndexMode() == IndexMode.LOOKUP) {
+            logger.debug("Data stream [{}] has indexing mode LOOKUP; auto-sharding is not applicable.", dataStream.getName());
             return NOT_APPLICABLE_RESULT;
         }
 

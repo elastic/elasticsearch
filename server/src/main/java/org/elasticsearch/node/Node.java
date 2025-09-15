@@ -97,7 +97,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -766,8 +766,8 @@ public class Node implements Closeable {
      * Writes a file to the logs dir containing the ports for the given transport type
      */
     private void writePortsFile(String type, BoundTransportAddress boundAddress) {
-        Path tmpPortsFile = environment.logsFile().resolve(type + ".ports.tmp");
-        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, Charset.forName("UTF-8"))) {
+        Path tmpPortsFile = environment.logsDir().resolve(type + ".ports.tmp");
+        try (BufferedWriter writer = Files.newBufferedWriter(tmpPortsFile, StandardCharsets.UTF_8)) {
             for (TransportAddress address : boundAddress.boundAddresses()) {
                 InetAddress inetAddress = InetAddress.getByName(address.getAddress());
                 writer.write(NetworkAddress.format(new InetSocketAddress(inetAddress, address.getPort())) + "\n");
@@ -775,7 +775,7 @@ public class Node implements Closeable {
         } catch (IOException e) {
             throw new RuntimeException("Failed to write ports file", e);
         }
-        Path portsFile = environment.logsFile().resolve(type + ".ports");
+        Path portsFile = environment.logsDir().resolve(type + ".ports");
         try {
             Files.move(tmpPortsFile, portsFile, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {

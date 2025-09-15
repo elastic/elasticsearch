@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ public class Configuration implements Writeable {
     private final String query;
 
     private final boolean profile;
+    private final boolean allowPartialResults;
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
@@ -64,7 +66,8 @@ public class Configuration implements Writeable {
         String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
-        long queryStartTimeNanos
+        long queryStartTimeNanos,
+        boolean allowPartialResults
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -79,6 +82,7 @@ public class Configuration implements Writeable {
         this.tables = tables;
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
+        this.allowPartialResults = allowPartialResults;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -101,10 +105,15 @@ public class Configuration implements Writeable {
         } else {
             this.tables = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.queryStartTimeNanos = in.readLong();
         } else {
             this.queryStartTimeNanos = -1;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+            this.allowPartialResults = in.readBoolean();
+        } else {
+            this.allowPartialResults = false;
         }
     }
 
@@ -127,8 +136,11 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeLong(queryStartTimeNanos);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
+            out.writeBoolean(allowPartialResults);
         }
     }
 
@@ -184,10 +196,34 @@ public class Configuration implements Writeable {
     }
 
     /**
+     * Create a new {@link FoldContext} with the limit configured in the {@link QueryPragmas}.
+     */
+    public FoldContext newFoldContext() {
+        return new FoldContext(pragmas.foldLimit().getBytes());
+    }
+
+    /**
      * Tables specified in the request.
      */
     public Map<String, Map<String, Column>> tables() {
         return tables;
+    }
+
+    public Configuration withoutTables() {
+        return new Configuration(
+            zoneId,
+            locale,
+            username,
+            clusterName,
+            pragmas,
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
+            query,
+            profile,
+            Map.of(),
+            queryStartTimeNanos,
+            allowPartialResults
+        );
     }
 
     /**
@@ -196,6 +232,13 @@ public class Configuration implements Writeable {
      */
     public boolean profile() {
         return profile;
+    }
+
+    /**
+     * Whether this request can return partial results instead of failing fast on failures
+     */
+    public boolean allowPartialResults() {
+        return allowPartialResults;
     }
 
     private static void writeQuery(StreamOutput out, String query) throws IOException {
@@ -236,7 +279,8 @@ public class Configuration implements Writeable {
             && Objects.equals(locale, that.locale)
             && Objects.equals(that.query, query)
             && profile == that.profile
-            && tables.equals(that.tables);
+            && tables.equals(that.tables)
+            && allowPartialResults == that.allowPartialResults;
     }
 
     @Override
@@ -252,7 +296,8 @@ public class Configuration implements Writeable {
             locale,
             query,
             profile,
-            tables
+            tables,
+            allowPartialResults
         );
     }
 
@@ -274,6 +319,16 @@ public class Configuration implements Writeable {
             + profile
             + ", tables="
             + tables
+            + "allow_partial_result="
+            + allowPartialResults
             + '}';
+    }
+
+    /**
+     * Reads a {@link Configuration} that doesn't contain any {@link Configuration#tables()}.
+     */
+    public static Configuration readWithoutTables(StreamInput in) throws IOException {
+        BlockStreamInput blockStreamInput = new BlockStreamInput(in, null);
+        return new Configuration(blockStreamInput);
     }
 }

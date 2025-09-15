@@ -2,6 +2,8 @@ steps:
   - command: .buildkite/scripts/dra-workflow.sh
     env:
       USE_DRA_CREDENTIALS: "true"
+      USE_MAVEN_GPG: "true"
+      USE_PROD_DOCKER_CREDENTIALS: "true"
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2204

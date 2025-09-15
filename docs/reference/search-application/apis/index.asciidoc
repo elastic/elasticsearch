@@ -9,6 +9,12 @@ beta::[]
 
 ---
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
 Use Search Application APIs to manage tasks and resources related to Search Applications.
 
 * <<put-search-application>>

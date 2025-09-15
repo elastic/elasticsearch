@@ -4,6 +4,12 @@
 <titleabbrev>Validate</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/operation/operation-indices-validate-query[Validate a query].
+--
+
 Validates a potentially expensive query without executing it.
 
 [source,console]

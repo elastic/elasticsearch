@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class HashAggregationOperatorStatusTests extends AbstractWireSerializingTestCase<HashAggregationOperator.Status> {
     public static HashAggregationOperator.Status simple() {
-        return new HashAggregationOperator.Status(500012, 200012, 123);
+        return new HashAggregationOperator.Status(500012, 200012, 123, 111, 222, 180017);
     }
 
     public static String simpleToJson() {
@@ -26,7 +26,11 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
               "hash_time" : "500micros",
               "aggregation_nanos" : 200012,
               "aggregation_time" : "200micros",
-              "pages_processed" : 123
+              "pages_processed" : 123,
+              "rows_received" : 111,
+              "rows_emitted" : 222,
+              "emit_nanos" : 180017,
+              "emit_time" : "180micros"
             }""";
     }
 
@@ -41,7 +45,14 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
 
     @Override
     public HashAggregationOperator.Status createTestInstance() {
-        return new HashAggregationOperator.Status(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeInt());
+        return new HashAggregationOperator.Status(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeInt(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     @Override
@@ -49,12 +60,18 @@ public class HashAggregationOperatorStatusTests extends AbstractWireSerializingT
         long hashNanos = instance.hashNanos();
         long aggregationNanos = instance.aggregationNanos();
         int pagesProcessed = instance.pagesProcessed();
-        switch (between(0, 2)) {
+        long rowsReceived = instance.rowsReceived();
+        long rowsEmitted = instance.rowsEmitted();
+        long emitNanos = instance.emitNanos();
+        switch (between(0, 5)) {
             case 0 -> hashNanos = randomValueOtherThan(hashNanos, ESTestCase::randomNonNegativeLong);
             case 1 -> aggregationNanos = randomValueOtherThan(aggregationNanos, ESTestCase::randomNonNegativeLong);
             case 2 -> pagesProcessed = randomValueOtherThan(pagesProcessed, ESTestCase::randomNonNegativeInt);
+            case 3 -> rowsReceived = randomValueOtherThan(rowsReceived, ESTestCase::randomNonNegativeLong);
+            case 4 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            case 5 -> emitNanos = randomValueOtherThan(emitNanos, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new HashAggregationOperator.Status(hashNanos, aggregationNanos, pagesProcessed);
+        return new HashAggregationOperator.Status(hashNanos, aggregationNanos, pagesProcessed, rowsReceived, rowsEmitted, emitNanos);
     }
 }

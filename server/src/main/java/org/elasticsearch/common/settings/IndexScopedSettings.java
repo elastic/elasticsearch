@@ -34,8 +34,8 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.Store;
@@ -175,6 +175,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.DEFAULT_PIPELINE,
         IndexSettings.FINAL_PIPELINE,
         MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,
         ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
@@ -183,12 +184,17 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
         IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
         IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+        IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
+        IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
+        IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD,
         IndexSettings.PREFER_ILM_SETTING,
         DataStreamFailureStoreDefinition.FAILURE_STORE_DEFINITION_VERSION_SETTING,
         FieldMapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING,
         IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING,
-        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING,
+        IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING,
+        IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING,
+        InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

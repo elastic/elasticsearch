@@ -36,7 +36,7 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         final String attribute = "Attribute[channel=0]";
-        final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[field=" + attribute + "]";
+        final Function<String, String> evaluatorName = s -> "ToGeoShape" + s + "Evaluator[in=" + attribute + "]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryGeoPoint(suppliers, attribute, DataType.GEO_SHAPE, v -> v, List.of());
@@ -45,8 +45,8 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("FromString"), DataType.GEO_SHAPE, bytesRef -> null, bytesRef -> {
             var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
             return List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: " + exception
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + exception
             );
         });
         // strings that are geo_shape representations
@@ -66,7 +66,7 @@ public class ToGeoShapeTests extends AbstractScalarFunctionTestCase {
                 List.of()
             );
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "geo_point or geo_shape or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -27,6 +28,10 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComponentTemplateAction extends BaseRestHandler {
+
+    public static final String SUPPORTS_FAILURE_STORE_LIFECYCLE = "data_stream_options.failure_store.lifecycle";
+    public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
+    private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE, SUPPORTS_FAILURE_STORE_LIFECYCLE);
 
     @Override
     public List<Route> routes() {
@@ -50,5 +55,10 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
         }
 
         return channel -> client.execute(PutComponentTemplateAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return capabilities;
     }
 }

@@ -70,16 +70,20 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
 import static org.elasticsearch.cluster.metadata.DataStream.DATE_FORMATTER;
+import static org.elasticsearch.cluster.metadata.DataStream.FAILURE_STORE_PREFIX;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphanumericOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -147,13 +151,39 @@ public final class DataStreamTestHelper {
         @Nullable DataStreamLifecycle lifecycle,
         List<Index> failureStores
     ) {
+        return newInstance(
+            name,
+            indices,
+            generation,
+            metadata,
+            replicated,
+            lifecycle,
+            failureStores,
+            failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED
+        );
+    }
+
+    public static DataStream newInstance(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        boolean replicated,
+        DataStreamLifecycle lifecycle,
+        List<Index> failureStores,
+        DataStreamOptions dataStreamOptions
+    ) {
         return DataStream.builder(name, indices)
             .setGeneration(generation)
             .setMetadata(metadata)
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
-            .setDataStreamOptions(failureStores.isEmpty() ? DataStreamOptions.EMPTY : DataStreamOptions.FAILURE_STORE_ENABLED)
-            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
+            .setDataStreamOptions(dataStreamOptions)
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(failureStores)
+                    .setRolloverOnWrite((replicated == false) && (failureStores.isEmpty()))
+                    .build()
+            )
             .build();
     }
 
@@ -317,6 +347,11 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore) {
+        // Some tests don't work well with system data streams, since these data streams require special handling
+        return randomInstance(dataStreamName, timeProvider, failureStore, false);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider, boolean failureStore, boolean system) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
@@ -341,13 +376,14 @@ public final class DataStreamTestHelper {
             dataStreamName,
             generation,
             metadata,
-            randomBoolean(),
+            randomSettings(),
+            system ? true : randomBoolean(),
             replicated,
-            false, // Some tests don't work well with system data streams, since these data streams require special handling
+            system,
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.dataLifecycleBuilder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -362,7 +398,7 @@ public final class DataStreamTestHelper {
                 )
                 .build(),
             DataStream.DataStreamIndices.failureIndicesBuilder(failureIndices)
-                .setRolloverOnWrite(failureStore && replicated == false && randomBoolean())
+                .setRolloverOnWrite(replicated == false && (failureIndices.isEmpty() || randomBoolean()))
                 .setAutoShardingEvent(
                     failureStore && randomBoolean()
                         ? new DataStreamAutoShardingEvent(
@@ -466,19 +502,14 @@ public final class DataStreamTestHelper {
         Settings settings,
         int replicas,
         boolean replicated,
-        boolean storeFailures
+        Boolean storeFailures
     ) {
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
-                .dataStreamTemplate(
-                    new ComposableIndexTemplate.DataStreamTemplate(
-                        false,
-                        false,
-                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
-                    )
-                )
+                .template(Template.builder().dataStreamOptions(createDataStreamOptionsTemplate(storeFailures)))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
 
@@ -493,7 +524,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
+            if (Boolean.TRUE.equals(storeFailures)) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(
@@ -575,7 +606,7 @@ public final class DataStreamTestHelper {
         builder.put(dataStreamBuilder.build());
     }
 
-    private static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
+    public static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
         Settings.Builder b = Settings.builder()
             .put(settings)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -588,27 +619,50 @@ public final class DataStreamTestHelper {
         return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d", dataStreamName, generation);
     }
 
+    /**
+     * Checks if the index name provided starts with the prefix ".ds-", continues with the data stream name
+     * till the next `-`, and after the last `-` it ends with a number that matches the generation.
+     * @param dataStreamName
+     * @param generation
+     * @return the matcher
+     */
     public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation) {
+        return dataStreamIndexEqualTo(dataStreamName, generation, false);
+    }
+
+    /**
+     * Checks if the index name provided starts with the prefix ".ds-" when failure store is false and ".fs-" when true, continues with
+     * the data stream name till the next `-`, and after the last `-` it ends with a number that matches the generation.
+     * @param dataStreamName
+     * @param generation
+     * @param failureStore, determines the prefix, ".ds-" when failure store is false and ".fs-" when true
+     * @return the matcher
+     */
+    public static Matcher<String> dataStreamIndexEqualTo(String dataStreamName, int generation, boolean failureStore) {
         return new TypeSafeMatcher<>() {
+            private final String prefix = failureStore ? FAILURE_STORE_PREFIX : BACKING_INDEX_PREFIX;
 
             @Override
             protected boolean matchesSafely(String backingIndexName) {
                 if (backingIndexName == null) {
                     return false;
                 }
-
+                String actualPrefix = backingIndexName.substring(0, prefix.length());
                 int indexOfLastDash = backingIndexName.lastIndexOf('-');
-                String actualDataStreamName = parseDataStreamName(backingIndexName, indexOfLastDash);
+                String actualDataStreamName = parseDataStreamName(backingIndexName, prefix, indexOfLastDash);
                 int actualGeneration = parseGeneration(backingIndexName, indexOfLastDash);
-                return actualDataStreamName.equals(dataStreamName) && actualGeneration == generation;
+                return actualPrefix.equals(prefix) && actualDataStreamName.equals(dataStreamName) && actualGeneration == generation;
             }
 
             @Override
             protected void describeMismatchSafely(String backingIndexName, Description mismatchDescription) {
+                String actualPrefix = backingIndexName.substring(0, prefix.length());
                 int indexOfLastDash = backingIndexName.lastIndexOf('-');
-                String dataStreamName = parseDataStreamName(backingIndexName, indexOfLastDash);
+                String dataStreamName = parseDataStreamName(backingIndexName, prefix, indexOfLastDash);
                 int generation = parseGeneration(backingIndexName, indexOfLastDash);
-                mismatchDescription.appendText(" was data stream name ")
+                mismatchDescription.appendText(" was prefix ")
+                    .appendValue(actualPrefix)
+                    .appendText(", data stream name ")
                     .appendValue(dataStreamName)
                     .appendText(" and generation ")
                     .appendValue(generation);
@@ -616,14 +670,16 @@ public final class DataStreamTestHelper {
 
             @Override
             public void describeTo(Description description) {
-                description.appendText("expected data stream name ")
+                description.appendText("expected prefix ")
+                    .appendValue(prefix)
+                    .appendText(", expected data stream name ")
                     .appendValue(dataStreamName)
                     .appendText(" and expected generation ")
                     .appendValue(generation);
             }
 
-            private static String parseDataStreamName(String backingIndexName, int indexOfLastDash) {
-                return backingIndexName.substring(4, backingIndexName.lastIndexOf('-', indexOfLastDash - 1));
+            private static String parseDataStreamName(String backingIndexName, String prefix, int indexOfLastDash) {
+                return backingIndexName.substring(prefix.length(), backingIndexName.lastIndexOf('-', indexOfLastDash - 1));
             }
 
             private static int parseGeneration(String backingIndexName, int indexOfLastDash) {
@@ -649,7 +705,7 @@ public final class DataStreamTestHelper {
         ).build(MapperBuilderContext.root(false, true));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
-        when(env.sharedDataFile()).thenReturn(null);
+        when(env.sharedDataDir()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
@@ -749,4 +805,21 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStoreEnabled) {
+        if (failureStoreEnabled == null) {
+            return DataStreamOptions.Template.EMPTY;
+        }
+        return new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(failureStoreEnabled).buildTemplate());
+    }
+
+    static Settings randomSettings() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            return Settings.EMPTY;
+        }
+        for (int i = 1; i < randomInt(100); i++) {
+            builder.put(randomAlphanumericOfLength(20), randomAlphanumericOfLength(50));
+        }
+        return builder.build();
+    }
 }

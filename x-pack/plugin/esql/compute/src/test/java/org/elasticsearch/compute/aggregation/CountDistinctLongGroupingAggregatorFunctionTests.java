@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctLongGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctLongAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctLongAggregatorFunctionSupplier(40000);
     }
 
     @Override

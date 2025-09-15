@@ -24,7 +24,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -151,7 +150,6 @@ public class Setting<T> implements ToXContentObject {
          * Indicates that this index-level setting was deprecated in {@link Version#V_7_17_0} and is
          * forbidden in indices created from {@link Version#V_8_0_0} onwards.
          */
-        @UpdateForV9 // introduce IndexSettingDeprecatedInV8AndRemovedInV9 to replace this constant
         IndexSettingDeprecatedInV7AndRemovedInV8,
 
         /**
@@ -644,7 +642,6 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            @UpdateForV9 // https://github.com/elastic/elasticsearch/issues/79666
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
                 Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
@@ -1586,6 +1583,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
     }
 
+    public static Setting<Boolean> boolSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        Validator<Boolean> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+    }
+
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
         return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
@@ -1740,7 +1746,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param defaultValue the default value for this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {

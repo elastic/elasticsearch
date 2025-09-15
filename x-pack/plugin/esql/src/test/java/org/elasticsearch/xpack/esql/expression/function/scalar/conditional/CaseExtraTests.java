@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -19,9 +20,11 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.junit.After;
 
@@ -67,7 +70,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(),
+            c.partiallyFold(FoldContext.small()),
             equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
         );
     }
@@ -80,7 +83,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(),
+            c.partiallyFold(FoldContext.small()),
             equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
         );
     }
@@ -92,7 +95,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(), sameInstance(c));
+        assertThat(c.partiallyFold(FoldContext.small()), sameInstance(c));
     }
 
     public void testPartialFoldFirst() {
@@ -102,7 +105,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(), equalTo(field("first", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("first", DataType.LONG)));
     }
 
     public void testPartialFoldFirstAfterKeepingUnknown() {
@@ -118,7 +121,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(),
+            c.partiallyFold(FoldContext.small()),
             equalTo(
                 new Case(
                     Source.synthetic("case"),
@@ -141,7 +144,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldSecondAfterDroppingFalse() {
@@ -156,7 +159,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldLast() {
@@ -171,7 +174,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(), equalTo(field("last", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("last", DataType.LONG)));
     }
 
     public void testPartialFoldLastAfterKeepingUnknown() {
@@ -187,7 +190,7 @@ public class CaseExtraTests extends ESTestCase {
         );
         assertThat(c.foldable(), equalTo(false));
         assertThat(
-            c.partiallyFold(),
+            c.partiallyFold(FoldContext.small()),
             equalTo(
                 new Case(
                     Source.synthetic("case"),
@@ -203,7 +206,7 @@ public class CaseExtraTests extends ESTestCase {
             DriverContext driverContext = driverContext();
             Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
             try (
-                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(AbstractFunctionTestCase::evaluator).get(driverContext);
+                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(AbstractFunctionTestCase.toEvaluator()).get(driverContext);
                 Block block = eval.eval(page)
             ) {
                 return toJavaObject(block, 0);
@@ -216,7 +219,7 @@ public class CaseExtraTests extends ESTestCase {
     public void testFoldCase() {
         testCase(caseExpr -> {
             assertTrue(caseExpr.foldable());
-            return caseExpr.fold();
+            return caseExpr.fold(FoldContext.small());
         });
     }
 
@@ -265,22 +268,36 @@ public class CaseExtraTests extends ESTestCase {
     public void testCaseIsLazy() {
         Case caseExpr = caseExpr(true, 1, true, 2);
         DriverContext driveContext = driverContext();
-        EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(child -> {
-            Object value = child.fold();
-            if (value != null && value.equals(2)) {
-                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
-                    @Override
-                    public Block eval(Page page) {
-                        fail("Unexpected evaluation of 4th argument");
-                        return null;
-                    }
+        EvaluatorMapper.ToEvaluator toEvaluator = new EvaluatorMapper.ToEvaluator() {
+            @Override
+            public EvalOperator.ExpressionEvaluator.Factory apply(Expression expression) {
+                Object value = expression.fold(FoldContext.small());
+                if (value != null && value.equals(2)) {
+                    return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                        @Override
+                        public Block eval(Page page) {
+                            fail("Unexpected evaluation of 4th argument");
+                            return null;
+                        }
 
-                    @Override
-                    public void close() {}
-                };
+                        @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
+                        }
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+                return AbstractFunctionTestCase.evaluator(expression);
             }
-            return AbstractFunctionTestCase.evaluator(child);
-        }).get(driveContext);
+
+            @Override
+            public FoldContext foldCtx() {
+                return FoldContext.small();
+            }
+        };
+        EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(toEvaluator).get(driveContext);
         Page page = new Page(driveContext.blockFactory().newConstantIntBlockWith(0, 1));
         try (Block block = evaluator.eval(page)) {
             assertEquals(1, toJavaObject(block, 0));
@@ -294,7 +311,11 @@ public class CaseExtraTests extends ESTestCase {
             if (arg instanceof Expression e) {
                 return e;
             }
-            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, DataType.fromJava(arg));
+            DataType dataType = DataType.fromJava(arg);
+            if (arg instanceof String) {
+                arg = BytesRefs.toBytesRef(arg);
+            }
+            return new Literal(Source.synthetic(arg == null ? "null" : BytesRefs.toString(arg)), arg, dataType);
         }).toList();
         return new Case(Source.synthetic("<case>"), exps.get(0), exps.subList(1, exps.size()));
     }

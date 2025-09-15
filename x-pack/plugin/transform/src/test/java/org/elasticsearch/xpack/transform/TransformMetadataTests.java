@@ -16,7 +16,7 @@ public class TransformMetadataTests extends AbstractChunkedSerializingTestCase<T
 
     @Override
     protected TransformMetadata createTestInstance() {
-        return new TransformMetadata.Builder().isResetMode(randomBoolean()).build();
+        return new TransformMetadata.Builder().resetMode(randomBoolean()).upgradeMode(randomBoolean()).build();
     }
 
     @Override
@@ -31,6 +31,8 @@ public class TransformMetadataTests extends AbstractChunkedSerializingTestCase<T
 
     @Override
     protected TransformMetadata mutateInstance(TransformMetadata instance) {
-        return new TransformMetadata.Builder().isResetMode(instance.isResetMode() == false).build();
+        return new TransformMetadata.Builder().resetMode(instance.resetMode() == false)
+            .upgradeMode(instance.upgradeMode() == false)
+            .build();
     }
 }

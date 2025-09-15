@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ConstantBooleanExpressionEvaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -21,17 +20,18 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
 import org.elasticsearch.compute.operator.NullInsertingSourceOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -47,10 +47,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier aggregatorFunction();
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
+        try (var agg = aggregatorFunction().aggregator(driverContext(), List.of())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -69,8 +69,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
         List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
-        AggregatorFunctionSupplier supplier = aggregatorFunction(channels);
-        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode);
+        AggregatorFunctionSupplier supplier = aggregatorFunction();
+        Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, channels);
         return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
     }
 
@@ -111,6 +111,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple().get(driverContext)),
@@ -223,7 +224,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     // Returns an intermediate state that is equivalent to what the local execution planner will emit
     // if it determines that certain shards have no relevant data.
     List<Page> nullIntermediateState(BlockFactory blockFactory) {
-        try (var agg = aggregatorFunction(List.of()).aggregator(driverContext())) {
+        try (var agg = aggregatorFunction().aggregator(driverContext(), List.of())) {
             var method = agg.getClass().getMethod("intermediateStateDesc");
             @SuppressWarnings("unchecked")
             List<IntermediateStateDesc> intermediateStateDescs = (List<IntermediateStateDesc>) method.invoke(null);

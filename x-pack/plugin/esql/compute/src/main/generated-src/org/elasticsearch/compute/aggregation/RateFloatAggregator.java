@@ -334,7 +334,8 @@ public class RateFloatAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
         }
     }

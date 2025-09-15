@@ -126,8 +126,7 @@ public abstract class TestCluster {
         SubscribableListener
 
             // dummy start step for symmetry
-            .newSucceeded(null)
-
+            .nullSuccess()
             // delete composable templates
             .<GetComposableIndexTemplateAction.Response>andThen(getComposableTemplates::addListener)
             .<AcknowledgedResponse>andThen((l, r) -> {

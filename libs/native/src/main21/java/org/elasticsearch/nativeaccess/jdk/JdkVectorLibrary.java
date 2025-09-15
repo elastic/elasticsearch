@@ -9,6 +9,8 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.lib.LoaderHelper;
 import org.elasticsearch.nativeaccess.lib.VectorLibrary;
@@ -25,6 +27,8 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
+    static final Logger logger = LogManager.getLogger(JdkVectorLibrary.class);
+
     static final MethodHandle dot7u$mh;
     static final MethodHandle sqr7u$mh;
 
@@ -36,7 +40,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         try {
             int caps = (int) vecCaps$mh.invokeExact();
-            if (caps != 0) {
+            logger.info("vec_caps=" + caps);
+            if (caps > 0) {
                 if (caps == 2) {
                     dot7u$mh = downcallHandle(
                         "dot7u_2",
@@ -62,6 +67,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 }
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
+                if (caps < 0) {
+                    logger.warn("""
+                        Your CPU supports vector capabilities, but they are disabled at OS level. For optimal performance, \
+                        enable them in your OS/Hypervisor/VM/container""");
+                }
                 dot7u$mh = null;
                 sqr7u$mh = null;
                 INSTANCE = null;

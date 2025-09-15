@@ -200,7 +200,7 @@ Once the permissions are set, assign the Profiles, Permission Set or Permission 
 Follow these steps in Salesforce:
 
 1. Navigate to `Administration` under the `Users` section.
-2. Select `Users` and choose the user to set the permissions to. 
+2. Select `Users` and choose the user to set the permissions to.
 3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
 
 [discrete#es-connectors-salesforce-sync-rules]
@@ -227,7 +227,7 @@ They take the following parameters:
 Allowed values are *SOQL* and *SOSL*.
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-query-language]
-======= Fetch documents based on the query and language specified
+*Fetch documents based on the query and language specified*
 
 **Example**: Fetch documents using SOQL query
 
@@ -249,14 +249,14 @@ Allowed values are *SOQL* and *SOSL*.
 [
   {
     "query": "FIND {Salesforce} IN ALL FIELDS",
-    "language": "SOSL" 
+    "language": "SOSL"
   }
 ]
 ----
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-objects]
-======= Fetch standard and custom objects using SOQL and SOSL queries
+*Fetch standard and custom objects using SOQL and SOSL queries*
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
@@ -293,7 +293,7 @@ Allowed values are *SOQL* and *SOSL*.
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-sync-rules-advanced-fetch-standard-custom-fields]
-======= Fetch documents with standard and custom fields
+*Fetch documents with standard and custom fields*
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
@@ -381,7 +381,18 @@ See <<es-connectors-content-extraction,content extraction>> for more specifics o
 [discrete#es-connectors-salesforce-known-issues]
 ===== Known issues
 
-There are currently no known issues for this connector.
+* *DLS feature is "type-level" not "document-level"*
++
+Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects.
+Instead, if a given user/group can have access to _any_ Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for _all_ of the Objects of that type.
+See https://github.com/elastic/connectors/issues/3028 for more details.
++
+
+* *Only first 500 nested entities are ingested*
++
+Some of the entities that Salesforce connector fetches are nested - they are ingested along the parent objects using a `JOIN` query. Examples of such entities are `EmailMessages`, `CaseComments` and `FeedComments`. When Salesforce connector fetches these entities it sets a limit to fetch only first 500 entities per parent object. The only possible workaround for it now is to fork the Connectors repository and modify the code in Salesforce connector to increase these limits.
++
+
 Refer to <<es-connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-salesforce-security]
@@ -396,7 +407,7 @@ This connector is built with the {connectors-python}[Elastic connector framework
 
 View the {connectors-python}/connectors/sources/salesforce.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============
 
 
@@ -598,7 +609,7 @@ Once the permissions are set, assign the Profiles, Permission Set or Permission 
 Follow these steps in Salesforce:
 
 1. Navigate to `Administration` under the `Users` section.
-2. Select `Users` and choose the user to set the permissions to. 
+2. Select `Users` and choose the user to set the permissions to.
 3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
 
 [discrete#es-connectors-salesforce-client-sync-rules]
@@ -626,7 +637,7 @@ They take the following parameters:
 Allowed values are *SOQL* and *SOSL*.
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language]
-======= Fetch documents based on the query and language specified
+*Fetch documents based on the query and language specified*
 
 **Example**: Fetch documents using SOQL query
 
@@ -648,14 +659,14 @@ Allowed values are *SOQL* and *SOSL*.
 [
   {
     "query": "FIND {Salesforce} IN ALL FIELDS",
-    "language": "SOSL" 
+    "language": "SOSL"
   }
 ]
 ----
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-objects]
-======= Fetch standard and custom objects using SOQL and SOSL queries
+*Fetch standard and custom objects using SOQL and SOSL queries*
 
 **Example**: Fetch documents for standard objects via SOQL and SOSL query.
 
@@ -692,7 +703,7 @@ Allowed values are *SOQL* and *SOSL*.
 // NOTCONSOLE
 
 [discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields]
-======= Fetch documents with standard and custom fields
+*Fetch documents with standard and custom fields*
 
 **Example**: Fetch documents with all standard and custom fields for Account object.
 
@@ -781,7 +792,18 @@ See <<es-connectors-content-extraction,content extraction>> for more specifics o
 [discrete#es-connectors-salesforce-client-known-issues]
 ===== Known issues
 
-There are currently no known issues for this connector.
+* *DLS feature is "type-level" not "document-level"*
++
+Salesforce DLS, added in 8.13.0, does not accomodate specific access controls to specific Salesforce Objects.
+Instead, if a given user/group can have access to _any_ Objects of a given type (`Case`, `Lead`, `Opportunity`, etc), that user/group will appear in the `\_allow_access_control` list for _all_ of the Objects of that type.
+See https://github.com/elastic/connectors/issues/3028 for more details.
++
+
+* *Only first 500 nested entities are ingested*
++
+Some of the entities that Salesforce connector fetches are nested - they are ingested along the parent objects using a `JOIN` query. Examples of such entities are `EmailMessages`, `CaseComments` and `FeedComments`. When Salesforce connector fetches these entities it sets a limit to fetch only first 500 entities per parent object. The only possible workaround for it now is to fork the Connectors repository and modify the code in Salesforce connector to increase these limits.
++
+
 Refer to <<es-connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-salesforce-client-security]
@@ -797,5 +819,5 @@ This connector is built with the {connectors-python}[Elastic connector framework
 View the {connectors-python}/connectors/sources/salesforce.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
 
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============

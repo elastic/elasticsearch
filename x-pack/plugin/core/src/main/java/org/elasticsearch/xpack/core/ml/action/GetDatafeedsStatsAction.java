@@ -336,9 +336,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             private GetDatafeedRunningStateAction.Response datafeedRuntimeState;
 
             public Builder setDatafeedIds(Collection<String> datafeedIds) {
-                this.statsBuilders = datafeedIds.stream()
-                    .map(GetDatafeedsStatsAction.Response.DatafeedStats::builder)
-                    .collect(Collectors.toList());
+                this.statsBuilders = datafeedIds.stream().map(DatafeedStats::builder).collect(Collectors.toList());
                 return this;
             }
 

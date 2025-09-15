@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -67,7 +66,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
@@ -80,7 +78,6 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             threadPool,
             actionFilters,
             SimulateTemplateAction.Request::new,
-            indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

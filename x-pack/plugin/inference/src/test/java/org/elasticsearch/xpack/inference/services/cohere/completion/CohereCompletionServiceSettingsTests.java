@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -27,7 +28,12 @@ import static org.hamcrest.Matchers.is;
 public class CohereCompletionServiceSettingsTests extends AbstractWireSerializingTestCase<CohereCompletionServiceSettings> {
 
     public static CohereCompletionServiceSettings createRandom() {
-        return new CohereCompletionServiceSettings(randomAlphaOfLength(8), randomAlphaOfLength(8), RateLimitSettingsTests.createRandom());
+        return new CohereCompletionServiceSettings(
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            RateLimitSettingsTests.createRandom(),
+            randomFrom(CohereServiceSettings.CohereApiVersion.values())
+        );
     }
 
     public void testFromMap_WithRateLimitSettingsNull() {
@@ -39,7 +45,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractWireSerializin
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new CohereCompletionServiceSettings(url, model, null)));
+        assertThat(serviceSettings, is(new CohereCompletionServiceSettings(url, model, null, CohereServiceSettings.CohereApiVersion.V1)));
     }
 
     public void testFromMap_WithRateLimitSettings() {
@@ -61,18 +67,33 @@ public class CohereCompletionServiceSettingsTests extends AbstractWireSerializin
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings, is(new CohereCompletionServiceSettings(url, model, new RateLimitSettings(requestsPerMinute))));
+        assertThat(
+            serviceSettings,
+            is(
+                new CohereCompletionServiceSettings(
+                    url,
+                    model,
+                    new RateLimitSettings(requestsPerMinute),
+                    CohereServiceSettings.CohereApiVersion.V1
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new CohereCompletionServiceSettings("url", "model", new RateLimitSettings(3));
+        var serviceSettings = new CohereCompletionServiceSettings(
+            "url",
+            "model",
+            new RateLimitSettings(3),
+            CohereServiceSettings.CohereApiVersion.V1
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model","rate_limit":{"requests_per_minute":3}}"""));
+            {"url":"url","model_id":"model","rate_limit":{"requests_per_minute":3},"api_version":"V1"}"""));
     }
 
     @Override

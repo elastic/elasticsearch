@@ -58,6 +58,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -75,7 +76,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
@@ -90,6 +91,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -152,7 +154,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ThreadPool threadPool,
         MetadataCreateIndexService metadataCreateIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
         PersistentTasksService persistentTasksService,
         DownsampleMetrics downsampleMetrics
@@ -164,7 +165,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             DownsampleAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -205,7 +205,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     ) {
         long startTime = client.threadPool().relativeTimeInMillis();
         String sourceIndexName = request.getSourceIndex();
-
+        IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
+        IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(request.getTargetIndex());
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
@@ -723,6 +724,9 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                     if (mapping.get("format") != null) {
                         builder.field("format", mapping.get("format"));
                     }
+                    if (mapping.get("ignore_malformed") != null) {
+                        builder.field("ignore_malformed", mapping.get("ignore_malformed"));
+                    }
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException("Unable to create timestamp field mapping for field [" + timestampField + "]", e);
@@ -734,6 +738,39 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .field(DownsampleConfig.TIME_ZONE, timezone)
             .endObject()
             .endObject();
+    }
+
+    // public for testing
+    public record AggregateMetricDoubleFieldSupportedMetrics(String defaultMetric, List<String> supportedMetrics) {}
+
+    // public for testing
+    public static AggregateMetricDoubleFieldSupportedMetrics getSupportedMetrics(
+        final TimeSeriesParams.MetricType metricType,
+        final Map<String, ?> fieldProperties
+    ) {
+        boolean sourceIsAggregate = fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+        List<String> supportedAggs = List.of(metricType.supportedAggs());
+
+        if (sourceIsAggregate) {
+            @SuppressWarnings("unchecked")
+            List<String> currentAggs = (List<String>) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.METRICS);
+            supportedAggs = supportedAggs.stream().filter(currentAggs::contains).toList();
+        }
+
+        assert supportedAggs.size() > 0;
+
+        String defaultMetric = "max";
+        if (supportedAggs.contains(defaultMetric) == false) {
+            defaultMetric = supportedAggs.get(0);
+        }
+        if (sourceIsAggregate) {
+            defaultMetric = Objects.requireNonNullElse(
+                (String) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC),
+                defaultMetric
+            );
+        }
+
+        return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
     }
 
     private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
@@ -749,12 +786,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 builder.field(fieldProperty, fieldProperties.get(fieldProperty));
             }
         } else {
-            final String[] supportedAggsArray = metricType.supportedAggs();
-            // We choose max as the default metric
-            final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
-            builder.field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
-                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+            var supported = getSupportedMetrics(metricType, fieldProperties);
+
+            builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
+                .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
+                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType);
         }
         builder.endObject();
@@ -895,6 +931,12 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             builder.put(
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(),
                 sourceIndexMetadata.getSettings().get(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())
+            );
+        }
+        if (sourceIndexMetadata.getSettings().hasValue(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())) {
+            builder.put(
+                FieldMapper.IGNORE_MALFORMED_SETTING.getKey(),
+                sourceIndexMetadata.getSettings().get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey())
             );
         }
 

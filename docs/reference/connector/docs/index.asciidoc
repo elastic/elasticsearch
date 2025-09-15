@@ -62,7 +62,7 @@ include::_connectors-list-clients.asciidoc[]
 == Connector framework
 
 All Elastic connectors are built using our Python connector framework.
-The source code is available in the {connectors-python}[`elastic/connectors`] repository on GitHub.
+The source code is available in the https://github.com/elastic/connectors[`elastic/connectors`] repository on GitHub.
 
 The connector framework is available for developers to customize existing self-managed connectors or build their own connectors.
 Refer to <<es-connectors-framework>> for details.
@@ -72,7 +72,7 @@ Refer to <<es-connectors-framework>> for details.
 
 The following diagram provides a high-level overview of the Elastic connectors offering and some key facts.
 
-image::connectors-overview.png[align="center",width="100%"]
+image::connectors-overview.svg[align="center",width="100%"]
 
 [discrete#es-connectors-overview-available-connectors]
 == Available connectors and feature support

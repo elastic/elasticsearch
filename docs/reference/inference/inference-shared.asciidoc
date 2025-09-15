@@ -41,14 +41,14 @@ end::chunking-settings[]
 tag::chunking-settings-max-chunking-size[]
 Specifies the maximum size of a chunk in words.
 Defaults to `250`.
-This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `10` (for `word` strategy). 
+This value cannot be higher than `300` or lower than `20` (for `sentence` strategy) or `10` (for `word` strategy).
 end::chunking-settings-max-chunking-size[]
 
 tag::chunking-settings-overlap[]
 Only for `word` chunking strategy.
 Specifies the number of overlapping words for chunks.
 Defaults to `100`.
-This value cannot be higher than the half of `max_chunking_size`.
+This value cannot be higher than the half of `max_chunk_size`.
 end::chunking-settings-overlap[]
 
 tag::chunking-settings-sentence-overlap[]
@@ -63,4 +63,48 @@ Specifies the chunking strategy.
 It could be either `sentence` or `word`.
 end::chunking-settings-strategy[]
 
+tag::chat-completion-schema-content-with-examples[]
+.Examples
+[%collapsible%closed]
+======
+String example
+[source,js]
+------------------------------------------------------------
+{
+    "content": "Some string"
+}
+------------------------------------------------------------
+// NOTCONSOLE
 
+Object example
+[source,js]
+------------------------------------------------------------
+{
+    "content": [
+        {
+            "text": "Some text",
+            "type": "text"
+        }
+    ]
+}
+------------------------------------------------------------
+// NOTCONSOLE
+======
+
+String representation:::
+(Required, string)
+The text content.
++
+Object representation:::
+`text`::::
+(Required, string)
+The text content.
++
+`type`::::
+(Required, string)
+This must be set to the value `text`.
+end::chat-completion-schema-content-with-examples[]
+
+tag::chat-completion-docs[]
+For more information on how to use the `chat_completion` task type, please refer to the <<chat-completion-inference-api, chat completion documentation>>.
+end::chat-completion-docs[]

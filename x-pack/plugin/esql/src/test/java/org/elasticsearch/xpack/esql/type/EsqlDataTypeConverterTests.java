@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -30,13 +32,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
@@ -45,16 +45,24 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
 
     public void testNanoTimeToString() {
-        long expected = randomLong();
+        long expected = randomNonNegativeLong();
         long actual = EsqlDataTypeConverter.dateNanosToLong(EsqlDataTypeConverter.nanoTimeToString(expected));
         assertEquals(expected, actual);
+    }
+
+    public void testStringToDateNanos() {
+        assertEquals(
+            DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")),
+            EsqlDataTypeConverter.convert("2023-01-01T00:00:00.000000000", DATE_NANOS)
+        );
+        assertEquals(DateUtils.toLong(Instant.parse("2023-01-01T00:00:00.000Z")), EsqlDataTypeConverter.convert("2023-01-01", DATE_NANOS));
     }
 
     public void testCommonTypeNull() {
@@ -71,8 +79,6 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
                 } else if ((isString(dataType1) && isString(dataType2))) {
                     if (dataType1 == dataType2) {
                         assertEqualsCommonType(dataType1, dataType2, dataType1);
-                    } else if (dataType1 == SEMANTIC_TEXT || dataType2 == SEMANTIC_TEXT) {
-                        assertEqualsCommonType(dataType1, dataType2, KEYWORD);
                     } else {
                         assertEqualsCommonType(dataType1, dataType2, TEXT);
                     }
@@ -84,14 +90,18 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testCommonTypeDateTimeIntervals() {
-        List<DataType> DATE_TIME_INTERVALS = Arrays.stream(DataType.values()).filter(DataType::isDateTimeOrTemporal).toList();
+        List<DataType> DATE_TIME_INTERVALS = Arrays.stream(DataType.values()).filter(DataType::isDateTimeOrNanosOrTemporal).toList();
         for (DataType dataType1 : DATE_TIME_INTERVALS) {
             for (DataType dataType2 : DataType.values()) {
                 if (dataType2 == NULL) {
                     assertEqualsCommonType(dataType1, NULL, dataType1);
-                } else if (isDateTimeOrTemporal(dataType2)) {
-                    if (isDateTime(dataType1) || isDateTime(dataType2)) {
+                } else if (isDateTimeOrNanosOrTemporal(dataType2)) {
+                    if ((dataType1 == DATE_NANOS && dataType2 == DATETIME) || (dataType1 == DATETIME && dataType2 == DATE_NANOS)) {
+                        assertNullCommonType(dataType1, dataType2);
+                    } else if (isDateTime(dataType1) || isDateTime(dataType2)) {
                         assertEqualsCommonType(dataType1, dataType2, DATETIME);
+                    } else if (dataType1 == DATE_NANOS || dataType2 == DATE_NANOS) {
+                        assertEqualsCommonType(dataType1, dataType2, DATE_NANOS);
                     } else if (dataType1 == dataType2) {
                         assertEqualsCommonType(dataType1, dataType2, dataType1);
                     } else {
@@ -145,7 +155,6 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             UNSUPPORTED,
             OBJECT,
             SOURCE,
-            DATE_NANOS,
             DOC_DATA_TYPE,
             TSID_DATA_TYPE,
             PARTIAL_AGG,
@@ -169,12 +178,12 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     private static void assertEqualsCommonType(DataType dataType1, DataType dataType2, DataType commonType) {
-        assertEquals(commonType, commonType(dataType1, dataType2));
-        assertEquals(commonType, commonType(dataType2, dataType1));
+        assertEquals("Expected " + commonType + " for " + dataType1 + " and " + dataType2, commonType, commonType(dataType1, dataType2));
+        assertEquals("Expected " + commonType + " for " + dataType1 + " and " + dataType2, commonType, commonType(dataType2, dataType1));
     }
 
     private static void assertNullCommonType(DataType dataType1, DataType dataType2) {
-        assertNull(commonType(dataType1, dataType2));
-        assertNull(commonType(dataType2, dataType1));
+        assertNull("Expected null for " + dataType1 + " and " + dataType2, commonType(dataType1, dataType2));
+        assertNull("Expected null for " + dataType1 + " and " + dataType2, commonType(dataType2, dataType1));
     }
 }

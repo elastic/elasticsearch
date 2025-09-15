@@ -62,22 +62,6 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
             );
         }));
 
-        cases.add(
-            new TestCaseSupplier("Repeat basic test with semantic_text input", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
-                String text = randomAlphaOfLength(10);
-                int number = between(0, 10);
-                return new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
-                        new TestCaseSupplier.TypedData(number, DataType.INTEGER, "number")
-                    ),
-                    "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef(text.repeat(number)))
-                );
-            })
-        );
-
         cases.add(new TestCaseSupplier("Repeat with number zero", List.of(DataType.KEYWORD, DataType.INTEGER), () -> {
             String text = randomAlphaOfLength(10);
             int number = 0;
@@ -117,18 +101,12 @@ public class RepeatTests extends AbstractScalarFunctionTestCase {
                 "RepeatEvaluator[str=Attribute[channel=0], number=Attribute[channel=1]]",
                 DataType.KEYWORD,
                 nullValue()
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: Number parameter cannot be negative, found [" + number + "]")
                 .withFoldingException(IllegalArgumentException.class, "Number parameter cannot be negative, found [" + number + "]");
         }));
 
-        cases = anyNullIsNull(true, cases);
-        cases = errorsForCasesWithoutExamples(cases, (v, p) -> switch (p) {
-            case 0 -> "string";
-            case 1 -> "integer";
-            default -> "";
-        });
-        return parameterSuppliersFromTypedData(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     @Override

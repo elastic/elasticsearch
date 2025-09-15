@@ -1,8 +1,8 @@
 # test how knn query interact with other queries
 setup:
   - requires:
-      cluster_features: "gte_v8.12.0"
-      reason: 'knn as query added in 8.12'
+      cluster_features: "search.vectors.k_param_supported"
+      reason: 'k param for knn as query is required'
       test_runner_features: close_to
 
   - do:
@@ -69,6 +69,7 @@ setup:
                   field: my_vector
                   query_vector: [ 1, 1, 1, 1 ]
                   num_candidates: 5
+                  k: 5
               functions:
                 - filter: { match: { my_name: v1 } }
                   weight: 10

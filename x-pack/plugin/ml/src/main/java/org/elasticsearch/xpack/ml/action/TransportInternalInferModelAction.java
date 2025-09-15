@@ -132,6 +132,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Response.Builder responseBuilder = Response.builder();
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
+        if (request.numberOfDocuments() == 0) {
+            listener.onResponse(responseBuilder.setId(request.getId()).build());
+            return;
+        }
+
         if (MachineLearning.INFERENCE_AGG_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
             doInfer(task, request, responseBuilder, parentTaskId, listener);

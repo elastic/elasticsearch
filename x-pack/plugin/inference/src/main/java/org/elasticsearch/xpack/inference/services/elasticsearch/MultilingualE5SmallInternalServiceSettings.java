@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -24,17 +28,35 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     static final int DIMENSIONS = 384;
     static final SimilarityMeasure SIMILARITY = SimilarityMeasure.COSINE;
 
+    public static MinimalServiceSettings minimalServiceSettings() {
+        return MinimalServiceSettings.textEmbedding(
+            ElasticsearchInternalService.NAME,
+            DIMENSIONS,
+            SIMILARITY,
+            DenseVectorFieldMapper.ElementType.FLOAT
+        );
+    }
+
+    public static MultilingualE5SmallInternalServiceSettings defaultEndpointSettings(boolean useLinuxOptimizedModel) {
+        return new MultilingualE5SmallInternalServiceSettings(
+            null,
+            1,
+            useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
+            new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
+        );
+    }
+
     public MultilingualE5SmallInternalServiceSettings(ElasticsearchInternalServiceSettings other) {
         super(other);
     }
 
-    public MultilingualE5SmallInternalServiceSettings(
+    MultilingualE5SmallInternalServiceSettings(
         Integer numAllocations,
         int numThreads,
         String modelId,
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
     ) {
-        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings);
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, null);
     }
 
     public MultilingualE5SmallInternalServiceSettings(StreamInput in) throws IOException {

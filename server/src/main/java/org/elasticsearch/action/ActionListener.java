@@ -390,7 +390,9 @@ public interface ActionListener<Response> {
 
                 private void assertFirstRun() {
                     var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
-                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
+                    assert previousRun == null
+                        // reports the stack traces of both completions
+                        : new AssertionError("[" + delegate + "]", previousRun);
                 }
 
                 @Override
@@ -473,6 +475,14 @@ public interface ActionListener<Response> {
         }
 
         ActionListener.run(ActionListener.runBefore(listener, resource::close), l -> action.accept(l, resource));
+    }
+
+    /**
+     * Increments ref count and returns a listener that will decrement ref count on listener completion.
+     */
+    static <Response> ActionListener<Response> withRef(ActionListener<Response> listener, RefCounted ref) {
+        ref.mustIncRef();
+        return releaseAfter(listener, ref::decRef);
     }
 
 }

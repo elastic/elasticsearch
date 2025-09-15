@@ -4,6 +4,12 @@
 <titleabbrev>Explain</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Returns information about why a specific document matches (or doesn't match) a 
 query.
 

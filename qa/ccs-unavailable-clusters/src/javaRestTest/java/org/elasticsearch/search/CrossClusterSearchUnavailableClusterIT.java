@@ -94,15 +94,20 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
+                    var searchShardsResponse = new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap());
+                    try {
+                        channel.sendResponse(searchShardsResponse);
+                    } finally {
+                        searchShardsResponse.decRef();
+                    }
                 }
             );
             newService.registerRequestHandler(
                 TransportSearchAction.TYPE.name(),
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
-                (request, channel, task) -> channel.sendResponse(
-                    new SearchResponse(
+                (request, channel, task) -> {
+                    var searchResponse = new SearchResponse(
                         SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
                         InternalAggregations.EMPTY,
                         null,
@@ -117,8 +122,13 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         100,
                         ShardSearchFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY
-                    )
-                )
+                    );
+                    try {
+                        channel.sendResponse(searchResponse);
+                    } finally {
+                        searchResponse.decRef();
+                    }
+                }
             );
             newService.registerRequestHandler(
                 ClusterStateAction.NAME,
@@ -130,7 +140,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         builder.add(node);
                     }
                     ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
+                    var clusterStateResponse = new ClusterStateResponse(clusterName, build, false);
+                    try {
+                        channel.sendResponse(clusterStateResponse);
+                    } finally {
+                        clusterStateResponse.decRef();
+                    }
                 }
             );
             newService.start();

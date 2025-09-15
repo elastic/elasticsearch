@@ -45,10 +45,10 @@ public interface RestRequestFilter {
                 }
 
                 @Override
-                public ReleasableBytesReference releasableContent() {
+                public ReleasableBytesReference content() {
                     if (filteredBytes == null) {
                         Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(
-                            restRequest.requiredReleasableContent(),
+                            restRequest.requiredContent(),
                             true,
                             restRequest.getXContentType()
                         );

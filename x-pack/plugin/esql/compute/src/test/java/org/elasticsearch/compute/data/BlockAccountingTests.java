@@ -14,7 +14,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.Releasables;
 import org.hamcrest.Matcher;
 

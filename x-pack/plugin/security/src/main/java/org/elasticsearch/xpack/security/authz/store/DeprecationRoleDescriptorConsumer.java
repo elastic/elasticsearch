@@ -20,6 +20,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
@@ -179,27 +180,40 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             }
         }
         // compute privileges Automaton for each alias and for each of the indices it points to
-        final Map<String, Automaton> indexAutomatonMap = new HashMap<>();
+        final Map<String, Set<IndexPrivilege>> indexPrivilegeMap = new HashMap<>();
         for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
             final String aliasName = privilegesByAlias.getKey();
             final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
-            final Automaton aliasPrivilegeAutomaton = IndexPrivilege.get(aliasPrivilegeNames).getAutomaton();
+            final Set<IndexPrivilege> aliasPrivileges = IndexPrivilege.resolveBySelectorAccess(aliasPrivilegeNames);
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
-            // check if the alias grants superiors privileges than the indices it points to
-            for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
-                final Set<String> indexPrivileges = privilegesByIndexMap.get(index.getName());
-                // null iff the index does not have *any* privilege
-                if (indexPrivileges != null) {
-                    // compute automaton once per index no matter how many times it is pointed to
-                    final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(
-                        index.getName(),
-                        i -> IndexPrivilege.get(indexPrivileges).getAutomaton()
-                    );
-                    if (false == Operations.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
+            for (var aliasPrivilege : aliasPrivileges) {
+                // TODO implement failures handling in a follow-up
+                if (aliasPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                    continue;
+                }
+                final Automaton aliasPrivilegeAutomaton = aliasPrivilege.getAutomaton();
+                // check if the alias grants superiors privileges than the indices it points to
+                for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
+                    final Set<String> indexPrivileges = privilegesByIndexMap.get(index.getName());
+                    // null iff the index does not have *any* privilege
+                    if (indexPrivileges != null) {
+                        // compute privilege set once per index no matter how many times it is pointed to
+                        final Set<IndexPrivilege> indexPrivilegeSet = indexPrivilegeMap.computeIfAbsent(
+                            index.getName(),
+                            i -> IndexPrivilege.resolveBySelectorAccess(indexPrivileges)
+                        );
+                        for (var indexPrivilege : indexPrivilegeSet) {
+                            // TODO implement failures handling in a follow-up
+                            if (indexPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                                continue;
+                            }
+                            if (false == Operations.subsetOf(indexPrivilege.getAutomaton(), aliasPrivilegeAutomaton)) {
+                                inferiorIndexNames.add(index.getName());
+                            }
+                        }
+                    } else {
                         inferiorIndexNames.add(index.getName());
                     }
-                } else {
-                    inferiorIndexNames.add(index.getName());
                 }
             }
             // log inferior indices for this role, for this alias

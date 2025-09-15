@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer {
-    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.0";
+    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.1";
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private final ProvisioningId provisioningId;
     private Path krb5ConfFile;
@@ -39,14 +39,14 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
     public enum ProvisioningId {
         HDFS(
             "hdfs",
-            "/fixture/src/main/resources/provision/hdfs.sh",
+            "/fixture/provision/hdfs.sh",
             "/fixture/build/keytabs/hdfs_hdfs.build.elastic.co.keytab",
             "/fixture/build/keytabs/elasticsearch.keytab",
             "hdfs/hdfs.build.elastic.co@BUILD.ELASTIC.CO"
         ),
         PEPPA(
             "peppa",
-            "/fixture/src/main/resources/provision/peppa.sh",
+            "/fixture/provision/peppa.sh",
             "/fixture/build/keytabs/peppa.keytab",
             "/fixture/build/keytabs/HTTP_localhost.keytab",
             "peppa@BUILD.ELASTIC.CO"
@@ -94,7 +94,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         withNetworkAliases("kerberos.build.elastic.co", "build.elastic.co");
         withCopyFileToContainer(MountableFile.forHostPath("/dev/urandom"), "/dev/random");
         withExtraHost("kerberos.build.elastic.co", "127.0.0.1");
-        withCommand("bash", provisioningId.scriptPath);
+        withCommand("sh", provisioningId.scriptPath);
     }
 
     @Override
@@ -122,7 +122,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
             .findFirst();
         String hostPortSpec = bindings.get().getHostPortSpec();
         String s = copyFileFromContainer("/fixture/build/krb5.conf.template", i -> IOUtils.toString(i, StandardCharsets.UTF_8));
-        return s.replace("${MAPPED_PORT}", hostPortSpec);
+        return s.replace("#KDC_DOCKER_HOST", "kdc = 127.0.0.1:" + hostPortSpec);
     }
 
     public Path getKeytab() {
@@ -158,7 +158,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         }
         try {
             krb5ConfFile = temporaryFolder.newFile("krb5.conf").toPath();
-            Files.write(krb5ConfFile, getConf().getBytes(StandardCharsets.UTF_8));
+            Files.writeString(krb5ConfFile, getConf());
             return krb5ConfFile;
         } catch (IOException e) {
             throw new RuntimeException(e);

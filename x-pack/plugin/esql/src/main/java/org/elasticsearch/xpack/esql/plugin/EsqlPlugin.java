@@ -22,9 +22,9 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockWritables;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -37,6 +37,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
+import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -60,11 +62,17 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.lang.invoke.MethodHandles;
@@ -98,6 +106,79 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
+        "esql.query.allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.warn",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_INFO_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.info",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.debug",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.trace",
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(-1),
+        TimeValue.timeValueMillis(Integer.MAX_VALUE),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> ESQL_QUERYLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
+        "esql.querylog.include.user",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Tuning parameter for deciding when to use the "merge" stored field loader.
+     * Think of it as "how similar to a sequential block of documents do I have to
+     * be before I'll use the merge reader?" So a value of {@code 1} means I have to
+     * be <strong>exactly</strong> a sequential block, like {@code 0, 1, 2, 3, .. 1299, 1300}.
+     * A value of {@code .2} means we'll use the sequential reader even if we only
+     * need one in ten documents.
+     * <p>
+     *     The default value of this was experimentally derived using a
+     *     <a href="https://gist.github.com/nik9000/ac6857de10745aad210b6397915ff846">script</a>.
+     *     And a little paranoia. A lower default value was looking good locally, but
+     *     I'm concerned about the implications of effectively using this all the time.
+     * </p>
+     */
+    public static final Setting<Double> STORED_FIELDS_SEQUENTIAL_PROPORTION = Setting.doubleSetting(
+        "index.esql.stored_fields_sequential_proportion",
+        0.20,
+        0,
+        1,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
     @Override
     public Collection<?> createComponents(PluginServices services) {
         CircuitBreaker circuitBreaker = services.indicesService().getBigArrays().breakerService().getBreaker("request");
@@ -108,13 +189,27 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
-        BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
-            new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
-            blockFactory
+            new PlanExecutor(
+                new IndexResolver(services.client()),
+                services.telemetryProvider().getMeterRegistry(),
+                getLicenseState(),
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider())
+            ),
+            new ExchangeService(
+                services.clusterService().getSettings(),
+                services.threadPool(),
+                ThreadPool.Names.SEARCH,
+                blockFactoryProvider.blockFactory()
+            ),
+            blockFactoryProvider
         );
+    }
+
+    protected BlockFactoryProvider blockFactoryProvider(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
+        return new BlockFactoryProvider(new BlockFactory(breaker, bigArrays, maxPrimitiveArraySize));
     }
 
     private void setupSharedSecrets() {
@@ -138,7 +233,20 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(QUERY_RESULT_TRUNCATION_DEFAULT_SIZE, QUERY_RESULT_TRUNCATION_MAX_SIZE);
+        return List.of(
+            QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
+            QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            QUERY_ALLOW_PARTIAL_RESULTS,
+            ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+            ESQL_QUERYLOG_INCLUDE_USER_SETTING,
+            PhysicalSettings.DEFAULT_DATA_PARTITIONING,
+            PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            STORED_FIELDS_SEQUENTIAL_PROPORTION,
+            EsqlFlags.ESQL_STRING_LIKE_ON_INDEX
+        );
     }
 
     @Override
@@ -150,7 +258,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler<>(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
-            new ActionHandler<>(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class)
+            new ActionHandler<>(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler<>(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class)
         );
     }
 
@@ -170,6 +279,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new RestEsqlQueryAction(),
             new RestEsqlAsyncQueryAction(),
             new RestEsqlGetAsyncResultAction(),
+            new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction()
         );
     }
@@ -188,12 +298,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         entries.add(LuceneOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
-        entries.add(ValuesSourceReaderOperator.Status.ENTRY);
+        entries.add(ValuesSourceReaderOperatorStatus.ENTRY);
         entries.add(SingleValueQuery.ENTRY);
         entries.add(AsyncOperator.Status.ENTRY);
         entries.add(EnrichLookupOperator.Status.ENTRY);
+        entries.add(LookupFromIndexOperator.Status.ENTRY);
+        entries.add(ExpressionQueryBuilder.ENTRY);
+        entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
 
-        entries.addAll(BlockWritables.getNamedWriteables());
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
         return entries;

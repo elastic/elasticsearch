@@ -1,6 +1,12 @@
 [[search]]
 == Search APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Search APIs are used to search and aggregate data stored in {es} indices and
 data streams. For an overview and related tutorials, see <<search-your-data>>.
 

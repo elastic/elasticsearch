@@ -21,7 +21,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -34,6 +33,7 @@ import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -49,8 +49,8 @@ import java.util.function.Predicate;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class DefaultHighlighter implements Highlighter {
-
-    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields");
+    public static final String NAME = "unified";
+    public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields", true);
 
     @Override
     public boolean canHighlight(MappedFieldType fieldType) {
@@ -227,7 +227,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    protected static String convertFieldValue(MappedFieldType type, Object value) {
+    public static String convertFieldValue(MappedFieldType type, Object value) {
         if (value instanceof BytesRef) {
             return type.valueForDisplay(value).toString();
         } else {
@@ -235,7 +235,7 @@ public class DefaultHighlighter implements Highlighter {
         }
     }
 
-    protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
+    public static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         // loaded from stored fields, we merge all values using a proper separator
         String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));

@@ -690,7 +690,13 @@ public class IndexMetadataTests extends ESTestCase {
     }
 
     private static InferenceFieldMetadata randomInferenceFieldMetadata(String name) {
-        return new InferenceFieldMetadata(name, randomIdentifier(), randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new));
+        return new InferenceFieldMetadata(
+            name,
+            randomIdentifier(),
+            randomIdentifier(),
+            randomSet(1, 5, ESTestCase::randomIdentifier).toArray(String[]::new),
+            InferenceFieldMetadataTests.generateRandomChunkingSettings()
+        );
     }
 
     private IndexMetadataStats randomIndexStats(int numberOfShards) {

@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -43,7 +42,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,8 +80,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         NodeClient client,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -91,7 +89,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             threadPool,
             actionFilters,
             SnapshotsStatusRequest::new,
-            indexNameExpressionResolver,
             SnapshotsStatusResponse::new,
             // building the response is somewhat expensive for large snapshots, so we fork.
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
@@ -116,7 +113,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(state);
-        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
+        List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsServiceUtils.currentSnapshots(
             snapshotsInProgress,
             request.repository(),
             Arrays.asList(request.snapshots())

@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
@@ -47,7 +48,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -62,7 +63,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
@@ -148,7 +148,7 @@ public class MetadataRolloverService {
         @Nullable AutoShardingResult autoShardingResult,
         boolean isFailureStoreRollover
     ) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
@@ -190,7 +190,7 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         boolean isFailureStoreRollover
     ) {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
@@ -295,7 +295,7 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) throws Exception {
 
-        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+        if (SnapshotsServiceUtils.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
             // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
             // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
             // rollover
@@ -311,7 +311,7 @@ public class MetadataRolloverService {
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
+            templateV2 = dataStream.getEffectiveIndexTemplate(currentState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
@@ -342,6 +342,7 @@ public class MetadataRolloverService {
                 now.toEpochMilli(),
                 dataStreamName,
                 templateV2,
+                systemDataStreamDescriptor,
                 newWriteIndexName,
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
             );
@@ -430,6 +431,7 @@ public class MetadataRolloverService {
             );
         }
 
+        writeLoadForecaster.refreshLicense();
         metadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(dataStreamName, metadataBuilder);
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
@@ -626,16 +628,10 @@ public class MetadataRolloverService {
         }
     }
 
-    static void validate(
-        Metadata metadata,
-        String rolloverTarget,
-        String newIndexName,
-        CreateIndexRequest request,
-        boolean isFailureStoreRollover
-    ) {
+    static void validate(Metadata metadata, String rolloverTarget, String newIndexName, CreateIndexRequest request) {
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
-            throw new IllegalArgumentException("rollover target [" + rolloverTarget + "] does not exist");
+            throw new ResourceNotFoundException("rollover target [" + rolloverTarget + "] does not exist");
         }
         if (VALID_ROLLOVER_TARGETS.contains(indexAbstraction.getType()) == false) {
             throw new IllegalArgumentException(

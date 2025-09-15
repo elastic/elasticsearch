@@ -5,12 +5,24 @@
 <titleabbrev>Full-text Search functions</titleabbrev>
 ++++
 
+Full text functions are used to search for text in fields.
+<<analysis, Text analysiss>> is used to analyze the query before it is searched.
+
+Full text functions can be used to match <<esql-multivalued-fields,multivalued fields>>.
+A multivalued field that contains a value that matches a full text query is considered to match the query.
+
+See <<esql-limitations-full-text-search,full text search limitations>> for information on the limitations of full text search.
+
 {esql} supports these full-text search functions:
 
 // tag::search_list[]
-* experimental:[] <<esql-match>>
-* experimental:[] <<esql-qstr>>
+* <<esql-kql>>
+* <<esql-match>>
+* <<esql-match_phrase>>
+*  <<esql-qstr>>
 // end::search_list[]
 
+include::layout/kql.asciidoc[]
 include::layout/match.asciidoc[]
+include::layout/match_phrase.asciidoc[]
 include::layout/qstr.asciidoc[]

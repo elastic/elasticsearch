@@ -7,18 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link BooleanArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
@@ -122,7 +125,7 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                    builder.appendBoolean(getBoolean(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

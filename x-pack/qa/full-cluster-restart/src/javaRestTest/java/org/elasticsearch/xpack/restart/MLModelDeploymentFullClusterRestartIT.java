@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
@@ -36,7 +35,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartTestCase {
 
     // See PyTorchModelIT for how this model was created
     static final String BASE_64_ENCODED_MODEL =
@@ -91,7 +90,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractXpackFullClus
     }
 
     public void testDeploymentSurvivesRestart() throws Exception {
-        @UpdateForV9 // condition will always be true from v8, can be removed
         var originalClusterSupportsNlpModels = oldClusterHasFeature(RestTestLegacyFeatures.ML_NLP_SUPPORTED);
         assumeTrue("NLP model deployments added in 8.0", originalClusterSupportsNlpModels);
 

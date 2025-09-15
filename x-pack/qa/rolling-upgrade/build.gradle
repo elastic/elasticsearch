@@ -8,9 +8,11 @@ apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
+  testImplementation testArtifact(project(':server'))
   testImplementation testArtifact(project(xpackModule('core')))
   testImplementation project(':x-pack:qa')
   testImplementation project(':modules:reindex')
+  testImplementation testArtifact(project(xpackModule('inference')))
 }
 
 restResources {
@@ -23,7 +25,7 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/system_key'
 }
 
-String outputDir = "${buildDir}/generated-resources/${project.name}"
+String outputDir = "${layout.buildDirectory.get().asFile}/generated-resources/${project.name}"
 
 tasks.register("copyTestNodeKeyMaterial", Copy) {
   from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
@@ -35,13 +37,12 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
+  String searchableSnapshotRepository = "${layout.buildDirectory.get().asFile}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
-
     systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
     //we don't want to hit real service from each test
     systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
@@ -50,7 +51,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     }
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
+    setting 'path.repo', "['${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -61,6 +62,10 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     setting 'xpack.security.transport.ssl.key', 'testnode.pem'
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+    if (bwcVersion.before('8.19.0')) {
+      jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
+      jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
+    }
 
     if (bwcVersion.onOrAfter('7.0.0')) {
       setting 'xpack.security.authc.realms.file.file1.order', '0'
@@ -119,20 +124,20 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     mustRunAfter("precommit")
     dependsOn "copyTestNodeKeyMaterial"
     doFirst {
-      delete("${buildDir}/cluster/shared/repo/${baseName}")
+      delete("${layout.buildDirectory.get().asFile}/cluster/shared/repo/${baseName}")
       delete("${searchableSnapshotRepository}")
     }
 
     systemProperty 'tests.rest.suite', 'old_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
 
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['old_cluster/30_ml_jobs_crud/*', 'old_cluster/40_ml_datafeed_crud/*', 'old_cluster/90_ml_data_frame_analytics_crud/*'].join(',')
     }
   }
 
@@ -140,9 +145,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oldClusterTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'true'
@@ -168,7 +173,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'])
+      excludeList.addAll(['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud/*'])
     }
     systemProperty 'tests.rest.blacklist', excludeList.join(',')
   }
@@ -177,9 +182,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'mixed_cluster'
     systemProperty 'tests.first_round', 'false'
@@ -189,7 +194,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['mixed_cluster/30_ml_jobs_crud/*', 'mixed_cluster/40_ml_datafeed_crud/*', 'mixed_cluster/90_ml_data_frame_analytics_crud/*'].join(',')
     }
   }
 
@@ -197,9 +202,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     useCluster baseCluster
     doFirst {
-      baseCluster.get().nextNodeToNextVersion()
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
-    nonInputProperties.systemProperty('tests.rest.cluster', "${-> baseCluster.get().allHttpSocketURI.join(",")}")
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
     nonInputProperties.systemProperty('tests.clustername', baseName)
     systemProperty 'tests.rest.suite', 'upgraded_cluster'
     systemProperty 'tests.upgrade_from_version', oldVersion
@@ -208,7 +213,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     // Disable ML tests for incompatible systems
     if (BwcVersions.isMlCompatible(bwcVersion) == false) {
       systemProperty 'tests.ml.skip', 'true'
-      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud'].join(',')
+      systemProperty 'tests.rest.blacklist', ['upgraded_cluster/30_ml_jobs_crud/*', 'upgraded_cluster/40_ml_datafeed_crud/*', 'upgraded_cluster/90_ml_data_frame_analytics_crud/*'].join(',')
     }
   }
 

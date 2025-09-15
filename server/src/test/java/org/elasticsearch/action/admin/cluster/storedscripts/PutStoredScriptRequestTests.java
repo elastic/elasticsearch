@@ -57,9 +57,15 @@ public class PutStoredScriptRequestTests extends ESTestCase {
 
         BytesReference expectedRequestBody = BytesReference.bytes(builder);
 
-        PutStoredScriptRequest request = new PutStoredScriptRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
-        request.id("test1");
-        request.content(expectedRequestBody, xContentType);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test1",
+            null,
+            expectedRequestBody,
+            xContentType,
+            StoredScriptSource.parse(expectedRequestBody, xContentType)
+        );
 
         XContentBuilder requestBuilder = XContentBuilder.builder(xContentType.xContent());
         requestBuilder.startObject();

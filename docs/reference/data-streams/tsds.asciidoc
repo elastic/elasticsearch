@@ -17,7 +17,7 @@ metrics data. Only use a TSDS if you typically add metrics data to {es} in near
 real-time and `@timestamp` order.
 
 A TSDS is only intended for metrics data. For other timestamped data, such as
-logs or traces, use a regular data stream.
+logs or traces, use a <<logs-data-stream,logs data stream>> or regular data stream.
 
 [discrete]
 [[differences-from-regular-data-stream]]
@@ -130,7 +130,6 @@ To mark a field as a metric, you must specify a metric type using the
 `time_series_metric` parameter:
 
 * <<aggregate-metric-double,`aggregate_metric_double`>>
-* <<histogram,`histogram`>>
 * All <<number,numeric field types>>
 
 Accepted metric types vary based on the field type:
@@ -339,4 +338,5 @@ include::tsds-index-settings.asciidoc[]
 include::downsampling.asciidoc[]
 include::downsampling-ilm.asciidoc[]
 include::downsampling-manual.asciidoc[]
+include::downsampling-dsl.asciidoc[]
 include::tsds-reindex.asciidoc[]

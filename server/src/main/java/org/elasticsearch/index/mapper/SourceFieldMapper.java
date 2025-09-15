@@ -18,8 +18,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
@@ -27,8 +25,11 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.FetchContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
@@ -39,36 +40,38 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
+    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback", true);
     public static final NodeFeature SYNTHETIC_SOURCE_STORED_FIELDS_ADVANCE_FIX = new NodeFeature(
-        "mapper.source.synthetic_source_stored_fields_advance_fix"
+        "mapper.source.synthetic_source_stored_fields_advance_fix",
+        true
     );
     public static final NodeFeature SYNTHETIC_SOURCE_WITH_COPY_TO_AND_DOC_VALUES_FALSE_SUPPORT = new NodeFeature(
-        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false"
+        "mapper.source.synthetic_source_with_copy_to_and_doc_values_false",
+        true
     );
-    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix");
+    public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_FIX = new NodeFeature("mapper.source.synthetic_source_copy_to_fix", true);
     public static final NodeFeature SYNTHETIC_SOURCE_COPY_TO_INSIDE_OBJECTS_FIX = new NodeFeature(
-        "mapper.source.synthetic_source_copy_to_inside_objects_fix"
+        "mapper.source.synthetic_source_copy_to_inside_objects_fix",
+        true
     );
     public static final NodeFeature REMOVE_SYNTHETIC_SOURCE_ONLY_VALIDATION = new NodeFeature(
         "mapper.source.remove_synthetic_source_only_validation"
     );
     public static final NodeFeature SOURCE_MODE_FROM_INDEX_SETTING = new NodeFeature("mapper.source.mode_from_index_setting");
+    public static final NodeFeature SYNTHETIC_RECOVERY_SOURCE = new NodeFeature("mapper.synthetic_recovery_source");
 
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
+
+    public static final String RECOVERY_SOURCE_SIZE_NAME = "_recovery_source_size";
 
     public static final String CONTENT_TYPE = "_source";
 
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
-    public static final Setting<Mode> INDEX_MAPPER_SOURCE_MODE_SETTING = Setting.enumSetting(SourceFieldMapper.Mode.class, settings -> {
-        final IndexMode indexMode = IndexSettings.MODE.get(settings);
-        return indexMode.defaultSourceMode().name();
-    }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
+    public static final String DEPRECATION_WARNING_TITLE = "Configuring source mode in mappings is deprecated.";
 
     public static final String DEPRECATION_WARNING = "Configuring source mode in mappings is deprecated and will be removed "
         + "in future versions. Use [index.mapping.source.mode] index setting instead.";
@@ -169,14 +172,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
             this.serializeMode = serializeMode;
-            this.mode = new Parameter<>(
-                "mode",
-                true,
-                () -> null,
-                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-                m -> toType(m).enabled.explicit() ? null : toType(m).mode,
+            this.mode = new Parameter<>("mode", true, () -> null, (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)), m -> {
+                var sfm = toType(m);
+                if (sfm.enabled.explicit()) {
+                    return null;
+                } else if (sfm.serializeMode) {
+                    return sfm.mode;
+                } else {
+                    return null;
+                }
+            },
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
-                v -> v.toString().toLowerCase(Locale.ROOT)
+                v -> v != null ? v.toString().toLowerCase(Locale.ROOT) : null
             ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
@@ -259,8 +266,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private Mode resolveSourceMode() {
             // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
-            if (INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)) {
-                return INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
+            if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(settings)) {
+                return IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings);
             }
 
             // If `_source.mode` is not set we need to apply a default according to index mode.
@@ -292,16 +299,25 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return DEFAULT;
         }
 
-        final Mode settingSourceMode = INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
+        final Mode settingSourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
         // Needed for bwc so that "mode" is not serialized in case of standard index with stored source.
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
+        SourceFieldMapper sourceFieldMapper;
         if (c.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
-            return resolveStaticInstance(settingSourceMode);
+            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
         } else {
-            return new SourceFieldMapper(settingSourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, true);
+            sourceFieldMapper = new SourceFieldMapper(
+                settingSourceMode,
+                Explicit.IMPLICIT_TRUE,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                true
+            );
         }
+        indexMode.validateSourceFieldMapper(sourceFieldMapper);
+        return sourceFieldMapper;
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),
@@ -309,17 +325,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
             c.indexVersionCreated().before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
         )
-    ) {
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
-            throws MapperParsingException {
-            assert name.equals(SourceFieldMapper.NAME) : name;
-            if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER) && node.containsKey("mode")) {
-                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
-            }
-            return super.parse(name, node, parserContext);
-        }
-    };
+    );
 
     static final class SourceFieldType extends MappedFieldType {
         private final boolean enabled;
@@ -336,7 +342,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
@@ -411,9 +417,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(DocumentParserContext context) throws IOException {
-        BytesReference originalSource = context.sourceToParse().source();
+        int originalSourceLength = context.sourceToParse().source().length();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
+        BytesReference originalSource = removeInferenceMetadataFields(
+            context.mappingLookup(),
+            context.sourceToParse().source(),
+            contentType
+        );
+        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType, false);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -424,19 +435,75 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
-            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+                assert isSynthetic() : "recovery source should not be disabled on non-synthetic source";
+                /**
+                 * We use synthetic source for recovery, so we omit the recovery source.
+                 * Instead, we record only the size of the uncompressed source.
+                 * This size is used in {@link LuceneSyntheticSourceChangesSnapshot} to control memory
+                 * usage during the recovery process when loading a batch of synthetic sources.
+                 */
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSourceLength));
+            } else {
+                context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+            }
+        }
+    }
+
+    /**
+     * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source} if it is present.
+     * This metadata is regenerated at query or snapshot recovery time using stored fields and doc values.
+     *
+     * <p>For details on how the metadata is re-added, see:</p>
+     * <ul>
+     *   <li>{@link SearchBasedChangesSnapshot#addSourceMetadata(BytesReference, int)}</li>
+     *   <li>{@link FetchSourcePhase#getProcessor(FetchContext)}</li>
+     * </ul>
+     */
+    private BytesReference removeInferenceMetadataFields(
+        MappingLookup mappingLookup,
+        @Nullable BytesReference originalSource,
+        @Nullable XContentType contentType
+    ) {
+        if (originalSource != null
+            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false) {
+            return Source.fromBytes(originalSource, contentType)
+                .filter(new SourceFilter(new String[] {}, new String[] { InferenceMetadataFieldsMapper.NAME }))
+                .internalSourceRef();
+        } else {
+            return originalSource;
         }
     }
 
     @Nullable
-    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (stored() == false) {
+    public BytesReference applyFilters(
+        MappingLookup mappingLookup,
+        @Nullable BytesReference originalSource,
+        @Nullable XContentType contentType,
+        boolean removeMetadataFields
+    ) throws IOException {
+        if (stored() == false || originalSource == null) {
             return null;
         }
-        if (originalSource != null && sourceFilter != null) {
+        var modSourceFilter = sourceFilter;
+        if (removeMetadataFields
+            && InferenceMetadataFieldsMapper.isEnabled(mappingLookup)
+            && mappingLookup.inferenceFields().isEmpty() == false) {
+            /*
+             * Removes the {@link InferenceMetadataFieldsMapper} content from the {@code _source}.
+             */
+            String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
+            if (excludes != null) {
+                System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);
+            }
+            modExcludes[modExcludes.length - 1] = InferenceMetadataFieldsMapper.NAME;
+            modSourceFilter = new SourceFilter(includes, modExcludes);
+        }
+        if (modSourceFilter != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
+            return Source.fromBytes(originalSource, contentType).filter(modSourceFilter).internalSourceRef();
         } else {
             return originalSource;
         }
@@ -452,26 +519,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
     }
 
-    /**
-     * Build something to load source {@code _source}.
-     */
-    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
-        if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
-        }
-        return SourceLoader.FROM_STORED_SOURCE;
-    }
-
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
     }
 
     public static boolean isSynthetic(IndexSettings indexSettings) {
-        return INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC;
+        return IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC;
     }
 
     public static boolean isStored(IndexSettings indexSettings) {
-        return INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == Mode.STORED;
+        return IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexSettings.getSettings()) == Mode.STORED;
     }
 
     public boolean isDisabled() {

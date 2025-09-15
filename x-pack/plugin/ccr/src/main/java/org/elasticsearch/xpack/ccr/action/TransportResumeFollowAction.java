@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -92,7 +92,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final ActionFilters actionFilters,
         final Client client,
         final ClusterService clusterService,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final PersistentTasksService persistentTasksService,
         final IndicesService indicesService,
         final CcrLicenseChecker ccrLicenseChecker
@@ -105,7 +104,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             ResumeFollowAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
@@ -531,7 +529,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
-        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING
+        IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
+        MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING
     );
 
     public static Settings filter(Settings originalSettings) {

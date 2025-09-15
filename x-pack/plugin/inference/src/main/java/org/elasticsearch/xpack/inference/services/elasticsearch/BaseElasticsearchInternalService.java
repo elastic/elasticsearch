@@ -22,7 +22,6 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -107,7 +106,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                 })
                 .<Boolean>andThen((l2, modelDidPut) -> {
                     var startRequest = esModel.getStartTrainedModelDeploymentActionRequest(timeout);
-                    var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
+                    var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, l2);
                     client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
                 })
                 .addListener(finalListener);
@@ -118,9 +117,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
-
-        var model = parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+    public void stop(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
 
             var serviceSettings = esModel.getServiceSettings();
@@ -281,10 +278,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         TimeValue timeout
     ) {
         var request = InferModelAction.Request.forTextInput(id, update, inputs, true, timeout);
-        request.setPrefixType(
-            InputType.SEARCH == inputType ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST
-        );
-        request.setHighPriority(InputType.SEARCH == inputType);
+        var isSearchInput = InputType.SEARCH == inputType || InputType.INTERNAL_SEARCH == inputType;
+        var isIngestInput = InputType.INGEST == inputType || InputType.INTERNAL_INGEST == inputType;
+        if (isSearchInput) {
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+        } else if (isIngestInput) {
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+        }
+        request.setHighPriority(isSearchInput);
         request.setChunked(false);
         return request;
     }

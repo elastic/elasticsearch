@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
 import java.lang.reflect.Constructor;
@@ -43,18 +42,12 @@ public class MockPluginsService extends PluginsService {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), new PluginsLoader(environment.modulesFile(), environment.pluginsFile()) {
-
-            @Override
-            protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-                // tests don't run modular
-            }
-        });
+        super(settings, environment.configDir(), new PluginsLoader(Collections.emptySet(), Collections.emptySet(), Collections.emptyMap()));
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
 
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, environment.configFile());
+            Plugin plugin = loadPlugin(pluginClass, settings, environment.configDir());
             PluginDescriptor pluginInfo = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",

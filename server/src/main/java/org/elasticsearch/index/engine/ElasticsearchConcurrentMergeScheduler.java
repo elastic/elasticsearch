@@ -31,7 +31,11 @@ import java.util.concurrent.Executor;
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
  * and current merges.
+ * @deprecated Replaced by {@link org.elasticsearch.index.engine.ThreadPoolMergeScheduler}. This merge scheduler
+ * implementation should only be used to get around unexpected issues with the {@link ThreadPoolMergeScheduler},
+ * which is the default one.
  */
+@Deprecated
 public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler implements ElasticsearchMergeScheduler {
 
     protected final Logger logger;

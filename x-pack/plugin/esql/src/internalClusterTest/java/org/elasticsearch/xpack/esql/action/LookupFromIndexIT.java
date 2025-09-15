@@ -20,20 +20,20 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.ShardContext;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -48,11 +48,14 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -60,6 +63,7 @@ import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -67,20 +71,63 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
+    public void testKeywordKey() throws IOException {
+        runLookup(DataType.KEYWORD, new UsingSingleLookupTable(new String[] { "aa", "bb", "cc", "dd" }));
+    }
+
+    public void testLongKey() throws IOException {
+        runLookup(DataType.LONG, new UsingSingleLookupTable(new Long[] { 12L, 33L, 1L }));
+    }
+
     /**
-     * Quick and dirty test for looking up data from a lookup index.
+     * LOOKUP multiple results match.
      */
-    public void testLookupIndex() throws IOException {
-        // TODO this should *fail* if the target index isn't a lookup type index - it doesn't now.
-        int docCount = between(10, 1000);
-        List<String> expected = new ArrayList<>(docCount);
+    public void testLookupIndexMultiResults() throws IOException {
+        runLookup(DataType.KEYWORD, new UsingSingleLookupTable(new String[] { "aa", "bb", "bb", "dd" }));
+    }
+
+    interface PopulateIndices {
+        void populate(int docCount, List<String> expected) throws IOException;
+    }
+
+    class UsingSingleLookupTable implements PopulateIndices {
+        private final Map<Object, List<Integer>> matches = new HashMap<>();
+        private final Object[] lookupData;
+
+        UsingSingleLookupTable(Object[] lookupData) {
+            this.lookupData = lookupData;
+            for (int i = 0; i < lookupData.length; i++) {
+                matches.computeIfAbsent(lookupData[i], k -> new ArrayList<>()).add(i);
+            }
+        }
+
+        @Override
+        public void populate(int docCount, List<String> expected) {
+            List<IndexRequestBuilder> docs = new ArrayList<>();
+            for (int i = 0; i < docCount; i++) {
+                Object key = lookupData[i % lookupData.length];
+                docs.add(client().prepareIndex("source").setSource(Map.of("key", key)));
+                for (Integer match : matches.get(key)) {
+                    expected.add(key + ":" + match);
+                }
+            }
+            for (int i = 0; i < lookupData.length; i++) {
+                docs.add(client().prepareIndex("lookup").setSource(Map.of("key", lookupData[i], "l", i)));
+            }
+            Collections.sort(expected);
+            indexRandom(true, true, docs);
+        }
+    }
+
+    private void runLookup(DataType keyType, PopulateIndices populateIndices) throws IOException {
         client().admin()
             .indices()
             .prepareCreate("source")
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1))
-            .setMapping("data", "type=keyword")
+            .setMapping("key", "type=" + keyType.esType())
             .get();
         client().admin()
             .indices()
@@ -91,21 +138,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     // TODO lookup index mode doesn't seem to force a single shard. That'll break the lookup command.
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             )
-            .setMapping("data", "type=keyword", "l", "type=long")
+            .setMapping("key", "type=" + keyType.esType(), "l", "type=long")
             .get();
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
-        String[] data = new String[] { "aa", "bb", "cc", "dd" };
-        List<IndexRequestBuilder> docs = new ArrayList<>();
-        for (int i = 0; i < docCount; i++) {
-            docs.add(client().prepareIndex("source").setSource(Map.of("data", data[i % data.length])));
-            expected.add(data[i % data.length] + ":" + (i % data.length));
-        }
-        for (int i = 0; i < data.length; i++) {
-            docs.add(client().prepareIndex("lookup").setSource(Map.of("data", data[i], "l", i)));
-        }
-        Collections.sort(expected);
-        indexRandom(true, true, docs);
+        int docCount = between(10, 1000);
+        List<String> expected = new ArrayList<>(docCount);
+        populateIndices.populate(docCount, expected);
 
         /*
          * Find the data node hosting the only shard of the source index.
@@ -144,23 +183,25 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             );
             LuceneSourceOperator.Factory source = new LuceneSourceOperator.Factory(
                 List.of(esqlContext),
-                ctx -> new MatchAllDocsQuery(),
+                ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SEGMENT,
                 1,
                 10000,
-                DocIdSetIterator.NO_MORE_DOCS
+                DocIdSetIterator.NO_MORE_DOCS,
+                false // no scoring
             );
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
+                PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
                 List.of(
                     new ValuesSourceReaderOperator.FieldInfo(
-                        "data",
-                        ElementType.BYTES_REF,
-                        shard -> searchContext.getSearchExecutionContext().getFieldType("data").blockLoader(null)
+                        "key",
+                        PlannerUtils.toElementType(keyType),
+                        shard -> searchContext.getSearchExecutionContext().getFieldType("key").blockLoader(null)
                     )
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
                     throw new IllegalStateException("can't load source here");
-                })),
+                }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
                 0
             );
             CancellableTask parentTask = new EsqlQueryTask(
@@ -174,30 +215,39 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 new AsyncExecutionId("test", TaskId.EMPTY_TASK_ID),
                 TEST_REQUEST_TIMEOUT
             );
+            final String finalNodeWithShard = nodeWithShard;
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 "test",
                 parentTask,
                 QueryPragmas.ENRICH_MAX_WORKERS.get(Settings.EMPTY),
                 1,
-                internalCluster().getInstance(TransportEsqlQueryAction.class, nodeWithShard).getLookupFromIndexService(),
-                DataType.KEYWORD,
+                ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
+                keyType,
                 "lookup",
-                "data",
+                "lookup",
+                new FieldAttribute.FieldName("key"),
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY
             );
             DriverContext driverContext = driverContext();
             try (
                 var driver = new Driver(
+                    "test",
                     driverContext,
                     source.get(driverContext),
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
                     new PageConsumerOperator(page -> {
                         try {
-                            BytesRefVector dataBlock = page.<BytesRefBlock>getBlock(1).asVector();
+                            Block keyBlock = page.getBlock(1);
                             LongVector loadedBlock = page.<LongBlock>getBlock(2).asVector();
                             for (int p = 0; p < page.getPositionCount(); p++) {
-                                results.add(dataBlock.getBytesRef(p, new BytesRef()).utf8ToString() + ":" + loadedBlock.getLong(p));
+                                List<Object> key = BlockTestUtils.valuesAtPositions(keyBlock, p, p + 1).get(0);
+                                assertThat(key, hasSize(1));
+                                Object keyValue = key.get(0);
+                                if (keyValue instanceof BytesRef b) {
+                                    keyValue = b.utf8ToString();
+                                }
+                                results.add(keyValue + ":" + loadedBlock.getLong(p));
                             }
                         } finally {
                             page.releaseBlocks();

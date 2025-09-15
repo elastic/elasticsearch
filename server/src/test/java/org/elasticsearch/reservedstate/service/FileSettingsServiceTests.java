@@ -113,7 +113,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         clusterService.getMasterService().setClusterStateSupplier(() -> clusterState);
         env = newEnvironment(Settings.EMPTY);
 
-        Files.createDirectories(env.configFile());
+        Files.createDirectories(env.configDir());
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
@@ -159,7 +159,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     public void testOperatorDirName() {
         Path operatorPath = fileSettingsService.watchedFileDir();
-        assertTrue(operatorPath.startsWith(env.configFile()));
+        assertTrue(operatorPath.startsWith(env.configDir()));
         assertTrue(operatorPath.endsWith("operator"));
 
         Path operatorSettingsFile = fileSettingsService.watchedFile();

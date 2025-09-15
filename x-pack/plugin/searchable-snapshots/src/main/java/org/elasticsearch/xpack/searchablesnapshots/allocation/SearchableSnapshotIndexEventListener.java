@@ -21,7 +21,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
@@ -106,8 +106,18 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
                             shardId
                         );
                     }
-                    if (sharedBlobCacheService != null) {
-                        sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                    if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot() && sharedBlobCacheService != null) {
+                        switch (reason) {
+                            // This index was deleted, it's not coming back - we can evict asynchronously
+                            case DELETED -> sharedBlobCacheService.forceEvictAsync(
+                                SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
+                            );
+                            // A failure occurred - we should eagerly clear the state
+                            case FAILURE -> sharedBlobCacheService.forceEvict(
+                                SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings())
+                            );
+                            // Any other reason - we let the cache entries expire naturally
+                        }
                     }
                 }
             }

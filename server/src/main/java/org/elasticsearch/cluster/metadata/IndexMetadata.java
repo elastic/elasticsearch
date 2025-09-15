@@ -41,7 +41,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -139,6 +138,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         true,
         RestStatus.TOO_MANY_REQUESTS,
         EnumSet.of(ClusterBlockLevel.WRITE)
+    );
+    public static final ClusterBlock INDEX_REFRESH_BLOCK = new ClusterBlock(
+        14,
+        "index refresh blocked, waiting for shard(s) to be started",
+        true,
+        false,
+        false,
+        RestStatus.REQUEST_TIMEOUT,
+        EnumSet.of(ClusterBlockLevel.REFRESH)
     );
 
     // 'event.ingested' (part of Elastic Common Schema) range is tracked in cluster state, along with @timestamp
@@ -948,7 +956,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (timestampRange.equals(this.timestampRange) && eventIngestedRange.equals(this.eventIngestedRange)) {
             return this;
         }
-        @UpdateForV9 // remove this check when 8.15 is no longer communicable
         IndexLongFieldRange allowedEventIngestedRange = eventIngestedRange;
         if (minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
             allowedEventIngestedRange = IndexLongFieldRange.UNKNOWN;
@@ -2110,6 +2117,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder putRolloverInfo(RolloverInfo rolloverInfo) {
             rolloverInfos.put(rolloverInfo.getAlias(), rolloverInfo);
+            return this;
+        }
+
+        public Builder putRolloverInfos(Map<String, RolloverInfo> rolloverInfos) {
+            this.rolloverInfos.clear();
+            this.rolloverInfos.putAllFromMap(rolloverInfos);
             return this;
         }
 

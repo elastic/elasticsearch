@@ -19,6 +19,7 @@ module org.elasticsearch.compute {
     requires org.elasticsearch.ml;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.geo;
+    requires org.elasticsearch.xcore;
     requires hppc;
 
     exports org.elasticsearch.compute;
@@ -34,4 +35,6 @@ module org.elasticsearch.compute {
     exports org.elasticsearch.compute.operator.mvdedupe;
     exports org.elasticsearch.compute.aggregation.table;
     exports org.elasticsearch.compute.data.sort;
+    exports org.elasticsearch.compute.querydsl.query;
+    exports org.elasticsearch.compute.lucene.read;
 }

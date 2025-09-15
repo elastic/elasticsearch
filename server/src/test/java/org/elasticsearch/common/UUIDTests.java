@@ -27,26 +27,37 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Supplier;
 
 public class UUIDTests extends ESTestCase {
 
-    static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator();
+    static final Base64.Decoder BASE_64_URL_DECODER = Base64.getUrlDecoder();
+    static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator(
+        UUIDs.DEFAULT_TIMESTAMP_SUPPLIER,
+        UUIDs.DEFAULT_SEQUENCE_ID_SUPPLIER,
+        UUIDs.DEFAULT_MAC_ADDRESS_SUPPLIER
+    );
     static UUIDGenerator randomUUIDGen = new RandomBasedUUIDGenerator();
-    static UUIDGenerator kOrderedUUIDGen = new TimeBasedKOrderedUUIDGenerator();
+    static UUIDGenerator kOrderedUUIDGen = new TimeBasedKOrderedUUIDGenerator(
+        UUIDs.DEFAULT_TIMESTAMP_SUPPLIER,
+        UUIDs.DEFAULT_SEQUENCE_ID_SUPPLIER,
+        UUIDs.DEFAULT_MAC_ADDRESS_SUPPLIER
+    );
 
     public void testRandomUUID() {
-        verifyUUIDSet(100000, randomUUIDGen);
+        verifyUUIDSet(100000, randomUUIDGen).forEach(this::verifyUUIDIsUrlSafe);
     }
 
     public void testTimeUUID() {
-        verifyUUIDSet(100000, timeUUIDGen);
+        verifyUUIDSet(100000, timeUUIDGen).forEach(this::verifyUUIDIsUrlSafe);
     }
 
     public void testKOrderedUUID() {
-        verifyUUIDSet(100000, kOrderedUUIDGen);
+        verifyUUIDSet(100000, kOrderedUUIDGen).forEach(this::verifyUUIDIsUrlSafe);
     }
 
     public void testThreadedRandomUUID() {
@@ -143,6 +154,7 @@ public class UUIDTests extends ESTestCase {
             globalSet.addAll(runner.uuidSet);
         }
         assertEquals(count * uuids, globalSet.size());
+        globalSet.forEach(this::verifyUUIDIsUrlSafe);
     }
 
     private static double testCompression(final UUIDGenerator generator, int numDocs, int numDocsPerSecond, int numNodes, Logger logger)
@@ -158,35 +170,25 @@ public class UUIDTests extends ESTestCase {
         UUIDGenerator uuidSource = generator;
         if (generator instanceof TimeBasedUUIDGenerator) {
             if (generator instanceof TimeBasedKOrderedUUIDGenerator) {
-                uuidSource = new TimeBasedKOrderedUUIDGenerator() {
+                uuidSource = new TimeBasedKOrderedUUIDGenerator(new Supplier<>() {
                     double currentTimeMillis = TestUtil.nextLong(random(), 0L, 10000000000L);
 
                     @Override
-                    protected long currentTimeMillis() {
+                    public Long get() {
                         currentTimeMillis += intervalBetweenDocs * 2 * r.nextDouble();
                         return (long) currentTimeMillis;
                     }
-
-                    @Override
-                    protected byte[] macAddress() {
-                        return RandomPicks.randomFrom(r, macAddresses);
-                    }
-                };
+                }, () -> 0, () -> RandomPicks.randomFrom(r, macAddresses));
             } else {
-                uuidSource = new TimeBasedUUIDGenerator() {
+                uuidSource = new TimeBasedUUIDGenerator(new Supplier<>() {
                     double currentTimeMillis = TestUtil.nextLong(random(), 0L, 10000000000L);
 
                     @Override
-                    protected long currentTimeMillis() {
+                    public Long get() {
                         currentTimeMillis += intervalBetweenDocs * 2 * r.nextDouble();
                         return (long) currentTimeMillis;
                     }
-
-                    @Override
-                    protected byte[] macAddress() {
-                        return RandomPicks.randomFrom(r, macAddresses);
-                    }
-                };
+                }, () -> 0, () -> RandomPicks.randomFrom(r, macAddresses));
             }
         }
 
@@ -236,5 +238,14 @@ public class UUIDTests extends ESTestCase {
 
     private static int getUnpaddedBase64StringLength(int sizeInBytes) {
         return (int) Math.ceil(sizeInBytes * 4.0 / 3.0);
+    }
+
+    private void verifyUUIDIsUrlSafe(final String uuid) {
+        assertFalse("UUID should not contain padding characters: " + uuid, uuid.contains("="));
+        try {
+            BASE_64_URL_DECODER.decode(uuid);
+        } catch (IllegalArgumentException e) {
+            throw new AssertionError("UUID is not a valid Base64 URL-safe encoded string: " + uuid);
+        }
     }
 }

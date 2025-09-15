@@ -38,13 +38,14 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase<Response> {
 
     @Override
     protected Writeable.Reader<Response> instanceReader() {
-        return Response::new;
+        return Response::read;
     }
 
     @Override
@@ -83,7 +84,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
-                .setLifecycle(new DataStreamLifecycle())
+                .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
                 .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
@@ -91,23 +92,25 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
                 firstGenerationIndex,
-                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
                 secondGenerationIndex,
-                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE),
+                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE, null),
                 writeIndex,
-                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE),
+                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null),
                 failureStoreIndex,
-                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE)
+                new Response.IndexProperties(false, null, ManagedBy.LIFECYCLE, null)
             );
 
             Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
                 logs,
+                true,
                 ClusterHealthStatus.GREEN,
                 "index-template",
                 null,
                 null,
                 indexSettingsValues,
                 false,
+                null,
                 null
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -162,21 +165,16 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
 
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
-                    Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
-                    assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                    assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
-                    assertThat(
-                        failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()),
-                        is(nullValue())
-                    );
-                    assertThat(
-                        failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
-                        is(ManagedBy.LIFECYCLE.displayValue)
-                    );
-                }
+                var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                List<Object> failureIndices = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> failureIndexRepresentation = (Map<String, Object>) failureIndices.get(0);
+                assertThat(failureIndexRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), nullValue());
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                assertThat(
+                    failureIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.LIFECYCLE.displayValue)
+                );
             }
         }
 
@@ -186,7 +184,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 .setGeneration(3)
                 .setAllowCustomRouting(true)
                 .setIndexMode(IndexMode.STANDARD)
-                .setLifecycle(new DataStreamLifecycle(null, null, false))
+                .setLifecycle(DataStreamLifecycle.createDataLifecycle(false, null, null))
                 .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
                 .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
                 .build();
@@ -194,23 +192,25 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
                 firstGenerationIndex,
-                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
                 secondGenerationIndex,
-                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM),
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
                 writeIndex,
-                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED),
+                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null),
                 failureStoreIndex,
-                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED)
+                new Response.IndexProperties(false, null, ManagedBy.UNMANAGED, null)
             );
 
             Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
                 logs,
+                true,
                 ClusterHealthStatus.GREEN,
                 "index-template",
                 null,
                 null,
                 indexSettingsValues,
                 false,
+                null,
                 null
             );
             Response response = new Response(List.of(dataStreamInfo));
@@ -254,21 +254,76 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.UNMANAGED.displayValue)
                 );
 
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
-                    Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
-                    assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
-                    assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), is(false));
-                    assertThat(
-                        failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()),
-                        is(nullValue())
-                    );
-                    assertThat(
-                        failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
-                        is(ManagedBy.UNMANAGED.displayValue)
-                    );
-                }
+                var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
+                assertThat(failureStoreRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), nullValue());
+                assertThat(failureStoreRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(nullValue()));
+                assertThat(
+                    failureStoreRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.UNMANAGED.displayValue)
+                );
+            }
+        }
+
+        {
+            // one failure index that have ILM policy
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
+                .setAllowCustomRouting(true)
+                .setIndexMode(IndexMode.STANDARD)
+                .setLifecycle(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE)
+                .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
+                .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build())
+                .build();
+
+            String ilmPolicyName = "rollover-30days";
+            Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
+                firstGenerationIndex,
+                new Response.IndexProperties(true, ilmPolicyName, ManagedBy.ILM, null),
+                secondGenerationIndex,
+                new Response.IndexProperties(false, ilmPolicyName, ManagedBy.LIFECYCLE, null),
+                writeIndex,
+                new Response.IndexProperties(true, null, ManagedBy.LIFECYCLE, null),
+                failureStoreIndex,
+                new Response.IndexProperties(randomBoolean(), ilmPolicyName, ManagedBy.LIFECYCLE, null)
+            );
+
+            Response.DataStreamInfo dataStreamInfo = new Response.DataStreamInfo(
+                logs,
+                true,
+                ClusterHealthStatus.GREEN,
+                "index-template",
+                null,
+                null,
+                indexSettingsValues,
+                false,
+                null,
+                null
+            );
+            Response response = new Response(List.of(dataStreamInfo));
+            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
+            response.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
+
+            BytesReference bytes = BytesReference.bytes(contentBuilder);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+                Map<String, Object> map = parser.map();
+                List<Object> dataStreams = (List<Object>) map.get(Response.DATA_STREAMS_FIELD.getPreferredName());
+                assertThat(dataStreams.size(), is(1));
+                Map<String, Object> dataStreamMap = (Map<String, Object>) dataStreams.get(0);
+                assertThat(dataStreamMap.get(DataStream.NAME_FIELD.getPreferredName()), is(dataStreamName));
+
+                var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                List<Object> failureIndices = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
+                Map<String, Object> failureIndexRepresentation = (Map<String, Object>) failureIndices.get(0);
+                assertThat(failureIndexRepresentation.get("index_name"), is(failureStoreIndex.getName()));
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.PREFER_ILM.getPreferredName()), notNullValue());
+                assertThat(failureIndexRepresentation.get(Response.DataStreamInfo.ILM_POLICY_FIELD.getPreferredName()), is(ilmPolicyName));
+                assertThat(
+                    failureIndexRepresentation.get(Response.DataStreamInfo.MANAGED_BY.getPreferredName()),
+                    is(ManagedBy.LIFECYCLE.displayValue)
+                );
             }
         }
     }
@@ -282,6 +337,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
     private Response.DataStreamInfo mutateInstance(Response.DataStreamInfo instance) {
         var dataStream = instance.getDataStream();
+        var failureStoreEffectivelyEnabled = instance.isFailureStoreEffectivelyEnabled();
         var status = instance.getDataStreamStatus();
         var indexTemplate = instance.getIndexTemplate();
         var ilmPolicyName = instance.getIlmPolicy();
@@ -289,7 +345,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         var indexSettings = instance.getIndexSettingsValues();
         var templatePreferIlm = instance.templatePreferIlmValue();
         var maximumTimestamp = instance.getMaximumTimestamp();
-        switch (randomIntBetween(0, 7)) {
+        switch (randomIntBetween(0, 8)) {
             case 0 -> dataStream = randomValueOtherThan(dataStream, DataStreamTestHelper::randomInstance);
             case 1 -> status = randomValueOtherThan(status, () -> randomFrom(ClusterHealthStatus.values()));
             case 2 -> indexTemplate = randomBoolean() && indexTemplate != null ? null : randomAlphaOfLengthBetween(2, 10);
@@ -306,7 +362,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                         new Response.IndexProperties(
                             randomBoolean(),
                             randomAlphaOfLengthBetween(50, 100),
-                            randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE
+                            randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE,
+                            null
                         )
                     )
             );
@@ -314,16 +371,19 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             case 7 -> maximumTimestamp = (maximumTimestamp == null)
                 ? randomNonNegativeLong()
                 : (usually() ? randomValueOtherThan(maximumTimestamp, ESTestCase::randomNonNegativeLong) : null);
+            case 8 -> failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled ? false : true;
         }
         return new Response.DataStreamInfo(
             dataStream,
+            failureStoreEffectivelyEnabled,
             status,
             indexTemplate,
             ilmPolicyName,
             timeSeries,
             indexSettings,
             templatePreferIlm,
-            maximumTimestamp
+            maximumTimestamp,
+            null
         );
     }
 
@@ -344,7 +404,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                 new Response.IndexProperties(
                     randomBoolean(),
                     randomAlphaOfLengthBetween(50, 100),
-                    randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE
+                    randomBoolean() ? ManagedBy.ILM : ManagedBy.LIFECYCLE,
+                    randomBoolean() ? randomFrom(IndexMode.values()).getName() : null
                 )
             );
         }
@@ -355,13 +416,15 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         List<Tuple<Instant, Instant>> timeSeries = randomBoolean() ? generateRandomTimeSeries() : null;
         return new Response.DataStreamInfo(
             DataStreamTestHelper.randomInstance(),
+            randomBoolean(),
             ClusterHealthStatus.GREEN,
             randomAlphaOfLengthBetween(2, 10),
             randomAlphaOfLengthBetween(2, 10),
             timeSeries != null ? new Response.TimeSeries(timeSeries) : null,
             generateRandomIndexSettingsValues(),
             randomBoolean(),
-            usually() ? randomNonNegativeLong() : null
+            usually() ? randomNonNegativeLong() : null,
+            usually() ? randomFrom(IndexMode.values()).getName() : null
         );
     }
 }

@@ -19,11 +19,11 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.hamcrest.Matcher;
@@ -89,7 +89,13 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         } else {
             query = LongPoint.newRangeQuery("s", 0, numDocs);
         }
-        return new LuceneCountOperator.Factory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), limit);
+        return new LuceneCountOperator.Factory(
+            List.of(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            dataPartitioning,
+            between(1, 8),
+            limit
+        );
     }
 
     @Override
@@ -99,7 +105,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (DOC|SHARD|SEGMENT), limit = 100]");
+        return matchesRegex("LuceneCountOperator\\[dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), limit = 100]");
     }
 
     // TODO tests for the other data partitioning configurations
@@ -151,7 +157,7 @@ public class LuceneCountOperatorTests extends AnyOperatorTestCase {
         int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext ctx = contexts.get();
-            drivers.add(new Driver(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
+            drivers.add(new Driver("test", ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
         }
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));

@@ -56,7 +56,7 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(randomStepKey(), randomStepKey(), 2);
 
         ClusterStateWaitStep.Result result = checkTargetShardsCountStep.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
+        assertThat(result.complete(), is(true));
     }
 
     public void testStepIncompleteIfTargetShardsCountNotValid() {
@@ -75,10 +75,10 @@ public class CheckTargetShardsCountStepTests extends AbstractStepTestCase<CheckT
         CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(randomStepKey(), randomStepKey(), 3);
 
         ClusterStateWaitStep.Result result = checkTargetShardsCountStep.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(
-            info.getMessage(),
+            info.message(),
             is(
                 "lifecycle action of policy ["
                     + policyName

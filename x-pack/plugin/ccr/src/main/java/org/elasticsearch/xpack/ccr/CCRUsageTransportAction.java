@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -40,11 +39,10 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         XPackLicenseState licenseState
     ) {
-        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters);
         this.settings = settings;
         this.licenseState = licenseState;
     }

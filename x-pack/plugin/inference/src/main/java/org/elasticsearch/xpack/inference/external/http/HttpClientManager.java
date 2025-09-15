@@ -7,9 +7,14 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.config.Registry;
+import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
 import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.nio.conn.NoopIOSessionStrategy;
+import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.ConnectingIOReactor;
 import org.apache.http.nio.reactor.IOReactorException;
 import org.apache.http.pool.PoolStats;
@@ -21,18 +26,22 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
 
 public class HttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
     /**
      * The maximum number of total connections the connection pool can lease to all routes.
+     * The configuration applies to each instance of HTTPClientManager (max_total_connections=10 and instances=5 leads to 50 connections).
      * From googling around the connection pools maxTotal value should be close to the number of available threads.
      *
      * https://stackoverflow.com/questions/30989637/how-to-decide-optimal-settings-for-setmaxtotal-and-setdefaultmaxperroute
@@ -47,6 +56,7 @@ public class HttpClientManager implements Closeable {
 
     /**
      * The max number of connections a single route can lease.
+     * This configuration applies to each instance of HttpClientManager.
      */
     public static final Setting<Integer> MAX_ROUTE_CONNECTIONS = Setting.intSetting(
         "xpack.inference.http.max_route_connections",
@@ -98,6 +108,23 @@ public class HttpClientManager implements Closeable {
         return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
     }
 
+    public static HttpClientManager create(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        ThrottlerManager throttlerManager,
+        SSLService sslService,
+        TimeValue connectionTtl
+    ) {
+        // Set the sslStrategy to ensure an encrypted connection, as Elastic Inference Service requires it.
+        SSLIOSessionStrategy sslioSessionStrategy = sslService.sslIOSessionStrategy(
+            sslService.getSSLConfiguration(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX)
+        );
+
+        PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslioSessionStrategy, connectionTtl);
+        return new HttpClientManager(settings, connectionManager, threadPool, clusterService, throttlerManager);
+    }
+
     // Default for testing
     HttpClientManager(
         Settings settings,
@@ -119,6 +146,33 @@ public class HttpClientManager implements Closeable {
         connectionEvictor = createConnectionEvictor();
 
         this.addSettingsUpdateConsumers(clusterService);
+    }
+
+    private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy, TimeValue connectionTtl) {
+        ConnectingIOReactor ioReactor;
+        try {
+            var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
+            ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
+        } catch (IOReactorException e) {
+            var message = "Failed to initialize HTTP client manager with SSL.";
+            logger.error(message, e);
+            throw new ElasticsearchException(message, e);
+        }
+
+        Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+            .register("http", NoopIOSessionStrategy.INSTANCE)
+            .register("https", sslStrategy)
+            .build();
+
+        return new PoolingNHttpClientConnectionManager(
+            ioReactor,
+            null,
+            registry,
+            null,
+            null,
+            Math.toIntExact(connectionTtl.getMillis()),
+            TimeUnit.MILLISECONDS
+        );
     }
 
     private static PoolingNHttpClientConnectionManager createConnectionManager() {

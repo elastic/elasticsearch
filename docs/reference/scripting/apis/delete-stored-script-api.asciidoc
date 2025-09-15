@@ -4,6 +4,12 @@
 <titleabbrev>Delete stored script</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-script[Script APIs].
+--
+
 Deletes a <<script-stored-scripts,stored script>> or <<search-template,search
 template>>.
 

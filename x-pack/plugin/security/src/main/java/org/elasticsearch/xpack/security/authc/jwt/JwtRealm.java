@@ -263,12 +263,10 @@ public class JwtRealm extends Realm implements CachingRealm, ReloadableSecurityC
                     + tokenPrincipal
                     + "] with header ["
                     + jwtAuthenticationToken.getSignedJWT().getHeader()
-                    + "] and claimSet ["
-                    + jwtAuthenticationToken.getJWTClaimsSet()
                     + "]";
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace(msg, ex);
+                    logger.trace(msg + " and claimSet [" + jwtAuthenticationToken.getJWTClaimsSet() + "]", ex);
                 } else {
                     logger.debug(msg + " Cause: " + ex.getMessage()); // only log the stack trace at trace level
                 }

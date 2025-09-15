@@ -7,23 +7,33 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.DriverCompletionInfo;
+import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -37,7 +47,10 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -48,36 +61,50 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
+import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
-import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
+import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -104,11 +131,14 @@ public class EsqlSession {
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
+    private final PreMapper preMapper;
 
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
-    private final PlanningMetrics planningMetrics;
+    private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
+    private Set<String> configuredClusters;
+    private final InferenceRunner inferenceRunner;
 
     public EsqlSession(
         String sessionId,
@@ -120,8 +150,9 @@ public class EsqlSession {
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
         Verifier verifier,
-        PlanningMetrics planningMetrics,
-        IndicesExpressionGrouper indicesExpressionGrouper
+        PlanTelemetry planTelemetry,
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        TransportActionServices services
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -133,8 +164,10 @@ public class EsqlSession {
         this.mapper = mapper;
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
-        this.planningMetrics = planningMetrics;
+        this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
+        this.inferenceRunner = services.inferenceRunner();
+        this.preMapper = new PreMapper(services);
     }
 
     public String sessionId() {
@@ -145,14 +178,26 @@ public class EsqlSession {
      * Execute an ESQL request.
      */
     public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
+        assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),
             executionInfo,
-            new EsqlSessionCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            request.filter(),
+            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
-                    executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
+                    assert ThreadPool.assertCurrentThreadPool(
+                        ThreadPool.Names.SEARCH,
+                        ThreadPool.Names.SEARCH_COORDINATION,
+                        ThreadPool.Names.SYSTEM_READ
+                    );
+                    preMapper.preMapper(
+                        analyzedPlan,
+                        listener.delegateFailureAndWrap(
+                            (l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l)
+                        )
+                    );
                 }
             }
         );
@@ -169,14 +214,19 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            ThreadPool.Names.SYSTEM_READ
+        );
         PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
         // TODO: this could be snuck into the underlying listener
-        EsqlSessionCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
+        EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
         // execute any potential subplans
         executeSubPlans(physicalPlan, planRunner, executionInfo, request, listener);
     }
 
-    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {};
+    private record PlanTuple(PhysicalPlan physical, LogicalPlan logical) {}
 
     private void executeSubPlans(
         PhysicalPlan physicalPlan,
@@ -205,7 +255,7 @@ public class EsqlSession {
         // TODO: merge into one method
         if (subplans.size() > 0) {
             // code-path to execute subplans
-            executeSubPlan(new ArrayList<>(), physicalPlan, iterator, executionInfo, runner, listener);
+            executeSubPlan(new DriverCompletionInfo.Accumulator(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
             // execute main plan
             runner.run(physicalPlan, listener);
@@ -213,7 +263,7 @@ public class EsqlSession {
     }
 
     private void executeSubPlan(
-        List<DriverProfile> profileAccumulator,
+        DriverCompletionInfo.Accumulator completionInfoAccumulator,
         PhysicalPlan plan,
         Iterator<PlanTuple> subPlanIterator,
         EsqlExecutionInfo executionInfo,
@@ -224,7 +274,7 @@ public class EsqlSession {
 
         runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
-                profileAccumulator.addAll(result.profiles());
+                completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
@@ -239,12 +289,14 @@ public class EsqlSession {
                 });
                 if (subPlanIterator.hasNext() == false) {
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                        profileAccumulator.addAll(finalResult.profiles());
-                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
+                        completionInfoAccumulator.accumulate(finalResult.completionInfo());
+                        finalListener.onResponse(
+                            new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                        );
                     }));
                 } else {
                     // continue executing the subplans
-                    executeSubPlan(profileAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
+                    executeSubPlan(completionInfoAccumulator, newPlan, subPlanIterator, executionInfo, runner, next);
                 }
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
@@ -261,150 +313,319 @@ public class EsqlSession {
     }
 
     private LogicalPlan parse(String query, QueryParams params) {
-        var parsed = new EsqlParser().createStatement(query, params);
+        var parsed = new EsqlParser().createStatement(query, params, planTelemetry, configuration);
         LOGGER.debug("Parsed logical plan:\n{}", parsed);
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
+    /**
+     * Associates errors that occurred during field-caps with the cluster info in the execution info.
+     * - Skips clusters that are no longer running, as they have already been marked as successful, skipped, or failed.
+     * - If allow_partial_results or skip_unavailable is enabled, stores the failures in the cluster info but allows execution to continue.
+     * - Otherwise, aborts execution with the failures.
+     */
+    static void handleFieldCapsFailures(
+        boolean allowPartialResults,
+        EsqlExecutionInfo executionInfo,
+        Map<String, List<FieldCapabilitiesFailure>> failures
+    ) throws Exception {
+        FailureCollector failureCollector = new FailureCollector();
+        for (var e : failures.entrySet()) {
+            String clusterAlias = e.getKey();
+            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
+                continue;
+            }
+            if (allowPartialResults == false && executionInfo.isSkipUnavailable(clusterAlias) == false) {
+                for (FieldCapabilitiesFailure failure : e.getValue()) {
+                    failureCollector.unwrapAndCollect(failure.getException());
+                }
+            } else if (cluster.getFailures().isEmpty()) {
+                var shardFailures = e.getValue().stream().map(f -> {
+                    ShardId shardId = null;
+                    if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
+                        shardId = es.getShardId();
+                    }
+                    if (shardId != null) {
+                        return new ShardSearchFailure(f.getException(), new SearchShardTarget(null, shardId, clusterAlias));
+                    } else {
+                        return new ShardSearchFailure(f.getException());
+                    }
+                }).toList();
+                executionInfo.swapCluster(
+                    clusterAlias,
+                    (k, curr) -> new EsqlExecutionInfo.Cluster.Builder(cluster).addFailures(shardFailures).build()
+                );
+            }
+        }
+        Exception failure = failureCollector.getFailure();
+        if (failure != null) {
+            throw failure;
+        }
+    }
+
+    public void analyzedPlan(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        QueryBuilder requestFilter,
+        ActionListener<LogicalPlan> logicalPlanListener
+    ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         if (parsed.analyzed()) {
-            listener.onResponse(parsed);
+            logicalPlanListener.onResponse(parsed);
             return;
         }
 
-        preAnalyze(parsed, executionInfo, (indices, policies) -> {
-            planningMetrics.gatherPreAnalysisMetrics(parsed);
-            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
-            var plan = analyzer.analyze(parsed);
+        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction = (l) -> {
+            handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, l.indices.failures());
+            Analyzer analyzer = new Analyzer(
+                new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution, l.inferenceResolution),
+                verifier
+            );
+            LogicalPlan plan = analyzer.analyze(parsed);
             plan.setAnalyzed();
-            LOGGER.debug("Analyzed plan:\n{}", plan);
             return plan;
-        }, listener);
-    }
+        };
+        // Capture configured remotes list to ensure consistency throughout the session
+        configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
 
-    private <T> void preAnalyze(
-        LogicalPlan parsed,
-        EsqlExecutionInfo executionInfo,
-        BiFunction<IndexResolution, EnrichResolution, T> action,
-        ActionListener<T> listener
-    ) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
-            .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
+            .map(
+                e -> new EnrichPolicyResolver.UnresolvedPolicy(
+                    BytesRefs.toString(e.policyName().fold(FoldContext.small() /* TODO remove me*/)),
+                    e.mode()
+                )
+            )
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
-        // TODO: make a separate call for lookup indices
-        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
-        ).keySet();
-        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
-            // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-            var matchFields = enrichResolution.resolvedEnrichPolicies()
-                .stream()
-                .map(ResolvedEnrichPolicy::matchField)
-                .collect(Collectors.toSet());
-            Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
-            preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
-                // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
-                // resolution to updateExecutionInfo
-                if (indexResolution.isValid()) {
-                    EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                    EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
-                    if (executionInfo.isCrossClusterSearch()
-                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
-                        // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
-                        // Exception to let the LogicalPlanActionListener decide how to proceed
-                        ll.onFailure(new NoClustersToSearchException());
-                        return;
-                    }
 
-                    Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
-                        indexResolution.get().concreteIndices().toArray(String[]::new)
-                    ).keySet();
-                    // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
-                    // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
-                    // TODO: add a test for this
-                    if (targetClusters.containsAll(newClusters) == false
-                        // do not bother with a re-resolution if only remotes were requested and all were offline
-                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
-                        enrichPolicyResolver.resolvePolicies(
-                            newClusters,
-                            unresolvedPolicies,
-                            ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
-                        );
-                        return;
-                    }
-                }
-                ll.onResponse(action.apply(indexResolution, enrichResolution));
-            }), matchFields);
-        }));
+        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
+        initializeClusterData(indices, executionInfo);
+
+        var listener = SubscribableListener.<EnrichResolution>newForked(
+            l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
+        )
+            .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
+        // first resolve the lookup indices, then the main indices
+        for (TableInfo lookupIndex : preAnalysis.lookupIndices) {
+            listener = listener.andThen((l, preAnalysisResult) -> { preAnalyzeLookupIndex(lookupIndex, preAnalysisResult, l); });
+        }
+        listener.<PreAnalysisResult>andThen((l, result) -> {
+            // resolve the main indices
+            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, requestFilter, l);
+        }).<PreAnalysisResult>andThen((l, result) -> {
+            // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
+            // invalid index resolution to updateExecutionInfo
+            // If we run out of clusters to search due to unavailability we can stop the analysis right here
+            if (result.indices.isValid() && allCCSClustersSkipped(executionInfo, result, logicalPlanListener)) return;
+            // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
+            l.onResponse(result);
+        }).<PreAnalysisResult>andThen((l, result) -> {
+            // first attempt (maybe the only one) at analyzing the plan
+            analyzeAndMaybeRetry(analyzeAction, requestFilter, result, executionInfo, logicalPlanListener, l);
+        }).<PreAnalysisResult>andThen((l, result) -> {
+            assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
+
+            // here the requestFilter is set to null, performing the pre-analysis after the first step failed
+            preAnalyzeIndices(preAnalysis.indices, executionInfo, result, null, l);
+        }).<LogicalPlan>andThen((l, result) -> {
+            assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
+            LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+            LogicalPlan plan;
+            try {
+                // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
+                plan = analyzeAction.apply(result);
+            } catch (Exception e) {
+                l.onFailure(e);
+                return;
+            }
+            LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
+            l.onResponse(plan);
+        }).addListener(logicalPlanListener);
+    }
+
+    private void preAnalyzeLookupIndex(TableInfo tableInfo, PreAnalysisResult result, ActionListener<PreAnalysisResult> listener) {
+        IndexPattern table = tableInfo.id();
+        Set<String> fieldNames = result.wildcardJoinIndices().contains(table.indexPattern()) ? IndexResolver.ALL_FIELDS : result.fieldNames;
+        // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
+        indexResolver.resolveAsMergedMapping(
+            table.indexPattern(),
+            fieldNames,
+            null,
+            listener.map(indexResolution -> result.addLookupIndexResolution(table.indexPattern(), indexResolution))
+        );
+        // TODO: Verify that the resolved index actually has indexMode: "lookup"
+    }
+
+    private void initializeClusterData(List<TableInfo> indices, EsqlExecutionInfo executionInfo) {
+        if (indices.isEmpty()) {
+            return;
+        }
+        assert indices.size() == 1 : "Only single index pattern is supported";
+        Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
+            configuredClusters,
+            IndicesOptions.DEFAULT,
+            indices.get(0).id().indexPattern()
+        );
+        for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
+            final String clusterAlias = entry.getKey();
+            String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+            executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+            });
+        }
     }
 
     private void preAnalyzeIndices(
-        LogicalPlan parsed,
+        List<TableInfo> indices,
         EsqlExecutionInfo executionInfo,
-        Map<String, Exception> unavailableClusters,  // known to be unavailable from the enrich policy API call
-        ActionListener<IndexResolution> listener,
-        Set<String> enrichPolicyMatchFields
+        PreAnalysisResult result,
+        QueryBuilder requestFilter,
+        ActionListener<PreAnalysisResult> listener
     ) {
-        PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        if (preAnalysis.indices.size() > 1) {
+        if (indices.size() > 1) {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (preAnalysis.indices.size() == 1) {
-            TableInfo tableInfo = preAnalysis.indices.get(0);
-            TableIdentifier table = tableInfo.id();
-            var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
+        } else if (indices.size() == 1) {
+            TableInfo tableInfo = indices.get(0);
+            IndexPattern table = tableInfo.id();
 
-            Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, table.index());
-            for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
-                final String clusterAlias = entry.getKey();
-                String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    if (unavailableClusters.containsKey(k)) {
-                        return new EsqlExecutionInfo.Cluster(
-                            clusterAlias,
-                            indexExpr,
-                            executionInfo.isSkipUnavailable(clusterAlias),
-                            EsqlExecutionInfo.Cluster.Status.SKIPPED,
-                            0,
-                            0,
-                            0,
-                            0,
-                            List.of(new ShardSearchFailure(unavailableClusters.get(k))),
-                            new TimeValue(0)
-                        );
-                    } else {
-                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
-                    }
-                });
-            }
             // if the preceding call to the enrich policy API found unavailable clusters, recreate the index expression to search
             // based only on available clusters (which could now be an empty list)
-            String indexExpressionToResolve = EsqlSessionCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
+            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
+                listener.onResponse(
+                    result.withIndexResolution(IndexResolution.valid(new EsIndex(table.indexPattern(), Map.of(), Map.of())))
+                );
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);
+                indexResolver.resolveAsMergedMapping(
+                    indexExpressionToResolve,
+                    result.fieldNames,
+                    requestFilter,
+                    listener.delegateFailure((l, indexResolution) -> {
+                        l.onResponse(result.withIndexResolution(indexResolution));
+                    })
+                );
             }
         } else {
             try {
                 // occurs when dealing with local relations (row a = 1)
-                listener.onResponse(IndexResolution.invalid("[none specified]"));
+                listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
             } catch (Exception ex) {
                 listener.onFailure(ex);
             }
         }
     }
 
-    static Set<String> fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields) {
+    /**
+     * Check if there are any clusters to search.
+     *
+     * @return true if there are no clusters to search, false otherwise
+     */
+    private boolean allCCSClustersSkipped(
+        EsqlExecutionInfo executionInfo,
+        PreAnalysisResult result,
+        ActionListener<LogicalPlan> logicalPlanListener
+    ) {
+        IndexResolution indexResolution = result.indices;
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
+        if (executionInfo.isCrossClusterSearch()
+            && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
+            // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
+            // to let the LogicalPlanActionListener decide how to proceed
+            LOGGER.debug("No more clusters to search, ending analysis stage");
+            logicalPlanListener.onFailure(new NoClustersToSearchException());
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void analyzeAndMaybeRetry(
+        CheckedFunction<PreAnalysisResult, LogicalPlan, Exception> analyzeAction,
+        QueryBuilder requestFilter,
+        PreAnalysisResult result,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<LogicalPlan> logicalPlanListener,
+        ActionListener<PreAnalysisResult> l
+    ) {
+        LogicalPlan plan = null;
+        var filterPresentMessage = requestFilter == null ? "without" : "with";
+        var attemptMessage = requestFilter == null ? "the only" : "first";
+        LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
+
+        try {
+            if (result.indices.isValid() || requestFilter != null) {
+                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
+                // when the resolution result is not valid for a different reason.
+                if (executionInfo.clusterInfo.isEmpty() == false) {
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
+                }
+            }
+            plan = analyzeAction.apply(result);
+        } catch (Exception e) {
+            if (e instanceof VerificationException ve) {
+                LOGGER.debug(
+                    "Analyzing the plan ({} attempt, {} filter) failed with {}",
+                    attemptMessage,
+                    filterPresentMessage,
+                    ve.getDetailedMessage()
+                );
+                if (requestFilter == null) {
+                    // if the initial request didn't have a filter, then just pass the exception back to the user
+                    logicalPlanListener.onFailure(ve);
+                } else {
+                    // interested only in a VerificationException, but this time we are taking out the index filter
+                    // to try and make the index resolution work without any index filtering. In the next step... to be continued
+                    l.onResponse(result);
+                }
+            } else {
+                // if the query failed with any other type of exception, then just pass the exception back to the user
+                logicalPlanListener.onFailure(e);
+            }
+            return;
+        }
+        LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
+        // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
+        logicalPlanListener.onResponse(plan);
+    }
+
+    private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {
+        try {
+            // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
+            var enrichMatchFields = enrichResolution.resolvedEnrichPolicies()
+                .stream()
+                .map(ResolvedEnrichPolicy::matchField)
+                .collect(Collectors.toSet());
+            // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
+            l.onResponse(fieldNames(parsed, enrichMatchFields, new PreAnalysisResult(enrichResolution)));
+        } catch (Exception ex) {
+            l.onFailure(ex);
+        }
+    }
+
+    private void resolveInferences(
+        List<InferencePlan<?>> inferencePlans,
+        PreAnalysisResult preAnalysisResult,
+        ActionListener<PreAnalysisResult> l
+    ) {
+        inferenceRunner.resolveInferenceIds(inferencePlans, l.map(preAnalysisResult::withInferenceResolution));
+    }
+
+    static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
-            return IndexResolver.ALL_FIELDS;
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
         Holder<Boolean> projectAll = new Holder<>(false);
@@ -415,79 +636,155 @@ public class EsqlSession {
             projectAll.set(true);
         });
         if (projectAll.get()) {
-            return IndexResolver.ALL_FIELDS;
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        AttributeSet references = new AttributeSet();
-        // "keep" attributes are special whenever a wildcard is used in their name
-        // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
-        AttributeSet keepCommandReferences = new AttributeSet();
-        List<Predicate<String>> keepMatches = new ArrayList<>();
-        List<String> keepPatterns = new ArrayList<>();
+        var referencesBuilder = AttributeSet.builder();
+        // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
+        // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
+        // wildcards.
+        //
+        // E.g. "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
+        // "from test | eval first_name = 1 | drop first_name | drop *name" should also consider "*name" as valid field to ask for
+        //
+        // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
+        // Except in KEEP and DROP.
+        var keepRefs = AttributeSet.builder();
+        var dropWildcardRefs = AttributeSet.builder();
+        // fields required to request for lookup joins to work
+        var joinRefs = AttributeSet.builder();
+        // lookup indices where we request "*" because we may require all their fields
+        Set<String> wildcardJoinIndices = new java.util.HashSet<>();
+
+        boolean[] canRemoveAliases = new boolean[] { true };
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
-                // remove other down-the-tree references to the extracted fields
-                for (Attribute extracted : re.extractedFields()) {
-                    references.removeIf(attr -> matchByName(attr, extracted.name(), false));
-                }
-                // but keep the inputs needed by Grok/Dissect
-                references.addAll(re.input().references());
+                // keep the inputs needed by Grok/Dissect
+                referencesBuilder.addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
-                AttributeSet enrichRefs = Expressions.references(enrich.enrichFields());
-                enrichRefs = enrichRefs.combine(enrich.matchField().references());
+                AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
+                AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                references.addAll(enrichRefs);
+                referencesBuilder.addAll(enrichRefs);
+            } else if (p instanceof LookupJoin join) {
+                if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
+                    joinRefs.addAll(usingJoinType.columns());
+                }
+                if (keepRefs.isEmpty()) {
+                    // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
+                    wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
+                } else {
+                    // Keep commands can reference the join columns with names that shadow aliases, so we block their removal
+                    joinRefs.addAll(keepRefs);
+                }
             } else {
-                references.addAll(p.references());
+                referencesBuilder.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    references.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
-                    references.add(ua);
+                    referencesBuilder.add(ua);
                     if (p instanceof Keep) {
-                        keepCommandReferences.add(ua);
-                        keepMatches.add(up::match);
+                        keepRefs.add(ua);
+                    } else if (p instanceof Drop) {
+                        dropWildcardRefs.add(ua);
+                    } else {
+                        throw new IllegalStateException("Only KEEP and DROP should allow wildcards");
                     }
                 });
                 if (p instanceof Keep) {
-                    keepCommandReferences.addAll(p.references());
+                    keepRefs.addAll(p.references());
                 }
             }
 
-            // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
-            // for example "from test | eval x = salary | stats max = max(x) by gender"
-            // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
-            AttributeSet planRefs = Expressions.references(p.expressions());
-            p.forEachExpressionDown(Alias.class, alias -> {
-                // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
-                // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
-                if (planRefs.names().contains(alias.name())) {
-                    return;
-                }
-                references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
-            });
+            // If the current node in the tree is of type JOIN (lookup join, inlinestats) or ENRICH or other type of
+            // command that we may add in the future which can override already defined Aliases with EVAL
+            // (for example
+            //
+            // from test
+            // | eval ip = 123
+            // | enrich ips_policy ON hostname
+            // | rename ip AS my_ip
+            //
+            // and ips_policy enriches the results with the same name ip field),
+            // these aliases should be kept in the list of fields.
+            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
+                canRemoveAliases[0] = false;
+            }
+            if (canRemoveAliases[0]) {
+                // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
+                // for example "from test | eval x = salary | stats max = max(x) by gender"
+                // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
+                // also remove other down-the-tree references to the extracted fields from "grok" and "dissect"
+                AttributeSet planRefs = p.references();
+                Set<String> fieldNames = planRefs.names();
+                p.forEachExpressionDown(NamedExpression.class, ne -> {
+                    if ((ne instanceof Alias || ne instanceof ReferenceAttribute) == false) {
+                        return;
+                    }
+                    // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id AS id"
+                    // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"
+                    if (fieldNames.contains(ne.name())) {
+                        return;
+                    }
+                    referencesBuilder.removeIf(
+                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
+                    );
+                });
+            }
         });
+
+        // Add JOIN ON column references afterward to avoid Alias removal
+        referencesBuilder.addAll(joinRefs);
+        // If any JOIN commands need wildcard field-caps calls, persist the index names
+        if (wildcardJoinIndices.isEmpty() == false) {
+            result = result.withWildcardJoinIndices(wildcardJoinIndices);
+        }
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        references.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = references.names();
+        referencesBuilder.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
+        Set<String> fieldNames = referencesBuilder.build().names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index
-            return IndexResolver.INDEX_METADATA_FIELD;
+            return result.withFieldNames(IndexResolver.INDEX_METADATA_FIELD);
         } else {
             fieldNames.addAll(subfields(fieldNames));
             fieldNames.addAll(enrichPolicyMatchFields);
             fieldNames.addAll(subfields(enrichPolicyMatchFields));
-            return fieldNames;
+            return result.withFieldNames(fieldNames);
         }
+    }
+
+    /**
+     * Could a plan "accidentally" override aliases?
+     * Examples are JOIN and ENRICH, that _could_ produce fields with the same
+     * name of an existing alias, based on their index mapping.
+     * Here we just have to consider commands where this information is not available before index resolution,
+     * eg. EVAL, GROK, DISSECT can override an alias, but we know it in advance, ie. we don't need to resolve indices to know.
+     */
+    private static boolean couldOverrideAliases(LogicalPlan p) {
+        return (p instanceof Aggregate
+            || p instanceof Drop
+            || p instanceof Eval
+            || p instanceof Filter
+            || p instanceof InlineStats
+            || p instanceof Keep
+            || p instanceof Limit
+            || p instanceof MvExpand
+            || p instanceof OrderBy
+            || p instanceof Project
+            || p instanceof RegexExtract
+            || p instanceof Rename
+            || p instanceof TopN
+            || p instanceof UnresolvedRelation) == false;
     }
 
     private static boolean matchByName(Attribute attr, String other, boolean skipIfPattern) {
@@ -543,5 +840,78 @@ public class EsqlSession {
         var plan = physicalPlanOptimizer.optimize(physicalPlan(optimizedPlan));
         LOGGER.debug("Optimized physical plan:\n{}", plan);
         return plan;
+    }
+
+    record PreAnalysisResult(
+        IndexResolution indices,
+        Map<String, IndexResolution> lookupIndices,
+        EnrichResolution enrichResolution,
+        Set<String> fieldNames,
+        Set<String> wildcardJoinIndices,
+        InferenceResolution inferenceResolution
+    ) {
+        PreAnalysisResult(EnrichResolution newEnrichResolution) {
+            this(null, new HashMap<>(), newEnrichResolution, Set.of(), Set.of(), InferenceResolution.EMPTY);
+        }
+
+        PreAnalysisResult withEnrichResolution(EnrichResolution newEnrichResolution) {
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                newEnrichResolution,
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
+        }
+
+        PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices(),
+                newInferenceResolution
+            );
+        }
+
+        PreAnalysisResult withIndexResolution(IndexResolution newIndexResolution) {
+            return new PreAnalysisResult(
+                newIndexResolution,
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
+        }
+
+        PreAnalysisResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
+            lookupIndices.put(index, newIndexResolution);
+            return this;
+        }
+
+        PreAnalysisResult withFieldNames(Set<String> newFields) {
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                newFields,
+                wildcardJoinIndices(),
+                inferenceResolution()
+            );
+        }
+
+        public PreAnalysisResult withWildcardJoinIndices(Set<String> wildcardJoinIndices) {
+            return new PreAnalysisResult(
+                indices(),
+                lookupIndices(),
+                enrichResolution(),
+                fieldNames(),
+                wildcardJoinIndices,
+                inferenceResolution()
+            );
+        }
     }
 }

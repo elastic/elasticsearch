@@ -11,6 +11,7 @@ import java.lang.String;
 import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -23,9 +24,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToBase64}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToBase64Evaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
@@ -53,6 +56,13 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
       }
       return eval(page.getPositionCount(), fieldVector);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += field.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {

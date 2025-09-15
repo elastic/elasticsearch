@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
@@ -72,7 +71,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
-    @UpdateForV9
     public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
         "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
         true,

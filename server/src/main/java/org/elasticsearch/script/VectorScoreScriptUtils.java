@@ -21,7 +21,7 @@ import java.util.List;
 
 public class VectorScoreScriptUtils {
 
-    public static final NodeFeature HAMMING_DISTANCE_FUNCTION = new NodeFeature("script.hamming");
+    public static final NodeFeature HAMMING_DISTANCE_FUNCTION = new NodeFeature("script.hamming", true);
 
     public static class DenseVectorFunction {
         protected final ScoreScript scoreScript;

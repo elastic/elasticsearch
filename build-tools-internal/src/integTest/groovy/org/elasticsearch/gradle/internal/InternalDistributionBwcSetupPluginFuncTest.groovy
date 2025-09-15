@@ -9,9 +9,10 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.Unroll
+
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import spock.lang.Unroll
 
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
@@ -22,9 +23,11 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
-        execute("git branch origin/8.0", file("cloned"))
+        execute("git branch origin/8.x", file("cloned"))
+        execute("git branch origin/8.3", file("cloned"))
+        execute("git branch origin/8.2", file("cloned"))
+        execute("git branch origin/8.1", file("cloned"))
         execute("git branch origin/7.16", file("cloned"))
-        execute("git branch origin/7.15", file("cloned"))
     }
 
     def "builds distribution from branches via archives extractedAssemble"() {
@@ -49,29 +52,30 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName
-        "8.0.0"        | "minor"    | "extractedAssemble"
-        "7.16.0"       | "staged"   | "extractedAssemble"
-        "7.15.2"       | "bugfix"   | "extractedAssemble"
+        "8.4.0"        | "major1"   | "extractedAssemble"
+        "8.3.0"        | "major2"   | "extractedAssemble"
+        "8.2.1"        | "major3"   | "extractedAssemble"
+        "8.1.3"        | "major4"   | "extractedAssemble"
     }
 
     @Unroll
     def "supports #platform aarch distributions"() {
         when:
-        def result = gradleRunner(":distribution:bwc:minor:buildBwc${platform.capitalize()}Aarch64Tar",
+        def result = gradleRunner(":distribution:bwc:major1:buildBwc${platform.capitalize()}Aarch64Tar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
                 "-Dbwc.remote=origin",
                 "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
                 .build()
         then:
-        result.task(":distribution:bwc:minor:buildBwc${platform.capitalize()}Aarch64Tar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwc${platform.capitalize()}Aarch64Tar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble tasks triggered"
         assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:${platform}-aarch64-tar:extractedAssemble")
 
         where:
         bwcDistVersion | platform
-        "8.0.0"       | "darwin"
-        "8.0.0"       | "linux"
+        "8.4.0"       | "darwin"
+        "8.4.0"       | "linux"
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
@@ -83,7 +87,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         }
 
         dependencies {
-            expandedDist project(path: ":distribution:bwc:minor", configuration:"expanded-darwin-tar")
+            expandedDist project(path: ":distribution:bwc:major1", configuration:"expanded-darwin-tar")
         }
 
         tasks.register("resolveExpandedDistribution") {
@@ -105,13 +109,12 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
                 .build()
         then:
         result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
-        result.output.contains("[8.0.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-8.0/" +
+        result.output.contains("[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+        result.output.contains("expandedRootPath /distribution/bwc/major1/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install")
-        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.0/" +
-                        "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.0-SNAPSHOT")
+        result.output.contains("nested folder /distribution/bwc/major1/build/bwc/checkout-8.x/" +
+                        "distribution/archives/darwin-tar/build/install/elasticsearch-8.4.0-SNAPSHOT")
     }
-
 }

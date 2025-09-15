@@ -28,6 +28,8 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.InvalidSelectorException;
+import org.elasticsearch.action.support.UnsupportedSelectorException;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -496,6 +499,21 @@ public class AuthorizationService {
                                 indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
                             ),
                             e -> {
+                                if (e instanceof InvalidIndexNameException
+                                    || e instanceof InvalidSelectorException
+                                    || e instanceof UnsupportedSelectorException) {
+                                    logger.debug(
+                                        () -> Strings.format(
+                                            "failed [%s] action authorization for [%s] due to [%s] exception",
+                                            action,
+                                            authentication,
+                                            e.getClass().getSimpleName()
+                                        ),
+                                        e
+                                    );
+                                    listener.onFailure(e);
+                                    return;
+                                }
                                 auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                                 if (e instanceof IndexNotFoundException) {
                                     listener.onFailure(e);
@@ -511,7 +529,7 @@ public class AuthorizationService {
                 requestInfo,
                 authzInfo,
                 resolvedIndicesAsyncSupplier,
-                metadata.getIndicesLookup(),
+                metadata,
                 wrapPreservingContext(
                     new AuthorizationResultListener<>(
                         result -> handleIndexActionAuthorizationResult(
@@ -586,7 +604,7 @@ public class AuthorizationService {
                         ResolvedIndices withAliases = new ResolvedIndices(aliasesAndIndices, Collections.emptyList());
                         l.onResponse(withAliases);
                     })),
-                    metadata.getIndicesLookup(),
+                    metadata,
                     wrapPreservingContext(
                         new AuthorizationResultListener<>(
                             authorizationResult -> runRequestInterceptors(requestInfo, authzInfo, authorizationEngine, listener),
@@ -867,7 +885,7 @@ public class AuthorizationService {
                     bulkItemInfo,
                     authzInfo,
                     ril -> ril.onResponse(new ResolvedIndices(new ArrayList<>(indices), Collections.emptyList())),
-                    metadata.getIndicesLookup(),
+                    metadata,
                     groupedActionListener.delegateFailureAndWrap(
                         (l, indexAuthorizationResult) -> l.onResponse(new Tuple<>(bulkItemAction, indexAuthorizationResult))
                     )

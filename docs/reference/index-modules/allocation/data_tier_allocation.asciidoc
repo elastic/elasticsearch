@@ -13,7 +13,7 @@ This setting corresponds to the data node roles:
 * <<data-cold-node, data_cold>>
 * <<data-frozen-node, data_frozen>>
 
-NOTE: The <<data-node, data>> role is not a valid data tier and cannot be used
+NOTE: The <<data-node-role, data>> role is not a valid data tier and cannot be used
 with the `_tier_preference` setting. The frozen tier stores <<partially-mounted,partially
 mounted indices>> exclusively.
 

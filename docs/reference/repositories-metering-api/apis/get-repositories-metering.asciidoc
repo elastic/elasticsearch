@@ -5,6 +5,12 @@
 <titleabbrev>Get repositories metering information</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/operation/operation-nodes-get-repositories-metering-info[Get cluster repositories metering API].
+--
+
 Returns cluster repositories metering information.
 
 [[get-repositories-metering-api-request]]

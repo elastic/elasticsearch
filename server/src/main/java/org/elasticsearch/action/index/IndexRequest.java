@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -78,7 +79,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
-    private static final Supplier<String> K_SORTED_TIME_BASED_ID_GENERATOR = UUIDs::base64TimeBasedKOrderedUUID;
 
     /**
      * Max length of the source document to include into string()
@@ -115,6 +115,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private boolean requireAlias;
 
     private boolean requireDataStream;
+
+    private boolean includeSourceOnError = true;
 
     /**
      * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
@@ -205,13 +207,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 in.readZLong(); // obsolete normalisedBytesParsed
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 in.readBoolean(); // obsolete originatesFromUpdateByScript
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
                 in.readBoolean(); // obsolete originatesFromUpdateByDoc
             }
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+            includeSourceOnError = in.readBoolean();
+        } // else default value is true
     }
 
     public IndexRequest() {
@@ -687,8 +691,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public void process(IndexRouting indexRouting) {
-        indexRouting.process(this);
+    public void preRoutingProcess(IndexRouting indexRouting) {
+        indexRouting.preProcess(this);
+    }
+
+    @Override
+    public void postRoutingProcess(IndexRouting indexRouting) {
+        indexRouting.postProcess(this);
     }
 
     /**
@@ -702,9 +711,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public void autoGenerateTimeBasedId() {
+        autoGenerateTimeBasedId(OptionalInt.empty());
+    }
+
+    /**
+     *  Set the {@code #id()} to an automatically generated one, optimized for storage (compression) efficiency.
+     *  If a routing hash is passed, it is included in the generated id starting at 9 bytes before the end.
+     * @param hash optional routing hash value, used to route requests by id to the right shard.
+     */
+    public void autoGenerateTimeBasedId(OptionalInt hash) {
         assertBeforeGeneratingId();
         autoGenerateTimestamp();
-        id(K_SORTED_TIME_BASED_ID_GENERATOR.get());
+        id(UUIDs.base64TimeBasedKOrderedUUIDWithHash(hash));
     }
 
     private void autoGenerateTimestamp() {
@@ -789,12 +807,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeZLong(-1);  // obsolete normalisedBytesParsed
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeBoolean(false); // obsolete originatesFromUpdateByScript
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_UPDATE_BY_DOC_ORIGIN)) {
                 out.writeBoolean(false); // obsolete originatesFromUpdateByDoc
             }
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
+            out.writeBoolean(includeSourceOnError);
         }
     }
 
@@ -864,9 +883,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    public boolean getIncludeSourceOnError() {
+        return includeSourceOnError;
+    }
+
+    public IndexRequest setIncludeSourceOnError(boolean includeSourceOnError) {
+        this.includeSourceOnError = includeSourceOnError;
+        return this;
+    }
+
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && writeToFailureStore) {
+        if (writeToFailureStore) {
             if (ia.isDataStreamRelated() == false) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the targeted index is not a data stream"
@@ -875,12 +903,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
             DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
-            if (dataStream.getFailureIndices().getIndices().size() < 1) {
+            if (dataStream.getFailureIndices().size() < 1) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the target data stream does not have one enabled"
                 );
             }
-            return dataStream.getFailureIndices().getIndices().get(dataStream.getFailureIndices().getIndices().size() - 1);
+            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
         } else {
             // Resolve as normal
             return ia.getWriteIndex(this, metadata);
@@ -889,7 +917,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source, this::routing);
+        return indexRouting.indexShard(id, routing, contentType, source);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {
@@ -898,12 +926,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire.
+     * Returns a transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire. N.B. If
+     * true, the failure store will be used regardless of whether the metadata indicates that the failure store is enabled.
      */
     public boolean isWriteToFailureStore() {
         return writeToFailureStore;
     }
 
+    /**
+     * Sets a transient flag denoting that the local request should be routed to a failure store. Not persisted across the wire. N.B. If
+     * true, the failure store will be used regardless of whether the metadata indicates that the failure store is enabled. It is the
+     * caller's responsibility to ensure that this is correct.
+     */
     public IndexRequest setWriteToFailureStore(boolean writeToFailureStore) {
         this.writeToFailureStore = writeToFailureStore;
         return this;

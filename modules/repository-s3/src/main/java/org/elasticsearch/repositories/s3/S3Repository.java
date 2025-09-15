@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -337,7 +338,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     public void finalizeSnapshot(final FinalizeSnapshotContext finalizeSnapshotContext) {
         final FinalizeSnapshotContext wrappedFinalizeContext;
-        if (SnapshotsService.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
+        if (SnapshotsServiceUtils.useShardGenerations(finalizeSnapshotContext.repositoryMetaVersion()) == false) {
             final ListenableFuture<Void> metadataDone = new ListenableFuture<>();
             wrappedFinalizeContext = new FinalizeSnapshotContext(
                 finalizeSnapshotContext.updatedShardGenerations(),
@@ -346,10 +347,10 @@ class S3Repository extends MeteredBlobStoreRepository {
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
                 wrapWithWeakConsistencyProtection(ActionListener.runAfter(finalizeSnapshotContext, () -> metadataDone.onResponse(null))),
-                info -> metadataDone.addListener(new ActionListener<>() {
+                () -> metadataDone.addListener(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
-                        finalizeSnapshotContext.onDone(info);
+                        finalizeSnapshotContext.onDone();
                     }
 
                     @Override

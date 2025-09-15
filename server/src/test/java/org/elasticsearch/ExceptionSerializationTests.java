@@ -22,6 +22,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
+import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException;
@@ -216,7 +217,9 @@ public class ExceptionSerializationTests extends ESTestCase {
         };
 
         Files.walkFileTree(startPath, visitor);
-        final Path testStartPath = PathUtils.get(ExceptionSerializationTests.class.getResource(path).toURI());
+        final Path testStartPath = PathUtils.get(
+            ElasticsearchExceptionTests.class.getProtectionDomain().getCodeSource().getLocation().toURI()
+        ).resolve("org").resolve("elasticsearch");
         Files.walkFileTree(testStartPath, visitor);
         assertTrue(notRegistered.remove(TestException.class));
         assertTrue(notRegistered.remove(UnknownHeaderException.class));
@@ -410,6 +413,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ex = serialize(new ConnectTransportException(node, "msg", "action", new NullPointerException()));
         assertEquals("[][" + transportAddress + "][action] msg", ex.getMessage());
         assertThat(ex.getCause(), instanceOf(NullPointerException.class));
+        assertEquals(RestStatus.BAD_GATEWAY, ex.status());
     }
 
     public void testSearchPhaseExecutionException() throws IOException {
@@ -839,6 +843,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(181, ResourceAlreadyUploadedException.class);
         ids.put(182, IngestPipelineException.class);
         ids.put(183, IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class);
+        ids.put(184, RemoteException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

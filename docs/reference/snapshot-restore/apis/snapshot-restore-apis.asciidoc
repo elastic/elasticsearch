@@ -1,6 +1,12 @@
 [[snapshot-restore-apis]]
 == Snapshot and restore APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 You can use the following APIs to set up snapshot repositories, manage snapshot
 backups, and restore snapshots to a running cluster.
 

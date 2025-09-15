@@ -41,7 +41,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class LearningToRankConfig extends RegressionConfig implements Rewriteable<LearningToRankConfig> {
 
     public static final ParseField NAME = new ParseField("learning_to_rank");
-    static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersions.LTR_SERVERLESS_RELEASE;
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     public static final ParseField FEATURE_EXTRACTORS = new ParseField("feature_extractors");
     public static final ParseField DEFAULT_PARAMS = new ParseField("default_params");
@@ -226,7 +225,7 @@ public class LearningToRankConfig extends RegressionConfig implements Rewriteabl
 
     @Override
     public TransportVersion getMinimalSupportedTransportVersion() {
-        return MIN_SUPPORTED_TRANSPORT_VERSION;
+        return TransportVersions.V_8_16_0;
     }
 
     @Override

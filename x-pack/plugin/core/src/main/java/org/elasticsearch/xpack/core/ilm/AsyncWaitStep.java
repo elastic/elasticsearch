@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
@@ -20,18 +21,20 @@ import org.elasticsearch.xcontent.ToXContentObject;
  */
 public abstract class AsyncWaitStep extends Step {
 
-    private Client client;
+    @Nullable
+    private final Client client;
 
     public AsyncWaitStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey);
         this.client = client;
     }
 
+    @Nullable
     protected Client getClient() {
         return client;
     }
 
-    public abstract void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout);
+    public abstract void evaluateCondition(Metadata metadata, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout);
 
     public interface Listener {
 

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -60,6 +62,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -77,6 +80,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -207,17 +211,25 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create() {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields;
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return fields;
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields;
+                }
+            };
         }
 
         @Override
-        public Map<String, String> searchSlowLogFields() {
-            return fields;
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
         }
+
     }
 
     public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
@@ -229,16 +241,23 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void init(IndexSettings indexSettings) {}
+        public SlowLogFields create() {
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields;
+                }
 
-        @Override
-        public Map<String, String> indexSlowLogFields() {
-            return fields;
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields;
+                }
+            };
         }
 
         @Override
-        public Map<String, String> searchSlowLogFields() {
-            return fields;
+        public SlowLogFields create(IndexSettings indexSettings) {
+            return create();
         }
     }
 
@@ -302,7 +321,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             test.getIndexSettings().customDataPath()
         );
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata, randomReason()));
         assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
@@ -332,7 +351,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(secondPath.exists());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata, randomReason()));
         assertTrue(secondPath.exists());
 
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -363,13 +382,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
             }
-            indicesService.addPendingDelete(index, indexSettings);
+            indicesService.addPendingDelete(index, indexSettings, randomReason());
         }
 
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -389,9 +408,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final boolean hasBogus = randomBoolean();
         if (hasBogus) {
-            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
-            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings, randomReason());
             assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
         }
@@ -677,27 +696,27 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             );
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", resolvedExpressions("test-alias-0"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-0"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", resolvedExpressions("test-alias-0"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", resolvedExpressions("test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", resolvedExpressions("test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-1"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bax")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", Set.of("test-alias-0", "test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-0", resolvedExpressions("test-alias-0", "test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -706,7 +725,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertThat(filter.should(), containsInAnyOrder(QueryBuilders.termQuery("foo", "baz"), QueryBuilders.termQuery("foo", "bar")));
         }
         {
-            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", Set.of("test-alias-0", "test-alias-1"));
+            AliasFilter result = indicesService.buildAliasFilter(state, "test-1", resolvedExpressions("test-alias-0", "test-alias-1"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("test-alias-0", "test-alias-1"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -718,7 +737,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             AliasFilter result = indicesService.buildAliasFilter(
                 state,
                 "test-0",
-                Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering")
+                resolvedExpressions("test-alias-0", "test-alias-1", "test-alias-non-filtering")
             );
             assertThat(result.getAliases(), emptyArray());
             assertThat(result.getQueryBuilder(), nullValue());
@@ -727,7 +746,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             AliasFilter result = indicesService.buildAliasFilter(
                 state,
                 "test-1",
-                Set.of("test-alias-0", "test-alias-1", "test-alias-non-filtering")
+                resolvedExpressions("test-alias-0", "test-alias-1", "test-alias-non-filtering")
             );
             assertThat(result.getAliases(), emptyArray());
             assertThat(result.getQueryBuilder(), nullValue());
@@ -754,19 +773,19 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, resolvedExpressions("logs_foo"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "bar")));
         }
         {
             String index = backingIndex2.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, resolvedExpressions("logs_foo"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo"));
             assertThat(result.getQueryBuilder(), equalTo(QueryBuilders.termQuery("foo", "baz")));
         }
         {
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, resolvedExpressions("logs_foo", "logs"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -776,7 +795,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
         {
             String index = backingIndex2.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, resolvedExpressions("logs_foo", "logs"));
             assertThat(result.getAliases(), arrayContainingInAnyOrder("logs_foo", "logs"));
             BoolQueryBuilder filter = (BoolQueryBuilder) result.getQueryBuilder();
             assertThat(filter.filter(), empty());
@@ -787,13 +806,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         {
             // querying an unfiltered and a filtered alias for the same data stream should drop the filters
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs_foo", "logs", "logs_bar"));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, resolvedExpressions("logs_foo", "logs", "logs_bar"));
             assertThat(result, is(AliasFilter.EMPTY));
         }
         {
             // similarly, querying the data stream name and a filtered alias should drop the filter
             String index = backingIndex1.getIndex().getName();
-            AliasFilter result = indicesService.buildAliasFilter(state, index, Set.of("logs", dataStreamName1));
+            AliasFilter result = indicesService.buildAliasFilter(state, index, resolvedExpressions("logs", dataStreamName1));
             assertThat(result, is(AliasFilter.EMPTY));
         }
     }
@@ -803,33 +822,34 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.loadSlowLogFieldProvider();
+        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
+        SlowLogFields fields = fieldProvider.create(null);
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fieldProvider::searchSlowLogFields);
-        assertThrows(IllegalStateException.class, fieldProvider::indexSlowLogFields);
+        assertThrows(IllegalStateException.class, fields::searchFields);
+        assertThrows(IllegalStateException.class, fields::indexFields);
 
         TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of("key1", "value1"), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of("key1", "value1"), fields.searchFields());
+        assertEquals(Map.of("key1", "value1"), fields.indexFields());
 
         TestSlowLogFieldProvider.setFields(Map.of());
         TestAnotherSlowLogFieldProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fieldProvider.searchSlowLogFields());
-        assertEquals(Map.of(), fieldProvider.indexSlowLogFields());
+        assertEquals(Map.of(), fields.searchFields());
+        assertEquals(Map.of(), fields.indexFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
@@ -845,5 +865,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             assertEquals(createdIndexService.index(), indexService.index());
             return null;
         });
+    }
+
+    private Set<ResolvedExpression> resolvedExpressions(String... expressions) {
+        return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
+    }
+
+    private IndexRemovalReason randomReason() {
+        return randomFrom(IndexRemovalReason.values());
     }
 }

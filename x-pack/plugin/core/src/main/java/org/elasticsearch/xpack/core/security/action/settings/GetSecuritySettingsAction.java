@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,7 +39,6 @@ public class GetSecuritySettingsAction {
             super(masterNodeTimeout);
         }
 
-        @UpdateForV9 // no need for bwc any more, this can be inlined
         public static Request readFrom(StreamInput in) throws IOException {
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return new Request(in);

@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
+import org.elasticsearch.indices.system.SystemResourceDescriptor;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -100,7 +102,7 @@ import java.util.Set;
  * A system index that is fully internal to Elasticsearch will not allow any product origins; such an index is fully "locked down,"
  * and in general can only be changed by restoring feature states from snapshots.
  */
-public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
+public class SystemIndexDescriptor implements IndexPatternMatcher, SystemResourceDescriptor, Comparable<SystemIndexDescriptor> {
 
     public static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
 
@@ -148,6 +150,24 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
+
+    /**
+     * An optional reindexing script to use when migrating an index created
+     * before {@link SystemIndices#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
+     * This script can be used to modify documents before they are added to the new index.
+     * For example, it can be used to remove deprecated fields from the index.
+     * <br>
+     * Note: the script usually should only exist in  the versions supporting migration to the next major release -
+     * specifically, the last (two) minors of the current major.
+     * It should be created once the last minor branch has diverged from the next major branch (main).
+     * This ensures the script is available only in the versions where it is needed
+     * and avoids removing and maintaining it in the next major branch.
+     * For example: In order to migrate an index created in v7 when upgrading to v9,
+     * the script should be in the v8 minors supporting upgrade to v9 - 8.18 and 8.19.
+     * <br>
+     * See: <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html#reindex-scripts">Reindex scripts</a>
+     */
+    private final String migrationScript;
 
     /** The minimum cluster node version required for this descriptor */
     private final Version minimumNodeVersion;
@@ -210,6 +230,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      *               system indices must do so.
      * @param minimumNodeVersion the minimum cluster node version required for this descriptor
      * @param type The {@link Type} of system index
+     * @param migrationScript The script to apply when migrating this system index, or null
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
      *                                     indices
      * @param priorSystemIndexDescriptors A list of system index descriptors that describe the same index in a way that is compatible with
@@ -227,6 +248,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         String mappingsNodeVersionMetaKey,
         String origin,
         @Deprecated Version minimumNodeVersion,
+        String migrationScript,
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
@@ -296,7 +318,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         }
 
         Objects.requireNonNull(allowedElasticProductOrigins, "allowedProductOrigins must not be null");
-        if (type.isInternal() && allowedElasticProductOrigins.isEmpty() == false) {
+        if (type.isExternal() == false && allowedElasticProductOrigins.isEmpty() == false) {
             throw new IllegalArgumentException("Allowed origins are not valid for internal system indices");
         } else if (type.isExternal() && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
@@ -365,6 +387,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
         this.description = description;
         this.mappings = mappings;
+        this.migrationScript = migrationScript;
 
         settings = Objects.isNull(settings) ? Settings.EMPTY : settings;
 
@@ -442,9 +465,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
-    /**
-     * @return A short description of the purpose of this system index.
-     */
+    @Override
     public String getDescription() {
         return description;
     }
@@ -473,26 +494,17 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.indexFormat;
     }
 
-    public String getMappingsNodeVersionMetaKey() {
-        assert isAutomaticallyManaged() : "Do not request version meta keys for unmanaged system indices";
-        return this.mappingsNodeVersionMetaKey;
-    }
-
     public Version getMinimumNodeVersion() {
         assert isAutomaticallyManaged() : "Do not request version minimum node version for unmanaged system indices";
         return minimumNodeVersion;
     }
 
+    @Override
     public boolean isAutomaticallyManaged() {
         return type.isManaged();
     }
 
-    /**
-     * Get an origin string suitable for use in an {@link org.elasticsearch.client.internal.OriginSettingClient}. See
-     * {@link Builder#setOrigin(String)} for more information.
-     *
-     * @return an origin string to use for sub-requests
-     */
+    @Override
     public String getOrigin() {
         // TODO[wrb]: most unmanaged system indices do not set origins; could we assert on that here?
         return this.origin;
@@ -503,20 +515,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return this.hasDynamicMappings;
     }
 
+    @Override
     public boolean isExternal() {
         return type.isExternal();
     }
 
-    public boolean isInternal() {
-        return type.isInternal();
-    }
-
-    /**
-     * Requests from these products, if made with the proper security credentials, are allowed non-deprecated access to this descriptor's
-     * indices. (Product names may be specified in requests with the
-     * {@link org.elasticsearch.tasks.Task#X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER}).
-     * @return A list of product names.
-     */
+    @Override
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
     }
@@ -640,8 +644,13 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @return The names of thread pools that should be used for operations on this
      *    system index.
      */
+    @Override
     public ExecutorNames getThreadPoolNames() {
         return this.executorNames;
+    }
+
+    public String getMigrationScript() {
+        return migrationScript;
     }
 
     public static Builder builder() {
@@ -687,10 +696,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
         public boolean isManaged() {
             return managed;
-        }
-
-        public boolean isInternal() {
-            return external == false;
         }
     }
 
@@ -748,6 +753,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private String versionMetaKey = null;
         private String origin = null;
         private Version minimumNodeVersion = Version.CURRENT.minimumCompatibilityVersion();
+        private String migrationScript;
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
@@ -820,6 +826,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        public Builder setMigrationScript(String migrationScript) {
+            this.migrationScript = migrationScript;
+            return this;
+        }
+
         public Builder setType(Type type) {
             this.type = type;
             return this;
@@ -866,6 +877,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 versionMetaKey,
                 origin,
                 minimumNodeVersion,
+                migrationScript,
                 type,
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,

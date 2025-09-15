@@ -7,15 +7,18 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,20 +26,21 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -55,7 +59,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -67,6 +73,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExchangeServiceTests extends ESTestCase {
 
@@ -95,35 +102,50 @@ public class ExchangeServiceTests extends ESTestCase {
             pages[i] = new Page(blockFactory.newConstantIntBlockWith(i, 2));
         }
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
-        ExchangeSink sink1 = sinkExchanger.createExchangeSink();
-        ExchangeSink sink2 = sinkExchanger.createExchangeSink();
-        PlainActionFuture<Void> sourceCompletion = new PlainActionFuture<>();
-        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR), sourceCompletion);
+        AtomicInteger pagesAddedToSink = new AtomicInteger();
+        ExchangeSink sink1 = sinkExchanger.createExchangeSink(pagesAddedToSink::incrementAndGet);
+        ExchangeSink sink2 = sinkExchanger.createExchangeSink(pagesAddedToSink::incrementAndGet);
+        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
         ExchangeSource source = sourceExchanger.createExchangeSource();
-        sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, randomBoolean(), 1, ActionListener.noop());
+        AtomicInteger pagesAddedToSource = new AtomicInteger();
+        PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
+        sourceExchanger.addRemoteSink(
+            sinkExchanger::fetchPageAsync,
+            randomBoolean(),
+            pagesAddedToSource::incrementAndGet,
+            1,
+            remoteSinkFuture
+        );
         SubscribableListener<Void> waitForReading = source.waitForReading().listener();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
         assertTrue(sink1.waitForWriting().listener().isDone());
         randomFrom(sink1, sink2).addPage(pages[0]);
+        assertThat(pagesAddedToSink.get(), equalTo(1));
         randomFrom(sink1, sink2).addPage(pages[1]);
+        assertThat(pagesAddedToSink.get(), equalTo(2));
+        assertBusy(() -> assertThat(pagesAddedToSource.get(), equalTo(2)));
         // source and sink buffers can store 5 pages
         for (Page p : List.of(pages[2], pages[3], pages[4])) {
             ExchangeSink sink = randomFrom(sink1, sink2);
             assertBusy(() -> assertTrue(sink.waitForWriting().listener().isDone()));
             sink.addPage(p);
         }
+        assertThat(pagesAddedToSink.get(), equalTo(5));
+        assertBusy(() -> assertThat(pagesAddedToSource.get(), equalTo(3)));
         // sink buffer is full
         assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
         assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
         assertEquals(pages[0], source.pollPage());
         assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
         assertEquals(pages[1], source.pollPage());
+        assertBusy(() -> assertThat(pagesAddedToSource.get(), equalTo(5)));
         // sink can write again
         assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
         randomFrom(sink1, sink2).addPage(pages[5]);
         assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
         randomFrom(sink1, sink2).addPage(pages[6]);
+        assertThat(pagesAddedToSink.get(), equalTo(7));
         // sink buffer is full
         assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
         sink1.finish();
@@ -132,19 +154,19 @@ public class ExchangeServiceTests extends ESTestCase {
             assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
             assertEquals(pages[2 + i], source.pollPage());
         }
+        assertBusy(() -> assertThat(pagesAddedToSource.get(), equalTo(7)));
         // source buffer is empty
         assertFalse(source.waitForReading().listener().isDone());
         assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
-        assertFalse(sourceCompletion.isDone());
         source.finish();
-        sourceCompletion.actionGet(10, TimeUnit.SECONDS);
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
         }
+        safeGet(remoteSinkFuture);
     }
 
     /**
@@ -282,6 +304,7 @@ public class ExchangeServiceTests extends ESTestCase {
             DriverContext dc = driverContext();
             Driver d = new Driver(
                 "test-session:1",
+                "test",
                 0,
                 0,
                 dc,
@@ -300,6 +323,7 @@ public class ExchangeServiceTests extends ESTestCase {
             DriverContext dc = driverContext();
             Driver d = new Driver(
                 "test-session:2",
+                "test",
                 0,
                 0,
                 dc,
@@ -325,41 +349,45 @@ public class ExchangeServiceTests extends ESTestCase {
 
     public void testConcurrentWithHandlers() {
         BlockFactory blockFactory = blockFactory();
-        PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
-        var sourceExchanger = new ExchangeSourceHandler(
-            randomExchangeBuffer(),
-            threadPool.executor(ESQL_TEST_EXECUTOR),
-            sourceCompletionFuture
-        );
-        List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
-        Supplier<ExchangeSink> exchangeSink = () -> {
-            final ExchangeSinkHandler sinkHandler;
-            if (sinkHandlers.isEmpty() == false && randomBoolean()) {
-                sinkHandler = randomFrom(sinkHandlers);
-            } else {
-                sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
-                sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomBoolean(), randomIntBetween(1, 3), ActionListener.noop());
-                sinkHandlers.add(sinkHandler);
-            }
-            return sinkHandler.createExchangeSink();
-        };
-        final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-        final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
-        Set<Integer> actualSeqNos = runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceExchanger::createExchangeSource, exchangeSink);
-        var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
-        assertThat(actualSeqNos, hasSize(expectedSeqNos.size()));
-        assertThat(actualSeqNos, equalTo(expectedSeqNos));
-        sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS);
+        var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
+        PlainActionFuture<Void> remoteSinksFuture = new PlainActionFuture<>();
+        try (RefCountingListener refs = new RefCountingListener(remoteSinksFuture)) {
+            List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
+            Supplier<ExchangeSink> exchangeSink = () -> {
+                final ExchangeSinkHandler sinkHandler;
+                if (sinkHandlers.isEmpty() == false && randomBoolean()) {
+                    sinkHandler = randomFrom(sinkHandlers);
+                } else {
+                    sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
+                    sourceExchanger.addRemoteSink(
+                        sinkHandler::fetchPageAsync,
+                        randomBoolean(),
+                        () -> {},
+                        randomIntBetween(1, 3),
+                        refs.acquire()
+                    );
+                    sinkHandlers.add(sinkHandler);
+                }
+                return sinkHandler.createExchangeSink(() -> {});
+            };
+            final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
+            Set<Integer> actualSeqNos = runConcurrentTest(
+                maxInputSeqNo,
+                maxOutputSeqNo,
+                sourceExchanger::createExchangeSource,
+                exchangeSink
+            );
+            var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
+            assertThat(actualSeqNos, hasSize(expectedSeqNos.size()));
+            assertThat(actualSeqNos, equalTo(expectedSeqNos));
+        }
+        safeGet(remoteSinksFuture);
     }
 
     public void testExchangeSourceContinueOnFailure() {
         BlockFactory blockFactory = blockFactory();
-        PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
-        var exchangeSourceHandler = new ExchangeSourceHandler(
-            randomExchangeBuffer(),
-            threadPool.executor(ESQL_TEST_EXECUTOR),
-            sourceCompletionFuture
-        );
+        var exchangeSourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
         final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
         final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
         Set<Integer> expectedSeqNos = ConcurrentCollections.newConcurrentSet();
@@ -367,78 +395,137 @@ public class ExchangeServiceTests extends ESTestCase {
         AtomicInteger totalSinks = new AtomicInteger();
         AtomicInteger failedSinks = new AtomicInteger();
         AtomicInteger completedSinks = new AtomicInteger();
-        Supplier<ExchangeSink> exchangeSink = () -> {
-            var sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
-            int failAfter = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(0, 100);
-            AtomicInteger fetched = new AtomicInteger();
-            int instance = randomIntBetween(1, 3);
-            totalSinks.incrementAndGet();
-            AtomicBoolean sinkFailed = new AtomicBoolean();
-            exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
-                if (fetched.incrementAndGet() > failAfter) {
-                    sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
-                        failedRequests.incrementAndGet();
-                        sinkFailed.set(true);
-                        listener.onFailure(new CircuitBreakingException("simulated", CircuitBreaker.Durability.PERMANENT));
-                    }));
-                } else {
-                    sinkHandler.fetchPageAsync(allSourcesFinished, listener.delegateFailure((l, r) -> {
-                        Page page = r.takePage();
-                        if (page != null) {
-                            IntBlock block = page.getBlock(0);
-                            for (int i = 0; i < block.getPositionCount(); i++) {
-                                int v = block.getInt(i);
-                                if (v < maxOutputSeqNo) {
-                                    expectedSeqNos.add(v);
+        PlainActionFuture<Void> remoteSinksFuture = new PlainActionFuture<>();
+        try (RefCountingListener refs = new RefCountingListener(remoteSinksFuture)) {
+            Supplier<ExchangeSink> exchangeSink = () -> {
+                var sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
+                int failAfter = randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(0, 100);
+                AtomicInteger fetched = new AtomicInteger();
+                int instance = randomIntBetween(1, 3);
+                totalSinks.incrementAndGet();
+                AtomicBoolean sinkFailed = new AtomicBoolean();
+                ActionListener<Void> oneSinkListener = refs.acquire();
+                exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+                    if (fetched.incrementAndGet() > failAfter) {
+                        sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
+                            failedRequests.incrementAndGet();
+                            sinkFailed.set(true);
+                            listener.onFailure(new CircuitBreakingException("simulated", CircuitBreaker.Durability.PERMANENT));
+                        }));
+                    } else {
+                        sinkHandler.fetchPageAsync(allSourcesFinished, listener.delegateFailure((l, r) -> {
+                            Page page = r.takePage();
+                            if (page != null) {
+                                IntBlock block = page.getBlock(0);
+                                for (int i = 0; i < block.getPositionCount(); i++) {
+                                    int v = block.getInt(i);
+                                    if (v < maxOutputSeqNo) {
+                                        expectedSeqNos.add(v);
+                                    }
                                 }
                             }
-                        }
-                        l.onResponse(new ExchangeResponse(blockFactory, page, r.finished()));
-                    }));
-                }
-            }, false, instance, ActionListener.wrap(r -> {
-                assertFalse(sinkFailed.get());
-                completedSinks.incrementAndGet();
-            }, e -> {
-                assertTrue(sinkFailed.get());
-                failedSinks.incrementAndGet();
-            }));
-            return sinkHandler.createExchangeSink();
-        };
-        Set<Integer> actualSeqNos = runConcurrentTest(
-            maxInputSeqNo,
-            maxOutputSeqNo,
-            exchangeSourceHandler::createExchangeSource,
-            exchangeSink
-        );
-        assertThat(actualSeqNos, equalTo(expectedSeqNos));
-        assertThat(completedSinks.get() + failedSinks.get(), equalTo(totalSinks.get()));
-        sourceCompletionFuture.actionGet();
+                            l.onResponse(new ExchangeResponse(blockFactory, page, r.finished()));
+                        }));
+                    }
+                }, false, () -> {}, instance, ActionListener.wrap(r -> {
+                    assertFalse(sinkFailed.get());
+                    completedSinks.incrementAndGet();
+                    oneSinkListener.onResponse(null);
+                }, e -> {
+                    assertTrue(sinkFailed.get());
+                    failedSinks.incrementAndGet();
+                    oneSinkListener.onFailure(e);
+                }));
+                return sinkHandler.createExchangeSink(() -> {});
+            };
+            Set<Integer> actualSeqNos = runConcurrentTest(
+                maxInputSeqNo,
+                maxOutputSeqNo,
+                exchangeSourceHandler::createExchangeSource,
+                exchangeSink
+            );
+            assertThat(actualSeqNos, equalTo(expectedSeqNos));
+        }
         if (failedRequests.get() > 0) {
+            expectThrows(CircuitBreakingException.class, () -> remoteSinksFuture.actionGet(1, TimeUnit.MINUTES));
             assertThat(failedSinks.get(), greaterThan(0));
+            assertThat(completedSinks.get() + failedSinks.get(), equalTo(totalSinks.get()));
         } else {
+            safeGet(remoteSinksFuture);
             assertThat(failedSinks.get(), equalTo(0));
+            assertThat(completedSinks.get(), equalTo(totalSinks.get()));
         }
     }
 
-    public void testEarlyTerminate() {
+    public void testClosingSinks() {
         BlockFactory blockFactory = blockFactory();
         IntBlock block1 = blockFactory.newConstantIntBlockWith(1, 2);
         IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
         Page p1 = new Page(block1);
         Page p2 = new Page(block2);
         ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
-        ExchangeSink sink = sinkExchanger.createExchangeSink();
+        ExchangeSink sink = sinkExchanger.createExchangeSink(() -> {});
         sink.addPage(p1);
         sink.addPage(p2);
         assertFalse(sink.waitForWriting().listener().isDone());
         PlainActionFuture<ExchangeResponse> future = new PlainActionFuture<>();
         sinkExchanger.fetchPageAsync(true, future);
-        ExchangeResponse resp = future.actionGet();
+        ExchangeResponse resp = safeGet(future);
         assertTrue(resp.finished());
         assertNull(resp.takePage());
         assertTrue(sink.waitForWriting().listener().isDone());
         assertTrue(sink.isFinished());
+    }
+
+    public void testFinishEarly() throws Exception {
+        ExchangeSourceHandler sourceHandler = new ExchangeSourceHandler(20, threadPool.generic());
+        Semaphore permits = new Semaphore(between(1, 5));
+        BlockFactory blockFactory = blockFactory();
+        Queue<Page> pages = ConcurrentCollections.newQueue();
+        ExchangeSource exchangeSource = sourceHandler.createExchangeSource();
+        AtomicBoolean sinkClosed = new AtomicBoolean();
+        PlainActionFuture<Void> sinkCompleted = new PlainActionFuture<>();
+        sourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
+            if (allSourcesFinished) {
+                sinkClosed.set(true);
+                permits.release(10);
+                listener.onResponse(new ExchangeResponse(blockFactory, null, sinkClosed.get()));
+            } else {
+                try {
+                    if (permits.tryAcquire(between(0, 100), TimeUnit.MICROSECONDS)) {
+                        boolean closed = sinkClosed.get();
+                        final Page page;
+                        if (closed) {
+                            page = new Page(blockFactory.newConstantIntBlockWith(1, 1));
+                            pages.add(page);
+                        } else {
+                            page = null;
+                        }
+                        listener.onResponse(new ExchangeResponse(blockFactory, page, closed));
+                    } else {
+                        listener.onResponse(new ExchangeResponse(blockFactory, null, sinkClosed.get()));
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            }
+        }, false, () -> {}, between(1, 3), sinkCompleted);
+        threadPool.schedule(
+            () -> sourceHandler.finishEarly(randomBoolean(), ActionListener.noop()),
+            TimeValue.timeValueMillis(between(0, 10)),
+            threadPool.generic()
+        );
+        sinkCompleted.actionGet();
+        Page p;
+        while ((p = exchangeSource.pollPage()) != null) {
+            assertSame(p, pages.poll());
+            p.releaseBlocks();
+        }
+        while ((p = pages.poll()) != null) {
+            p.releaseBlocks();
+        }
+        assertTrue(exchangeSource.isFinished());
+        exchangeSource.finish();
     }
 
     public void testConcurrentWithTransportActions() {
@@ -449,21 +536,26 @@ public class ExchangeServiceTests extends ESTestCase {
         ExchangeService exchange1 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange1.registerTransportHandler(node1);
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
+        Set<String> finishingRequests = ConcurrentCollections.newConcurrentSet();
+        node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            final ExchangeRequest exchangeRequest = (ExchangeRequest) request;
+            if (exchangeRequest.sourcesFinished()) {
+                String exchangeId = exchangeRequest.exchangeId();
+                assertTrue("tried to finish [" + exchangeId + "] twice", finishingRequests.add(exchangeId));
+            }
+            handler.messageReceived(request, channel, task);
+        });
 
         try (exchange0; exchange1; node0; node1) {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
-            var sourceHandler = new ExchangeSourceHandler(
-                randomExchangeBuffer(),
-                threadPool.executor(ESQL_TEST_EXECUTOR),
-                sourceCompletionFuture
-            );
+            var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(
                 exchange0.newRemoteSink(task, exchangeId, node0, connection),
                 randomBoolean(),
+                () -> {},
                 randomIntBetween(1, 5),
                 ActionListener.noop()
             );
@@ -473,16 +565,15 @@ public class ExchangeServiceTests extends ESTestCase {
                 maxInputSeqNo,
                 maxOutputSeqNo,
                 sourceHandler::createExchangeSource,
-                sinkHandler::createExchangeSink
+                () -> sinkHandler.createExchangeSink(() -> {})
             );
             var expectedSeqNos = IntStream.range(0, Math.min(maxInputSeqNo, maxOutputSeqNo)).boxed().collect(Collectors.toSet());
             assertThat(actualSeqNos, hasSize(expectedSeqNos.size()));
             assertThat(actualSeqNos, equalTo(expectedSeqNos));
-            sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS);
         }
     }
 
-    public void testFailToRespondPage() {
+    public void testFailToRespondPage() throws Exception {
         Settings settings = Settings.builder().build();
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(settings, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
@@ -528,35 +619,61 @@ public class ExchangeServiceTests extends ESTestCase {
         try (exchange0; exchange1; node0; node1) {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
-            PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
-            var sourceHandler = new ExchangeSourceHandler(
-                randomIntBetween(1, 128),
-                threadPool.executor(ESQL_TEST_EXECUTOR),
-                sourceCompletionFuture
-            );
+            var sourceHandler = new ExchangeSourceHandler(randomIntBetween(1, 128), threadPool.executor(ESQL_TEST_EXECUTOR));
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
             sourceHandler.addRemoteSink(
                 exchange0.newRemoteSink(task, exchangeId, node0, connection),
                 true,
+                () -> {},
                 randomIntBetween(1, 5),
-                ActionListener.noop()
+                remoteSinkFuture
             );
-            Exception err = expectThrows(
+            Exception driverException = expectThrows(
                 Exception.class,
-                () -> runConcurrentTest(maxSeqNo, maxSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink)
+                () -> runConcurrentTest(
+                    maxSeqNo,
+                    maxSeqNo,
+                    sourceHandler::createExchangeSource,
+                    () -> sinkHandler.createExchangeSink(() -> {})
+                )
             );
-            Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
+            assertThat(driverException, instanceOf(TaskCancelledException.class));
+            var sinkException = expectThrows(Exception.class, remoteSinkFuture::actionGet);
+            Throwable cause = ExceptionsHelper.unwrap(sinkException, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
-            sinkHandler.onFailure(new RuntimeException(cause));
-            expectThrows(Exception.class, () -> sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS));
+            PlainActionFuture<Void> sinkCompletionFuture = new PlainActionFuture<>();
+            sinkHandler.addCompletionListener(sinkCompletionFuture);
+            safeGet(sinkCompletionFuture);
+        }
+    }
+
+    public void testNoCyclicException() throws Exception {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(future)) {
+            var exchangeSourceHandler = new ExchangeSourceHandler(between(10, 100), threadPool.generic());
+            int numSinks = between(5, 10);
+            for (int i = 0; i < numSinks; i++) {
+                RemoteSink remoteSink = (allSourcesFinished, listener) -> threadPool.schedule(
+                    () -> listener.onFailure(new IOException("simulated")),
+                    TimeValue.timeValueMillis(1),
+                    threadPool.generic()
+                );
+                exchangeSourceHandler.addRemoteSink(remoteSink, randomBoolean(), () -> {}, between(1, 3), refs.acquire());
+            }
+        }
+        Exception err = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(ExceptionsHelper.unwrap(err, IOException.class).getMessage(), equalTo("simulated"));
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            // ensure no cyclic exception
+            ElasticsearchException.writeException(err, output);
         }
     }
 
     private MockTransportService newTransportService() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
-        namedWriteables.addAll(BlockWritables.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,

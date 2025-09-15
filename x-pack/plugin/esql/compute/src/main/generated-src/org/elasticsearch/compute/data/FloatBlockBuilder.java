@@ -7,15 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+// end generated imports
 
 /**
  * Block build of FloatBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock.Builder {
 
@@ -85,7 +90,11 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
     /**
      * Copy the values in {@code block} from {@code beginInclusive} to
      * {@code endExclusive} into this builder.
+     * <p>
+     *     For single-position copies see {@link #copyFrom(FloatBlock, int)}.
+     * </p>
      */
+    @Override
     public FloatBlockBuilder copyFrom(FloatBlock block, int beginInclusive, int endExclusive) {
         if (endExclusive > block.getPositionCount()) {
             throw new IllegalArgumentException("can't copy past the end [" + endExclusive + " > " + block.getPositionCount() + "]");
@@ -101,21 +110,7 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
 
     private void copyFromBlock(FloatBlock block, int beginInclusive, int endExclusive) {
         for (int p = beginInclusive; p < endExclusive; p++) {
-            if (block.isNull(p)) {
-                appendNull();
-                continue;
-            }
-            int count = block.getValueCount(p);
-            if (count > 1) {
-                beginPositionEntry();
-            }
-            int i = block.getFirstValueIndex(p);
-            for (int v = 0; v < count; v++) {
-                appendFloat(block.getFloat(i++));
-            }
-            if (count > 1) {
-                endPositionEntry();
-            }
+            copyFrom(block, p);
         }
     }
 
@@ -123,6 +118,37 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
         for (int p = beginInclusive; p < endExclusive; p++) {
             appendFloat(vector.getFloat(p));
         }
+    }
+
+    /**
+     * Copy the values in {@code block} at {@code position}. If this position
+     * has a single value, this'll copy a single value. If this positions has
+     * many values, it'll copy all of them. If this is {@code null}, then it'll
+     * copy the {@code null}.
+     * <p>
+     *     Note that there isn't a version of this method on {@link Block.Builder} that takes
+     *     {@link Block}. That'd be quite slow, running position by position. And it's important
+     *     to know if you are copying {@link BytesRef}s so you can have the scratch.
+     * </p>
+     */
+    @Override
+    public FloatBlockBuilder copyFrom(FloatBlock block, int position) {
+        if (block.isNull(position)) {
+            appendNull();
+            return this;
+        }
+        int count = block.getValueCount(position);
+        int i = block.getFirstValueIndex(position);
+        if (count == 1) {
+            appendFloat(block.getFloat(i++));
+            return this;
+        }
+        beginPositionEntry();
+        for (int v = 0; v < count; v++) {
+            appendFloat(block.getFloat(i++));
+        }
+        endPositionEntry();
+        return this;
     }
 
     @Override

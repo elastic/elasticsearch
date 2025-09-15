@@ -13,175 +13,62 @@ import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Task;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.ProviderFactory;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
 
-public abstract class BuildParameterExtension {
-    private final Provider<Boolean> inFipsJvm;
-    private final Provider<File> runtimeJavaHome;
-    private final Boolean isRuntimeJavaHomeSet;
-    private final List<JavaHome> javaVersions;
-    private final JavaVersion minimumCompilerVersion;
-    private final JavaVersion minimumRuntimeVersion;
-    private final JavaVersion gradleJavaVersion;
-    private final Provider<JavaVersion> runtimeJavaVersion;
-    private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
-    private final Provider<String> runtimeJavaDetails;
-    private final String gitRevision;
-    private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
-    private final String testSeed;
-    private final Boolean isCi;
-    private final Integer defaultParallel;
-    private final Boolean isSnapshotBuild;
+public interface BuildParameterExtension {
+    String EXTENSION_NAME = "buildParams";
 
-    public BuildParameterExtension(
-        ProviderFactory providers,
-        Provider<File> runtimeJavaHome,
-        Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
-        Provider<JavaVersion> runtimeJavaVersion,
-        boolean isRuntimeJavaHomeSet,
-        Provider<String> runtimeJavaDetails,
-        List<JavaHome> javaVersions,
-        JavaVersion minimumCompilerVersion,
-        JavaVersion minimumRuntimeVersion,
-        JavaVersion gradleJavaVersion,
-        String gitRevision,
-        String gitOrigin,
-        ZonedDateTime buildDate,
-        String testSeed,
-        boolean isCi,
-        int defaultParallel,
-        final boolean isSnapshotBuild,
-        Provider<BwcVersions> bwcVersions
-    ) {
-        this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean);
-        this.runtimeJavaHome = runtimeJavaHome;
-        this.javaToolChainSpec = javaToolChainSpec;
-        this.runtimeJavaVersion = runtimeJavaVersion;
-        this.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
-        this.runtimeJavaDetails = runtimeJavaDetails;
-        this.javaVersions = javaVersions;
-        this.minimumCompilerVersion = minimumCompilerVersion;
-        this.minimumRuntimeVersion = minimumRuntimeVersion;
-        this.gradleJavaVersion = gradleJavaVersion;
-        this.gitRevision = gitRevision;
-        this.testSeed = testSeed;
-        this.isCi = isCi;
-        this.defaultParallel = defaultParallel;
-        this.isSnapshotBuild = isSnapshotBuild;
-        this.getBwcVersionsProperty().set(bwcVersions);
-        this.getGitOriginProperty().set(gitOrigin);
-    }
+    boolean getInFipsJvm();
 
-    private static boolean parseBoolean(String s) {
-        if (s == null) {
-            return false;
-        }
-        return Boolean.parseBoolean(s);
-    }
+    Provider<File> getRuntimeJavaHome();
 
-    public boolean getInFipsJvm() {
-        return inFipsJvm.getOrElse(false);
-    }
+    void withFipsEnabledOnly(Task task);
 
-    public Provider<File> getRuntimeJavaHome() {
-        return runtimeJavaHome;
-    }
+    Boolean getIsRuntimeJavaHomeSet();
 
-    public void withFipsEnabledOnly(Task task) {
-        task.onlyIf("FIPS mode disabled", task1 -> getInFipsJvm() == false);
-    }
+    RuntimeJava getRuntimeJava();
 
-    public Boolean getIsRuntimeJavaHomeSet() {
-        return isRuntimeJavaHomeSet;
-    }
+    List<JavaHome> getJavaVersions();
 
-    public List<JavaHome> getJavaVersions() {
-        return javaVersions;
-    }
+    JavaVersion getMinimumCompilerVersion();
 
-    public JavaVersion getMinimumCompilerVersion() {
-        return minimumCompilerVersion;
-    }
+    JavaVersion getMinimumRuntimeVersion();
 
-    public JavaVersion getMinimumRuntimeVersion() {
-        return minimumRuntimeVersion;
-    }
+    JavaVersion getGradleJavaVersion();
 
-    public JavaVersion getGradleJavaVersion() {
-        return gradleJavaVersion;
-    }
+    Provider<JavaVersion> getRuntimeJavaVersion();
 
-    public Provider<JavaVersion> getRuntimeJavaVersion() {
-        return runtimeJavaVersion;
-    }
+    Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec();
 
-    public Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
-        return javaToolChainSpec;
-    }
+    Provider<String> getRuntimeJavaDetails();
 
-    public Provider<String> getRuntimeJavaDetails() {
-        return runtimeJavaDetails;
-    }
+    Provider<String> getGitRevision();
 
-    public String getGitRevision() {
-        return gitRevision;
-    }
+    Provider<String> getGitOrigin();
 
-    public String getGitOrigin() {
-        return getGitOriginProperty().get();
-    }
+    ZonedDateTime getBuildDate();
 
-    public ZonedDateTime getBuildDate() {
-        ZonedDateTime value = buildDate.get();
-        if (value == null) {
-            value = ZonedDateTime.now(ZoneOffset.UTC);
-            if (buildDate.compareAndSet(null, value) == false) {
-                // If another thread initialized it first, return the initialized value
-                value = buildDate.get();
-            }
-        }
-        return value;
-    }
+    String getTestSeed();
 
-    public String getTestSeed() {
-        return testSeed;
-    }
+    Provider<String> getTestSeedProvider();
 
-    public Boolean isCi() {
-        return isCi;
-    }
+    Boolean getCi();
 
-    public Integer getDefaultParallel() {
-        return defaultParallel;
-    }
+    Integer getDefaultParallel();
 
-    public Boolean isSnapshotBuild() {
-        return isSnapshotBuild;
-    }
+    Boolean getSnapshotBuild();
 
-    public BwcVersions getBwcVersions() {
-        return getBwcVersionsProperty().get();
-    }
+    BwcVersions getBwcVersions();
 
-    public abstract Property<BwcVersions> getBwcVersionsProperty();
+    Provider<BwcVersions> getBwcVersionsProvider();
 
-    public abstract Property<String> getGitOriginProperty();
+    Provider<Random> getRandom();
 
-    public Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
-    }
-
-    public Boolean isGraalVmRuntime() {
-        return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
-    }
+    Boolean getGraalVmRuntime();
 }

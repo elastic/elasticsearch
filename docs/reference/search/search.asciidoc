@@ -4,6 +4,12 @@
 <titleabbrev>Search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Returns search hits that match the query defined in the request.
 
 [source,console]
@@ -527,6 +533,8 @@ not both. Refer to <<knn-semantic-search>> to learn more.
 `similarity`::
 (Optional, float)
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
 
 ====
 

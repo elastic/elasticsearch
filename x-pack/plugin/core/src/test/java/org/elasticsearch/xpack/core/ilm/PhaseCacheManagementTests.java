@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,9 +83,9 @@ public class PhaseCacheManagementTests extends ESTestCase {
         actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        Map<String, Phase> phases = Map.of("hot", hotPhase);
         LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Map.of(), 2L, 2L);
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
@@ -315,7 +314,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-            Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+            Map<String, Phase> phases = Map.of("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
             assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
@@ -351,7 +350,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             Map<String, LifecycleAction> actions = new HashMap<>();
             actions.put("set_priority", new SetPriorityAction(150));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-            Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+            Map<String, Phase> phases = Map.of("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
             assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
@@ -390,7 +389,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null, null, null, null, null, null, null)
             );
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-            Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+            Map<String, Phase> phases = Map.of("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
             assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
@@ -422,7 +421,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-            Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+            Map<String, Phase> phases = Map.of("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
             assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
@@ -443,7 +442,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-            Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+            Map<String, Phase> phases = Map.of("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
             assertFalse(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
@@ -482,16 +481,16 @@ public class PhaseCacheManagementTests extends ESTestCase {
         oldActions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         oldActions.put("set_priority", new SetPriorityAction(100));
         Phase oldHotPhase = new Phase("hot", TimeValue.ZERO, oldActions);
-        Map<String, Phase> oldPhases = Collections.singletonMap("hot", oldHotPhase);
+        Map<String, Phase> oldPhases = Map.of("hot", oldHotPhase);
         LifecyclePolicy oldPolicy = new LifecyclePolicy("my-policy", oldPhases);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put("rollover", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        Map<String, Phase> phases = Map.of("hot", hotPhase);
         LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Map.of(), 2L, 2L);
 
         assertTrue(isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
 
@@ -509,9 +508,9 @@ public class PhaseCacheManagementTests extends ESTestCase {
         actions.put("rollover", new RolloverAction(null, null, null, 2L, null, null, null, null, null, null));
         actions.put("set_priority", new SetPriorityAction(150));
         hotPhase = new Phase("hot", TimeValue.ZERO, actions);
-        phases = Collections.singletonMap("hot", hotPhase);
+        phases = Map.of("hot", hotPhase);
         newPolicy = new LifecyclePolicy("my-policy", phases);
-        policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
+        policyMetadata = new LifecyclePolicyMetadata(newPolicy, Map.of(), 2L, 2L);
 
         logger.info("--> update with changed policy, but not configured in settings");
         updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);

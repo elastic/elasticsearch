@@ -1,5 +1,0 @@
-pr: 116348
-summary: "ESQL: Honor skip_unavailable setting for nonmatching indices errors at planning time"
-area: ES|QL
-type: enhancement
-issues: [ 114531 ]

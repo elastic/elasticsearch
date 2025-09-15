@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -37,6 +36,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,6 +57,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithFinalStateAndNoShards;
 
 /**
  * Resolves enrich policies across clusters in several steps:
@@ -98,21 +99,22 @@ public class EnrichPolicyResolver {
     /**
      * Resolves a set of enrich policies
      *
-     * @param targetClusters     the target clusters
      * @param unresolvedPolicies the unresolved policies
+     * @param executionInfo      the execution info
      * @param listener           notified with the enrich resolution
      */
     public void resolvePolicies(
-        Collection<String> targetClusters,
         Collection<UnresolvedPolicy> unresolvedPolicies,
+        EsqlExecutionInfo executionInfo,
         ActionListener<EnrichResolution> listener
     ) {
-        if (unresolvedPolicies.isEmpty() || targetClusters.isEmpty()) {
+        if (unresolvedPolicies.isEmpty()) {
             listener.onResponse(new EnrichResolution());
             return;
         }
-        final Set<String> remoteClusters = new HashSet<>(targetClusters);
-        final boolean includeLocal = remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+
+        final Set<String> remoteClusters = new HashSet<>(executionInfo.getClusters().keySet());
+        final boolean includeLocal = remoteClusters.isEmpty() || remoteClusters.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         lookupPolicies(remoteClusters, includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
 
@@ -121,7 +123,14 @@ public class EnrichPolicyResolver {
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
                 String clusterAlias = entry.getKey();
                 if (entry.getValue().connectionError != null) {
-                    enrichResolution.addUnavailableCluster(clusterAlias, entry.getValue().connectionError);
+                    assert clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false
+                        : "Should never have a connection error for the local cluster";
+                    markClusterWithFinalStateAndNoShards(
+                        executionInfo,
+                        clusterAlias,
+                        EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                        entry.getValue().connectionError
+                    );
                     // remove unavailable cluster from the list of clusters which is used below to create the ResolvedEnrichPolicy
                     remoteClusters.remove(clusterAlias);
                 } else {
@@ -411,7 +420,7 @@ public class EnrichPolicyResolver {
                     }
                     try (ThreadContext.StoredContext ignored = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
                         String indexName = EnrichPolicy.getBaseName(policyName);
-                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, refs.acquire(indexResult -> {
+                        indexResolver.resolveAsMergedMapping(indexName, IndexResolver.ALL_FIELDS, null, refs.acquire(indexResult -> {
                             if (indexResult.isValid() && indexResult.get().concreteIndices().size() == 1) {
                                 EsIndex esIndex = indexResult.get();
                                 var concreteIndices = Map.of(request.clusterAlias, Iterables.get(esIndex.concreteIndices(), 0));
@@ -434,8 +443,8 @@ public class EnrichPolicyResolver {
     }
 
     protected Map<String, EnrichPolicy> availablePolicies() {
-        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE);
-        return metadata == null ? Map.of() : metadata.getPolicies();
+        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        return metadata.getPolicies();
     }
 
     protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {
@@ -444,12 +453,5 @@ public class EnrichPolicyResolver {
             remoteClusterService.isSkipUnavailable(cluster) == false,
             listener
         );
-    }
-
-    public Map<String, List<String>> groupIndicesPerCluster(String[] indices) {
-        return remoteClusterService.groupIndices(SearchRequest.DEFAULT_INDICES_OPTIONS, indices)
-            .entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> Arrays.asList(e.getValue().indices())));
     }
 }

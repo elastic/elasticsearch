@@ -24,12 +24,12 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
 
     public void testBwcWrite() throws IOException {
         {
-            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null));
+            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null, null));
             var copy = copyInstance(settings, TransportVersions.V_8_12_0);
             assertEquals(settings, copy);
         }
         {
-            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null));
+            var settings = new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, ".elser_model_1", null, null));
             var copy = copyInstance(settings, TransportVersions.V_8_11_X);
             assertEquals(settings, copy);
         }
@@ -53,6 +53,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                     instance.getNumAllocations() == null ? 1 : instance.getNumAllocations() + 1,
                     instance.getNumThreads(),
                     instance.modelId(),
+                    null,
                     null
                 )
             );
@@ -61,6 +62,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                     instance.getNumAllocations(),
                     instance.getNumThreads() + 1,
                     instance.modelId(),
+                    null,
                     null
                 )
             );
@@ -72,6 +74,7 @@ public class ElserInternalServiceSettingsTests extends AbstractWireSerializingTe
                         instance.getNumAllocations(),
                         instance.getNumThreads(),
                         versions.iterator().next(),
+                        null,
                         null
                     )
                 );

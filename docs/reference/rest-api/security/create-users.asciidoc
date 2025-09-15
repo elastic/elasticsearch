@@ -5,6 +5,12 @@
 <titleabbrev>Create or update users</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Adds and updates users in the native realm. These users are commonly referred
 to as _native users_.
 

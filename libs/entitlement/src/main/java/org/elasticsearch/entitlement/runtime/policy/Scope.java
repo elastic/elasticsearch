@@ -9,38 +9,19 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import java.util.Collections;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+
 import java.util.List;
 import java.util.Objects;
 
 /**
  * A holder for entitlements within a single scope.
  */
-public class Scope {
+public record Scope(String moduleName, List<Entitlement> entitlements) {
 
-    public final String name;
-    public final List<Entitlement> entitlements;
-
-    public Scope(String name, List<Entitlement> entitlements) {
-        this.name = Objects.requireNonNull(name);
-        this.entitlements = Collections.unmodifiableList(Objects.requireNonNull(entitlements));
+    public Scope(String moduleName, List<Entitlement> entitlements) {
+        this.moduleName = Objects.requireNonNull(moduleName);
+        this.entitlements = List.copyOf(entitlements);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Scope scope = (Scope) o;
-        return Objects.equals(name, scope.name) && Objects.equals(entitlements, scope.entitlements);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(name, entitlements);
-    }
-
-    @Override
-    public String toString() {
-        return "Scope{" + "name='" + name + '\'' + ", entitlements=" + entitlements + '}';
-    }
 }

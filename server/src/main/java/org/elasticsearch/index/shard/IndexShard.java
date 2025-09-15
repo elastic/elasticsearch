@@ -96,6 +96,7 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
@@ -156,6 +157,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -193,6 +196,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final MapperService mapperService;
     private final IndexCache indexCache;
     private final Store store;
@@ -316,6 +321,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         final ThreadPool threadPool,
+        final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final BigArrays bigArrays,
         final Engine.Warmer warmer,
         final List<SearchOperationListener> searchOperationListener,
@@ -342,11 +348,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
+        var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
-            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats),
+            CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
             logger
         );
         this.bulkOperationListener = new ShardBulkStats();
@@ -412,7 +420,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
-        this.fieldInfos = FieldInfos.EMPTY;
     }
 
     public ThreadPool getThreadPool() {
@@ -1010,12 +1017,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return index(engine, operation);
     }
 
-    public void setFieldInfos(FieldInfos fieldInfos) {
-        this.fieldInfos = fieldInfos;
+    private static final VarHandle FIELD_INFOS;
+
+    static {
+        try {
+            FIELD_INFOS = MethodHandles.lookup().findVarHandle(IndexShard.class, "fieldInfos", FieldInfos.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
     }
 
     public FieldInfos getFieldInfos() {
-        return fieldInfos;
+        var res = fieldInfos;
+        if (res == null) {
+            // don't replace field infos loaded via the refresh listener to avoid overwriting the field with an older version of the
+            // field infos when racing with a refresh
+            var read = loadFieldInfos();
+            var existing = (FieldInfos) FIELD_INFOS.compareAndExchange(this, null, read);
+            return existing == null ? read : existing;
+        }
+        return res;
     }
 
     public static Engine.Index prepareIndex(
@@ -1319,11 +1340,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
+        final Engine engine = getEngineOrNull();
         return new FlushStats(
             flushMetric.count(),
             periodicFlushMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
-            getEngineOrNull() != null ? getEngineOrNull().getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+            engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
         );
     }
 
@@ -2258,8 +2280,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
         final MappedFieldType mappedFieldType = mapperService().fieldType(fieldName);
-        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false) {
-            return ShardLongFieldRange.UNKNOWN; // field missing or not a date
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType == false || mappedFieldType.name().equals(fieldName) == false) {
+            return ShardLongFieldRange.UNKNOWN; // field is missing, an alias (as the field type has a different name) or not a date field
         }
         if (mappedFieldType.isIndexed() == false) {
             return ShardLongFieldRange.UNKNOWN; // range information missing
@@ -2583,7 +2605,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param source    the source of the request
      * @param fromSeqNo the start sequence number (inclusive)
      * @param toSeqNo   the end sequence number (inclusive)
-     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean)
+     * @see #newChangesSnapshot(String, long, long, boolean, boolean, boolean, long)
      */
     public int countChanges(String source, long fromSeqNo, long toSeqNo) throws IOException {
         return getEngine().countChanges(source, fromSeqNo, toSeqNo);
@@ -2602,6 +2624,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param singleConsumer    true if the snapshot is accessed by only the thread that creates the snapshot. In this case, the
      *                          snapshot can enable some optimizations to improve the performance.
      * @param accessStats       true if the stats of the snapshot is accessed via {@link Translog.Snapshot#totalOperations()}
+     * @param maxChunkSize      The maximum allowable size, in bytes, for buffering source documents during recovery.
      */
     public Translog.Snapshot newChangesSnapshot(
         String source,
@@ -2609,9 +2632,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long toSeqNo,
         boolean requiredFullRange,
         boolean singleConsumer,
-        boolean accessStats
+        boolean accessStats,
+        long maxChunkSize
     ) throws IOException {
-        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats);
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange, singleConsumer, accessStats, maxChunkSize);
     }
 
     public List<Segment> segments() {
@@ -3210,7 +3234,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } else {
             // full checkindex
             final BytesStreamOutput os = new BytesStreamOutput();
-            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8);
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (status.clean == false) {
@@ -3492,6 +3516,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             warmer,
             store,
@@ -4064,14 +4089,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue && (didRefresh || fieldInfos == FieldInfos.EMPTY)) {
-                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
-                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
-                } catch (AlreadyClosedException ignore) {
-                    // engine is closed - no updated FieldInfos is fine
-                }
+            if (enableFieldHasValue && (didRefresh || fieldInfos == null)) {
+                FIELD_INFOS.setRelease(IndexShard.this, loadFieldInfos());
             }
         }
+    }
+
+    private FieldInfos loadFieldInfos() {
+        try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
+            return FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader());
+        } catch (AlreadyClosedException ignore) {
+            // engine is closed - no update to FieldInfos is fine
+        }
+        return FieldInfos.EMPTY;
     }
 
     /**

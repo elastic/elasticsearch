@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -70,6 +71,8 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    private QueryRewriteInterceptor queryRewriteInterceptor;
+    private final boolean isExplain;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -86,7 +89,9 @@ public class QueryRewriteContext {
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean isExplain
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -105,6 +110,8 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+        this.isExplain = isExplain;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -123,7 +130,9 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            null,
+            false
         );
     }
 
@@ -132,7 +141,20 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor
+    ) {
+        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
+    }
+
+    public QueryRewriteContext(
+        final XContentParserConfiguration parserConfiguration,
+        final Client client,
+        final LongSupplier nowInMillis,
+        final ResolvedIndices resolvedIndices,
+        final PointInTimeBuilder pit,
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean isExplain
     ) {
         this(
             parserConfiguration,
@@ -149,7 +171,9 @@ public class QueryRewriteContext {
             null,
             null,
             resolvedIndices,
-            pit
+            pit,
+            queryRewriteInterceptor,
+            isExplain
         );
     }
 
@@ -253,6 +277,10 @@ public class QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public boolean isExplain() {
+        return this.isExplain;
     }
 
     public NamedWriteableRegistry getWriteableRegistry() {
@@ -428,4 +456,13 @@ public class QueryRewriteContext {
         // It was decided we should only test the first of these potentially multiple preferences.
         return value.split(",")[0].trim();
     }
+
+    public QueryRewriteInterceptor getQueryRewriteInterceptor() {
+        return queryRewriteInterceptor;
+    }
+
+    public void setQueryRewriteInterceptor(QueryRewriteInterceptor queryRewriteInterceptor) {
+        this.queryRewriteInterceptor = queryRewriteInterceptor;
+    }
+
 }

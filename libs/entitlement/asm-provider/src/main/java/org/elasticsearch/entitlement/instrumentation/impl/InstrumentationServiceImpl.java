@@ -9,7 +9,8 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -21,89 +22,253 @@ import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayDeque;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
 
-    @Override
-    public Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
-        return new InstrumenterImpl(classNameSuffix, instrumentationMethods);
-    }
-
-    /**
-     * @return a {@link MethodKey} suitable for looking up the given {@code targetMethod} in the entitlements trampoline
-     */
-    public MethodKey methodKeyForTarget(Method targetMethod) {
-        Type actualType = Type.getMethodType(Type.getMethodDescriptor(targetMethod));
-        return new MethodKey(
-            Type.getInternalName(targetMethod.getDeclaringClass()),
-            targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
-        );
-    }
+    private static final String OBJECT_INTERNAL_NAME = Type.getInternalName(Object.class);
 
     @Override
-    public Map<MethodKey, CheckerMethod> lookupMethodsToInstrument(String entitlementCheckerClassName) throws ClassNotFoundException,
-        IOException {
-        var methodsToInstrument = new HashMap<MethodKey, CheckerMethod>();
-        var checkerClass = Class.forName(entitlementCheckerClassName);
-        var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
-        ClassReader reader = new ClassReader(classFileInfo.bytecodes());
-        ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
-            @Override
-            public MethodVisitor visitMethod(
-                int access,
-                String checkerMethodName,
-                String checkerMethodDescriptor,
-                String signature,
-                String[] exceptions
-            ) {
-                var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+    public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods) {
+        return InstrumenterImpl.create(clazz, methods);
+    }
 
+    private interface CheckerMethodVisitor {
+        void visit(Class<?> currentClass, int access, String checkerMethodName, String checkerMethodDescriptor);
+    }
+
+    private void visitClassAndSupers(Class<?> checkerClass, CheckerMethodVisitor checkerMethodVisitor) throws ClassNotFoundException {
+        Set<Class<?>> visitedClasses = new HashSet<>();
+        ArrayDeque<Class<?>> classesToVisit = new ArrayDeque<>(Collections.singleton(checkerClass));
+        while (classesToVisit.isEmpty() == false) {
+            var currentClass = classesToVisit.remove();
+            if (visitedClasses.contains(currentClass)) {
+                continue;
+            }
+            visitedClasses.add(currentClass);
+
+            try {
+                var classFileInfo = InstrumenterImpl.getClassFileInfo(currentClass);
+                ClassReader reader = new ClassReader(classFileInfo.bytecodes());
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
+
+                    @Override
+                    public void visit(int version, int access, String name, String signature, String superName, String[] interfaces) {
+                        super.visit(version, access, name, signature, superName, interfaces);
+                        try {
+                            if (OBJECT_INTERNAL_NAME.equals(superName) == false) {
+                                classesToVisit.add(Class.forName(Type.getObjectType(superName).getClassName()));
+                            }
+                            for (var interfaceName : interfaces) {
+                                classesToVisit.add(Class.forName(Type.getObjectType(interfaceName).getClassName()));
+                            }
+                        } catch (ClassNotFoundException e) {
+                            throw new IllegalArgumentException("Cannot inspect checker class " + currentClass.getName(), e);
+                        }
+                    }
+
+                    @Override
+                    public MethodVisitor visitMethod(
+                        int access,
+                        String checkerMethodName,
+                        String checkerMethodDescriptor,
+                        String signature,
+                        String[] exceptions
+                    ) {
+                        var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+                        checkerMethodVisitor.visit(currentClass, access, checkerMethodName, checkerMethodDescriptor);
+                        return mv;
+                    }
+                };
+                reader.accept(visitor, 0);
+            } catch (IOException e) {
+                throw new ClassNotFoundException("Cannot find a definition for class [" + checkerClass.getName() + "]", e);
+            }
+        }
+    }
+
+    @Override
+    public Map<MethodKey, CheckMethod> lookupMethods(Class<?> checkerClass) throws ClassNotFoundException {
+        Map<MethodKey, CheckMethod> methodsToInstrument = new HashMap<>();
+
+        visitClassAndSupers(checkerClass, (currentClass, access, checkerMethodName, checkerMethodDescriptor) -> {
+            if (checkerMethodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)) {
                 var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
                 var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
 
                 var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
-                var checkerMethod = new CheckerMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
-
-                methodsToInstrument.put(methodToInstrument, checkerMethod);
-
-                return mv;
+                var checkMethod = new CheckMethod(Type.getInternalName(currentClass), checkerMethodName, checkerParameterDescriptors);
+                methodsToInstrument.putIfAbsent(methodToInstrument, checkMethod);
             }
-        };
-        reader.accept(visitor, 0);
+        });
+
         return methodsToInstrument;
+    }
+
+    @SuppressForbidden(reason = "Need access to abstract methods (protected/package internal) in base class")
+    @Override
+    public InstrumentationInfo lookupImplementationMethod(
+        Class<?> targetSuperclass,
+        String targetMethodName,
+        Class<?> implementationClass,
+        Class<?> checkerClass,
+        String checkMethodName,
+        Class<?>... parameterTypes
+    ) throws NoSuchMethodException, ClassNotFoundException {
+
+        var targetMethod = targetSuperclass.getDeclaredMethod(targetMethodName, parameterTypes);
+        var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
+        validateTargetMethod(implementationClass, targetMethod, implementationMethod);
+
+        var checkerAdditionalArguments = Stream.of(Class.class, targetSuperclass);
+        var checkMethodArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes))
+            .map(Type::getType)
+            .toArray(Type[]::new);
+
+        CheckMethod[] checkMethod = new CheckMethod[1];
+
+        visitClassAndSupers(checkerClass, (currentClass, access, methodName, methodDescriptor) -> {
+            if (methodName.equals(checkMethodName)) {
+                var methodArgumentTypes = Type.getArgumentTypes(methodDescriptor);
+                if (Arrays.equals(methodArgumentTypes, checkMethodArgumentTypes)) {
+                    var checkerParameterDescriptors = Arrays.stream(methodArgumentTypes).map(Type::getDescriptor).toList();
+                    checkMethod[0] = new CheckMethod(Type.getInternalName(currentClass), methodName, checkerParameterDescriptors);
+                }
+            }
+        });
+
+        if (checkMethod[0] == null) {
+            throw new NoSuchMethodException(
+                String.format(
+                    Locale.ROOT,
+                    "Cannot find a method with name [%s] and arguments [%s] in class [%s]",
+                    checkMethodName,
+                    Arrays.stream(checkMethodArgumentTypes).map(Type::toString).collect(Collectors.joining()),
+                    checkerClass.getName()
+                )
+            );
+        }
+
+        return new InstrumentationInfo(
+            new MethodKey(
+                Type.getInternalName(implementationMethod.getDeclaringClass()),
+                implementationMethod.getName(),
+                Arrays.stream(parameterTypes).map(c -> Type.getType(c).getInternalName()).toList()
+            ),
+            checkMethod[0]
+        );
+    }
+
+    private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod, Method implementationMethod) {
+        if (targetMethod.getDeclaringClass().isAssignableFrom(implementationClass) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not an implementation class for %s: %s does not implement %s",
+                    targetMethod.getName(),
+                    implementationClass.getName(),
+                    targetMethod.getDeclaringClass().getName()
+                )
+            );
+        }
+        if (Modifier.isPrivate(targetMethod.getModifiers())) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is private in %s",
+                    targetMethod.getName(),
+                    targetMethod.getDeclaringClass().getName()
+                )
+            );
+        }
+        if (Modifier.isStatic(targetMethod.getModifiers())) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is static in %s",
+                    targetMethod.getName(),
+                    targetMethod.getDeclaringClass().getName()
+                )
+            );
+        }
+        var methodModifiers = implementationMethod.getModifiers();
+        if (Modifier.isAbstract(methodModifiers)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is abstract in %s",
+                    targetMethod.getName(),
+                    implementationClass.getName()
+                )
+            );
+        }
+        if (Modifier.isPublic(methodModifiers) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is not public in %s",
+                    targetMethod.getName(),
+                    implementationClass.getName()
+                )
+            );
+        }
     }
 
     private static final Type CLASS_TYPE = Type.getType(Class.class);
 
-    static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
-        var classNameStartIndex = checkerMethodName.indexOf('$');
-        var classNameEndIndex = checkerMethodName.lastIndexOf('$');
+    static ParsedCheckerMethod parseCheckerMethodName(String checkerMethodName) {
+        boolean targetMethodIsStatic;
+        int classNameEndIndex = checkerMethodName.lastIndexOf("$$");
+        int methodNameStartIndex;
+        if (classNameEndIndex == -1) {
+            targetMethodIsStatic = false;
+            classNameEndIndex = checkerMethodName.lastIndexOf('$');
+            methodNameStartIndex = classNameEndIndex + 1;
+        } else {
+            targetMethodIsStatic = true;
+            methodNameStartIndex = classNameEndIndex + 2;
+        }
 
+        var classNameStartIndex = checkerMethodName.indexOf('$');
         if (classNameStartIndex == -1 || classNameStartIndex >= classNameEndIndex) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
                     "Checker method %s has incorrect name format. "
-                        + "It should be either check$$methodName (instance) or check$package_ClassName$methodName (static)",
+                        + "It should be either check$package_ClassName$methodName (instance), check$package_ClassName$$methodName (static) "
+                        + "or check$package_ClassName$ (ctor)",
                     checkerMethodName
                 )
             );
         }
 
-        // No "className" (check$$methodName) -> method is static, and we'll get the class from the actual typed argument
-        final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
-        final String targetMethodName = checkerMethodName.substring(classNameEndIndex + 1);
+        // No "methodName" (check$package_ClassName$) -> method is ctor
+        final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();
+        final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(methodNameStartIndex);
 
-        final String targetClassName;
+        final String targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
+        if (targetClassName.isBlank()) {
+            throw new IllegalArgumentException(String.format(Locale.ROOT, "Checker method %s has no class name", checkerMethodName));
+        }
+        return new ParsedCheckerMethod(targetClassName, targetMethodName, targetMethodIsStatic, targetMethodIsCtor);
+    }
+
+    static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
+        ParsedCheckerMethod checkerMethod = parseCheckerMethodName(checkerMethodName);
+
         final List<String> targetParameterTypes;
-        if (targetMethodIsStatic) {
+        if (checkerMethod.targetMethodIsStatic() || checkerMethod.targetMethodIsCtor()) {
             if (checkerMethodArgumentTypes.length < 1 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false) {
                 throw new IllegalArgumentException(
                     String.format(
@@ -114,7 +279,6 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 );
             }
 
-            targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(1).map(Type::getInternalName).toList();
         } else {
             if (checkerMethodArgumentTypes.length < 2
@@ -130,10 +294,15 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                     )
                 );
             }
-            var targetClassType = checkerMethodArgumentTypes[1];
-            targetClassName = targetClassType.getInternalName();
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
-        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes);
+        return new MethodKey(checkerMethod.targetClassName(), checkerMethod.targetMethodName(), targetParameterTypes);
     }
+
+    private record ParsedCheckerMethod(
+        String targetClassName,
+        String targetMethodName,
+        boolean targetMethodIsStatic,
+        boolean targetMethodIsCtor
+    ) {}
 }

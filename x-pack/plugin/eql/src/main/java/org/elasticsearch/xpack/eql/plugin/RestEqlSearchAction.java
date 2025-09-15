@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -64,6 +65,12 @@ public class RestEqlSearchAction extends BaseRestHandler {
             }
             eqlRequest.keepOnCompletion(request.paramAsBoolean("keep_on_completion", eqlRequest.keepOnCompletion()));
             eqlRequest.ccsMinimizeRoundtrips(request.paramAsBoolean("ccs_minimize_roundtrips", eqlRequest.ccsMinimizeRoundtrips()));
+            eqlRequest.allowPartialSearchResults(
+                request.paramAsBoolean("allow_partial_search_results", eqlRequest.allowPartialSearchResults())
+            );
+            eqlRequest.allowPartialSequenceResults(
+                request.paramAsBoolean("allow_partial_sequence_results", eqlRequest.allowPartialSequenceResults())
+            );
         }
 
         return channel -> {
@@ -109,5 +116,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "eql_search";
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return EqlCapabilities.CAPABILITIES;
     }
 }

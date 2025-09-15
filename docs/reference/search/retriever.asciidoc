@@ -11,7 +11,14 @@ This allows for complex behavior to be depicted in a tree-like structure, called
 [TIP]
 ====
 Refer to <<retrievers-overview>> for a high level overview of the retrievers abstraction.
+Refer to <<retrievers-examples, Retrievers examples>> for additional examples.
 ====
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 The following retrievers are available:
 
@@ -20,6 +27,12 @@ A <<standard-retriever, retriever>> that replaces the functionality of a traditi
 
 `knn`::
 A <<knn-retriever, retriever>> that replaces the functionality of a <<search-api-knn, knn search>>.
+
+`linear`::
+A <<linear-retriever, retriever>> that linearly combines the scores of other retrievers for the top documents.
+
+`rescorer`::
+A <<rescorer-retriever, retriever>> that replaces the functionality of the <<rescore, query rescorer>>.
 
 `rrf`::
 A <<rrf-retriever, retriever>> that produces top documents from <<rrf, reciprocal rank fusion (RRF)>>.
@@ -30,11 +43,16 @@ A <<text-similarity-reranker-retriever, retriever>> that enhances search results
 `rule`::
 A <<rule-retriever, retriever>> that applies contextual <<query-rules>> to pin or exclude documents for specific queries.
 
+`pinned`::
+A <<pinned-retriever, retriever>> that always places specified documents at the top of the results, with the remaining hits provided by a secondary retriever.
+
 [[standard-retriever]]
 ==== Standard Retriever
 
 A standard retriever returns top documents from a traditional <<query-dsl, query>>.
 
+[discrete]
+[[standard-retriever-parameters]]
 ===== Parameters:
 
 `query`::
@@ -106,6 +124,28 @@ POST /restaurants/_bulk?refresh
 
 PUT /movies
 
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+
 PUT _query_rules/my-ruleset
 {
     "rules": [
@@ -136,6 +176,8 @@ PUT _query_rules/my-ruleset
 DELETE /restaurants
 
 DELETE /movies
+
+DELETE /books
 --------------------------------------------------
 // TEARDOWN
 ////
@@ -185,6 +227,8 @@ Documents matching these conditions will have increased relevancy scores.
 
 A kNN retriever returns top documents from a <<knn-search, k-nearest neighbor search (kNN)>>.
 
+[discrete]
+[[knn-retriever-parameters]]
 ===== Parameters
 
 `field`::
@@ -223,6 +267,8 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 +
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-rescore-vector]
+
 ===== Restrictions
 
 The parameters `query_vector` and `query_vector_builder` cannot be used together.
@@ -253,21 +299,47 @@ GET /restaurants/_search
 This value must be fewer than or equal to `num_candidates`.
 <5> The size of the initial candidate set from which the final `k` nearest neighbors are selected.
 
+[[linear-retriever]]
+==== Linear Retriever
+A retriever that normalizes and linearly combines the scores of other retrievers.
+
+[discrete]
+[[linear-retriever-parameters]]
+===== Parameters
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=linear-retriever-components]
+
+[[linear-retriever-normalizers]]
+===== Normalizers
+
+The `linear` retriever supports the following normalizers:
+
+* `none`: No normalization
+* `minmax`: Normalizes scores based on the following formula:
++
+....
+score = (score - min) / (max - min)
+....
+
+* `l2_norm`: Normalizes scores using the L2 norm of the score values
+
 [[rrf-retriever]]
 ==== RRF Retriever
 
 An <<rrf, RRF>> retriever returns top documents based on the RRF formula, equally weighting two or more child retrievers.
 Reciprocal rank fusion (RRF) is a method for combining multiple result sets with different relevance indicators into a single result set.
 
+[discrete]
+[[rrf-retriever-parameters]]
 ===== Parameters
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-rank-window-size]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=compound-retriever-filter]
 
 [discrete]
 [[rrf-retriever-example-hybrid]]
@@ -370,6 +442,125 @@ GET movies/_search
 ----
 // TEST[skip:uses ELSER]
 
+[[rescorer-retriever]]
+==== Rescorer Retriever
+
+The `rescorer` retriever re-scores only the results produced by its child retriever.
+For the `standard` and `knn` retrievers, the `window_size` parameter specifies the number of documents examined per shard.
+
+For compound retrievers like `rrf`, the `window_size` parameter defines the total number of documents examined globally.
+
+When using the `rescorer`, an error is returned if the following conditions are not met:
+
+* The minimum configured rescore's `window_size` is:
+** Greater than or equal to the `size` of the parent retriever for nested `rescorer` setups.
+** Greater than or equal to the `size` of the search request when used as the primary retriever in the tree.
+
+* And the maximum rescore's `window_size` is:
+** Smaller than or equal to the `size` or `rank_window_size` of the child retriever.
+
+[discrete]
+[[rescorer-retriever-parameters]]
+===== Parameters
+
+`rescore`::
+(Required. <<rescore, A rescorer definition or an array of rescorer definitions>>)
++
+Defines the <<rescore, rescorers>> applied sequentially to the top documents returned by the child retriever.
+
+`retriever`::
+(Required. <<retriever, retriever>>)
++
+Specifies the child retriever responsible for generating the initial set of top documents to be re-ranked.
+
+`filter`::
+(Optional. <<query-dsl, query object or list of query objects>>)
++
+Applies a <<query-dsl-bool-query, boolean query filter>> to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
+
+[discrete]
+[[rescorer-retriever-example]]
+==== Example
+
+The `rescorer` retriever can be placed at any level within the retriever tree.
+The following example demonstrates a `rescorer` applied to the results produced by an `rrf` retriever:
+
+[source,console]
+----
+GET movies/_search
+{
+  "size": 10, <1>
+  "retriever": {
+    "rescorer": { <2>
+      "rescore": {
+        "window_size": 50, <3>
+        "query": { <4>
+          "rescore_query": {
+            "script_score": {
+              "query": {
+                "match_all": {}
+              },
+              "script": {
+                "source": "cosineSimilarity(params.queryVector, 'product-vector_final_stage') + 1.0",
+                "params": {
+                  "queryVector": [-0.5, 90.0, -10, 14.8, -156.0]
+                }
+              }
+            }
+          }
+        }
+      },
+      "retriever": { <5>
+        "rrf": {
+          "rank_window_size": 100, <6>
+          "retrievers": [
+            {
+              "standard": {
+                "query": {
+                  "sparse_vector": {
+                    "field": "plot_embedding",
+                    "inference_id": "my-elser-model",
+                    "query": "films that explore psychological depths"
+                  }
+                }
+              }
+            },
+            {
+              "standard": {
+                "query": {
+                  "multi_match": {
+                    "query": "crime",
+                    "fields": [
+                      "plot",
+                      "title"
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "knn": {
+                "field": "vector",
+                "query_vector": [10, 22, 77],
+                "k": 10,
+                "num_candidates": 10
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+----
+// TEST[skip:uses ELSER]
+<1> Specifies the number of top documents to return in the final response.
+<2> A `rescorer` retriever applied as the final step.
+<3> Defines the number of documents to rescore from the child retriever.
+<4> The definition of the `query` rescorer.
+<5> Specifies the child retriever definition.
+<6> Defines the number of documents returned by the `rrf` retriever, which limits the available documents to
+
 [[text-similarity-reranker-retriever]]
 ==== Text Similarity Re-ranker Retriever
 
@@ -382,18 +573,39 @@ Refer to <<semantic-reranking>> for a high level overview of semantic re-ranking
 
 ===== Prerequisites
 
-To use `text_similarity_reranker` you must first set up a `rerank` task using the <<put-inference-api, Create {infer} API>>.
-The `rerank` task should be set up with a machine learning model that can compute text similarity.
-Refer to {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-similarity[the Elastic NLP model reference] for a list of third-party text similarity models supported by {es}.
+To use `text_similarity_reranker`, you can rely on the preconfigured `.rerank-v1-elasticsearch` inference endpoint, which uses the <<inference-example-elastic-reranker,Elastic Rerank model>> and serves as the default if no `inference_id` is provided.
+This model is optimized for reranking based on text similarity. If you'd like to use a different model, you can set up a custom inference endpoint for the `rerank` task using the <<put-inference-api, Create {infer} API>>.
+The endpoint should be configured with a machine learning model capable of computing text similarity.
+Refer to {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-similarity[the Elastic NLP model reference] for a list of third-party text similarity models supported by {{es}}.
 
-Currently you can:
+You have the following options:
 
-* Integrate directly with the <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type
-* Integrate directly with the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> using the `rerank` task type
+* Use the built-in Elastic Rerank cross-encoder model via the inference API’s {{es}} service. See <<inference-example-elastic-reranker, this example>> for creating an endpoint using the Elastic Rerank model.
+* Use the <<infer-service-cohere,Cohere Rerank inference endpoint>> with the `rerank` task type.
+* Use the <<infer-service-google-vertex-ai,Google Vertex AI inference endpoint>> with the `rerank` task type.
 * Upload a model to {es} with {eland-docs}/machine-learning.html#ml-nlp-pytorch[Eland] using the `text_similarity` NLP task type.
-** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type
+** Then set up an <<inference-example-eland,{es} service inference endpoint>> with the `rerank` task type.
 ** Refer to the <<text-similarity-reranker-retriever-example-eland,example>> on this page for a step-by-step guide.
 
+[IMPORTANT]
+====
+Scores from the re-ranking process are normalized using the following formula before returned to the user,
+to avoid having negative scores.
+[source,text]
+----
+score = max(score, 0) + min(exp(score), 1)
+----
+Using the above, any initially negative scores are projected to (0, 1) and positive scores to [1, infinity).
+To revert back if needed, one can use:
+[source, text]
+----
+score = score - 1, if score >= 0
+score = ln(score), if score < 0
+----
+====
+
+[discrete]
+[[text-similarity-reranker-retriever-parameters]]
 ===== Parameters
 
 `retriever`::
@@ -408,9 +620,9 @@ The document field to be used for text similarity comparisons.
 This field should contain the text that will be evaluated against the `inferenceText`.
 
 `inference_id`::
-(Required, `string`)
+(Optional, `string`)
 +
-Unique identifier of the inference endpoint created using the {infer} API.
+Unique identifier of the inference endpoint created using the {infer} API. If you don’t specify an inference endpoint, the `inference_id` field defaults to `.rerank-v1-elasticsearch`, a preconfigured endpoint for the elasticsearch `.rerank-v1` model.
 
 `inference_text`::
 (Required, `string`)
@@ -437,12 +649,69 @@ Applies the specified <<query-dsl-bool-query, boolean query filter>> to the chil
 If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 [discrete]
+[[text-similarity-reranker-retriever-example-elastic-rerank]]
+==== Example: Elastic Rerank
+
+This examples demonstrates how to deploy the Elastic Rerank model and use it to re-rank search results using the `text_similarity_reranker` retriever.
+
+Follow these steps:
+
+. Create an inference endpoint for the `rerank` task using the <<put-inference-api, Create {infer} API>>.
++
+[source,console]
+----
+PUT _inference/rerank/my-elastic-rerank
+{
+  "service": "elasticsearch",
+  "service_settings": {
+    "model_id": ".rerank-v1",
+    "num_threads": 1,
+    "adaptive_allocations": { <1>
+      "enabled": true,
+      "min_number_of_allocations": 1,
+      "max_number_of_allocations": 10
+    }
+  }
+}
+----
+// TEST[skip:uses ML]
+<1> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations.
++
+. Define a `text_similarity_rerank` retriever:
++
+[source,console]
+----
+POST _search
+{
+  "retriever": {
+    "text_similarity_reranker": {
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "text": "How often does the moon hide the sun?"
+            }
+          }
+        }
+      },
+      "field": "text",
+      "inference_id": "my-elastic-rerank",
+      "inference_text": "How often does the moon hide the sun?",
+      "rank_window_size": 100,
+      "min_score": 0.5
+    }
+  }
+}
+----
+// TEST[skip:uses ML]
+
+[discrete]
 [[text-similarity-reranker-retriever-example-cohere]]
 ==== Example: Cohere Rerank
 
 This example enables out-of-the-box semantic search by re-ranking top documents using the Cohere Rerank API.
 This approach eliminates the need to generate and store embeddings for all indexed documents.
-This requires a <<infer-service-cohere,Cohere Rerank inference endpoint>> using the `rerank` task type.
+This requires a <<infer-service-cohere,Cohere Rerank inference endpoint>> that is set up for the `rerank` task type.
 
 [source,console]
 ----
@@ -680,6 +949,262 @@ GET movies/_search
 <1> The `rule` retriever is the outermost retriever, applying rules to the search results that were previously reranked using the `rrf` retriever.
 <2> The `rrf` retriever returns results from all of its sub-retrievers, and the output of the `rrf` retriever is used as input to the `rule` retriever.
 
+[[pinned-retriever]]
+==== Pinned retriever
+
+A `pinned` retriever returns top documents by always placing specific documents at the top of the results, with the remaining hits provided by a secondary retriever. This retriever offers similar functionality to the <<query-dsl-pinned-query,pinned query>>, but works seamlessly with other retrievers. This is useful for promoting certain documents for particular queries, regardless of their relevance score.
+
+[discrete]
+[[retrievers-overview-pinned-retriever-parameters]]
+===== Parameters
+
+`ids`::
+(Optional, array of strings)
++
+A list of document IDs to pin at the top of the results, in the order provided.
+
+`docs`::
+(Optional, array of objects)
++
+List of objects specifying documents to pin. Each object must contain at least an `_id` field, and may also specify `_index` if pinning documents across multiple indices.
+
+`retriever`::
+(Optional, retriever object)
++
+A retriever (for example a `standard` retriever or a specialized retriever such as `rrf` retriever) used to retrieve the remaining documents after the pinned ones.
+
+Either `ids` or `docs` must be specified.
+
+[discrete]
+[[pinned-retriever-example]]
+==== Example: Pinned retriever using `docs
+
+[source,console]
+----
+GET /restaurants/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "doc1", "_index": "my-index" },
+        { "_id": "doc2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "title": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+[discrete]
+[[multi-field-query-format]]
+=== Multi-field query format
+
+The `linear` and `rrf` retrievers support a multi-field query format that provides a simplified way to define searches across multiple fields without explicitly specifying inner retrievers.
+This format automatically generates appropriate inner retrievers based on the field types and query parameters.
+This is a great way to search an index, knowing little to nothing about its schema, while also handling normalization across lexical and semantic matches.
+
+[discrete]
+[[multi-field-field-grouping]]
+==== Field grouping
+
+The multi-field query format groups queried fields into two categories:
+
+- **Lexical fields**: fields that support term queries, such as `keyword` and `text` fields.
+- **Semantic fields**: <<semantic-text, `semantic_text` fields>>.
+
+Each field group is queried separately and the scores/ranks are normalized such that each contributes 50% to the final score/rank.
+This balances the importance of lexical and semantic fields.
+Most indices contain more lexical than semantic fields, and without this grouping the results would often bias towards lexical field matches.
+
+[WARNING]
+====
+In the `linear` retriever, this grouping relies on using a normalizer other than `none` (i.e., `minmax` or `l2_norm`).
+If you use the `none` normalizer, the scores across field groups will not be normalized and the results may be biased towards lexical field matches.
+====
+
+[discrete]
+[[multi-field-field-boosting]]
+==== Linear retriever field boosting
+
+When using the `linear` retriever, fields can be boosted using the `^` notation:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",                <1>
+        "description^2",          <2>
+        "title_semantic",         <3>
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1> 3x weight
+<2> 2x weight
+<3> 1x weight (default)
+
+Due to how the <<multi-field-field-grouping, field group scores>> are normalized, per-field boosts have no effect on the range of the final score.
+Instead, they affect the importance of the field's score within its group.
+
+For example, if the schema looks like:
+
+[source,console]
+----
+PUT /books
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "copy_to": "title_semantic"
+      },
+      "description": {
+        "type": "text",
+        "copy_to": "description_semantic"
+      },
+      "title_semantic": {
+        "type": "semantic_text"
+      },
+      "description_semantic": {
+        "type": "semantic_text"
+      }
+    }
+  }
+}
+----
+// TEST[skip:index created in test setup]
+
+And we run this query:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title",
+        "description",
+        "title_semantic",
+        "description_semantic"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The score breakdown would be:
+
+* Lexical fields (50% of score):
+  ** `title`: 50% of lexical fields group score, 25% of final score
+  ** `description`: 50% of lexical fields group score, 25% of final score
+* Semantic fields (50% of score):
+  ** `title_semantic`: 50% of semantic fields group score, 25% of final score
+  ** `description_semantic`: 50% of semantic fields group score, 25% of final score
+
+If we apply per-field boosts like so:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "linear": {
+      "query": "elasticsearch",
+      "fields": [
+        "title^3",
+        "description^2",
+        "title_semantic",
+        "description_semantic^2"
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The score breakdown would change to:
+
+* Lexical fields (50% of score):
+  ** `title`: 60% of lexical fields group score, 30% of final score
+  ** `description`: 40% of lexical fields group score, 20% of final score
+* Semantic fields (50% of score):
+  ** `title_semantic`: 33% of semantic fields group score, 16.5% of final score
+  ** `description_semantic`: 66% of semantic fields group score, 33% of final score
+
+[discrete]
+[[multi-field-wildcard-field-patterns]]
+==== Wildcard field patterns
+
+Field names support the `*` wildcard character to match multiple fields:
+
+[source,console]
+----
+GET books/_search
+{
+  "retriever": {
+    "rrf": {
+      "query": "machine learning",
+      "fields": [
+        "title*",    <1>
+        "*_text"     <2>
+      ]
+    }
+  }
+}
+----
+// TEST[continued]
+
+<1> Match fields that start with `title`
+<2> Match fields that end with `_text`
+
+Note, however, that wildcard field patterns will only resolve to fields that either:
+
+- Support term queries, such as `keyword` and `text` fields
+- Are `semantic_text` fields
+
+[discrete]
+[[multi-field-limitations]]
+==== Limitations
+
+- **Single index**: Multi-field queries currently work with single index searches only
+- **CCS (Cross Cluster Search)**: Multi-field queries do not support remote cluster searches
+
+[discrete]
+[[multi-field-examples]]
+==== Examples
+
+- <<retrievers-examples-rrf-multi-field-query-format, RRF with the multi-field query format>>
+- <<retrievers-examples-linear-multi-field-query-format, Linear retriever with the multi-field query format>>
+
+
+[discrete]
+[[retriever-common-parameters]]
+=== Common usage guidelines
+
+[discrete]
+[[retriever-size-pagination]]
 ==== Using `from` and `size` with a retriever tree
 
 The <<search-from-param, `from`>> and <<search-size-param, `size`>>
@@ -688,19 +1213,23 @@ parameters are provided globally as part of the general
 They are applied to all retrievers in a retriever tree, unless a specific retriever overrides the `size` parameter using a different parameter such as `rank_window_size`.
 Though, the final search hits are always limited to `size`.
 
+[discrete]
+[[retriever-aggregations]]
 ==== Using aggregations with a retriever tree
 
 <<search-aggregations, Aggregations>> are globally specified as part of a search request.
 The query used for an aggregation is the combination of all leaf retrievers as `should`
 clauses in a <<query-dsl-bool-query, boolean query>>.
 
+[discrete]
+[[retriever-restrictions]]
 ==== Restrictions on search parameters when specifying a retriever
 
-When a retriever is specified as part of a search, the following elements are not allowed at the top-level.
-Instead they are only allowed as elements of specific retrievers:
+When a retriever is specified as part of a search, the following elements are not allowed at the top-level:
 
 * <<request-body-search-query, `query`>>
 * <<search-api-knn, `knn`>>
 * <<search-after, `search_after`>>
 * <<request-body-search-terminate-after, `terminate_after`>>
 * <<search-sort-param, `sort`>>
+* <<rescore, `rescore`>> use a <<rescorer-retriever, rescorer retriever>> instead

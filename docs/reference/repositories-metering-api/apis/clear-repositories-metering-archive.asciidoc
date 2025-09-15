@@ -5,6 +5,12 @@
 <titleabbrev>Clear repositories metering archive</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/operation/operation-nodes-clear-repositories-metering-archive[Clear the archived repositories metering API].
+--
+
 Removes the archived repositories metering information present in the cluster.
 
 [[clear-repositories-metering-archive-api-request]]

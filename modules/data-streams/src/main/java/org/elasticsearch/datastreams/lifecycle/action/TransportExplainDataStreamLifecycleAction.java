@@ -44,6 +44,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
     ExplainDataStreamLifecycleAction.Request,
     ExplainDataStreamLifecycleAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DataStreamLifecycleErrorStore errorStore;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
 
@@ -64,10 +65,10 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             threadPool,
             actionFilters,
             ExplainDataStreamLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             ExplainDataStreamLifecycleAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.errorStore = dataLifecycleServiceErrorStore;
         this.globalRetentionSettings = globalRetentionSettings;
     }
@@ -108,7 +109,7 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
                 idxMetadata.getCreationDate(),
                 rolloverInfo == null ? null : rolloverInfo.getTime(),
                 generationDate,
-                parentDataStream.getLifecycle(),
+                parentDataStream.getDataLifecycleForIndex(idxMetadata.getIndex()),
                 errorStore.getError(index)
             );
             explainIndices.add(explainIndexDataStreamLifecycle);
@@ -119,7 +120,8 @@ public class TransportExplainDataStreamLifecycleAction extends TransportMasterNo
             new ExplainDataStreamLifecycleAction.Response(
                 explainIndices,
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                globalRetentionSettings.get()
+                globalRetentionSettings.get(false),
+                globalRetentionSettings.get(true)
             )
         );
     }

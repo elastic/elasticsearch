@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,20 +43,20 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
             includes = randomAllocationRoutingMap(1, 100);
             hasAtLeastOneMap = true;
         } else {
-            includes = randomBoolean() ? null : Collections.emptyMap();
+            includes = randomBoolean() ? null : Map.of();
         }
         Map<String, String> excludes;
         if (randomBoolean()) {
             hasAtLeastOneMap = true;
             excludes = randomAllocationRoutingMap(1, 100);
         } else {
-            excludes = randomBoolean() ? null : Collections.emptyMap();
+            excludes = randomBoolean() ? null : Map.of();
         }
         Map<String, String> requires;
         if (hasAtLeastOneMap == false || randomBoolean()) {
             requires = randomAllocationRoutingMap(1, 100);
         } else {
-            requires = randomBoolean() ? null : Collections.emptyMap();
+            requires = randomBoolean() ? null : Map.of();
         }
         Integer numberOfReplicas = randomBoolean() ? null : randomIntBetween(0, 10);
         Integer totalShardsPerNode = randomBoolean() ? null : randomIntBetween(-1, 10);
@@ -97,9 +96,9 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
     }
 
     public void testAllMapsNullOrEmpty() {
-        Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> include = randomBoolean() ? null : Map.of();
+        Map<String, String> exclude = randomBoolean() ? null : Map.of();
+        Map<String, String> require = randomBoolean() ? null : Map.of();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new AllocateAction(null, null, include, exclude, require)
@@ -124,8 +123,8 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
 
     public void testInvalidNumberOfReplicas() {
         Map<String, String> include = randomAllocationRoutingMap(1, 5);
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> exclude = randomBoolean() ? null : Map.of();
+        Map<String, String> require = randomBoolean() ? null : Map.of();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require)
@@ -135,8 +134,8 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
 
     public void testInvalidTotalShardsPerNode() {
         Map<String, String> include = randomAllocationRoutingMap(1, 5);
-        Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
-        Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
+        Map<String, String> exclude = randomBoolean() ? null : Map.of();
+        Map<String, String> require = randomBoolean() ? null : Map.of();
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
             () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require)

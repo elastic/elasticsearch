@@ -7,36 +7,61 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 esplugin {
-  description 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
-  classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
+  description = 'The HDFS repository plugin adds support for Hadoop Distributed File-System (HDFS) repositories.'
+  classname = 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
 versions << [
   'hadoop': '3.4.1'
 ]
 
+def patched = Attribute.of('patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
+
 configurations {
-  hdfsFixture2
-  hdfsFixture3
+  hdfsFixture2 {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+    }
+  }
+  hdfsFixture3 {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+    }
+  }
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
 }
 
 dependencies {
-  api project(path: 'hadoop-client-api', configuration: 'shadow')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at *something*
-     * so it can compile things.
-     */
-    api project(path: 'hadoop-client-api')
-  }
+  api("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
   implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
@@ -68,8 +93,22 @@ dependencies {
   yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
-  hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
-  hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
+  hdfsFixture2 project(':test:fixtures:hdfs-fixture')
+  hdfsFixture3 project(':test:fixtures:hdfs-fixture')
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop-client-api"]
+    }
+  }
 }
 
 restResources {
@@ -191,6 +230,15 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor'
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
+    'org.apache.hadoop.util.SignalLogger$Handler'
   )
 }

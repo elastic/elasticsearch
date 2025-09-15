@@ -205,7 +205,7 @@ public class PutUserRequestBuilderTests extends ESTestCase {
     }
 
     public void testWithPasswordHashThatsNotReallyAHash() throws IOException {
-        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredHash()).toUpperCase(Locale.ROOT));
+        final Hasher systemHasher = Hasher.valueOf(randomFrom(Hasher.getAvailableAlgoStoredPasswordHash()).toUpperCase(Locale.ROOT));
         final char[] hash = randomAlphaOfLengthBetween(14, 20).toCharArray();
         final String json = Strings.format("""
             {

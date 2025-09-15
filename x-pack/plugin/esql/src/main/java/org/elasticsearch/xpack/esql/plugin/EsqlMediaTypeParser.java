@@ -42,16 +42,23 @@ public class EsqlMediaTypeParser {
      * combinations are detected.
      */
     public static MediaType getResponseMediaType(RestRequest request, EsqlQueryRequest esqlRequest) {
-        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        var mediaType = getResponseMediaType(request, (MediaType) null);
         validateColumnarRequest(esqlRequest.columnar(), mediaType);
         validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
         return checkNonNullMediaType(mediaType, request);
     }
 
+    /*
+     * Retrieve the mediaType of a REST request. If no mediaType can be established from the request, return the provided default.
+     */
+    public static MediaType getResponseMediaType(RestRequest request, MediaType defaultMediaType) {
+        var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
+        return mediaType == null ? defaultMediaType : mediaType;
+    }
+
     private static MediaType mediaTypeFromHeaders(RestRequest request) {
         ParsedMediaType acceptType = request.getParsedAccept();
-        MediaType mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
-        return checkNonNullMediaType(mediaType, request);
+        return acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
     }
 
     private static MediaType mediaTypeFromParams(RestRequest request) {

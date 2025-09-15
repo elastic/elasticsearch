@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
@@ -80,11 +82,6 @@ public class SearchContextStats implements SearchStats {
         assert contexts != null && contexts.isEmpty() == false;
     }
 
-    public boolean exists(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.exists;
-    }
-
     private FieldStats makeFieldStats(String field) {
         var stat = new FieldStats();
         stat.config = makeFieldConfig(field);
@@ -100,19 +97,18 @@ public class SearchContextStats implements SearchStats {
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
-                exists = exists || true;
-                MappedFieldType type = context.getFieldType(field);
-                indexed = indexed && type.isIndexed();
-                hasDocValues = hasDocValues && type.hasDocValues();
-                if (type instanceof TextFieldMapper.TextFieldType t) {
-                    hasExactSubfield = hasExactSubfield && t.canUseSyntheticSourceDelegateForQuerying();
-                } else {
-                    hasExactSubfield = false;
-                }
+                var type = context.getFieldType(field);
+                exists |= true;
+                indexed &= type.isIndexed();
+                hasDocValues &= type.hasDocValues();
+                hasExactSubfield &= type instanceof TextFieldMapper.TextFieldType t && t.canUseSyntheticSourceDelegateForQuerying();
             } else {
                 indexed = false;
                 hasDocValues = false;
                 hasExactSubfield = false;
+            }
+            if (exists && indexed == false && hasDocValues == false && hasExactSubfield == false) {
+                break;
             }
         }
         if (exists == false) {
@@ -123,21 +119,37 @@ public class SearchContextStats implements SearchStats {
         }
     }
 
-    public boolean isIndexed(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.indexed;
+    private boolean fastNoCacheFieldExists(String field) {
+        for (SearchExecutionContext context : contexts) {
+            if (context.isFieldMapped(field)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public boolean hasDocValues(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasDocValues;
+    @Override
+    public boolean exists(FieldName field) {
+        var stat = cache.get(field.string());
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.string());
     }
 
-    public boolean hasExactSubfield(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
-        return stat.config.hasExactSubfield;
+    @Override
+    public boolean isIndexed(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.indexed;
     }
 
+    @Override
+    public boolean hasDocValues(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
+    }
+
+    @Override
+    public boolean hasExactSubfield(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
+    }
+
+    @Override
     public long count() {
         var count = new long[] { 0 };
         boolean completed = doWithContexts(r -> {
@@ -147,12 +159,13 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public long count(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public long count(FieldName field) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.count == null) {
             var count = new long[] { 0 };
             boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field);
+                count[0] += countEntries(r, field.string());
                 return true;
             }, false);
             stat.count = completed ? count[0] : -1;
@@ -160,9 +173,10 @@ public class SearchContextStats implements SearchStats {
         return stat.count;
     }
 
-    public long count(String field, BytesRef value) {
+    @Override
+    public long count(FieldName field, BytesRef value) {
         var count = new long[] { 0 };
-        Term term = new Term(field, value);
+        Term term = new Term(field.string(), value);
         boolean completed = doWithContexts(r -> {
             count[0] += r.docFreq(term);
             return true;
@@ -170,12 +184,13 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public byte[] min(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public byte[] min(FieldName field, DataType dataType) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.min == null) {
             var min = new byte[][] { null };
             doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field);
+                byte[] localMin = PointValues.getMinPackedValue(r, field.string());
                 // TODO: how to compare with the previous min
                 if (localMin != null) {
                     if (min[0] == null) {
@@ -192,12 +207,13 @@ public class SearchContextStats implements SearchStats {
         return null;
     }
 
-    public byte[] max(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public byte[] max(FieldName field, DataType dataType) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.max == null) {
             var max = new byte[][] { null };
             doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field);
+                byte[] localMax = PointValues.getMaxPackedValue(r, field.string());
                 // TODO: how to compare with the previous max
                 if (localMax != null) {
                     if (max[0] == null) {
@@ -214,21 +230,23 @@ public class SearchContextStats implements SearchStats {
         return null;
     }
 
-    public boolean isSingleValue(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public boolean isSingleValue(FieldName field) {
+        String fieldName = field.string();
+        var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
-            if (exists(field) == false) {
+            if (stat.config.exists == false) {
                 stat.singleValue = true;
             } else {
                 // fields are MV per default
                 var sv = new boolean[] { false };
                 for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(field) ? context.getFieldType(field) : null;
+                    MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
                     if (mappedType != null) {
                         sv[0] = true;
                         doWithContexts(r -> {
-                            sv[0] &= detectSingleValue(r, mappedType, field);
+                            sv[0] &= detectSingleValue(r, mappedType, fieldName);
                             return sv[0];
                         }, true);
                         break;
@@ -285,6 +303,60 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name.string());
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public String constantValue(FieldAttribute.FieldName name) {
+        String val = null;
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType f = ctx.getFieldType(name.string());
+            if (f == null) {
+                return null;
+            }
+            if (f instanceof ConstantFieldType cf) {
+                var fetcher = cf.valueFetcher(ctx, null);
+                String thisVal = null;
+                try {
+                    // since the value is a constant, the doc _should_ be irrelevant
+                    List<Object> vals = fetcher.fetchValues(null, -1, null);
+                    Object objVal = vals.size() == 1 ? vals.get(0) : null;
+                    // we are considering only string values for now, since this can return "strange" things,
+                    // see IndexModeFieldType
+                    thisVal = objVal instanceof String ? (String) objVal : null;
+                } catch (IOException iox) {}
+
+                if (thisVal == null) {
+                    // Value not yet set
+                    return null;
+                }
+                if (val == null) {
+                    val = thisVal;
+                } else if (thisVal.equals(val) == false) {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+        return val;
     }
 
     private interface DocCountTester {

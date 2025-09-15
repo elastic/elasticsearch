@@ -19,13 +19,13 @@ configurations {
 }
 
 var zstdVersion = "1.5.5"
-var vecVersion = "1.0.10"
+var vecVersion = "1.0.11"
 
 repositories {
   exclusiveContent {
     forRepository {
       maven {
-        url "https://artifactory.elastic.dev/artifactory/elasticsearch-native"
+        url = "https://artifactory.elastic.dev/artifactory/elasticsearch-native"
         metadataSources {
           artifact()
         }

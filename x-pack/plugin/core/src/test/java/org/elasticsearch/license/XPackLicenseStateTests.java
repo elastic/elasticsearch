@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +58,12 @@ public class XPackLicenseStateTests extends ESTestCase {
     void assertAckMessages(String feature, OperationMode from, OperationMode to, int expectedMessages) {
         String[] gotMessages = XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.get(feature).apply(from, to);
         assertEquals(expectedMessages, gotMessages.length);
+    }
+
+    void assertAckMessages(String feature, OperationMode from, OperationMode to, Set<String> expectedMessages) {
+        String[] gotMessages = XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.get(feature).apply(from, to);
+        Set<String> actualMessages = Arrays.stream(gotMessages).collect(Collectors.toSet());
+        assertThat(actualMessages, equalTo(expectedMessages));
     }
 
     static <T> T randomFrom(T[] values, Predicate<T> filter) {
@@ -143,6 +150,16 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMessages(XPackField.CCR, randomTrialOrPlatinumMode(), randomBasicStandardOrGold(), 1);
     }
 
+    public void testEsqlAckToTrialOrPlatinum() {
+        assertAckMessages(XPackField.ESQL, randomMode(), randomFrom(TRIAL, ENTERPRISE), 0);
+    }
+
+    public void testEsqlAckTrialOrEnterpriseToNotTrialOrEnterprise() {
+        for (OperationMode to : List.of(BASIC, STANDARD, GOLD, PLATINUM)) {
+            assertAckMessages(XPackField.ESQL, randomFrom(TRIAL, ENTERPRISE), to, Set.of("ES|QL cross-cluster search will be disabled."));
+        }
+    }
+
     public void testExpiredLicense() {
         // use standard feature which would normally be allowed at all license levels
         LicensedFeature feature = LicensedFeature.momentary("family", "enterpriseFeature", STANDARD);
@@ -223,6 +240,13 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(lastUsed.get(usage), equalTo(100L));
 
         currentTime.set(200);
+        goldFeature.check(licenseState);
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
+        assertThat(lastUsed.get(usage), equalTo(200L));
+
+        // updates to the last used timestamp only happen if the time has increased
+        currentTime.set(199);
         goldFeature.check(licenseState);
         lastUsed = licenseState.getLastUsed();
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));

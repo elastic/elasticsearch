@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -30,7 +31,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -113,8 +113,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
 
@@ -166,23 +165,23 @@ public class InboundHandlerTests extends ESTestCase {
             },
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            new TestRequest(requestValue),
-            TransportVersion.current(),
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
             action,
             requestId,
             false,
-            null
+            TransportVersion.current(),
+            null,
+            new TestRequest(requestValue),
+            threadPool.getThreadContext(),
+            new RecyclerBytesStreamOutput(recycler)
         );
 
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,
@@ -238,6 +237,9 @@ public class InboundHandlerTests extends ESTestCase {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
+            PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
+            channel.addCloseListener(closeListener);
+
             final TransportVersion remoteVersion = TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersionUtils.getFirstVersion(),
@@ -255,6 +257,8 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
+            assertTrue(closeListener.isDone());
+            expectThrows(Exception.class, () -> closeListener.get());
             assertNull(channel.getMessageCaptor().get());
             mockLog.assertAllExpectationsMatched();
         }
@@ -290,7 +294,12 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
-            TransportVersion.writeVersion(remoteVersion, byteData);
+            // simulate bytes of a transport handshake: vInt transport version then release version string
+            try (var payloadByteData = new BytesStreamOutput()) {
+                TransportVersion.writeVersion(remoteVersion, payloadByteData);
+                payloadByteData.writeString(randomIdentifier());
+                byteData.writeBytesReference(payloadByteData.bytes());
+            }
             final InboundMessage requestMessage = new InboundMessage(
                 requestHeader,
                 ReleasableBytesReference.wrap(byteData.bytes()),

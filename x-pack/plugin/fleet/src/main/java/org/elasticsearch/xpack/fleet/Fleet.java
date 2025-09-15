@@ -80,11 +80,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final String VERSION_KEY = "version";
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
-    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 2;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
-    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 1;
+    private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
@@ -288,6 +288,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 ALLOWED_PRODUCTS,
+                FLEET_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {

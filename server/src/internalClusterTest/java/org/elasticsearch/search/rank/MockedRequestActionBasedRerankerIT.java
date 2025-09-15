@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -142,7 +143,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
     }
 
-    public static class TestRerankingActionRequest extends ActionRequest {
+    public static class TestRerankingActionRequest extends LegacyActionRequest {
 
         private final List<String> docFeatures;
 
@@ -249,7 +250,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             String inferenceText,
             float minScore
         ) {
-            super(size, from, windowSize);
+            super(size, from, windowSize, false);
             this.client = client;
             this.inferenceId = inferenceId;
             this.inferenceText = inferenceText;

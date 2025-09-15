@@ -184,7 +184,11 @@ public class MultiClustersIT extends ESRestTestCase {
         final boolean sorted = randomBoolean();
         if (sorted) {
             searchSource.startArray("sort");
-            searchSource.value("message_id");
+            searchSource.startObject();
+            searchSource.startObject("message_id");
+            searchSource.field("unmapped_type", "long"); // message_id can be unmapped if no doc is indexed.
+            searchSource.endObject();
+            searchSource.endObject();
             searchSource.endArray();
         }
         final Predicate<String> filterHost;

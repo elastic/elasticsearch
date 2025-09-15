@@ -25,8 +25,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -117,12 +115,11 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
                     vars,
                     values.subList(fromIndex, toIndex).stream().mapToDouble(Double::doubleValue).toArray()
                 );
-
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map(InternalAggregation.class::cast)
-                    .collect(Collectors.toCollection(ArrayList::new));
-                aggs.add(new InternalSimpleValue(name(), result, formatter, metadata()));
-                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
+                newBucket = factory.createBucket(
+                    factory.getKey(bucket),
+                    bucket.getDocCount(),
+                    InternalAggregations.append(bucket.getAggregations(), new InternalSimpleValue(name(), result, formatter, metadata()))
+                );
                 index++;
             }
             newBuckets.add(newBucket);

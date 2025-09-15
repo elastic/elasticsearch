@@ -13,7 +13,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 /**
  * Aggregator state for a single int.
  * It stores a third boolean to store if the aggregation failed.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-FallibleState.java.st} instead.
  */
 final class IntFallibleState implements AggregatorState {
     private int value;

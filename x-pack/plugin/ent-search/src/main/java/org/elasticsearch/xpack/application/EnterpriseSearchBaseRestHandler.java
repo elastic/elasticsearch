@@ -32,7 +32,7 @@ public abstract class EnterpriseSearchBaseRestHandler extends BaseRestHandler {
             // We need to consume parameters and content from the REST request in order to bypass unrecognized param errors
             // and return a license error.
             request.params().keySet().forEach(key -> request.param(key, ""));
-            request.releasableContent();
+            request.content();
             return channel -> channel.sendResponse(
                 new RestResponse(channel, LicenseUtils.newComplianceException(this.licenseState, this.product))
             );

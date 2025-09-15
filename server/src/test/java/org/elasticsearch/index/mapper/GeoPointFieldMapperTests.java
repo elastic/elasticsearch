@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -19,10 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -38,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -194,8 +189,8 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             new Object[] { new Double[] { pointA.getX(), pointA.getY() }, new Double[] { pointB.getX(), pointB.getY() } },
             new Object[] { pointA.getY() + "," + pointA.getX(), pointB.getY() + "," + pointB.getX() },
             new Object[] { GeoJson.toMap(pointA), GeoJson.toMap(pointB) } };
-        IndexableField expectedPointA = new LatLonPoint("field", pointA.getY(), pointA.getX());
-        IndexableField expectedPointB = new LatLonPoint("field", pointB.getY(), pointB.getX());
+        IndexableField expectedPointA = new GeoPointFieldMapper.LatLonPointWithDocValues("field", pointA.getY(), pointA.getX());
+        IndexableField expectedPointB = new GeoPointFieldMapper.LatLonPointWithDocValues("field", pointB.getY(), pointB.getX());
 
         // Verify that metric and non-metric mappers behave the same on single valued fields
         for (Object[] values : data) {
@@ -203,7 +198,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 ParsedDocument doc = mapper.parse(source(b -> b.field("field", values[0])));
                 assertThat(doc.rootDoc().getField("field"), notNullValue());
                 IndexableField field = doc.rootDoc().getField("field");
-                assertThat(field, instanceOf(LatLonPoint.class));
+                assertThat(field, instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(field.toString(), equalTo(expectedPointA.toString()));
             }
         }
@@ -214,15 +209,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             {
                 ParsedDocument doc = nonMetricMapper.parse(source(b -> b.field("field", values)));
                 assertThat(doc.rootDoc().getField("field"), notNullValue());
-                Object[] fields = doc.rootDoc()
-                    .getFields()
-                    .stream()
-                    .filter(f -> f.name().equals("field") && f.fieldType().docValuesType() == DocValuesType.NONE)
-                    .toArray();
+                Object[] fields = doc.rootDoc().getFields().stream().filter(f -> f.name().equals("field")).toArray();
                 assertThat(fields.length, equalTo(2));
-                assertThat(fields[0], instanceOf(LatLonPoint.class));
+                assertThat(fields[0], instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(fields[0].toString(), equalTo(expectedPointA.toString()));
-                assertThat(fields[1], instanceOf(LatLonPoint.class));
+                assertThat(fields[1], instanceOf(GeoPointFieldMapper.LatLonPointWithDocValues.class));
                 assertThat(fields[1].toString(), equalTo(expectedPointB.toString()));
             }
             // Metric mapper rejects multi-valued data
@@ -328,7 +319,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     public void testLonLatArrayStored() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("field").value(1.3).value(1.2).endArray()));
-        assertThat(doc.rootDoc().getFields("field"), hasSize(3));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(2));
     }
 
     public void testLonLatArrayArrayStored() throws Exception {
@@ -616,13 +607,13 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 if (randomBoolean()) {
                     Value v = generateValue();
                     if (v.malformedOutput != null) {
-                        return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
+                        return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
                     }
 
                     if (columnReader) {
-                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), encode(v.output), this::mapping);
+                        return new SyntheticSourceExample(v.input, decode(encode(v.output)), this::mapping);
                     }
-                    return new SyntheticSourceExample(v.input, v.output, v.output.toWKT(), this::mapping);
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
 
                 }
                 List<Value> values = randomList(1, maxVals, this::generateValue);
@@ -640,18 +631,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedValues).toList();
                 Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-                if (columnReader) {
-                    // When reading doc-values, the block is a list of encoded longs
-                    List<Long> outBlockList = outputFromDocValues.stream().map(this::encode).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                } else {
-                    // When reading row-stride, the block is a list of WKT encoded BytesRefs.
-                    // Values are ordered in order of input.
-                    List<String> outBlockList = values.stream().filter(v -> v.malformedOutput == null).map(v -> v.output.toWKT()).toList();
-                    Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-                    return new SyntheticSourceExample(in, out, outBlock, this::mapping);
-                }
+                return new SyntheticSourceExample(in, out, this::mapping);
             }
 
             private record Value(Object input, GeoPoint output, Object malformedOutput) {}
@@ -740,42 +720,5 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        throw new IllegalStateException("Should never reach here, call loadBlockExpected(BlockReaderSupport, boolean) instead");
-    }
-
-    @Override
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        if (columnReader) {
-            // When using column reader, we expect the output to be doc-values (which means encoded longs)
-            return v -> asJacksonNumberOutput(((Number) v).longValue());
-        } else {
-            // When using row-stride reader, we expect the output to be WKT encoded BytesRef
-            return v -> asWKT((BytesRef) v);
-        }
-    }
-
-    protected static Object asJacksonNumberOutput(long l) {
-        // Cast to int to mimic jackson-core behaviour in NumberOutput.outputLong()
-        if (l < 0 && l >= Integer.MIN_VALUE || l >= 0 && l <= Integer.MAX_VALUE) {
-            return (int) l;
-        } else {
-            return l;
-        }
-    }
-
-    protected static Object asWKT(BytesRef value) {
-        // Internally we use WKB in BytesRef, but for test assertions we want to use WKT for readability
-        Geometry geometry = WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes);
-        return WellKnownText.toWKT(geometry);
-    }
-
-    @Override
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), false, mapper, loaderFieldName);
     }
 }

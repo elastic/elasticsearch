@@ -63,8 +63,8 @@ public class MultiFieldsTests extends ESTestCase {
             "field",
             IndexAnalyzers.of(Map.of(), Map.of("normalizer", Lucene.STANDARD_ANALYZER), Map.of()),
             ScriptCompiler.NONE,
-            Integer.MAX_VALUE,
-            IndexVersion.current()
+            IndexVersion.current(),
+            Mapper.SourceKeepMode.NONE
         );
         if (isStored) {
             keywordFieldMapperBuilder.stored(true);

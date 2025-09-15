@@ -11,9 +11,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -25,7 +25,7 @@ import java.util.Set;
 
 /**
  * The vast majority of aggs ignore null entries - this rule adds a pushable filter, as it is cheap
- * to execute, to filter this entries out to begin with.
+ * to execute, to filter these entries out to begin with.
  * STATS x = min(a), y = sum(b)
  * becomes
  * | WHERE a IS NOT NULL OR b IS NOT NULL
@@ -55,7 +55,7 @@ public class InferNonNullAggConstraint extends OptimizerRules.ParameterizedOptim
                 Expression field = af.field();
                 // ignore literals (e.g. COUNT(1))
                 // make sure the field exists at the source and is indexed (not runtime)
-                if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.name())) {
+                if (field.foldable() == false && field instanceof FieldAttribute fa && stats.isIndexed(fa.fieldName())) {
                     nonNullAggFields.add(field);
                 } else {
                     // otherwise bail out since unless disjunction needs to cover _all_ fields, things get filtered out

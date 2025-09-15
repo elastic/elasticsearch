@@ -48,7 +48,7 @@ For more information about discovery and shard allocation, refer to
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
 tolerance by automatically updating the cluster's _voting configuration_, which
-is the set of <<master-node,master-eligible nodes>> whose responses are counted
+is the set of <<master-node-role,master-eligible nodes>> whose responses are counted
 when making decisions such as electing a new master or committing a new cluster
 state.
 

@@ -38,13 +38,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.EmptyRequest;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.SniffConnectionStrategy;
-import org.elasticsearch.transport.TestOutboundRequestMessage;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -331,18 +331,19 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
         try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
-            TestOutboundRequestMessage message = new TestOutboundRequestMessage(
-                threadPool.getThreadContext(),
-                new EmptyRequest(),
-                TransportVersion.current(),
+            Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+            BytesReference bytesReference = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 "internal:whatever",
                 randomNonNegativeLong(),
                 false,
-                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
+                TransportVersion.current(),
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new EmptyRequest(),
+                threadPool.getThreadContext(),
+                out
             );
-            Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-            BytesReference bytesReference = message.serialize(out);
             socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
             socket.getOutputStream().flush();
 

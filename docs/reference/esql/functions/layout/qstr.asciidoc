@@ -4,8 +4,6 @@
 [[esql-qstr]]
 === `QSTR`
 
-preview::["Do not use `VALUES` on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
-
 *Syntax*
 
 [.text-center]
@@ -14,4 +12,5 @@ image::esql/functions/signature/qstr.svg[Embedded,opts=inline]
 include::../parameters/qstr.asciidoc[]
 include::../description/qstr.asciidoc[]
 include::../types/qstr.asciidoc[]
+include::../functionNamedParams/qstr.asciidoc[]
 include::../examples/qstr.asciidoc[]

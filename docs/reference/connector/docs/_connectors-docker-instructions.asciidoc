@@ -59,7 +59,7 @@ docker run \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/enterprise-search/elastic-connectors:{version}.0 \
+docker.elastic.co/enterprise-search/elastic-connectors:{version} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ----

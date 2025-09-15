@@ -18,7 +18,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -196,7 +195,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
      * @param property          property to add
      * @param value             value to add
      */
-    private <T> void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
+    private void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
         if (properties.contains(property) && Strings.hasLength(value)) {
             additionalFields.put(property.toLowerCase(), value);
         }
@@ -233,7 +232,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             String processorTag,
             String description,
             Map<String, Object> config
-        ) throws Exception {
+        ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String resourceName = readOptionalStringProperty(TYPE, processorTag, config, "resource_name");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
@@ -241,7 +240,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
-            @UpdateForV9 // update the [remove_binary] default to be 'true' assuming enough time has passed. Deprecated in September 2022.
             Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
             if (removeBinary == null) {
                 DEPRECATION_LOGGER.warn(

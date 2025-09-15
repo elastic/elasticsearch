@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -28,8 +28,8 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
@@ -81,12 +81,12 @@ public class LocalMapper {
             return new LimitExec(limit.source(), mappedChild, limit.limit());
         }
 
-        if (unary instanceof OrderBy o) {
-            return new OrderExec(o.source(), mappedChild, o.order());
-        }
-
         if (unary instanceof TopN topN) {
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
+        }
+
+        if (unary instanceof Sample sample) {
+            return new SampleExec(sample.source(), mappedChild, sample.probability());
         }
 
         //
@@ -120,15 +120,7 @@ public class LocalMapper {
                 );
             }
             if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(
-                    join.source(),
-                    left,
-                    right,
-                    config.matchFields(),
-                    config.leftFields(),
-                    config.rightFields(),
-                    join.output()
-                );
+                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
             }
         }
 

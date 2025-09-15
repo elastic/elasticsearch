@@ -27,7 +27,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.logging.LogManager;
@@ -58,7 +57,6 @@ import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
  * Same for system index mapping versions: when upgraded from pre-8.11.0, cluster state holds and empty map of system index mapping
  * versions. Any nodes with an empty system index mapping versions map in cluster state is refreshed with their actual versions.
  */
-@UpdateForV9    // this can be removed in v9
 public class CompatibilityVersionsFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(CompatibilityVersionsFixupListener.class);

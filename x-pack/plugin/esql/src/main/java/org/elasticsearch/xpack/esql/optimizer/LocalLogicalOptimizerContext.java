@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -15,8 +16,8 @@ import java.util.Objects;
 public final class LocalLogicalOptimizerContext extends LogicalOptimizerContext {
     private final SearchStats searchStats;
 
-    public LocalLogicalOptimizerContext(Configuration configuration, SearchStats searchStats) {
-        super(configuration);
+    public LocalLogicalOptimizerContext(Configuration configuration, FoldContext foldCtx, SearchStats searchStats) {
+        super(configuration, foldCtx);
         this.searchStats = searchStats;
     }
 

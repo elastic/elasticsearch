@@ -171,7 +171,6 @@
         index: test_lookup
 
   - match: { test_lookup.settings.index.number_of_shards: "1"}
-  - match: { test_lookup.settings.index.auto_expand_replicas: "0-all"}
 
 ---
 "Create lookup index with one shard":
@@ -196,7 +195,6 @@
         index: test_lookup
 
   - match: { test_lookup.settings.index.number_of_shards: "1"}
-  - match: { test_lookup.settings.index.auto_expand_replicas: "0-all"}
 
 ---
 "Create lookup index with two shards":
@@ -216,3 +214,127 @@
             index.mode: lookup
             index.number_of_shards: 2
 
+---
+"Create index with invalid field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              content:
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+
+---
+"Create index with invalid runtime field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            runtime:
+              content:
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on runtime field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+
+---
+"Create index with invalid multi-field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              city:
+                type: text
+                fields:
+                  raw:
+                    type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [raw] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+---
+"Poorly formatted request returns bad_request":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ poorly_formatted_bad_request ]
+      reason: "requires poorly_formatted_bad_request bug fix"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings: "bad mappings"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties: "bad properties"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          settings: "bad settings"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          aliases: "bad alias"
+---
+"Create index with hunspell missing dict":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ hunspell_dict_400 ]
+      reason: "bugfix 'hunspell_dict_400' capability required"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: bad_hunspell_index
+        body:
+          settings:
+            analysis:
+              analyzer:
+                en:
+                  tokenizer: standard
+                  filter:
+                    - my_en_US_dict_stemmer
+                filter:
+                  my_en_US_dict_stemmer:
+                  type: hunspell
+                  locale: en_US
+                  dedup: false

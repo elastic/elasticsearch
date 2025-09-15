@@ -12,14 +12,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,6 +38,11 @@ public class DriverStatus implements Task.Status {
      * The session for this driver.
      */
     private final String sessionId;
+
+    /**
+     * Description of the task this driver is running.
+     */
+    private final String taskDescription;
 
     /**
      * Milliseconds since epoch when this driver started.
@@ -83,6 +85,7 @@ public class DriverStatus implements Task.Status {
 
     DriverStatus(
         String sessionId,
+        String taskDescription,
         long started,
         long lastUpdated,
         long cpuTime,
@@ -93,6 +96,7 @@ public class DriverStatus implements Task.Status {
         DriverSleeps sleeps
     ) {
         this.sessionId = sessionId;
+        this.taskDescription = taskDescription;
         this.started = started;
         this.lastUpdated = lastUpdated;
         this.cpuNanos = cpuTime;
@@ -105,23 +109,29 @@ public class DriverStatus implements Task.Status {
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
+        this.taskDescription = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)
+            ? in.readString()
+            : "";
         this.started = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
         this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
         this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
         this.status = Status.read(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+            this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::readFrom);
         } else {
             this.completedOperators = List.of();
         }
-        this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+        this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::readFrom);
         this.sleeps = DriverSleeps.read(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_8_19)) {
+            out.writeString(taskDescription);
+        }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeLong(started);
         }
@@ -148,6 +158,15 @@ public class DriverStatus implements Task.Status {
      */
     public String sessionId() {
         return sessionId;
+    }
+
+    /**
+     * Description of the task this driver is running. This description should be
+     * short and meaningful as a grouping identifier. We use the phase of the
+     * query right now: "data", "node_reduce", "final".
+     */
+    public String taskDescription() {
+        return taskDescription;
     }
 
     /**
@@ -211,13 +230,16 @@ public class DriverStatus implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("sessionId", sessionId);
+        builder.field("session_id", sessionId);
+        builder.field("task_description", taskDescription);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("cpu_nanos", cpuNanos);
         if (builder.humanReadable()) {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
+        builder.field("documents_found", documentsFound());
+        builder.field("values_loaded", valuesLoaded());
         builder.field("iterations", iterations);
         builder.field("status", status, params);
         builder.startArray("completed_operators");
@@ -240,6 +262,7 @@ public class DriverStatus implements Task.Status {
         if (o == null || getClass() != o.getClass()) return false;
         DriverStatus that = (DriverStatus) o;
         return sessionId.equals(that.sessionId)
+            && taskDescription.equals(that.taskDescription)
             && started == that.started
             && lastUpdated == that.lastUpdated
             && cpuNanos == that.cpuNanos
@@ -252,7 +275,18 @@ public class DriverStatus implements Task.Status {
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators, sleeps);
+        return Objects.hash(
+            sessionId,
+            taskDescription,
+            started,
+            lastUpdated,
+            cpuNanos,
+            iterations,
+            status,
+            completedOperators,
+            activeOperators,
+            sleeps
+        );
     }
 
     @Override
@@ -261,71 +295,31 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
-     * Status of an {@link Operator}.
+         * The number of documents found by this driver.
      */
-    public static class OperatorStatus implements Writeable, ToXContentObject {
-        /**
-         * String representation of the {@link Operator}. Literally just the
-         * {@link Object#toString()} of it.
-         */
-        private final String operator;
-        /**
-         * Status as reported by the {@link Operator}.
-         */
-        @Nullable
-        private final Operator.Status status;
-
-        public OperatorStatus(String operator, Operator.Status status) {
-            this.operator = operator;
-            this.status = status;
+    public long documentsFound() {
+        long documentsFound = 0;
+        for (OperatorStatus s : completedOperators) {
+            documentsFound += s.documentsFound();
         }
-
-        OperatorStatus(StreamInput in) throws IOException {
-            operator = in.readString();
-            status = in.readOptionalNamedWriteable(Operator.Status.class);
+        for (OperatorStatus s : activeOperators) {
+            documentsFound += s.documentsFound();
         }
+        return documentsFound;
+    }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(operator);
-            out.writeOptionalNamedWriteable(status != null && VersionedNamedWriteable.shouldSerialize(out, status) ? status : null);
+    /**
+     * The number of values loaded by this operator.
+     */
+    public long valuesLoaded() {
+        long valuesLoaded = 0;
+        for (OperatorStatus s : completedOperators) {
+            valuesLoaded += s.valuesLoaded();
         }
-
-        public String operator() {
-            return operator;
+        for (OperatorStatus s : activeOperators) {
+            valuesLoaded += s.valuesLoaded();
         }
-
-        public Operator.Status status() {
-            return status;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("operator", operator);
-            if (status != null) {
-                builder.field("status", status);
-            }
-            return builder.endObject();
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            OperatorStatus that = (OperatorStatus) o;
-            return operator.equals(that.operator) && Objects.equals(status, that.status);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(operator, status);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
+        return valuesLoaded;
     }
 
     public enum Status implements Writeable, ToXContentFragment {

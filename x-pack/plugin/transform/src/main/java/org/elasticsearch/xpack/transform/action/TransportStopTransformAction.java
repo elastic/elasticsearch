@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction.Response;
@@ -125,6 +126,13 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Cannot stop any Transform while the Transform feature is upgrading.", RestStatus.CONFLICT)
+            );
+            return;
+        }
+
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster() == false) {
@@ -459,24 +467,31 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                     return;
                 } else {
                     StringBuilder message = new StringBuilder();
+                    boolean lineAdded = false;
                     if (persistentTaskIds.size() - stillRunningTasks.size() - exceptions.size() > 0) {
+                        message.append(optionalSpace(lineAdded));
                         message.append("Successfully stopped [");
                         message.append(persistentTaskIds.size() - stillRunningTasks.size() - exceptions.size());
-                        message.append("] transforms. ");
+                        message.append("] transforms.");
+                        lineAdded = true;
                     }
 
                     if (exceptions.size() > 0) {
+                        message.append(optionalSpace(lineAdded));
                         message.append("Could not stop the transforms ");
                         message.append(exceptions.keySet());
-                        message.append(" as they were failed. Use force stop to stop the transforms. ");
+                        message.append(" as they were failed. Use force stop to stop the transforms.");
+                        lineAdded = true;
                     }
 
                     if (stillRunningTasks.size() > 0) {
+                        message.append(optionalSpace(lineAdded));
                         message.append("Could not stop the transforms ");
                         message.append(stillRunningTasks);
                         message.append(" as they timed out [");
                         message.append(timeout.toString());
                         message.append("].");
+                        lineAdded = true;
                     }
 
                     listener.onFailure(new ElasticsearchStatusException(message.toString(), RestStatus.REQUEST_TIMEOUT));
@@ -533,5 +548,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
                 persistentTasksService.sendRemoveRequest(taskId, Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT, groupedListener);
             }
         });
+    }
+
+    private static String optionalSpace(boolean spaceNeeded) {
+        return spaceNeeded ? " " : "";
     }
 }

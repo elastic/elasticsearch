@@ -43,12 +43,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -84,7 +82,7 @@ public class TransportService extends AbstractLifecycleComponent
     /**
      * A feature flag enabling transport upgrades for serverless.
      */
-    private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
+    static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
     private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG = Booleans.parseBoolean(
         System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY),
         false
@@ -101,7 +99,7 @@ public class TransportService extends AbstractLifecycleComponent
         "transport.enable_stack_protection",
         false,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
@@ -136,7 +134,6 @@ public class TransportService extends AbstractLifecycleComponent
     // tracer log
 
     private final Logger tracerLog;
-    private final Tracer tracer;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
@@ -206,18 +203,6 @@ public class TransportService extends AbstractLifecycleComponent
         }
     };
 
-    public TransportService(
-        Settings settings,
-        Transport transport,
-        ThreadPool threadPool,
-        TransportInterceptor transportInterceptor,
-        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-        @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders
-    ) {
-        this(settings, transport, threadPool, transportInterceptor, localNodeFactory, clusterSettings, taskHeaders, Tracer.NOOP);
-    }
-
     /**
      * Build the service.
      *
@@ -231,8 +216,7 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        TaskManager taskManager,
-        Tracer tracer
+        TaskManager taskManager
     ) {
         this(
             settings,
@@ -242,8 +226,7 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
-            taskManager,
-            tracer
+            taskManager
         );
     }
 
@@ -255,8 +238,7 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
-        Tracer tracer
+        Set<String> taskHeaders
     ) {
         this(
             settings,
@@ -266,8 +248,7 @@ public class TransportService extends AbstractLifecycleComponent
             localNodeFactory,
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
-            new TaskManager(settings, threadPool, taskHeaders),
-            tracer
+            new TaskManager(settings, threadPool, taskHeaders)
         );
     }
 
@@ -280,15 +261,13 @@ public class TransportService extends AbstractLifecycleComponent
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
         ConnectionManager connectionManager,
-        TaskManager taskManger,
-        Tracer tracer
+        TaskManager taskManger
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
-        this.tracer = tracer;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
@@ -1221,8 +1200,7 @@ public class TransportService extends AbstractLifecycleComponent
             handler,
             executor,
             false,
-            true,
-            tracer
+            true
         );
         transport.registerRequestHandler(reg);
     }
@@ -1254,8 +1232,7 @@ public class TransportService extends AbstractLifecycleComponent
             handler,
             executor,
             forceExecution,
-            canTripCircuitBreaker,
-            tracer
+            canTripCircuitBreaker
         );
         transport.registerRequestHandler(reg);
     }
@@ -1303,11 +1280,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     /** called by the {@link Transport} implementation once a response was sent to calling node */
     @Override
-    public void onResponseSent(long requestId, String action, TransportResponse response) {
+    public void onResponseSent(long requestId, String action) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
-        messageListener.onResponseSent(requestId, action, response);
+        messageListener.onResponseSent(requestId, action);
     }
 
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
@@ -1555,7 +1532,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) {
-            service.onResponseSent(requestId, action, response);
+            service.onResponseSent(requestId, action);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
@@ -1679,9 +1656,9 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response) {
+        public void onResponseSent(long requestId, String action) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response);
+                listener.onResponseSent(requestId, action);
             }
         }
 
@@ -1755,7 +1732,6 @@ public class TransportService extends AbstractLifecycleComponent
 
     static {
         // Ensure that this property, introduced and immediately deprecated in 7.11, is not used in 8.x
-        @UpdateForV9 // we can remove this whole block in v9
         final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
         if (System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY) != null) {
             throw new IllegalArgumentException("system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] must not be set");

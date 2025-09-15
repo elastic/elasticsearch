@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -27,19 +29,25 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.any;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -64,6 +72,7 @@ public class MultiClustersIT extends ESRestTestCase {
     List<Doc> localDocs = List.of();
     final String remoteIndex = "test-remote-index";
     List<Doc> remoteDocs = List.of();
+    private Boolean shouldCheckShardCounts = null;
 
     @Before
     public void setUpIndices() throws Exception {
@@ -127,10 +136,12 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query, boolean includeCCSMetadata) throws IOException {
-        Map<String, Object> resp = runEsql(
-            new RestEsqlTestCase.RequestObjectBuilder().query(query).includeCCSMetadata(includeCCSMetadata).build()
-        );
-        logger.info("--> query {} response {}", query, resp);
+        var queryBuilder = new RestEsqlTestCase.RequestObjectBuilder().query(query).profile(true);
+        if (includeCCSMetadata) {
+            queryBuilder.includeCCSMetadata(true);
+        }
+        Map<String, Object> resp = runEsql(queryBuilder.build());
+        logger.info("--> query {} response {}", queryBuilder, resp);
         return resp;
     }
 
@@ -154,88 +165,114 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
+    private boolean checkShardCounts() {
+        if (shouldCheckShardCounts == null) {
+            try {
+                shouldCheckShardCounts = capabilitiesSupportedNewAndOld(List.of("correct_skipped_shard_count"));
+            } catch (IOException e) {
+                shouldCheckShardCounts = false;
+            }
+        }
+        return shouldCheckShardCounts;
+    }
+
+    private <C, V> void assertResultMapForLike(
+        boolean includeCCSMetadata,
+        Map<String, Object> result,
+        C columns,
+        V values,
+        boolean remoteOnly,
+        boolean requireLikeListCapability
+    ) throws IOException {
+        List<String> requiredCapabilities = new ArrayList<>(List.of("like_on_index_fields"));
+        if (requireLikeListCapability) {
+            requiredCapabilities.add("like_list_on_index_fields");
+        }
+        // the feature is completely supported if both local and remote clusters support it
+        boolean isSupported = capabilitiesSupportedNewAndOld(requiredCapabilities);
+
+        if (isSupported) {
+            assertResultMap(includeCCSMetadata, result, columns, values, remoteOnly);
+        } else {
+            logger.info("-->  skipping data check for like index test, cluster does not support like index feature");
+            // just verify that we did not get a partial result
+            var clusters = result.get("_clusters");
+            var reason = "unexpected partial results" + (clusters != null ? ": _clusters=" + clusters : "");
+            assertThat(reason, result.get("is_partial"), anyOf(nullValue(), is(false)));
+        }
+    }
+
+    private boolean capabilitiesSupportedNewAndOld(List<String> requiredCapabilities) throws IOException {
+        boolean isSupported = clusterHasCapability("POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+        try (RestClient remoteClient = remoteClusterClient()) {
+            isSupported = isSupported
+                && clusterHasCapability(remoteClient, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+        }
+        return isSupported;
+    }
+
+    private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
+        MapMatcher mapMatcher = getResultMatcher(
+            ccsMetadataAvailable(),
+            result.containsKey("is_partial"),
+            result.containsKey("documents_found")
+        ).extraOk();
+        if (includeCCSMetadata) {
+            mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+        }
+        assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+        if (includeCCSMetadata) {
+            assertClusterDetailsMap(result, remoteOnly);
+        }
+    }
+
     public void testCount() throws Exception {
         {
-            boolean includeCCSMetadata = randomBoolean();
+            boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS c = COUNT(*)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, false);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
         }
         {
-            boolean includeCCSMetadata = randomBoolean();
+            boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("FROM *:test-remote-index | STATS c = COUNT(*)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, true);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
     }
 
     public void testUngroupedAggs() throws Exception {
         {
-            boolean includeCCSMetadata = randomBoolean();
+            boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = Stream.concat(localDocs.stream(), remoteDocs.stream()).mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
             // check all sections of map except _cluster/details
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, false);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
         }
         {
-            boolean includeCCSMetadata = randomBoolean();
+            boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run("FROM *:test-remote-index | STATS total = SUM(data)", includeCCSMetadata);
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, true);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
         {
+            assumeTrue("requires ccs metadata", ccsMetadataAvailable());
             Map<String, Object> result = runWithColumnarAndIncludeCCSMetadata("FROM *:test-remote-index | STATS total = SUM(data)");
             var columns = List.of(Map.of("name", "total", "type", "long"));
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
-            MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, true);
+            assertResultMap(true, result, columns, values, true);
         }
     }
 
@@ -267,12 +304,19 @@ public class MultiClustersIT extends ESRestTestCase {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> remoteClusterShards = (Map<String, Object>) remoteCluster.get("_shards");
-        assertThat(remoteClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
-        assertThat((Integer) remoteClusterShards.get("total"), greaterThanOrEqualTo(0));
-        assertThat((Integer) remoteClusterShards.get("successful"), equalTo((Integer) remoteClusterShards.get("total")));
-        assertThat((Integer) remoteClusterShards.get("skipped"), equalTo(0));
-        assertThat((Integer) remoteClusterShards.get("failed"), equalTo(0));
-
+        assertThat(
+            remoteClusterShards,
+            matchesMap().entry("total", greaterThanOrEqualTo(0))
+                .entry("successful", greaterThanOrEqualTo(0))
+                .entry("skipped", greaterThanOrEqualTo(0))
+                .entry("failed", 0)
+        );
+        if (checkShardCounts()) {
+            assertThat(
+                (int) remoteClusterShards.get("successful") + (int) remoteClusterShards.get("skipped"),
+                equalTo(remoteClusterShards.get("total"))
+            );
+        }
         if (remoteOnly == false) {
             @SuppressWarnings("unchecked")
             Map<String, Object> localCluster = (Map<String, Object>) details.get("(local)");
@@ -283,17 +327,25 @@ public class MultiClustersIT extends ESRestTestCase {
 
             @SuppressWarnings("unchecked")
             Map<String, Object> localClusterShards = (Map<String, Object>) localCluster.get("_shards");
-            assertThat(localClusterShards.keySet(), equalTo(Set.of("total", "successful", "skipped", "failed")));
-            assertThat((Integer) localClusterShards.get("total"), greaterThanOrEqualTo(0));
-            assertThat((Integer) localClusterShards.get("successful"), equalTo((Integer) localClusterShards.get("total")));
-            assertThat((Integer) localClusterShards.get("skipped"), equalTo(0));
-            assertThat((Integer) localClusterShards.get("failed"), equalTo(0));
+            assertThat(
+                localClusterShards,
+                matchesMap().entry("total", greaterThanOrEqualTo(0))
+                    .entry("successful", greaterThanOrEqualTo(0))
+                    .entry("skipped", greaterThanOrEqualTo(0))
+                    .entry("failed", 0)
+            );
+            if (checkShardCounts()) {
+                assertThat(
+                    (int) localClusterShards.get("successful") + (int) localClusterShards.get("skipped"),
+                    equalTo(localClusterShards.get("total"))
+                );
+            }
         }
     }
 
     public void testGroupedAggs() throws Exception {
         {
-            boolean includeCCSMetadata = randomBoolean();
+            boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run(
                 "FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color",
                 includeCCSMetadata
@@ -307,17 +359,10 @@ public class MultiClustersIT extends ESRestTestCase {
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, false);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
         }
         {
-            boolean includeCCSMetadata = randomBoolean();
+            boolean includeCCSMetadata = includeCCSMetadata();
             Map<String, Object> result = run(
                 "FROM *:test-remote-index | STATS total = SUM(data) by color | SORT color",
                 includeCCSMetadata
@@ -332,15 +377,219 @@ public class MultiClustersIT extends ESRestTestCase {
                 .toList();
 
             // check all sections of map except _clusters/details
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, true);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
+    }
+
+    public void testIndexPattern() throws Exception {
+        {
+            String indexPattern = randomFrom(
+                "test-local-index,*:test-remote-index",
+                "test-local-index,*:test-remote-*",
+                "test-local-index,*:test-*",
+                "test-*,*:test-remote-index"
+            );
+            Map<String, Object> result = run("FROM " + indexPattern + " | STATS c = COUNT(*)", false);
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
+
+            assertResultMap(false, result, columns, values, false);
+        }
+        {
+            String indexPattern = randomFrom("*:test-remote-index", "*:test-remote-*", "*:test-*");
+            Map<String, Object> result = run("FROM " + indexPattern + " | STATS c = COUNT(*)", false);
+            var columns = List.of(Map.of("name", "c", "type", "long"));
+            var values = List.of(List.of(remoteDocs.size()));
+
+            assertResultMap(false, result, columns, values, false);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStats() throws IOException {
+        assumeTrue("capabilities endpoint is not available", capabilitiesEndpointAvailable());
+
+        Request caps = new Request("GET", "_capabilities?method=GET&path=_cluster/stats&capabilities=esql-stats");
+        Response capsResponse = client().performRequest(caps);
+        Map<String, Object> capsResult = entityAsMap(capsResponse.getEntity());
+        assumeTrue("esql stats capability missing", capsResult.get("supported").equals(true));
+
+        run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color", includeCCSMetadata());
+        Request stats = new Request("GET", "_cluster/stats");
+        Response statsResponse = client().performRequest(stats);
+        Map<String, Object> result = entityAsMap(statsResponse.getEntity());
+        assertThat(result, hasKey("ccs"));
+        Map<String, Object> ccs = (Map<String, Object>) result.get("ccs");
+        assertThat(ccs, hasKey("_esql"));
+        Map<String, Object> esql = (Map<String, Object>) ccs.get("_esql");
+        assertThat(esql, hasKey("total"));
+        assertThat(esql, hasKey("success"));
+        assertThat(esql, hasKey("took"));
+        assertThat(esql, hasKey("remotes_per_search_max"));
+        assertThat(esql, hasKey("remotes_per_search_avg"));
+        assertThat(esql, hasKey("failure_reasons"));
+        assertThat(esql, hasKey("features"));
+        assertThat(esql, hasKey("clusters"));
+        Map<String, Object> clusters = (Map<String, Object>) esql.get("clusters");
+        assertThat(clusters, hasKey(REMOTE_CLUSTER_NAME));
+        assertThat(clusters, hasKey("(local)"));
+        Map<String, Object> clusterData = (Map<String, Object>) clusters.get(REMOTE_CLUSTER_NAME);
+        assertThat(clusterData, hasKey("total"));
+        assertThat(clusterData, hasKey("skipped"));
+        assertThat(clusterData, hasKey("took"));
+    }
+
+    public void testLikeIndex() throws Exception {
+
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index LIKE "*remote*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+    }
+
+    public void testLikeIndexLegacySettingNoResults() throws Exception {
+        // the feature is completely supported if both local and remote clusters support it
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
+        try (
+            ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
+            RestClient remoteClient = remoteClusterClient();
+            ClusterSettingToggle ignored2 = new ClusterSettingToggle(remoteClient, "esql.query.string_like_on_index", false, true)
+        ) {
+            // test code with the setting changed
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            // we expect empty result, since the setting is false
+            var values = List.of();
+            assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+        }
+    }
+
+    public void testLikeIndexLegacySettingResults() throws Exception {
+        // we require that the admin client supports the like_on_index_fields capability
+        // otherwise we will get an error when trying to toggle the setting
+        // the remote client does not have to support it
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_on_index_fields")));
+        try (
+            ClusterSettingToggle ignored = new ClusterSettingToggle(adminClient(), "esql.query.string_like_on_index", false, true);
+            RestClient remoteClient = remoteClusterClient();
+            ClusterSettingToggle ignored2 = new ClusterSettingToggle(remoteClient, "esql.query.string_like_on_index", false, true)
+        ) {
+            boolean includeCCSMetadata = includeCCSMetadata();
+            Map<String, Object> result = run("""
+                FROM test-local-index,*:test-remote-index METADATA _index
+                | WHERE _index LIKE "*remote*:*remote*"
+                | STATS c = COUNT(*) BY _index
+                | SORT _index ASC
+                """, includeCCSMetadata);
+            var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+            // we expect results, since the setting is false, but there is : in the LIKE query
+            var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+            assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+        }
+    }
+
+    public void testNotLikeIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT LIKE "*remote*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+    }
+
+    public void testLikeListIndex() throws Exception {
+        // the feature is completely supported if both local and remote clusters support it
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_list_on_index_fields")));
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index LIKE ("*remote*", "not-exist*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
+    }
+
+    public void testNotLikeListIndex() throws Exception {
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_list_on_index_fields")));
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT LIKE ("*remote*", "not-exist*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
+    }
+
+    public void testNotLikeListKeyword() throws Exception {
+        assumeTrue("not supported", capabilitiesSupportedNewAndOld(List.of("like_with_list_of_patterns")));
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE color NOT LIKE ("*blue*", "*red*")
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        Predicate<Doc> filter = d -> false == (d.color.contains("blue") || d.color.contains("red"));
+
+        var values = new ArrayList<>();
+        int remoteCount = (int) remoteDocs.stream().filter(filter).count();
+        int localCount = (int) localDocs.stream().filter(filter).count();
+        if (remoteCount > 0) {
+            values.add(List.of(remoteCount, REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        }
+        if (localCount > 0) {
+            values.add(List.of(localCount, localIndex));
+        }
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, true);
+    }
+
+    public void testRLikeIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index RLIKE ".*remote.*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(remoteDocs.size(), REMOTE_CLUSTER_NAME + ":" + remoteIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
+    }
+
+    public void testNotRLikeIndex() throws Exception {
+        boolean includeCCSMetadata = includeCCSMetadata();
+        Map<String, Object> result = run("""
+            FROM test-local-index,*:test-remote-index METADATA _index
+            | WHERE _index NOT RLIKE ".*remote.*"
+            | STATS c = COUNT(*) BY _index
+            | SORT _index ASC
+            """, includeCCSMetadata);
+        var columns = List.of(Map.of("name", "c", "type", "long"), Map.of("name", "_index", "type", "keyword"));
+        var values = List.of(List.of(localDocs.size(), localIndex));
+        assertResultMapForLike(includeCCSMetadata, result, columns, values, false, false);
     }
 
     private RestClient remoteClusterClient() throws IOException {
@@ -348,17 +597,39 @@ public class MultiClustersIT extends ESRestTestCase {
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
     }
 
-    private TestFeatureService remoteFeaturesService() throws IOException {
-        if (remoteFeaturesService == null) {
-            try (RestClient remoteClient = remoteClusterClient()) {
-                var remoteNodeVersions = readVersionsFromNodesInfo(remoteClient);
-                var semanticNodeVersions = remoteNodeVersions.stream()
-                    .map(ESRestTestCase::parseLegacyVersion)
-                    .flatMap(Optional::stream)
-                    .collect(Collectors.toSet());
-                remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClient), semanticNodeVersions);
-            }
+    private static boolean ccsMetadataAvailable() {
+        return Clusters.localClusterVersion().onOrAfter(Version.V_8_16_0);
+    }
+
+    private static boolean capabilitiesEndpointAvailable() {
+        return Clusters.localClusterVersion().onOrAfter(Version.V_8_15_0);
+    }
+
+    private static boolean includeCCSMetadata() {
+        return ccsMetadataAvailable() && randomBoolean();
+    }
+
+    public static class ClusterSettingToggle implements AutoCloseable {
+        private final RestClient client;
+        private final String settingKey;
+        private final Object originalValue;
+
+        public ClusterSettingToggle(RestClient client, String settingKey, Object newValue, Object restoreValue) throws IOException {
+            this.client = client;
+            this.settingKey = settingKey;
+            this.originalValue = restoreValue;
+            setValue(newValue);
         }
-        return remoteFeaturesService;
+
+        private void setValue(Object value) throws IOException {
+            Request set = new Request("PUT", "/_cluster/settings");
+            set.setJsonEntity("{\"persistent\": {\"" + settingKey + "\": " + value + "}}");
+            ESRestTestCase.assertOK(client.performRequest(set));
+        }
+
+        @Override
+        public void close() throws IOException {
+            setValue(originalValue == null ? "null" : originalValue);
+        }
     }
 }

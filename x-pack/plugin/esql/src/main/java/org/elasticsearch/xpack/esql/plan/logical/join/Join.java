@@ -10,27 +10,76 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
-import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.RIGHT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
-public class Join extends BinaryPlan {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
+    public static final DataType[] UNSUPPORTED_TYPES = {
+        TEXT,
+        VERSION,
+        UNSIGNED_LONG,
+        GEO_POINT,
+        GEO_SHAPE,
+        CARTESIAN_POINT,
+        CARTESIAN_SHAPE,
+        UNSUPPORTED,
+        NULL,
+        COUNTER_LONG,
+        COUNTER_INTEGER,
+        COUNTER_DOUBLE,
+        OBJECT,
+        SOURCE,
+        DATE_PERIOD,
+        TIME_DURATION,
+        DOC_DATA_TYPE,
+        TSID_DATA_TYPE,
+        PARTIAL_AGG,
+        AGGREGATE_METRIC_DOUBLE,
+        DENSE_VECTOR };
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
@@ -99,6 +148,32 @@ public class Join extends BinaryPlan {
         return lazyOutput;
     }
 
+    @Override
+    public AttributeSet leftReferences() {
+        return Expressions.references(config().leftFields());
+    }
+
+    @Override
+    public AttributeSet rightReferences() {
+        return Expressions.references(config().rightFields());
+    }
+
+    /**
+     * The output fields obtained from the right child.
+     */
+    public List<Attribute> rightOutputFields() {
+        AttributeSet leftInputs = left().outputSet();
+
+        List<Attribute> rightOutputFields = new ArrayList<>();
+        for (Attribute attr : output()) {
+            if (leftInputs.contains(attr) == false) {
+                rightOutputFields.add(attr);
+            }
+        }
+
+        return rightOutputFields;
+    }
+
     /**
      * Combine the two lists of attributes into one.
      * In case of (name) conflicts, specify which sides wins, that is overrides the other column - the left or the right.
@@ -108,34 +183,14 @@ public class Join extends BinaryPlan {
         List<Attribute> output;
         // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left
-            // output = merge(leftOutput, makeNullable(rightOutput));
-            output = merge(leftOutput, rightOutput);
-        } else if (RIGHT.equals(joinType)) {
-            // left side becomes nullable and overrides right
-            // output = merge(makeNullable(leftOutput), rightOutput);
-            output = merge(leftOutput, rightOutput);
+            // right side becomes nullable and overrides left except for join keys, which we preserve from the left
+            AttributeSet rightKeys = AttributeSet.of(config.rightFields());
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream().filter(attr -> rightKeys.contains(attr) == false).toList();
+            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }
         return output;
-    }
-
-    /**
-     * Merge the two lists of attributes into one and preserves order.
-     */
-    private static List<Attribute> merge(List<Attribute> left, List<Attribute> right) {
-        // use linked hash map to preserve order
-        Map<String, Attribute> nameToAttribute = Maps.newLinkedHashMapWithExpectedSize(left.size() + right.size());
-        for (Attribute a : left) {
-            nameToAttribute.put(a.name(), a);
-        }
-        for (Attribute a : right) {
-            // override the existing entry in place
-            nameToAttribute.compute(a.name(), (name, existing) -> a);
-        }
-
-        return new ArrayList<>(nameToAttribute.values());
     }
 
     /**
@@ -157,14 +212,6 @@ public class Join extends BinaryPlan {
             } else {
                 out.add(a);
             }
-        }
-        return out;
-    }
-
-    private static List<Attribute> makeNullable(List<Attribute> output) {
-        List<Attribute> out = new ArrayList<>(output.size());
-        for (Attribute a : output) {
-            out.add(a.withNullability(Nullability.TRUE));
         }
         return out;
     }
@@ -192,11 +239,6 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    public String commandName() {
-        return "JOIN";
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(config, left(), right());
     }
@@ -212,5 +254,41 @@ public class Join extends BinaryPlan {
 
         Join other = (Join) obj;
         return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        for (int i = 0; i < config.leftFields().size(); i++) {
+            Attribute leftField = config.leftFields().get(i);
+            Attribute rightField = config.rightFields().get(i);
+            if (comparableTypes(leftField, rightField) == false) {
+                failures.add(
+                    fail(
+                        leftField,
+                        "JOIN left field [{}] of type [{}] is incompatible with right field [{}] of type [{}]",
+                        leftField.name(),
+                        leftField.dataType(),
+                        rightField.name(),
+                        rightField.dataType()
+                    )
+                );
+            }
+            // TODO: Add support for VERSION by implementing QueryList.versionTermQueryList similar to ipTermQueryList
+            if (Arrays.stream(UNSUPPORTED_TYPES).anyMatch(t -> rightField.dataType().equals(t))) {
+                failures.add(
+                    fail(leftField, "JOIN with right field [{}] of type [{}] is not supported", rightField.name(), rightField.dataType())
+                );
+            }
+        }
+    }
+
+    private static boolean comparableTypes(Attribute left, Attribute right) {
+        DataType leftType = left.dataType();
+        DataType rightType = right.dataType();
+        if (leftType.isNumeric() && rightType.isNumeric()) {
+            // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
+            return commonType(leftType, rightType) != null;
+        }
+        return leftType.noText() == rightType.noText();
     }
 }

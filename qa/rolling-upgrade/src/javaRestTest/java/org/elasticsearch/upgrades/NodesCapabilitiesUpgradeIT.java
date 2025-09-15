@@ -12,7 +12,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.UpdateForV9;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -20,7 +19,6 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 
-@UpdateForV9
 public class NodesCapabilitiesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static Boolean upgradingBeforeCapabilities;

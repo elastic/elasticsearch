@@ -9,6 +9,4 @@ Returns the substring that extracts 'length' chars from 'string' starting from t
 FROM employees
 | KEEP last_name
 | EVAL left = LEFT(last_name, 3)
-| SORT last_name ASC
-| LIMIT 5
 ```

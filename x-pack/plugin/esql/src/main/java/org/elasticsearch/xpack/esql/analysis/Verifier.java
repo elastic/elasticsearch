@@ -7,77 +7,45 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.LicenseAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
-import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
-import org.elasticsearch.xpack.esql.stats.FeatureMetric;
-import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -102,11 +70,45 @@ public class Verifier {
      */
     Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
         assert partialMetrics != null;
-        Set<Failure> failures = new LinkedHashSet<>();
-        // alias map, collected during the first iteration for better error messages
-        AttributeMap<Expression> aliases = new AttributeMap<>();
+        Failures failures = new Failures();
 
         // quick verification for unresolved attributes
+        checkUnresolvedAttributes(plan, failures);
+
+        // in case of failures bail-out as all other checks will be redundant
+        if (failures.hasFailures()) {
+            return failures.failures();
+        }
+
+        // collect plan checkers
+        var planCheckers = planCheckers(plan);
+
+        // Concrete verifications
+        plan.forEachDown(p -> {
+            // if the children are unresolved, so will this node; counting it will only add noise
+            if (p.childrenResolved() == false) {
+                return;
+            }
+
+            planCheckers.forEach(c -> c.accept(p, failures));
+
+            checkOperationsOnUnsignedLong(p, failures);
+            checkBinaryComparison(p, failures);
+        });
+
+        if (failures.hasFailures() == false) {
+            licenseCheck(plan, failures);
+        }
+
+        // gather metrics
+        if (failures.hasFailures() == false) {
+            gatherMetrics(plan, partialMetrics);
+        }
+
+        return failures.failures();
+    }
+
+    private static void checkUnresolvedAttributes(LogicalPlan plan, Failures failures) {
         plan.forEachUp(p -> {
             // if the children are unresolved, so will this node; counting it will only add noise
             if (p.childrenResolved() == false) {
@@ -118,7 +120,6 @@ public class Verifier {
             }
             // p is resolved, skip
             else if (p.resolved()) {
-                p.forEachExpressionUp(Alias.class, a -> aliases.put(a.toAttribute(), a.child()));
                 return;
             }
 
@@ -174,391 +175,37 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
-            } else if (p instanceof LookupJoin lj) {
-                // expect right side to always be a lookup index
-                lj.right().forEachUp(EsRelation.class, r -> {
-                    if (r.indexMode() != IndexMode.LOOKUP) {
-                        failures.add(
-                            fail(
-                                r,
-                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
-                                r.index().name(),
-                                r.indexMode().getName()
-                            )
-                        );
-                    }
-                });
             }
 
             else {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
+    }
 
-        // in case of failures bail-out as all other checks will be redundant
-        if (failures.isEmpty() == false) {
-            return failures;
-        }
-
-        // Concrete verifications
+    private static List<BiConsumer<LogicalPlan, Failures>> planCheckers(LogicalPlan plan) {
+        List<BiConsumer<LogicalPlan, Failures>> planCheckers = new ArrayList<>();
+        Consumer<? super Node<?>> collectPlanCheckers = p -> {
+            if (p instanceof PostAnalysisPlanVerificationAware pva) {
+                planCheckers.add(pva.postAnalysisPlanVerification());
+            }
+        };
         plan.forEachDown(p -> {
-            // if the children are unresolved, so will this node; counting it will only add noise
-            if (p.childrenResolved() == false) {
-                return;
-            }
-            checkFilterConditionType(p, failures);
-            checkAggregate(p, failures);
-            checkRegexExtractOnlyOnStrings(p, failures);
+            collectPlanCheckers.accept(p);
+            p.forEachExpression(collectPlanCheckers);
 
-            checkRow(p, failures);
-            checkEvalFields(p, failures);
-
-            checkOperationsOnUnsignedLong(p, failures);
-            checkBinaryComparison(p, failures);
-            checkForSortableDataTypes(p, failures);
-            checkSort(p, failures);
-
-            checkFullTextQueryFunctions(p, failures);
-        });
-        checkRemoteEnrich(plan, failures);
-
-        if (failures.isEmpty()) {
-            checkLicense(plan, licenseState, failures);
-        }
-
-        // gather metrics
-        if (failures.isEmpty()) {
-            gatherMetrics(plan, partialMetrics);
-        }
-
-        return failures;
-    }
-
-    private void checkSort(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof OrderBy ob) {
-            ob.order().forEach(o -> {
-                o.forEachDown(Function.class, f -> {
-                    if (f instanceof AggregateFunction) {
-                        failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+            if (p instanceof PostAnalysisVerificationAware va) {
+                planCheckers.add((lp, failures) -> {
+                    if (lp.getClass().equals(va.getClass())) {
+                        va.postAnalysisVerification(failures);
                     }
                 });
-            });
-        }
-    }
-
-    private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
-        if (p instanceof Filter f) {
-            Expression condition = f.condition();
-            if (condition.dataType() != BOOLEAN) {
-                localFailures.add(fail(condition, "Condition expression needs to be boolean, found [{}]", condition.dataType()));
             }
-        }
-    }
-
-    private static void checkAggregate(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Aggregate agg) {
-            List<Expression> groupings = agg.groupings();
-            AttributeSet groupRefs = new AttributeSet();
-            // check grouping
-            // The grouping can not be an aggregate function
-            groupings.forEach(e -> {
-                e.forEachUp(g -> {
-                    if (g instanceof AggregateFunction af) {
-                        failures.add(fail(g, "cannot use an aggregate [{}] for grouping", af));
-                    } else if (g instanceof GroupingFunction gf) {
-                        gf.children()
-                            .forEach(
-                                c -> c.forEachDown(
-                                    GroupingFunction.class,
-                                    inner -> failures.add(
-                                        fail(
-                                            inner,
-                                            "cannot nest grouping functions; found [{}] inside [{}]",
-                                            inner.sourceText(),
-                                            gf.sourceText()
-                                        )
-                                    )
-                                )
-                            );
-                    }
-                });
-                // keep the grouping attributes (common case)
-                Attribute attr = Expressions.attribute(e);
-                if (attr != null) {
-                    groupRefs.add(attr);
-                }
-                if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
-                    failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
-                }
-            });
-
-            // check aggregates - accept only aggregate functions or expressions over grouping
-            // don't allow the group by itself to avoid duplicates in the output
-            // and since the groups are copied, only look at the declared aggregates
-            List<? extends NamedExpression> aggs = agg.aggregates();
-            aggs.subList(0, aggs.size() - groupings.size()).forEach(e -> {
-                var exp = Alias.unwrap(e);
-                if (exp.foldable()) {
-                    failures.add(fail(exp, "expected an aggregate function but found [{}]", exp.sourceText()));
-                }
-                // traverse the tree to find invalid matches
-                checkInvalidNamedExpressionUsage(exp, groupings, groupRefs, failures, 0);
-            });
-            if (agg.aggregateType() == Aggregate.AggregateType.METRICS) {
-                aggs.forEach(a -> checkRateAggregates(a, 0, failures));
-            } else {
-                agg.forEachExpression(
-                    Rate.class,
-                    r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
-                );
-            }
-            checkCategorizeGrouping(agg, failures);
-        } else {
-            p.forEachExpression(
-                GroupingFunction.class,
-                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
-            );
-        }
-    }
-
-    /**
-     * Check CATEGORIZE grouping function usages.
-     * <p>
-     *     Some of those checks are temporary, until the required syntax or engine changes are implemented.
-     * </p>
-     */
-    private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
-        // Forbid CATEGORIZE grouping function with other groupings
-        if (agg.groupings().size() > 1) {
-            agg.groupings().forEach(g -> {
-                g.forEachDown(
-                    Categorize.class,
-                    categorize -> failures.add(
-                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
-                    )
-                );
-            });
-        }
-
-        // Forbid CATEGORIZE grouping functions not being top level groupings
-        agg.groupings().forEach(g -> {
-            // Check all CATEGORIZE but the top level one
-            Alias.unwrap(g)
-                .children()
-                .forEach(
-                    child -> child.forEachDown(
-                        Categorize.class,
-                        c -> failures.add(
-                            fail(c, "CATEGORIZE grouping function [{}] can't be used within other expressions", c.sourceText())
-                        )
-                    )
-                );
         });
-
-        // Forbid CATEGORIZE being used in the aggregations
-        agg.aggregates().forEach(a -> {
-            a.forEachDown(
-                Categorize.class,
-                categorize -> failures.add(
-                    fail(categorize, "cannot use CATEGORIZE grouping function [{}] within the aggregations", categorize.sourceText())
-                )
-            );
-        });
-
-        // Forbid CATEGORIZE being referenced in the aggregation functions
-        Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
-        agg.groupings().forEach(g -> {
-            g.forEachDown(Alias.class, alias -> {
-                if (alias.child() instanceof Categorize categorize) {
-                    categorizeByAliasId.put(alias.id(), categorize);
-                }
-            });
-        });
-        agg.aggregates()
-            .forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
-                var categorize = categorizeByAliasId.get(attribute.id());
-                if (categorize != null) {
-                    failures.add(
-                        fail(
-                            attribute,
-                            "cannot reference CATEGORIZE grouping function [{}] within the aggregations",
-                            attribute.sourceText()
-                        )
-                    );
-                }
-            })));
+        return planCheckers;
     }
 
-    private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
-        if (expr instanceof AggregateFunction) {
-            nestedLevel++;
-        }
-        if (expr instanceof Rate r) {
-            if (nestedLevel != 2) {
-                failures.add(
-                    fail(
-                        expr,
-                        "the rate aggregate [{}] can only be used within the metrics command and inside another aggregate",
-                        r.sourceText()
-                    )
-                );
-            }
-        }
-        for (Expression child : expr.children()) {
-            checkRateAggregates(child, nestedLevel, failures);
-        }
-    }
-
-    // traverse the expression and look either for an agg function or a grouping match
-    // stop either when no children are left, the leafs are literals or a reference attribute is given
-    private static void checkInvalidNamedExpressionUsage(
-        Expression e,
-        List<Expression> groups,
-        AttributeSet groupRefs,
-        Set<Failure> failures,
-        int level
-    ) {
-        // unwrap filtered expression
-        if (e instanceof FilteredExpression fe) {
-            e = fe.delegate();
-            // make sure they work on aggregate functions
-            if (e.anyMatch(AggregateFunction.class::isInstance) == false) {
-                Expression filter = fe.filter();
-                failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
-            }
-            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
-            if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
-                failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
-            }
-            // but that the filter doesn't use grouping or aggregate functions
-            fe.filter().forEachDown(c -> {
-                if (c instanceof AggregateFunction af) {
-                    failures.add(
-                        fail(af, "cannot use aggregate function [{}] in aggregate WHERE clause [{}]", af.sourceText(), fe.sourceText())
-                    );
-                }
-                // check the bucketing function against the group
-                else if (c instanceof GroupingFunction gf) {
-                    if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                        failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
-                    }
-                }
-            });
-        }
-        // found an aggregate, constant or a group, bail out
-        if (e instanceof AggregateFunction af) {
-            af.field().forEachDown(AggregateFunction.class, f -> {
-                // rate aggregate is allowed to be inside another aggregate
-                if (f instanceof Rate == false) {
-                    failures.add(fail(f, "nested aggregations [{}] not allowed inside other aggregations [{}]", f, af));
-                }
-            });
-        } else if (e instanceof GroupingFunction gf) {
-            // optimizer will later unroll expressions with aggs and non-aggs with a grouping function into an EVAL, but that will no longer
-            // be verified (by check above in checkAggregate()), so do it explicitly here
-            if (Expressions.anyMatch(groups, ex -> ex instanceof Alias a && a.child().semanticEquals(gf)) == false) {
-                failures.add(fail(gf, "can only use grouping function [{}] part of the BY clause", gf.sourceText()));
-            } else if (level == 0) {
-                addFailureOnGroupingUsedNakedInAggs(failures, gf, "function");
-            }
-        } else if (e.foldable()) {
-            // don't do anything
-        } else if (groups.contains(e) || groupRefs.contains(e)) {
-            if (level == 0) {
-                addFailureOnGroupingUsedNakedInAggs(failures, e, "key");
-            }
-        }
-        // if a reference is found, mark it as an error
-        else if (e instanceof NamedExpression ne) {
-            boolean foundInGrouping = false;
-            for (Expression g : groups) {
-                if (g.anyMatch(se -> se.semanticEquals(ne))) {
-                    foundInGrouping = true;
-                    failures.add(
-                        fail(
-                            e,
-                            "column [{}] cannot be used as an aggregate once declared in the STATS BY grouping key [{}]",
-                            ne.name(),
-                            g.sourceText()
-                        )
-                    );
-                    break;
-                }
-            }
-            if (foundInGrouping == false) {
-                failures.add(fail(e, "column [{}] must appear in the STATS BY clause or be used in an aggregate function", ne.name()));
-            }
-        }
-        // other keep on going
-        else {
-            for (Expression child : e.children()) {
-                checkInvalidNamedExpressionUsage(child, groups, groupRefs, failures, level + 1);
-            }
-        }
-    }
-
-    private static void addFailureOnGroupingUsedNakedInAggs(Set<Failure> failures, Expression e, String element) {
-        failures.add(
-            fail(e, "grouping {} [{}] cannot be used as an aggregate once declared in the STATS BY clause", element, e.sourceText())
-        );
-    }
-
-    private static void checkRegexExtractOnlyOnStrings(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof RegexExtract re) {
-            Expression expr = re.input();
-            DataType type = expr.dataType();
-            if (DataType.isString(type) == false) {
-                failures.add(
-                    fail(
-                        expr,
-                        "{} only supports KEYWORD or TEXT values, found expression [{}] type [{}]",
-                        re.getClass().getSimpleName(),
-                        expr.sourceText(),
-                        type
-                    )
-                );
-            }
-        }
-    }
-
-    private static void checkRow(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Row row) {
-            row.fields().forEach(a -> {
-                if (DataType.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
-                }
-            });
-        }
-    }
-
-    private static void checkEvalFields(LogicalPlan p, Set<Failure> failures) {
-        if (p instanceof Eval eval) {
-            eval.fields().forEach(field -> {
-                // check supported types
-                DataType dataType = field.dataType();
-                if (DataType.isRepresentable(dataType) == false) {
-                    failures.add(
-                        fail(
-                            field,
-                            "EVAL does not support type [{}] as the return data type of expression [{}]",
-                            dataType.typeName(),
-                            field.child().sourceText()
-                        )
-                    );
-                }
-                // check no aggregate functions are used
-                field.forEachDown(AggregateFunction.class, af -> {
-                    if (af instanceof Rate) {
-                        failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
-                    } else {
-                        failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
-                    }
-                });
-            });
-        }
-    }
-
-    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Set<Failure> failures) {
+    private static void checkOperationsOnUnsignedLong(LogicalPlan p, Failures failures) {
         p.forEachExpression(e -> {
             Failure f = null;
 
@@ -574,7 +221,7 @@ public class Verifier {
         });
     }
 
-    private static void checkBinaryComparison(LogicalPlan p, Set<Failure> failures) {
+    private static void checkBinaryComparison(LogicalPlan p, Failures failures) {
         p.forEachExpression(BinaryComparison.class, bc -> {
             Failure f = validateBinaryComparison(bc);
             if (f != null) {
@@ -583,11 +230,15 @@ public class Verifier {
         });
     }
 
-    private void checkLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
-        plan.forEachExpressionDown(Function.class, p -> {
-            if (p.checkLicense(licenseState) == false) {
-                failures.add(new Failure(p, "current license is non-compliant for function [" + p.sourceText() + "]"));
+    private void licenseCheck(LogicalPlan plan, Failures failures) {
+        Consumer<Node<?>> licenseCheck = n -> {
+            if (n instanceof LicenseAware la && la.licenseCheck(licenseState) == false) {
+                failures.add(fail(n, "current license is non-compliant for [{}]", n.sourceText()));
             }
+        };
+        plan.forEachDown(p -> {
+            licenseCheck.accept(p);
+            p.forEachExpression(Expression.class, licenseCheck);
         });
     }
 
@@ -601,8 +252,16 @@ public class Verifier {
         functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
+    public XPackLicenseState licenseState() {
+        return licenseState;
+    }
+
     /**
-     * Limit QL's comparisons to types we support.
+     * Limit QL's comparisons to types we support.  This should agree with
+     * {@link EsqlBinaryComparison}'s checkCompatibility method
+     *
+     * @return null if the given binary comparison has valid input types,
+     *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
         if (bc.left().dataType().isNumeric()) {
@@ -620,9 +279,6 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
-        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
-            allowed.add(DataType.SEMANTIC_TEXT);
-        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
         allowed.add(DataType.DATE_NANOS);
@@ -647,6 +303,12 @@ public class Verifier {
         if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
             return null;
         }
+
+        // Allow mixed millisecond and nanosecond binary comparisons
+        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+            return null;
+        }
+
         if (bc.left().dataType() != bc.right().dataType()) {
             return fail(
                 bc,
@@ -697,207 +359,6 @@ public class Verifier {
                 childExpressionType.typeName(),
                 neg.sourceText()
             );
-        }
-        return null;
-    }
-
-    /**
-     * Some datatypes are not sortable
-     */
-    private static void checkForSortableDataTypes(LogicalPlan p, Set<Failure> localFailures) {
-        if (p instanceof OrderBy ob) {
-            ob.order().forEach(order -> {
-                if (DataType.isSortable(order.dataType()) == false) {
-                    localFailures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
-                }
-            });
-        }
-    }
-
-    /**
-     * Ensure that no remote enrich is allowed after a reduction or an enrich with coordinator mode.
-     * <p>
-     * TODO:
-     * For Limit and TopN, we can insert the same node after the remote enrich (also needs to move projections around)
-     * to eliminate this limitation. Otherwise, we force users to write queries that might not perform well.
-     * For example, `FROM test | ORDER @timestamp | LIMIT 10 | ENRICH _remote:` doesn't work.
-     * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
-     * which is equivalent to bringing all data to the coordinating cluster.
-     * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
-     * retaining the originating cluster and restructing pages for routing, which might be complicated.
-     */
-    private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
-        boolean[] agg = { false };
-        boolean[] enrichCoord = { false };
-
-        plan.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof Aggregate) {
-                agg[0] = true;
-            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                enrichCoord[0] = true;
-            }
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (agg[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-                }
-                if (enrichCoord[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-                }
-            }
-        });
-    }
-
-    /**
-     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
-     *
-     * @param condition        condition to check for disjunctions
-     * @param typeNameProvider provider for the type name to add in the failure message
-     * @param failures         failures collection to add to
-     */
-    private static void checkNotPresentInDisjunctions(
-        Expression condition,
-        java.util.function.Function<FullTextFunction, String> typeNameProvider,
-        Set<Failure> failures
-    ) {
-        condition.forEachUp(Or.class, or -> {
-            checkNotPresentInDisjunctions(or.left(), or, typeNameProvider, failures);
-            checkNotPresentInDisjunctions(or.right(), or, typeNameProvider, failures);
-        });
-    }
-
-    /**
-     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
-     *
-     * @param parentExpression parent expression to add to the failure message
-     * @param or               disjunction that is being checked
-     * @param failures         failures collection to add to
-     */
-    private static void checkNotPresentInDisjunctions(
-        Expression parentExpression,
-        Or or,
-        java.util.function.Function<FullTextFunction, String> elementName,
-        Set<Failure> failures
-    ) {
-        parentExpression.forEachDown(FullTextFunction.class, ftp -> {
-            failures.add(
-                fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
-            );
-        });
-    }
-
-    /**
-     * Checks full text query functions for invalid usage.
-     *
-     * @param plan root plan to check
-     * @param failures failures found
-     */
-    private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
-        if (plan instanceof Filter f) {
-            Expression condition = f.condition();
-
-            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
-                // Check for limitations of QSTR and KQL function.
-                checkCommandsBeforeExpression(
-                    plan,
-                    condition,
-                    functionClass,
-                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
-                    failures
-                );
-            });
-
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                Match.class,
-                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
-                m -> "[" + m.functionName() + "] " + m.functionType(),
-                failures
-            );
-            checkNotPresentInDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
-            checkFullTextFunctionsParents(condition, failures);
-        } else {
-            plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
-            });
-        }
-    }
-
-    /**
-     * Checks all commands that exist before a specific type satisfy conditions.
-     *
-     * @param plan plan that contains the condition
-     * @param condition condition to check
-     * @param typeToken type to check for. When a type is found in the condition, all plans before the root plan are checked
-     * @param commandCheck check to perform on each command that precedes the plan that contains the typeToken
-     * @param typeErrorMsgProvider provider for the type name in the error message
-     * @param failures failures to add errors to
-     * @param <E> class of the type to look for
-     */
-    private static <E extends Expression> void checkCommandsBeforeExpression(
-        LogicalPlan plan,
-        Expression condition,
-        Class<E> typeToken,
-        Predicate<LogicalPlan> commandCheck,
-        java.util.function.Function<E, String> typeErrorMsgProvider,
-        Set<Failure> failures
-    ) {
-        condition.forEachDown(typeToken, exp -> {
-            plan.forEachDown(LogicalPlan.class, lp -> {
-                if (commandCheck.test(lp) == false) {
-                    failures.add(
-                        fail(
-                            plan,
-                            "{} cannot be used after {}",
-                            typeErrorMsgProvider.apply(exp),
-                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                        )
-                    );
-                }
-            });
-        });
-    }
-
-    /**
-     * Checks parents of a full text function to ensure they are allowed
-     * @param condition condition that contains the full text function
-     * @param failures failures to add errors to
-     */
-    private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
-        forEachFullTextFunctionParent(condition, (ftf, parent) -> {
-            if ((parent instanceof FullTextFunction == false)
-                && (parent instanceof BinaryLogic == false)
-                && (parent instanceof Not == false)) {
-                failures.add(
-                    fail(
-                        condition,
-                        "Invalid condition [{}]. [{}] {} can't be used with {}",
-                        condition.sourceText(),
-                        ftf.functionName(),
-                        ftf.functionType(),
-                        ((Function) parent).functionName()
-                    )
-                );
-            }
-        });
-    }
-
-    /**
-     * Executes the action on every parent of a FullTextFunction in the condition if it is found
-     *
-     * @param action the action to execute for each parent of a FullTextFunction
-     */
-    private static FullTextFunction forEachFullTextFunctionParent(Expression condition, BiConsumer<FullTextFunction, Expression> action) {
-        if (condition instanceof FullTextFunction ftf) {
-            return ftf;
-        }
-        for (Expression child : condition.children()) {
-            FullTextFunction foundMatchingChild = forEachFullTextFunctionParent(child, action);
-            if (foundMatchingChild != null) {
-                action.accept(foundMatchingChild, condition);
-                return foundMatchingChild;
-            }
         }
         return null;
     }

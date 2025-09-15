@@ -21,7 +21,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
 
-import static org.elasticsearch.test.cluster.FeatureFlag.FAILURE_STORE_ENABLED;
+import java.util.Objects;
 
 public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -47,7 +47,6 @@ public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
-            .feature(FAILURE_STORE_ENABLED)
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password");
@@ -55,6 +54,10 @@ public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         if (setNodes) {
             clusterBuilder.nodes(2);
         }
+        clusterBuilder.systemProperty("es.queryable_built_in_roles_enabled", () -> {
+            final String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
+            return Objects.requireNonNullElse(enabled, "");
+        });
         return clusterBuilder.build();
     }
 

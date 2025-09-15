@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 
 import java.util.Objects;
@@ -20,8 +21,12 @@ public class RLikePattern extends AbstractStringPattern {
     }
 
     @Override
-    public Automaton createAutomaton() {
-        return new RegExp(regexpPattern).toAutomaton();
+    public Automaton createAutomaton(boolean ignoreCase) {
+        int matchFlags = ignoreCase ? RegExp.ASCII_CASE_INSENSITIVE : 0;
+        return Operations.determinize(
+            new RegExp(regexpPattern, RegExp.ALL, matchFlags).toAutomaton(),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+        );
     }
 
     @Override

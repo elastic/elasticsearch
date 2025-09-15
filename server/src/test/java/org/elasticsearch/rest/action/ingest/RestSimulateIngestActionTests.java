@@ -175,6 +175,14 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                     "executed_pipelines" : [
                       "pipeline1",
                       "pipeline2"
+                    ],
+                    "ignored_fields" : [
+                      {
+                        "field" : "abc"
+                      },
+                      {
+                        "field" : "def"
+                      }
                     ]
                   }
                 },
@@ -199,6 +207,14 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                     "executed_pipelines" : [
                       "pipeline1",
                       "pipeline2"
+                    ],
+                    "ignored_fields" : [
+                      {
+                        "field" : "abc"
+                      },
+                      {
+                        "field" : "def"
+                      }
                     ]
                   }
                 }
@@ -228,6 +244,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 BytesReference.fromByteBuffers(sourceByteBuffer),
                 XContentType.JSON,
                 List.of("pipeline1", "pipeline2"),
+                List.of("abc", "def"),
                 null
             )
         );

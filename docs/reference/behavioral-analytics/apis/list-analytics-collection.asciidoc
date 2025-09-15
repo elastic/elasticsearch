@@ -8,6 +8,12 @@ beta::[]
 <titleabbrev>List Analytics Collections</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
+--
+
 ////
 [source,console]
 ----

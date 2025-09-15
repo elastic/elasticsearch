@@ -37,18 +37,12 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.SkipUnavailableRule;
+import org.elasticsearch.test.SkipUnavailableRule.NotSkipped;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
 import org.junit.Rule;
-import org.junit.rules.TestRule;
-import org.junit.runner.Description;
-import org.junit.runners.model.Statement;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -56,8 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
@@ -498,7 +490,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         assertThat(perCluster.get(REMOTE2), equalTo(null));
     }
 
-    @SkipOverride(aliases = { REMOTE1 })
+    @NotSkipped(aliases = { REMOTE1 })
     public void testRemoteTimesOutFailure() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters();
         String remoteIndex = (String) testClusterInfo.get("remote.index");
@@ -528,7 +520,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     /**
     * Search when all the remotes failed and not skipped
     */
-    @SkipOverride(aliases = { REMOTE1, REMOTE2 })
+    @NotSkipped(aliases = { REMOTE1, REMOTE2 })
     public void testFailedAllRemotesSearch() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
@@ -577,7 +569,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     /**
      * Test that we're still counting remote search even if remote cluster has no such index
      */
-    @SkipOverride(aliases = { REMOTE1 })
+    @NotSkipped(aliases = { REMOTE1 })
     public void testRemoteHasNoIndexFailure() throws Exception {
         SearchRequest searchRequest = makeSearchRequest(REMOTE1 + ":no_such_index");
         CCSTelemetrySnapshot telemetry = getTelemetryFromFailedSearch(searchRequest);
@@ -689,40 +681,4 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         return numDocs;
     }
 
-    /**
-     * Annotation to mark specific cluster in a test as not to be skipped when unavailable
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.METHOD)
-    @interface SkipOverride {
-        String[] aliases();
-    }
-
-    /**
-     * Test rule to process skip annotations
-     */
-    static class SkipUnavailableRule implements TestRule {
-        private final Map<String, Boolean> skipMap;
-
-        SkipUnavailableRule(String... clusterAliases) {
-            this.skipMap = Arrays.stream(clusterAliases).collect(Collectors.toMap(Function.identity(), alias -> true));
-        }
-
-        public Map<String, Boolean> getMap() {
-            return skipMap;
-        }
-
-        @Override
-        public Statement apply(Statement base, Description description) {
-            // Check for annotation named "SkipOverride" and set the overrides accordingly
-            var aliases = description.getAnnotation(SkipOverride.class);
-            if (aliases != null) {
-                for (String alias : aliases.aliases()) {
-                    skipMap.put(alias, false);
-                }
-            }
-            return base;
-        }
-
-    }
 }

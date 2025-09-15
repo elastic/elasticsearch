@@ -23,12 +23,13 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -373,19 +374,28 @@ public abstract class StreamInput extends InputStream {
         return new BigInteger(readString());
     }
 
+    private Text readText(int length) throws IOException {
+        byte[] bytes = new byte[length];
+        if (length > 0) {
+            readBytes(bytes, 0, length);
+        }
+        var encoded = new XContentString.UTF8Bytes(bytes);
+        return new Text(encoded);
+    }
+
     @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
         if (length == -1) {
             return null;
         }
-        return new Text(readBytesReference(length));
+        return readText(length);
     }
 
     public Text readText() throws IOException {
-        // use StringAndBytes so we can cache the string if it's ever converted to it
+        // use Text so we can cache the string if it's ever converted to it
         int length = readInt();
-        return new Text(readBytesReference(length));
+        return readText(length);
     }
 
     @Nullable
@@ -908,11 +918,8 @@ public abstract class StreamInput extends InputStream {
     private ZonedDateTime readZonedDateTime() throws IOException {
         final String timeZoneId = readString();
         final Instant instant;
-        if (getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-            // epoch seconds can be negative, but it was incorrectly first written as vlong
-            boolean zlong = getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT);
-            long seconds = zlong ? readZLong() : readVLong();
-            instant = Instant.ofEpochSecond(seconds, readInt());
+        if (getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+            instant = Instant.ofEpochSecond(readZLong(), readInt());
         } else {
             instant = Instant.ofEpochMilli(readLong());
         }

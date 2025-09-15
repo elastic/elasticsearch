@@ -113,10 +113,11 @@ Index mode supports the following values:
 
 `standard`::: Standard indexing with default settings.
 
-`time_series`::: Index mode optimized for storage of metrics documented in <<tsds-index-settings,TSDS Settings>>.
+`lookup`::: Index that can be used for lookup joins in ES|QL. Limited to 1 shard.
 
-`logsdb`::: Index mode optimized for storage of logs. It applies default sort settings on the `hostname` and `timestamp` fields and uses <<synthetic-source,synthetic `_source`>>. <<index-modules-index-sorting,Index sorting>> on different fields is still allowed.
-preview:[]
+`time_series`::: _(data streams only)_ Index mode optimized for storage of metrics. For more information, see <<tsds-index-settings>>.
+
+`logsdb`::: _(data streams only)_ Index mode optimized for <<logs-data-stream,logs>>.
 
 [[routing-partition-size]] `index.routing_partition_size`::
 
@@ -376,6 +377,10 @@ pipeline attempts to change the `_index` field, the indexing request will fail.
     returned by default when using a wildcard expression. This behavior is controlled
     per request through the use of the `expand_wildcards` parameter. Possible values are
     `true` and `false` (default).
+
+[[index-esql-stored-fields-sequential-proportion]] `index.esql.stored_fields_sequential_proportion`::
+
+    Tuning parameter for deciding when ES|QL will load <<search-fields-request,stored fields>> using a strategy tuned for loading dense sequence of documents. Allows values between 0.0 and 1.0 and defaults to 0.2. Indices with documents smaller than 10kb may see speed improvements loading `text` fields by setting this lower.
 
 [discrete]
 === Settings in other index modules

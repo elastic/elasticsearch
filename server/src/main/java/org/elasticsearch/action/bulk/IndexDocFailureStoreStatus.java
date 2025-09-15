@@ -12,7 +12,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -102,7 +101,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // We avoid adding the not_applicable status in the response to not increase the size of bulk responses.
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
+        if (this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
             builder.field("failure_store", label);
         }
         return builder;
@@ -124,7 +123,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
 
         public ExceptionWithFailureStoreStatus(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 failureStoreStatus = IndexDocFailureStoreStatus.fromId(in.readByte());
             } else {
                 failureStoreStatus = NOT_APPLICABLE_OR_UNKNOWN;
@@ -134,7 +133,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
         @Override
         protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeByte(failureStoreStatus.getId());
             }
         }

@@ -67,6 +67,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
@@ -200,8 +201,8 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
-        verifyDocs("metrics-bar", numDocsBar, 1, 1);
-        verifyDocs("metrics-foo", numDocsFoo, 1, 1);
+        verifyDocs("metrics-bar", numDocsBar);
+        verifyDocs("metrics-foo", numDocsFoo);
 
         RolloverResponse fooRolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
         assertThat(fooRolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-foo", 2));
@@ -232,8 +233,8 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo2 = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo2);
 
-        verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
-        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
+        verifyDocs("metrics-bar", numDocsBar + numDocsBar2);
+        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2);
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "metrics-*");
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest).actionGet();
@@ -467,7 +468,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(2, 16);
         indexDocs(dataStreamName, numDocs);
-        verifyDocs(dataStreamName, numDocs, 1, 1);
+        verifyDocs(dataStreamName, numDocs);
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -501,7 +502,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         int numDocs2 = randomIntBetween(2, 16);
         indexDocs(dataStreamName, numDocs2);
-        verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
+        verifyDocs(dataStreamName, numDocs + numDocs2);
 
         getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
@@ -946,7 +947,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String backingIndex = getDataStreamBackingIndexNames(dataStreamName).get(0);
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(backingIndex).aliases("first_gen");
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
@@ -1371,7 +1372,9 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(randomPositiveTimeValue())
+            .buildTemplate();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle, false);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
@@ -1387,7 +1390,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
-        assertThat(dataStream.getLifecycle(), is(lifecycle));
+        assertThat(dataStream.getDataLifecycle(), is(lifecycle.toDataStreamLifecycle()));
         assertThat(metricsFooDataStream.templatePreferIlmValue(), is(true));
         GetDataStreamAction.Response.IndexProperties indexProperties = metricsFooDataStream.getIndexSettingsValues()
             .get(dataStream.getWriteIndex());
@@ -1915,7 +1918,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
                     DataStream broken = original.copy()
                         .setBackingIndices(
-                            original.getBackingIndices()
+                            original.getDataComponent()
                                 .copy()
                                 .setIndices(
                                     List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1))
@@ -2032,11 +2035,8 @@ public class DataStreamIT extends ESIntegTestCase {
         });
     }
 
-    static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
-        List<String> expectedIndices = new ArrayList<>();
-        for (long k = minGeneration; k <= maxGeneration; k++) {
-            expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
-        }
+    static void verifyDocs(String dataStream, long expectedNumHits) {
+        List<String> expectedIndices = getDataStreamBackingIndexNames(dataStream);
         verifyDocs(dataStream, expectedNumHits, expectedIndices);
     }
 
@@ -2434,7 +2434,7 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle.Template lifecycle,
         boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
@@ -2447,9 +2447,10 @@ public class DataStreamIT extends ESIntegTestCase {
                         .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
                         .aliases(aliases)
                         .lifecycle(lifecycle)
+                        .dataStreamOptions(DataStreamTestHelper.createDataStreamOptionsTemplate(withFailureStore))
                 )
                 .metadata(metadata)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();

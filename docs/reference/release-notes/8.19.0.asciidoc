@@ -1,0 +1,542 @@
+[[release-notes-8.19.0]]
+== {es} version 8.19.0
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[breaking-8.19.0]]
+[float]
+=== Breaking changes
+
+Discovery-Plugins::
++
+.Migrates `discovery-ec2` plugin to AWS SDK v2
+[%collapsible]
+===============
+The `discovery-ec2` plugin now uses AWS SDK v2 instead of v1, as AWS plans to deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. AWS SDK v2 introduces several behavior changes that affect configuration.
+
+**Impact:**
+If you use the `discovery-ec2` plugin, your existing settings may no longer be compatible. Notable changes include, but may not be limited to:
+
+* AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+* AWS SDK v2 does not support the `aws.secretKey` or `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
+* AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so the `discovery.ec2.protocol` setting is no longer effective.
+* AWS SDK v2 does not accept an access key without a secret key or vice versa.
+
+**Action:**
+Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:
+
+* If you use IMDS to determine the availability zone of a node or to obtain credentials for accessing the EC2 API, ensure that it supports the IMDSv2 protocol.
+* If applicable, discontinue use of the `aws.secretKey` and `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
+* If applicable, specify that you wish to use the insecure HTTP protocol to access the EC2 API by setting `discovery.ec2.endpoint` to a URL which starts with `http://`.
+* Either supply both an access key and a secret key using the `discovery.ec2.access_key` and `discovery.ec2.secret_key` keystore settings, or configure neither of these settings.
+
+For more information, view {es-pull}122062[#122062].
+===============
+
+ES|QL::
++
+.ES|QL now returns partial results by default
+[%collapsible]
+===============
+In previous versions, ES|QL queries failed entirely when any error occurred. As of 8.19.0, ES|QL returns partial results instead.
+
+**Impact:**
+Callers must check the `is_partial` flag in the response to determine whether the result is complete. Relying on full results without checking this flag may lead to incorrect assumptions about the response.
+
+
+**Action:**
+If partial results are not acceptable for your use case, you can disable this behavior by:
+
+* Setting `allow_partial_results=false` in the query URL per request, or
+* Setting the `esql.query.allow_partial_results` cluster setting to `false`.
+
+
+For more information, view {es-pull}127351[#127351] (issue: {es-issue}122802[#122802])
+===============
++
+.Disallows parentheses in unquoted index patterns in ES|QL
+[%collapsible]
+===============
+To avoid ambiguity with subquery syntax, ES|QL no longer allows the use of `(` and `)` in unquoted index patterns.
+
+**Impact:**
+Queries that include parentheses in unquoted index names will now result in a parsing exception.
+
+**Action:**
+Update affected queries to quote index names that contain parentheses. For example, use `FROM "("foo")"` instead of `FROM (foo)`.
+
+For more information, view {es-pull}130427[#130427] (issue: {es-issue}130378[#130378])
+===============
++
+.Disallows mixing quoted and unquoted components in `FROM` index patterns
+[%collapsible]
+===============
+ES|QL no longer allows mixing quoted and unquoted parts in `FROM` index patterns (e.g. `FROM remote:"index"`). Previously, such patterns were parsed inconsistently and could result in misleading runtime errors.
+
+**Impact:**
+Queries using partially quoted index patterns—such as quoting only the index or only the remote cluster—will now be rejected at parse time. This change simplifies grammar handling and avoids confusing validation failures.
+
+**Action:**
+Ensure index patterns are either fully quoted or fully unquoted. For example:
+* Valid: `FROM "remote:index"` or `FROM remote:index`
+* Invalid: `FROM remote:"index"`, `FROM "remote":index`
+
+For more information, view {es-pull}127636[#127636] (issue: {es-issue}122651[#122651])
+===============
++
+.`skip_unavailable` now catches all remote cluster runtime errors in ES|QL
+[%collapsible]
+===============
+When `skip_unavailable` is set to `true`, ES|QL now treats all runtime errors from that cluster as non-fatal. Previously, this setting only applied to connectivity issues (i.e. when a cluster was unavailable).
+
+**Impact:**
+
+Errors such as missing indices on a remote cluster will no longer cause the query to fail. Instead, the cluster will appear in the response metadata as `skipped` or `partial`.
+
+**Action:**
+If your workflows rely on detecting remote cluster errors, review your use of `skip_unavailable` and adjust error handling as needed.
+
+For more information, view {es-pull}128163[#128163]
+===============
+
+Snapshot/Restore::
++
+.Upgrades `repository-s3` plugin to AWS SDK v2
+[%collapsible]
+===============
+The `repository-s3` plugin now uses AWS SDK v2 instead of v1, as AWS will deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. The two SDKs differ in behavior, which may require updates to your configuration.
+
+**Impact:**
+Existing `repository-s3` configurations may no longer be compatible. Notable differences in AWS SDK v2 include, but may not be limited to:
+
+* AWS SDK v2 requires users to specify the region to use for signing requests, or else to run in an environment in which it can determine the correct region automatically. The older SDK used to determine the region based on the endpoint URL as specified with the `s3.client.${CLIENT_NAME}.endpoint` setting, together with other data drawn from the operating environment, and fell back to `us-east-1` if no better value was found.
+* AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+* AWS SDK v2 does not support the `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
+* AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so the `s3.client.${CLIENT_NAME}.protocol` setting is deprecated and no longer has any effect.
+* AWS SDK v2 does not permit control over throttling for retries, so the `s3.client.${CLIENT_NAME}.use_throttle_retries` setting is deprecated and no longer has any effect.
+* AWS SDK v2 requires the use of the V4 signature algorithm, therefore, the `s3.client.${CLIENT_NAME}.signer_override` setting is deprecated and no longer has any effect.
+* AWS SDK v2 does not support the `log-delivery-write` canned ACL.
+* AWS SDK v2 counts 4xx responses differently in its metrics reporting.
+* AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v1 could use either a regional endpoint or the global `https://sts.amazonaws.com` one.
+
+**Action:**
+Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:
+
+* Specify the correct signing region using the `s3.client.${CLIENT_NAME}.region` setting on each node. {es} will try to determine the correct region based on the endpoint URL and other data drawn from the operating environment, but might not do so correctly in all cases.
+* If you use IMDS to determine the availability zone of a node or to obtain credentials for accessing the EC2 API, ensure that it supports the IMDSv2 protocol.
+* If applicable, discontinue use of the `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
+* If applicable, specify that you wish to use the insecure HTTP protocol to access the S3 API by setting `s3.client.${CLIENT_NAME}.endpoint` to a URL which starts with `http://`.
+* If applicable, discontinue use of the `log-delivery-write` canned ACL.
+
+For more information, view {es-pull}126843[#126843] (issue: {es-issue}120993[#120993])
+===============
+
+[[bug-8.19.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Let terms run in global ords mode no match {es-pull}124782[#124782]
+
+Analysis::
+* Analyze API to return 400 for wrong custom analyzer {es-pull}121568[#121568] (issue: {es-issue}121443[#121443])
+
+Data streams::
+* Move streams status actions to cluster:monitor group {es-pull}131015[#131015]
+* [apm-data] Set `event.dataset` if empty for logs {es-pull}129074[#129074]
+
+Distributed::
+* Drain responses on completion for `TransportNodesAction` {es-pull}130303[#130303]
+* Fix incorrect accounting of semantic text indexing memory pressure {es-pull}130221[#130221]
+
+ES|QL::
+* Add support to VALUES aggregation for spatial types {es-pull}122886[#122886] (issue: {es-issue}122413[#122413])
+* Allow the data type of `null` in filters {es-pull}118324[#118324] (issue: {es-issue}116351[#116351])
+* Disable `ReplaceStringCasingWithInsensitiveRegexMatch` rule in 8.19 {es-pull}131387[#131387]
+* Disable a bugged commit {es-pull}127199[#127199] (issue: {es-issue}127197[#127197])
+* Disable newly added Enrich tests for Old Elastic Versions {es-pull}131640[#131640] (issues: {es-issue}131590[#131590], {es-issue}131574[#131574], {es-issue}131591[#131591], {es-issue}131575[#131575], {es-issue}131578[#131578], {es-issue}131624[#131624], {es-issue}131576[#131576], {es-issue}131577[#131577], {es-issue}131580[#131580])
+* Disallow remote enrich after lu join {es-pull}131426[#131426] (issue: {es-issue}129372[#129372])
+* ESQL: Fail in `AggregateFunction` when `LogicPlan` is not an `Aggregate` {es-pull}124446[#124446] (issue: {es-issue}124311[#124311])
+* ESQL: Fix `NULL` handling in `IN` clause {es-pull}125832[#125832] (issue: {es-issue}119950[#119950])
+* ESQL: Fix `mv_expand` inconsistent column order {es-pull}129745[#129745] (issue: {es-issue}129000[#129000])
+* ESQL: Fix inconsistent results in using scaled_float field {es-pull}122586[#122586] (issue: {es-issue}122547[#122547])
+* ESQL: Preserve single aggregate when all attributes are pruned {es-pull}126397[#126397] (issue: {es-issue}126392[#126392])
+* ESQL: Retain aggregate when grouping {es-pull}126598[#126598] (issue: {es-issue}126026[#126026])
+* ES|QL: Fix scoring for full text functions {es-pull}124540[#124540]
+* Fail with 500 not 400 for `ValueExtractor` bugs {es-pull}126296[#126296]
+* Fix LIMIT NPE with null value {es-pull}130914[#130914] (issue: {es-issue}130908[#130908])
+* Fix `PushQueriesIT.testLike()` fails {es-pull}129647[#129647]
+* Fix `PushQueryIT#testEqualityOrTooBig` {es-pull}129657[#129657] (issue: {es-issue}129545[#129545])
+* Fix behavior for `_index` LIKE for ESQL {es-pull}130849[#130849] (issue: {es-issue}129511[#129511])
+* Fix case insensitive comparisons to "" {es-pull}127532[#127532] (issue: {es-issue}127431[#127431])
+* Fix constant keyword optimization {es-pull}129278[#129278]
+* Fix conversion of a Lucene wildcard pattern to a regexp {es-pull}128750[#128750] (issues: {es-issue}128677[#128677], {es-issue}128676[#128676])
+* Fix function registry concurrency issues on constructor {es-pull}123492[#123492] (issue: {es-issue}123430[#123430])
+* Fix queries with missing index, `skip_unavailable` and filters {es-pull}130344[#130344]
+* Fix validation NPE in Enrich and add extra @Nullable annotations {es-pull}128260[#128260] (issues: {es-issue}126297[#126297], {es-issue}126253[#126253])
+* Handle unavailable MD5 in ES|QL {es-pull}130158[#130158]
+* No, line noise isn't a valid ip {es-pull}127527[#127527]
+* Prevent search functions work with a non-STANDARD index {es-pull}130638[#130638] (issues: {es-issue}130561[#130561], {es-issue}129778[#129778])
+* Resolve groupings in aggregate before resolving references to groupings in the aggregations {es-pull}127524[#127524]
+* Retrieve token text only when necessary {es-pull}126578[#126578]
+* Support avg on aggregate metric double {es-pull}130421[#130421]
+* TO_IP can handle leading zeros {es-pull}126532[#126532] (issue: {es-issue}125460[#125460])
+* TO_LOWER processes all values {es-pull}124676[#124676] (issue: {es-issue}124002[#124002])
+
+Engine::
+* Hold store reference in `InternalEngine#performActionWithDirectoryReader(...)` {es-pull}123010[#123010] (issue: {es-issue}122974[#122974])
+
+Highlighting::
+* Fix semantic highlighting bug on flat quantized fields {es-pull}131525[#131525] (issue: {es-issue}131443[#131443])
+
+ILM+SLM::
+* Fix `PolicyStepsRegistry` cache concurrency issue {es-pull}126840[#126840] (issue: {es-issue}118406[#118406])
+* Fix equality bug in `WaitForIndexColorStep` {es-pull}126605[#126605]
+* Inject an unfollow action before executing a downsample action in ILM {es-pull}105773[#105773] (issue: {es-issue}105773[#105773])
+* Prevent ILM from processing shrunken index before its execution state is copied over {es-pull}129455[#129455] (issue: {es-issue}109206[#109206])
+* The follower index should wait until the time series end time passes before unfollowing the leader index. {es-pull}128361[#128361] (issue: {es-issue}128129[#128129])
+
+Indices APIs::
+* Specify master timeout when submitting alias tasks {es-pull}130733[#130733] (issue: {es-issue}120389[#120389])
+* Using a temp `IndexService` for template validation {es-pull}129507[#129507] (issue: {es-issue}129473[#129473])
+* [8.x] Avoid hoarding cluster state references during rollover {es-pull}124265[#124265]
+
+Infra/Node Lifecycle::
+* Better handling of node ids from shutdown metadata (avoid NPE on already removed nodes) {es-pull}128298[#128298] (issue: {es-issue}100201[#100201])
+
+Infra/REST API::
+* Fix NPE in APMTracer through `RestController` {es-pull}128314[#128314]
+* Improve handling of empty response {es-pull}125562[#125562] (issue: {es-issue}57639[#57639])
+
+Ingest Node::
+* Correctly handle non-integers in nested paths in the remove processor {es-pull}127006[#127006]
+* Correctly handle nulls in nested paths in the remove processor {es-pull}126417[#126417]
+* Correctly handling `download_database_on_pipeline_creation` within a pipeline processor within a default or final pipeline {es-pull}131236[#131236]
+* apm-data: Use representative count as event.success_count if available {es-pull}119995[#119995]
+
+Logs::
+* Force niofs for fdt tmp file read access when flushing stored fields {es-pull}130308[#130308]
+
+Machine Learning::
+* Adding timeout to request for creating inference endpoint {es-pull}126805[#126805]
+* Change ModelLoaderUtils.split to return the correct number of chunks and ranges. {es-pull}126009[#126009] (issue: {es-issue}121799[#121799])
+* Fix ELAND endpoints not updating dimensions {es-pull}126537[#126537]
+* Provide model size statistics as soon as an anomaly detection job is opened {es-pull}124638[#124638] (issue: {es-issue}121168[#121168])
+* Return a Conflict status code if the model deployment is stopped by a user {es-pull}125204[#125204] (issue: {es-issue}123745[#123745])
+* Revert endpoint creation validation for ELSER and E5 {es-pull}126792[#126792]
+* Updates to allow using Cohere binary embedding response in semantic search queries {es-pull}121827[#121827]
+* Use INTERNAL_INGEST for Inference {es-pull}127522[#127522] (issue: {es-issue}127519[#127519])
+
+Mapping::
+* Check prefixes when constructing synthetic source for flattened fields {es-pull}129580[#129580] (issue: {es-issue}129508[#129508])
+* Fix propagation of dynamic mapping parameter when applying `copy_to` {es-pull}121109[#121109] (issue: {es-issue}113049[#113049])
+* Synthetic source: avoid storing multi fields of type text and `match_only_text` by default {es-pull}129126[#129126]
+
+Ranking::
+* LTR score bounding {es-pull}125694[#125694]
+
+Relevance::
+* Prevent Query Rule Creation with Invalid Numeric Match Criteria {es-pull}122823[#122823]
+
+Search::
+* 8.x branch backport for leting MLTQuery throw IAE when no analyzer is set {es-pull}125192[#125192]
+* Check positions on `MultiPhraseQueries` as well as phrase queries {es-pull}129326[#129326] (issue: {es-issue}123871[#123871])
+* Filter out empty top docs results before merging {es-pull}126385[#126385] (issue: {es-issue}126118[#126118])
+* Fix - NPE on batched query execution when the request is part of PIT with alias filters {es-pull}128552[#128552]
+* Fix NPE in `SemanticTextHighlighter` {es-pull}129509[#129509] (issue: {es-issue}129501[#129501])
+* Fix NPE in semantic highlighter {es-pull}128989[#128989] (issue: {es-issue}128975[#128975])
+* Fix bug in point in time response {es-pull}131391[#131391] (issue: {es-issue}131026[#131026])
+* Fix inner hits + aggregations concurrency bug {es-pull}128036[#128036] (issue: {es-issue}122419[#122419])
+* Fix query rewrite logic to preserve `boosts` and `queryName` for `match`, `knn`, and `sparse_vector` queries on semantic_text fields {es-pull}129282[#129282]
+* Improve execution of terms queries over wildcard fields {es-pull}128986[#128986] (issue: {es-issue}128201[#128201])
+* Let MLTQuery throw IAE when no analyzer is set {es-pull}124662[#124662] (issue: {es-issue}124562[#124562])
+* Remove empty results before merging {es-pull}126770[#126770] (issue: {es-issue}126742[#126742])
+* Simplified Linear & RRF Retrievers - Return error on empty fields param {es-pull}129962[#129962]
+
+Snapshot/Restore::
+* Limit number of suppressed S3 deletion errors {es-pull}123630[#123630] (issue: {es-issue}123354[#123354])
+* Run `newShardSnapshotTask` tasks concurrently {es-pull}126452[#126452]
+* Throw better exception if verifying empty repo {es-pull}131677[#131677]
+
+Suggesters::
+* Support duplicate suggestions in completion field {es-pull}121324[#121324] (issue: {es-issue}82432[#82432])
+
+TLS::
+* Watch SSL files instead of directories {es-pull}129738[#129738]
+
+Vector Search::
+* Fix bbq quantization algorithm but for differently distributed components {es-pull}126778[#126778]
+* Fix top level knn search with scroll {es-pull}126035[#126035]
+* Patch for Lucene bug 14857 {es-pull}130254[#130254]
+
+[[deprecation-8.19.0]]
+[float]
+=== Deprecations
+
+Engine::
+* Deprecate `indices.merge.scheduler.use_thread_pool` setting {es-pull}129464[#129464]
+
+Infra/Core::
+* Add deprecation warning to `TransportHandshaker` {es-pull}123627[#123627]
+
+[[enhancement-8.19.0]]
+[float]
+=== Enhancements
+
+Allocation::
+* Add cache support in `TransportGetAllocationStatsAction` {es-pull}125588[#125588] (issue: {es-issue}110716[#110716])
+* More efficient sort in `tryRelocateShard` {es-pull}128063[#128063]
+
+Authentication::
+* Implement SAML custom attributes support for Identity Provider {es-pull}128176[#128176]
+* Permit at+jwt typ header value in jwt access tokens {es-pull}126687[#126687] (issue: {es-issue}119370[#119370])
+
+Authorization::
+* Check `TooComplex` exception for `HasPrivileges` body {es-pull}128870[#128870]
+* Granting `kibana_system` reserved role access to "all" privileges to `.adhoc.alerts*` and `.internal.adhoc.alerts*` indices {es-pull}127321[#127321]
+
+CCS::
+* Check if index patterns conform to valid format before validation {es-pull}122497[#122497]
+
+Codec::
+* First step optimizing tsdb doc values codec merging {es-pull}125403[#125403]
+
+Data streams::
+* Add index mode to get data stream API {es-pull}122486[#122486]
+* Set cause on create index request in create from action {es-pull}124363[#124363]
+* [Failure store] Introduce dedicated failure store lifecycle configuration {es-pull}127314[#127314]
+* [Failure store] Introduce default retention for failure indices {es-pull}127573[#127573]
+* [apm-data] Enable 'date_detection' for all apm data streams {es-pull}128913[#128913]
+
+ES|QL::
+* Add MATCH_PHRASE {es-pull}127661[#127661]
+* Add Support for LIKE (LIST) {es-pull}129170[#129170]
+* Add `documents_found` and `values_loaded` {es-pull}125631[#125631]
+* Add emit time to hash aggregation status {es-pull}127988[#127988]
+* Add local optimizations for `constant_keyword` {es-pull}127549[#127549]
+* Add optimization to purge join on null merge key {es-pull}127583[#127583] (issue: {es-issue}125577[#125577])
+* Add support for LOOKUP JOIN on aliases {es-pull}128519[#128519]
+* Add support for parameters in LIMIT command {es-pull}128464[#128464]
+* Allow lookup join on mixed numeric fields {es-pull}128263[#128263]
+* Allow partial results in ES|QL {es-pull}121942[#121942]
+* Allow skip shards with `_tier` and `_index` in ES|QL {es-pull}123728[#123728]
+* Avoid `NamedWritable` in block serialization {es-pull}124394[#124394]
+* Double parameter markers for identifiers {es-pull}122459[#122459]
+* ESQL: Align `RENAME` behavior with `EVAL` for sequential processing {es-pull}122250[#122250] (issue: {es-issue}121739[#121739])
+* ESQL: Enhanced `DATE_TRUNC` with arbitrary intervals {es-pull}120302[#120302] (issue: {es-issue}120094[#120094])
+* ES|QL - Add `match_phrase` full text function (tech preview) {es-pull}128925[#128925]
+* ES|QL - Add scoring for full text functions disjunctions {es-pull}121793[#121793]
+* ES|QL - Allow full text functions to be used in STATS {es-pull}125479[#125479] (issue: {es-issue}125481[#125481])
+* ES|QL slow log {es-pull}124094[#124094]
+* ES|QL: Support `::date` in inline cast {es-pull}123460[#123460] (issue: {es-issue}116746[#116746])
+* Ensure cluster string could be quoted {es-pull}120355[#120355]
+* Fix Driver status iterations and `cpuTime` {es-pull}123290[#123290] (issue: {es-issue}122967[#122967])
+* Fix sorting when `aggregate_metric_double` present {es-pull}125191[#125191]
+* Heuristics to pick efficient partitioning {es-pull}125739[#125739]
+* Implement runtime skip_unavailable=true {es-pull}121240[#121240]
+* Include failures in partial response {es-pull}124929[#124929]
+* Infer the score mode to use from the Lucene collector {es-pull}125930[#125930]
+* Introduce `AggregateMetricDoubleBlock` {es-pull}127299[#127299]
+* Introduce `allow_partial_results` setting in ES|QL {es-pull}122890[#122890]
+* Introduce a pre-mapping logical plan processing step {es-pull}121260[#121260]
+* Keep ordinals in conversion functions {es-pull}125357[#125357]
+* Limit Replace function memory usage {es-pull}127924[#127924]
+* Optimize ordinal inputs in Values aggregation {es-pull}127849[#127849]
+* Push more `==`s on text fields to lucene {es-pull}126641[#126641]
+* Pushdown Lookup Join past Project {es-pull}129503[#129503] (issue: {es-issue}119082[#119082])
+* Pushdown constructs doing case-insensitive regexes {es-pull}128393[#128393] (issue: {es-issue}127479[#127479])
+* Pushdown for LIKE (LIST) {es-pull}129557[#129557]
+* ROUND_TO function {es-pull}128278[#128278]
+* ROUND_TO function {es-pull}128397[#128397]
+* Render `aggregate_metric_double` {es-pull}122660[#122660]
+* Report `original_types` {es-pull}124913[#124913]
+* Report failures on partial results {es-pull}124823[#124823]
+* Retry ES|QL node requests on shard level failures {es-pull}120774[#120774]
+* Retry shard movements during ESQL query {es-pull}126653[#126653]
+* Run coordinating `can_match` in field-caps {es-pull}127734[#127734]
+* Speed loading stored fields {es-pull}127348[#127348]
+* Speed up TO_IP {es-pull}126338[#126338]
+* Support partial results in CCS in ES|QL {es-pull}122708[#122708]
+* Support subset of metrics in aggregate metric double {es-pull}121805[#121805]
+* Take double parameter markers for identifiers out of snapshot {es-pull}125690[#125690]
+* `ToAggregateMetricDouble` function {es-pull}124595[#124595]
+* `text ==` and `text !=` pushdown {es-pull}127355[#127355]
+
+ILM+SLM::
+* Add `index.lifecycle.skip` index-scoped setting to instruct ILM to skip processing specific indices {es-pull}128736[#128736]
+* Batch ILM policy cluster state updates [#122917] {es-pull}126529[#126529] (issue: {es-issue}122917[#122917])
+* Truncate `step_info` and error reason in ILM execution state and history {es-pull}125054[#125054] (issue: {es-issue}124181[#124181])
+
+IdentityProvider::
+* Add "extension" attribute validation to IdP SPs {es-pull}128805[#128805]
+
+Inference::
+* Adding Google VertexAI chat completion integration {es-pull}128105[#128105]
+* Adding Google VertexAI completion integration {es-pull}128694[#128694]
+* [8.x][Inference API] Rename `model_id` prop to model in EIS sparse inference request body {es-pull}122401[#122401]
+
+Infra/Core::
+* Improve support for bytecode patching signed jars {es-pull}128613[#128613]
+
+Ingest Node::
+* Allow setting the `type` in the reroute processor {es-pull}122409[#122409] (issue: {es-issue}121553[#121553])
+* Update traces duration mappings with appropriate unit type {es-pull}129418[#129418]
+
+Logs::
+* Conditionally force sequential reading in `LuceneSyntheticSourceChangesSnapshot` {es-pull}128473[#128473]
+
+Machine Learning::
+* Add Custom inference service {es-pull}127939[#127939]
+* Add `ModelRegistryMetadata` to Cluster State {es-pull}121106[#121106]
+* Add recursive chunker {es-pull}126866[#126866]
+* Added Mistral Chat Completion support to the Inference Plugin {es-pull}128538[#128538]
+* Adding VoyageAI's v3.5 models {es-pull}128241[#128241]
+* Adding common rerank options to Perform Inference API {es-pull}125239[#125239] (issue: {es-issue}111273[#111273])
+* Adding elser default endpoint for EIS {es-pull}122066[#122066]
+* Adding endpoint creation validation to `ElasticInferenceService` {es-pull}117642[#117642]
+* Adding integration for VoyageAI embeddings and rerank models {es-pull}122134[#122134]
+* Adding support for binary embedding type to Cohere service embedding type {es-pull}120751[#120751]
+* Adding support for specifying embedding type to Jina AI service settings {es-pull}121548[#121548]
+* Adding validation to `ElasticsearchInternalService` {es-pull}123044[#123044]
+* Bedrock Cohere Task Settings Support {es-pull}126493[#126493] (issue: {es-issue}126156[#126156])
+* Expose `input_type` option at root level for `text_embedding` task type in Perform Inference API {es-pull}122638[#122638] (issue: {es-issue}117856[#117856])
+* Improve exception for trained model deployment scale up timeout {es-pull}128218[#128218]
+* Integrate `OpenAi` Chat Completion in `SageMaker` {es-pull}127767[#127767]
+* Integrate with `DeepSeek` API {es-pull}122218[#122218]
+* Move to the Cohere V2 API for new inference endpoints {es-pull}129884[#129884]
+* Semantic Text Chunking Indexing Pressure {es-pull}125517[#125517]
+* [Inference API] Propagate product use case http header to EIS {es-pull}124025[#124025]
+* [ML] Add HuggingFace Chat Completion support to the Inference Plugin {es-pull}127254[#127254]
+* [ML] Add Rerank support to the Inference Plugin {es-pull}127966[#127966]
+* [ML] Integrate SageMaker with OpenAI Embeddings {es-pull}126856[#126856]
+* `InferenceService` support aliases {es-pull}128584[#128584]
+* `SageMaker` Elastic Payload {es-pull}129413[#129413]
+
+Mapping::
+* Add `index_options` to `semantic_text` field mappings {es-pull}119967[#119967]
+* Add block loader from stored field and source for ip field {es-pull}126644[#126644]
+* Do not respect synthetic_source_keep=arrays if type parses arrays {es-pull}127796[#127796] (issue: {es-issue}126155[#126155])
+* Enable synthetic recovery source by default when synthetic source is enabled. Using synthetic recovery source significantly improves indexing performance compared to regular recovery source. {es-pull}122615[#122615] (issue: {es-issue}116726[#116726])
+* Enable the use of nested field type with index.mode=time_series {es-pull}122224[#122224] (issue: {es-issue}120874[#120874])
+* Exclude `semantic_text` subfields from field capabilities API {es-pull}127664[#127664]
+* Improved error message when index field type is invalid {es-pull}122860[#122860]
+* Introduce `FallbackSyntheticSourceBlockLoader` and apply it to keyword fields {es-pull}119546[#119546]
+* Refactor `SourceProvider` creation to consistently use `MappingLookup` {es-pull}128213[#128213]
+* Store arrays offsets for boolean fields natively with synthetic source {es-pull}125529[#125529]
+* Store arrays offsets for ip fields natively with synthetic source {es-pull}122999[#122999]
+* Store arrays offsets for keyword fields natively with synthetic source instead of falling back to ignored source. {es-pull}113757[#113757]
+* Store arrays offsets for numeric fields natively with synthetic source {es-pull}124594[#124594]
+* Store arrays offsets for unsigned long fields natively with synthetic source {es-pull}125709[#125709]
+* Update `sparse_vector` field mapping to include default setting for token pruning {es-pull}129089[#129089]
+* Use `FallbackSyntheticSourceBlockLoader` for `shape` and `geo_shape` {es-pull}124927[#124927]
+* Use `FallbackSyntheticSourceBlockLoader` for `unsigned_long` and `scaled_float` fields {es-pull}122637[#122637]
+* Use `FallbackSyntheticSourceBlockLoader` for boolean and date fields {es-pull}124050[#124050]
+* Use `FallbackSyntheticSourceBlockLoader` for number fields {es-pull}122280[#122280]
+* Use `FallbackSyntheticSourceBlockLoader` for point and `geo_point` {es-pull}125816[#125816]
+* Use `FallbackSyntheticSourceBlockLoader` for text fields {es-pull}126237[#126237]
+
+Network::
+* Set `connection: close` header on shutdown {es-pull}128025[#128025] (issue: {es-issue}127984[#127984])
+
+Ranking::
+* Leverage scorer supplier in `QueryFeatureExtractor` {es-pull}125259[#125259]
+
+Relevance::
+* Add l2_norm normalization support to linear retriever {es-pull}128504[#128504]
+* Add pinned retriever {es-pull}126401[#126401]
+* Default new `semantic_text` fields to use BBQ when models are compatible {es-pull}126629[#126629]
+* Skip semantic_text embedding generation when no content is provided. {es-pull}123763[#123763]
+* Support configurable chunking in `semantic_text` fields {es-pull}121041[#121041]
+
+Search::
+* Add min score linear retriever {es-pull}129359[#129359]
+* Enable sort optimization on float and `half_float` {es-pull}126342[#126342]
+* Enable sort optimization on int, short and byte fields {es-pull}127968[#127968] (issue: {es-issue}127965[#127965])
+* Introduce batched query execution and data-node side reduce {es-pull}121885[#121885]
+* Optimize memory usage in `ShardBulkInferenceActionFilter` {es-pull}124313[#124313]
+* Optionally allow text similarity reranking to fail {es-pull}121784[#121784]
+* Return float[] instead of List<Double> in `valueFetcher` {es-pull}126702[#126702]
+* Simplified Linear Retriever {es-pull}129200[#129200]
+* Simplified RRF Retriever {es-pull}129659[#129659]
+* Wrap remote errors with cluster name to provide more context {es-pull}123156[#123156]
+
+Snapshot/Restore::
+* Improve get-snapshots message for unreadable repository {es-pull}128273[#128273]
+* Optimize shared blob cache evictions on shard removal Shared blob cache evictions occur on the cluster applier thread when shards are removed from a node. These can be expensive if a large number of shards are being removed. This change uses the context of the removal to avoid unnecessary evictions that might hold up the applier thread.  {es-pull}126581[#126581]
+* Update shardGenerations for all indices on snapshot finalization {es-pull}128650[#128650] (issue: {es-issue}108907[#108907])
+
+Stats::
+* Optimize sparse vector stats collection {es-pull}128740[#128740]
+
+Vector Search::
+* Add bit vector support to semantic text {es-pull}123187[#123187]
+* Allow zero for `rescore_vector.oversample` to indicate by-passing oversample and rescoring {es-pull}125599[#125599]
+* Define a default oversample value for dense vectors with bbq_hnsw/bbq_flat {es-pull}127134[#127134]
+* Make `dense_vector` fields updatable to bbq_flat/bbq_hnsw {es-pull}128291[#128291]
+* New `vector_rescore` parameter as a quantized index type option {es-pull}124581[#124581]
+* Panama vector accelerated optimized scalar quantization {es-pull}127118[#127118]
+
+[[feature-8.19.0]]
+[float]
+=== New features
+
+Authorization::
+* Delegated authorization using Microsoft Graph (SDK) {es-pull}128396[#128396]
+
+Data streams::
+* Add ability to redirect ingestion failures on data streams to a failure store {es-pull}126973[#126973]
+
+ES|QL::
+* COMPLETION command grammar and logical plan {es-pull}126319[#126319]
+* Calculate concurrent node limit {es-pull}124901[#124901]
+* ES|QL - Add COMPLETION command as a tech preview feature {es-pull}128948[#128948] (issue: {es-issue}124405[#124405])
+* ES|QL cross-cluster querying is now generally available {es-pull}130034[#130034]
+* Log partial failures {es-pull}129164[#129164]
+* Push more ==s on text fields to lucene (backport) {es-pull}128156[#128156]
+
+Engine::
+* Threadpool merge executor is aware of available disk space {es-pull}127613[#127613]
+* Threadpool merge scheduler {es-pull}120869[#120869]
+
+Ingest Node::
+* Adding `NormalizeForStreamProcessor` {es-pull}125699[#125699]
+
+Machine Learning::
+* Add `none` chunking strategy to disable automatic chunking for inference endpoints {es-pull}129150[#129150]
+* ES|QL SAMPLE aggregation function {es-pull}127629[#127629]
+* ES|QL `change_point` processing command {es-pull}120998[#120998]
+* ES|QL random sampling {es-pull}125570[#125570]
+* Limit the number of chunks for semantic text to prevent high memory usage {es-pull}123150[#123150]
+* Mark token pruning for sparse vector as GA {es-pull}130212[#130212]
+
+Ranking::
+* Adding ES|QL Reranker command in snapshot builds {es-pull}123074[#123074]
+
+Search::
+* Added optional parameters to QSTR ES|QL function {es-pull}121787[#121787] (issue: {es-issue}120933[#120933])
+* ESQL - Enable telemetry for COMPLETION command {es-pull}127731[#127731]
+
+Vector Search::
+* Add option to include or exclude vectors from `_source` retrieval {es-pull}128735[#128735]
+
+[[upgrade-8.19.0]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager. {es-pull}125076[#125076]
+
+Machine Learning::
+* Upgrade AWS v2 SDK to 2.30.38 {es-pull}124738[#124738]
+
+Packaging::
+* Update default docker base image to Ubuntu 24.04 {es-pull}128534[#128534]
+
+Search::
+* [8.19] Upgrade to lucene 9.12.2 {es-pull}129555[#129555]
+
+Snapshot/Restore::
+* Upgrade AWS Java SDK to 2.31.78 {es-pull}131050[#131050]
+* Upgrade AWS SDK to v1.12.746 {es-pull}122431[#122431]
+
+

@@ -1,8 +1,8 @@
 {
   "connector.sync_job_claim": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/claim-connector-sync-job-api.html",
-      "description": "Claims a connector sync job."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/claim-connector-sync-job-api.html",
+      "description": "Claim a connector sync job"
     },
     "stability": "experimental",
     "visibility": "public",

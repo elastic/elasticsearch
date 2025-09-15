@@ -13,23 +13,23 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateMetricDoubleFieldData;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.function.Function;
 
 public class AggregateMetricsValuesSource {
-    public abstract static class AggregateDoubleMetric extends org.elasticsearch.search.aggregations.support.ValuesSource {
+    public abstract static class AggregateMetricDouble extends org.elasticsearch.search.aggregations.support.ValuesSource {
 
         public abstract SortedNumericDoubleValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException;
 
-        public static class Fielddata extends AggregateDoubleMetric {
+        public static class Fielddata extends AggregateMetricDouble {
 
-            protected final IndexAggregateDoubleMetricFieldData indexFieldData;
+            protected final IndexAggregateMetricDoubleFieldData indexFieldData;
 
-            public Fielddata(IndexAggregateDoubleMetricFieldData indexFieldData) {
+            public Fielddata(IndexAggregateMetricDoubleFieldData indexFieldData) {
                 this.indexFieldData = indexFieldData;
             }
 
@@ -51,7 +51,7 @@ public class AggregateMetricsValuesSource {
 
             @Override
             protected Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
-                throw AggregationErrors.unsupportedRounding(AggregateDoubleMetricFieldMapper.CONTENT_TYPE);
+                throw AggregationErrors.unsupportedRounding(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
             }
 
             public SortedNumericDoubleValues getAggregateMetricValues(LeafReaderContext context, Metric metric) throws IOException {

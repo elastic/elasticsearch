@@ -60,20 +60,13 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return EmptyAttribute.class.hashCode();
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-
+    protected boolean innerEquals(Object o) {
         return true;
     }
 }

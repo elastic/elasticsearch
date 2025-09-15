@@ -21,11 +21,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -399,7 +399,8 @@ public abstract class StreamOutput extends OutputStream {
             writeInt(spare.length());
             write(spare.bytes(), 0, spare.length());
         } else {
-            BytesReference bytes = text.bytes();
+            var encoded = text.bytes();
+            BytesReference bytes = new BytesArray(encoded.bytes(), encoded.offset(), encoded.length());
             writeInt(bytes.length());
             bytes.writeTo(this);
         }
@@ -768,13 +769,8 @@ public abstract class StreamOutput extends OutputStream {
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
             Instant instant = zonedDateTime.toInstant();
-            if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT_BROKEN)) {
-                // epoch seconds can be negative, but it was incorrectly first written as vlong
-                if (o.getTransportVersion().onOrAfter(TransportVersions.ZDT_NANOS_SUPPORT)) {
-                    o.writeZLong(instant.getEpochSecond());
-                } else {
-                    o.writeVLong(instant.getEpochSecond());
-                }
+            if (o.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                o.writeZLong(instant.getEpochSecond());
                 o.writeInt(instant.getNano());
             } else {
                 o.writeLong(instant.toEpochMilli());

@@ -38,8 +38,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             B read(StreamInput in, DocValueFormat format, boolean showDocCountError) throws IOException;
         }
 
-        long bucketOrd;
-
         protected long docCount;
         private long docCountError;
         protected InternalAggregations aggregations;
@@ -86,14 +84,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         public void setDocCount(long docCount) {
             this.docCount = docCount;
-        }
-
-        public long getBucketOrd() {
-            return bucketOrd;
-        }
-
-        public void setBucketOrd(long bucketOrd) {
-            this.bucketOrd = bucketOrd;
         }
 
         @Override

@@ -63,13 +63,13 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
-import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -169,6 +169,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
     }
 
+    public boolean isEnabled() {
+        return enabled;
+    }
+
     @Override
     public void accept(Set<String> names, ActionListener<RoleRetrievalResult> listener) {
         getRoleDescriptors(names, listener);
@@ -183,6 +187,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
+        assert names == null || names.stream().noneMatch(reservedRoleNameChecker::isReserved)
+            : "native roles store should not be called with reserved role names";
+
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
@@ -191,7 +198,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
         } else if (names == null || names.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
+                QueryBuilder query = QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                    .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true));
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
@@ -263,6 +272,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     public void queryRoleDescriptors(SearchSourceBuilder searchSourceBuilder, ActionListener<QueryRoleResult> listener) {
+        if (enabled == false) {
+            listener.onResponse(QueryRoleResult.EMPTY);
+            return;
+        }
         SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
         SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
@@ -346,6 +359,15 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         WriteRequest.RefreshPolicy refreshPolicy,
         final ActionListener<BulkRolesResponse> listener
     ) {
+        deleteRoles(roleNames, refreshPolicy, true, listener);
+    }
+
+    public void deleteRoles(
+        final Collection<String> roleNames,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        boolean validateRoleNames,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
@@ -355,7 +377,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         Map<String, Exception> validationErrorByRoleName = new HashMap<>();
 
         for (String roleName : roleNames) {
-            if (reservedRoleNameChecker.isReserved(roleName)) {
+            if (validateRoleNames && reservedRoleNameChecker.isReserved(roleName)) {
                 validationErrorByRoleName.put(
                     roleName,
                     new IllegalArgumentException("role [" + roleName + "] is reserved and cannot be deleted")
@@ -402,7 +424,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void bulkResponseAndRefreshRolesCache(
-        List<String> roleNames,
+        Collection<String> roleNames,
         BulkResponse bulkResponse,
         Map<String, Exception> validationErrorByRoleName,
         ActionListener<BulkRolesResponse> listener
@@ -430,7 +452,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private void bulkResponseWithOnlyValidationErrors(
-        List<String> roleNames,
+        Collection<String> roleNames,
         Map<String, Exception> validationErrorByRoleName,
         ActionListener<BulkRolesResponse> listener
     ) {
@@ -481,10 +503,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     );
                 } else if (Arrays.stream(role.getConditionalClusterPrivileges())
                     .anyMatch(privilege -> privilege instanceof ConfigurableClusterPrivileges.ManageRolesPrivilege)
-                    && clusterService.state().getMinTransportVersion().before(TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE)) {
+                    && clusterService.state().getMinTransportVersion().before(TransportVersions.V_8_16_0)) {
                         return new IllegalStateException(
                             "all nodes must have version ["
-                                + TransportVersions.ADD_MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
+                                + TransportVersions.V_8_16_0.toReleaseVersion()
                                 + "] or higher to support the manage roles privilege"
                         );
                     }
@@ -542,7 +564,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     public void putRoles(
         final WriteRequest.RefreshPolicy refreshPolicy,
-        final List<RoleDescriptor> roles,
+        final Collection<RoleDescriptor> roles,
+        final ActionListener<BulkRolesResponse> listener
+    ) {
+        putRoles(refreshPolicy, roles, true, listener);
+    }
+
+    public void putRoles(
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final Collection<RoleDescriptor> roles,
+        boolean validateRoleDescriptors,
         final ActionListener<BulkRolesResponse> listener
     ) {
         if (enabled == false) {
@@ -555,7 +586,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         for (RoleDescriptor role : roles) {
             Exception validationException;
             try {
-                validationException = validateRoleDescriptor(role);
+                validationException = validateRoleDescriptors ? validateRoleDescriptor(role) : null;
             } catch (Exception e) {
                 validationException = e;
             }
@@ -621,8 +652,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     // Package private for testing
     XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
-        assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
-            : "Role name was invalid or reserved: " + role.getName();
         assert false == role.hasRestriction() : "restriction is not supported for native roles";
 
         XContentBuilder builder = jsonBuilder().startObject();
@@ -671,7 +700,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     client.prepareMultiSearch()
                         .add(
                             client.prepareSearch(SECURITY_MAIN_ALIAS)
-                                .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
+                                )
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
@@ -680,6 +713,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .must(
                                             QueryBuilders.boolQuery()
                                                 .should(existsQuery("indices.field_security.grant"))
@@ -697,6 +731,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("indices.query"))
                                 )
                                 .setTrackTotalHits(true)
@@ -708,6 +743,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("remote_indices"))
                                 )
                                 .setTrackTotalHits(true)
@@ -718,6 +754,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setQuery(
                                     QueryBuilders.boolQuery()
                                         .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true))
                                         .filter(existsQuery("remote_cluster"))
                                 )
                                 .setTrackTotalHits(true)

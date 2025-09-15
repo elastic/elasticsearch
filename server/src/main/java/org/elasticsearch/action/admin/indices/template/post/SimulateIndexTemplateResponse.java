@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,8 +83,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         rolloverConfiguration = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(RolloverConfiguration::new)
             : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-            && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
             in.readOptionalWriteable(DataStreamGlobalRetention::read);
         }
     }
@@ -104,8 +104,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(rolloverConfiguration);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-            && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
+        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
             out.writeOptionalWriteable(null);
         }
     }
@@ -113,9 +112,9 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (this.resolvedTemplate != null) {
+        if (resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
+            resolvedTemplate.toXContent(builder, ResettableValue.hideResetValues(params), rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

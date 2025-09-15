@@ -1,0 +1,44 @@
+[[release-notes-8.18.4]]
+== {es} version 8.18.4
+
+Also see <<breaking-changes-8.18,Breaking changes in 8.18>>.
+
+[[bug-8.18.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggs: Add cancellation checks to `FilterByFilter` aggregator {es-pull}130452[#130452]
+
+ES|QL::
+* Avoid O(N^2) in VALUES with ordinals grouping {es-pull}130576[#130576]
+* Avoid dropping aggregate groupings in local plans {es-pull}129370[#129370] (issues: {es-issue}129811[#129811], {es-issue}128054[#128054])
+* ESQL: Avoid unintended attribute removal {es-pull}127563[#127563] (issue: {es-issue}127468[#127468])
+* ESQL: Fix alias removal in regex extraction with JOIN {es-pull}127687[#127687] (issue: {es-issue}127467[#127467])
+* ESQL: Keep `DROP` attributes when resolving field names {es-pull}127009[#127009] (issue: {es-issue}126418[#126418])
+* Fix `BytesRef2BlockHash` {es-pull}130705[#130705]
+* Fix wildcard drop after lookup join {es-pull}130448[#130448] (issue: {es-issue}129561[#129561])
+
+Infra/Core::
+* Reverse disordered-version warning message {es-pull}129904[#129904]
+
+Machine Learning::
+* Check for model deployment in inference endpoints before stopping {es-pull}129325[#129325] (issue: {es-issue}128549[#128549])
+* Fix timeout bug in DBQ deletion of unused and orphan ML data {es-pull}130083[#130083]
+
+Mapping::
+* Make flattened synthetic source concatenate object keys on scalar/object mismatch {es-pull}129600[#129600] (issue: {es-issue}122936[#122936])
+
+Relevance::
+* Fix: `GET _synonyms` returns synonyms with empty rules {es-pull}131032[#131032]
+
+Search::
+* Check field data type before casting when applying geo distance sort {es-pull}130924[#130924] (issue: {es-issue}129500[#129500])
+* Fix msearch request parsing when index expression is null {es-pull}130776[#130776] (issue: {es-issue}129631[#129631])
+* Fix text similarity reranker does not propagate min score correctly {es-pull}129223[#129223]
+* Trim to size lists created in source fetchers {es-pull}130521[#130521]
+
+Vector Search::
+* Fix knn search error when dimensions are not set {es-pull}131081[#131081] (issue: {es-issue}129550[#129550])
+
+

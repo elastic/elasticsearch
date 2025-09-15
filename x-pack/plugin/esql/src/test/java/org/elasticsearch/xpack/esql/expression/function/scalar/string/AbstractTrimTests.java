@@ -67,7 +67,7 @@ public abstract class AbstractTrimTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     private static TestCaseSupplier.TestCase testCase(String name, DataType type, String data, String expected) {

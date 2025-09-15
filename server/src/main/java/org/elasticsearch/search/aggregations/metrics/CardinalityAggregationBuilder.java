@@ -37,6 +37,12 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     public static final ValuesSourceRegistry.RegistryKey<CardinalityAggregatorSupplier> REGISTRY_KEY =
         new ValuesSourceRegistry.RegistryKey<>(NAME, CardinalityAggregatorSupplier.class);
 
+    /**
+     * Pre-2.0 rehashing was configurable, but it hasn't been for ~10 years. We always rehash because it's
+     * quite cheap. Attempting to enable or disable it is just a noop with a deprecation message. We have
+     * no plans to remove this parameter because it isn't worth breaking even the tiny fraction of users
+     * who are sending it. Deprecation was in #12931.
+     */
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
     public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");

@@ -38,7 +38,7 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            "ToBooleanFromIntEvaluator[field=" + read + "]",
+            "ToBooleanFromIntEvaluator[i=" + read + "]",
             DataType.BOOLEAN,
             i -> i != 0,
             Integer.MIN_VALUE,
@@ -47,7 +47,7 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            "ToBooleanFromLongEvaluator[field=" + read + "]",
+            "ToBooleanFromLongEvaluator[l=" + read + "]",
             DataType.BOOLEAN,
             l -> l != 0,
             Long.MIN_VALUE,
@@ -56,7 +56,7 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            "ToBooleanFromUnsignedLongEvaluator[field=" + read + "]",
+            "ToBooleanFromUnsignedLongEvaluator[ul=" + read + "]",
             DataType.BOOLEAN,
             ul -> ul.compareTo(BigInteger.ZERO) != 0,
             BigInteger.ZERO,
@@ -65,7 +65,7 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToBooleanFromDoubleEvaluator[field=" + read + "]",
+            "ToBooleanFromDoubleEvaluator[d=" + read + "]",
             DataType.BOOLEAN,
             d -> d != 0d,
             Double.NEGATIVE_INFINITY,
@@ -74,13 +74,13 @@ public class ToBooleanTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(
             suppliers,
-            "ToBooleanFromStringEvaluator[field=" + read + "]",
+            "ToBooleanFromStringEvaluator[keyword=" + read + "]",
             DataType.BOOLEAN,
             bytesRef -> String.valueOf(bytesRef).toLowerCase(Locale.ROOT).equals("true"),
             emptyList()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "boolean or numeric or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

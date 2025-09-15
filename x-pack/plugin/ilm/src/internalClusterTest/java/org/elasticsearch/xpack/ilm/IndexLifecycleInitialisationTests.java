@@ -56,9 +56,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +110,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, TestILMPlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, TestILMPlugin.class);
     }
 
     @Before
@@ -128,9 +126,9 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         Step.StepKey compKey = new Step.StepKey("mock", "complete", "complete");
         steps.add(new ObservableClusterStateWaitStep(key, compKey));
         steps.add(new PhaseCompleteStep(compKey, null));
-        Map<String, LifecycleAction> actions = Collections.singletonMap(ObservableAction.NAME, OBSERVABLE_ACTION);
+        Map<String, LifecycleAction> actions = Map.of(ObservableAction.NAME, OBSERVABLE_ACTION);
         mockPhase = new Phase("mock", TimeValue.timeValueSeconds(0), actions);
-        Map<String, Phase> phases = Collections.singletonMap("mock", mockPhase);
+        Map<String, Phase> phases = Map.of("mock", mockPhase);
         lifecyclePolicy = newLockableLifecyclePolicy("test", phases);
     }
 
@@ -311,7 +309,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
         updateIndexSettings(Settings.builder().put("index.lifecycle.test.complete", true), "test");
 
         {
-            Phase phase = new Phase("mock", TimeValue.ZERO, Collections.singletonMap("TEST_ACTION", OBSERVABLE_ACTION));
+            Phase phase = new Phase("mock", TimeValue.ZERO, Map.of("TEST_ACTION", OBSERVABLE_ACTION));
             PhaseExecutionInfo expectedExecutionInfo = new PhaseExecutionInfo(lifecyclePolicy.getName(), phase, 1L, actualModifiedDate);
             assertBusy(() -> {
                 IndexLifecycleExplainResponse indexResponse = executeExplainRequestAndGetTestIndexResponse("test");
@@ -526,12 +524,12 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
                 Setting.Property.Dynamic,
                 Setting.Property.IndexScope
             );
-            return Collections.singletonList(COMPLETE_SETTING);
+            return List.of(COMPLETE_SETTING);
         }
 
         @Override
         public List<NamedXContentRegistry.Entry> getNamedXContent() {
-            return Arrays.asList(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ObservableAction.NAME), (p) -> {
+            return List.of(new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ObservableAction.NAME), (p) -> {
                 MockAction.parse(p);
                 return OBSERVABLE_ACTION;
             }));
@@ -539,7 +537,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return Arrays.asList(
+            return List.of(
                 new NamedWriteableRegistry.Entry(LifecycleType.class, LockableLifecycleType.TYPE, (in) -> LockableLifecycleType.INSTANCE),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, ObservableAction.NAME, ObservableAction::readObservableAction),
                 new NamedWriteableRegistry.Entry(

@@ -30,7 +30,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * this base class acts as a wrapper for testing different rerankers, and their behavior when exceptions are thrown
@@ -55,6 +58,10 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
     protected abstract RankBuilder getThrowingRankBuilder(int rankWindowSize, String rankFeatureField, ThrowingRankBuilderType type);
 
     protected abstract Collection<Class<? extends Plugin>> pluginsNeeded();
+
+    protected boolean shouldCheckScores() {
+        return true;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -95,9 +102,11 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
+                    if (shouldCheckScores()) {
+                        assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
+                    }
                     rank++;
                 }
             }
@@ -140,9 +149,11 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 3;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
+                    if (shouldCheckScores()) {
+                        assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
+                    }
                     rank++;
                 }
             }
@@ -182,7 +193,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 .setFrom(10),
             response -> {
                 assertHitCount(response, 5L);
-                assertEquals(0, response.getHits().getHits().length);
+                assertThat(response.getHits().getHits(), emptyArray());
             }
         );
         assertNoOpenContext(indexName);
@@ -218,13 +229,15 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 .setSize(2),
             response -> {
                 assertHitCount(response, 4L);
-                assertEquals(2, response.getHits().getHits().length);
+                assertThat(response.getHits().getHits(), arrayWithSize(2));
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
+                    if (shouldCheckScores()) {
+                        assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
+                    }
                     rank++;
                 }
             }
@@ -387,13 +400,13 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 .setAllowPartialSearchResults(true)
                 .setSize(10),
             response -> {
-                assertTrue(response.getFailedShards() > 0);
+                assertThat(response.getFailedShards(), greaterThan(0));
                 assertTrue(
                     Arrays.stream(response.getShardFailures())
                         .allMatch(failure -> failure.getCause().getMessage().contains("rfs - simulated failure"))
                 );
                 assertHitCount(response, 5);
-                assertTrue(response.getHits().getHits().length == 0);
+                assertThat(response.getHits().getHits(), emptyArray());
             }
         );
         assertNoOpenContext(indexName);
@@ -486,7 +499,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
         assertNoOpenContext(indexName);
     }
 
-    private void assertNoOpenContext(final String indexName) throws Exception {
+    protected void assertNoOpenContext(final String indexName) throws Exception {
         assertBusy(
             () -> assertThat(indicesAdmin().prepareStats(indexName).get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
             1,

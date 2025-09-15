@@ -66,9 +66,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         NXYSignificanceHeuristic other = (NXYSignificanceHeuristic) obj;
-        if (backgroundIsSuperset != other.backgroundIsSuperset) return false;
-        if (includeNegatives != other.includeNegatives) return false;
-        return true;
+        return backgroundIsSuperset == other.backgroundIsSuperset && includeNegatives == other.includeNegatives;
     }
 
     @Override
@@ -160,24 +158,10 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
      */
     protected static <T> Function<Object[], T> buildFromParsedArgs(BiFunction<Boolean, Boolean, T> ctor) {
         return args -> {
-            boolean includeNegatives = args[0] == null ? false : (boolean) args[0];
-            boolean backgroundIsSuperset = args[1] == null ? true : (boolean) args[1];
+            boolean includeNegatives = args[0] != null && (boolean) args[0];
+            boolean backgroundIsSuperset = args[1] == null || (boolean) args[1];
             return ctor.apply(includeNegatives, backgroundIsSuperset);
         };
     }
 
-    protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
-        protected boolean includeNegatives = true;
-        protected boolean backgroundIsSuperset = true;
-
-        public NXYBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
-            this.includeNegatives = includeNegatives;
-            this.backgroundIsSuperset = backgroundIsSuperset;
-        }
-
-        protected void build(XContentBuilder builder) throws IOException {
-            builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
-                .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
-        }
-    }
 }

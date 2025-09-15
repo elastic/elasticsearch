@@ -16,10 +16,13 @@ org.elasticsearch.rest.RestFeatures
 org.elasticsearch.indices.IndicesFeatures
 org.elasticsearch.repositories.RepositoriesFeatures
 org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures
+org.elasticsearch.index.IndexFeatures
 org.elasticsearch.index.mapper.MapperFeatures
 org.elasticsearch.ingest.IngestGeoIpFeatures
 org.elasticsearch.search.SearchFeatures
+org.elasticsearch.synonyms.SynonymFeatures
 org.elasticsearch.search.retriever.RetrieversFeatures
 org.elasticsearch.script.ScriptFeatures
 org.elasticsearch.reservedstate.service.FileSettingsFeatures
 org.elasticsearch.cluster.routing.RoutingFeatures
+org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures

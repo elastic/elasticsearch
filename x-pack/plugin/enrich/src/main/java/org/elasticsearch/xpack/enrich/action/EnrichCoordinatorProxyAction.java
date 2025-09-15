@@ -177,7 +177,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                 assert slots.isEmpty() == false;
                 remoteRequestsTotal.increment();
                 final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-                slots.forEach(slot -> multiSearchRequest.add(slot.searchRequest));
+                slots.forEach(slot -> multiSearchRequest.add(slot.request));
                 lookupFunction.accept(multiSearchRequest, (response, e) -> handleResponse(slots, response, e));
             }
         }
@@ -193,13 +193,13 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
                     Slot slot = slots.get(i);
 
                     if (responseItem.isFailure()) {
-                        slot.actionListener.onFailure(responseItem.getFailure());
+                        slot.listener.onFailure(responseItem.getFailure());
                     } else {
-                        slot.actionListener.onResponse(responseItem.getResponse());
+                        slot.listener.onResponse(responseItem.getResponse());
                     }
                 }
             } else if (e != null) {
-                slots.forEach(slot -> slot.actionListener.onFailure(e));
+                slots.forEach(slot -> slot.listener.onFailure(e));
             } else {
                 throw new AssertionError("no response and no error");
             }
@@ -208,14 +208,10 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             coordinateLookups();
         }
 
-        static class Slot {
-
-            final SearchRequest searchRequest;
-            final ActionListener<SearchResponse> actionListener;
-
-            Slot(SearchRequest searchRequest, ActionListener<SearchResponse> actionListener) {
-                this.searchRequest = Objects.requireNonNull(searchRequest);
-                this.actionListener = Objects.requireNonNull(actionListener);
+        record Slot(SearchRequest request, ActionListener<SearchResponse> listener) {
+            Slot {
+                Objects.requireNonNull(request);
+                Objects.requireNonNull(listener);
             }
         }
 

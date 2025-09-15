@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
@@ -38,12 +41,15 @@ public final class SystemPrivilege extends Privilege {
         RetentionLeaseActions.ADD.name() + "*", // needed for CCR to add retention leases
         RetentionLeaseActions.REMOVE.name() + "*", // needed for CCR to remove retention leases
         RetentionLeaseActions.RENEW.name() + "*", // needed for CCR to renew retention leases
-        "indices:admin/settings/update", // needed for DiskThresholdMonitor.markIndicesReadOnly
+        "indices:admin/settings/update", // needed for: DiskThresholdMonitor.markIndicesReadOnly, SystemIndexMigrator
         CompletionPersistentTaskAction.NAME, // needed for ShardFollowTaskCleaner
         "indices:data/write/*", // needed for SystemIndexMigrator
         "indices:data/read/*", // needed for SystemIndexMigrator
         "indices:admin/refresh", // needed for SystemIndexMigrator
         "indices:admin/aliases", // needed for SystemIndexMigrator
+        TransportCreateIndexAction.TYPE.name() + "*", // needed for SystemIndexMigrator
+        TransportAddIndexBlockAction.TYPE.name() + "*", // needed for SystemIndexMigrator
+        TransportUpdateSettingsAction.TYPE.name() + "*", // needed for SystemIndexMigrator
         TransportSearchShardsAction.TYPE.name(), // added so this API can be called with the system user by other APIs
         ActionTypes.RELOAD_REMOTE_CLUSTER_CREDENTIALS_ACTION.name() // needed for Security plugin reload of remote cluster credentials
     );

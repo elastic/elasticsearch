@@ -573,7 +573,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     .handoffPrimaryContext(
                         request.primaryContext(),
                         ActionListener.runBefore(
-                            new ChannelActionListener<>(channel).map(v -> TransportResponse.Empty.INSTANCE),
+                            new ChannelActionListener<>(channel).map(v -> ActionResponse.Empty.INSTANCE),
                             recoveryRef::close
                         )
                     );
@@ -694,7 +694,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
 
         protected CheckedFunction<Void, TransportResponse, Exception> responseMapping(RecoveryTarget recoveryTarget) {
-            return v -> TransportResponse.Empty.INSTANCE;
+            return v -> ActionResponse.Empty.INSTANCE;
         }
 
         protected abstract void handleRequest(T request, RecoveryTarget target, ActionListener<Void> listener) throws IOException;

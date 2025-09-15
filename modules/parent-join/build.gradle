@@ -11,8 +11,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'This module adds the support parent-child queries and aggregations'
-  classname 'org.elasticsearch.join.ParentJoinPlugin'
+  description = 'This module adds the support parent-child queries and aggregations'
+  classname = 'org.elasticsearch.join.ParentJoinPlugin'
 }
 
 restResources {

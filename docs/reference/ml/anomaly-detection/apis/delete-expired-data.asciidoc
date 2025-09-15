@@ -5,6 +5,12 @@
 <titleabbrev>Delete expired data</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes expired and unused machine learning data.
 
 [[ml-delete-expired-data-request]]

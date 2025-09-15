@@ -9,7 +9,7 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpPreRequest;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 
@@ -31,7 +31,7 @@ public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFai
 
     @Override
     public ElasticsearchSecurityException failedAuthentication(
-        TransportMessage message,
+        TransportRequest message,
         AuthenticationToken token,
         String action,
         ThreadContext context
@@ -51,7 +51,7 @@ public class CustomAuthenticationFailureHandler extends DefaultAuthenticationFai
     }
 
     @Override
-    public ElasticsearchSecurityException missingToken(TransportMessage message, String action, ThreadContext context) {
+    public ElasticsearchSecurityException missingToken(TransportRequest message, String action, ThreadContext context) {
         ElasticsearchSecurityException e = super.missingToken(message, action, context);
         // set a custom header
         e.addHeader("WWW-Authenticate", "custom-challenge");

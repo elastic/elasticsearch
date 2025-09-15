@@ -81,7 +81,7 @@ teardown:
   - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-  - match: { _shards.skipped : 1}
+  - match: { _shards.skipped : 2}
   - match: { _shards.failed: 0 }
 
   - do:
@@ -98,5 +98,5 @@ teardown:
   - match: { hits.total.value: 0 }
   - match: { _shards.total: 2 }
   - match: { _shards.successful: 2 }
-  - match: { _shards.skipped : 1}
+  - match: { _shards.skipped : 2}
   - match: { _shards.failed: 0 }

@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.DeleteResult;
@@ -35,7 +34,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,8 +71,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         ClusterService clusterService,
         RepositoriesService repositoriesService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -82,7 +80,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             CleanupRepositoryRequest::readFrom,
-            indexNameExpressionResolver,
             CleanupRepositoryResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -173,7 +170,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        SnapshotsService.ensureRepositoryExists(repositoryName, currentState);
+                        SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, currentState);
+                        SnapshotsServiceUtils.ensureNotReadOnly(currentState, repositoryName);
                         final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(currentState);
                         if (repositoryCleanupInProgress.hasCleanupInProgress()) {
                             throw new IllegalStateException(

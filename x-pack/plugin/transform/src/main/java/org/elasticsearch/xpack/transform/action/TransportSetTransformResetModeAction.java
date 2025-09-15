@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
@@ -26,15 +25,14 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
         TransportService transportService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
-        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
+        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters);
     }
 
     @Override
     protected boolean isResetMode(ClusterState clusterState) {
-        return TransformMetadata.getTransformMetadata(clusterState).isResetMode();
+        return TransformMetadata.getTransformMetadata(clusterState).resetMode();
     }
 
     @Override
@@ -50,7 +48,7 @@ public class TransportSetTransformResetModeAction extends AbstractTransportSetRe
             newState.metadata(Metadata.builder(oldState.getMetadata()).removeCustom(TransformMetadata.TYPE).build());
         } else {
             TransformMetadata.Builder builder = TransformMetadata.Builder.from(oldState.metadata().custom(TransformMetadata.TYPE))
-                .isResetMode(request.isEnabled());
+                .resetMode(request.isEnabled());
             newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(TransformMetadata.TYPE, builder.build()).build());
         }
         return newState.build();

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.AbstractList;
@@ -57,13 +58,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         super(name, factories, aggCtx, parent, bucketCardinality, metadata);
         docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
-    }
-
-    /**
-     * Return an upper bound of the maximum bucket ordinal seen so far.
-     */
-    public final long maxBucketOrd() {
-        return docCounts.size();
     }
 
     /**
@@ -105,7 +99,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         try {
             docCounts = bigArrays().newLongArray(newNumBuckets, true);
             success = true;
-            docCounts.fill(0, newNumBuckets, 0);
             for (long i = 0; i < oldDocCounts.size(); i++) {
                 long docCount = oldDocCounts.get(i);
 
@@ -161,7 +154,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * the provided ordinals.
      * <p>
      * Most aggregations should probably use something like
-     * {@link #buildSubAggsForAllBuckets(ObjectArray, ToLongFunction, BiConsumer)}
+     * {@link #buildSubAggsForAllBuckets(ObjectArray, LongArray, BiConsumer)}
+     * or {@link #buildSubAggsForAllBuckets(ObjectArray, ToLongFunction, BiConsumer)}
      * or {@link #buildAggregationsForVariableBuckets(LongArray, LongKeyedBucketOrds, BucketBuilderForVariable, ResultBuilderForVariable)}
      * or {@link #buildAggregationsForFixedBucketCount(LongArray, int, BucketBuilderForFixedCount, Function)}
      * or {@link #buildAggregationsForSingleBucket(LongArray, SingleBucketResultBuilder)}
@@ -170,6 +164,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final IntFunction<InternalAggregations> buildSubAggsForBuckets(LongArray bucketOrdsToCollect) throws IOException {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("not building sub-aggregations due to task cancellation");
+        }
+
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
@@ -194,10 +192,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /**
-     * Build the sub aggregation results for a list of buckets and set them on
-     * the buckets. This is usually used by aggregations that are selective
-     * in which bucket they build. They use some mechanism of selecting a list
-     * of buckets to build use this method to "finish" building the results.
+     * Similarly to {@link #buildSubAggsForAllBuckets(ObjectArray, LongArray, BiConsumer)}
+     * but it needs to build the bucket ordinals. This method usually requires for buckets
+     * to contain the bucket ordinal.
      * @param buckets the buckets to finish building
      * @param bucketToOrd how to convert a bucket into an ordinal
      * @param setAggs how to set the sub-aggregation results on a bucket
@@ -219,12 +216,29 @@ public abstract class BucketsAggregator extends AggregatorBase {
                     bucketOrdsToCollect.set(s++, bucketToOrd.applyAsLong(bucket));
                 }
             }
-            var results = buildSubAggsForBuckets(bucketOrdsToCollect);
-            s = 0;
-            for (long ord = 0; ord < buckets.size(); ord++) {
-                for (B value : buckets.get(ord)) {
-                    setAggs.accept(value, results.apply(s++));
-                }
+            buildSubAggsForAllBuckets(buckets, bucketOrdsToCollect, setAggs);
+        }
+    }
+
+    /**
+     * Build the sub aggregation results for a list of buckets and set them on
+     * the buckets. This is usually used by aggregations that are selective
+     * in which bucket they build. They use some mechanism of selecting a list
+     * of buckets to build use this method to "finish" building the results.
+     * @param buckets the buckets to finish building
+     * @param bucketOrdsToCollect bucket ordinals
+     * @param setAggs how to set the sub-aggregation results on a bucket
+     */
+    protected final <B> void buildSubAggsForAllBuckets(
+        ObjectArray<B[]> buckets,
+        LongArray bucketOrdsToCollect,
+        BiConsumer<B, InternalAggregations> setAggs
+    ) throws IOException {
+        var results = buildSubAggsForBuckets(bucketOrdsToCollect);
+        int s = 0;
+        for (long ord = 0; ord < buckets.size(); ord++) {
+            for (B value : buckets.get(ord)) {
+                setAggs.accept(value, results.apply(s++));
             }
         }
     }

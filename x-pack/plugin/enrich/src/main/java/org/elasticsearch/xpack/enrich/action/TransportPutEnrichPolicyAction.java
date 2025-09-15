@@ -38,6 +38,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
     private final SecurityContext securityContext;
     private final Client client;
     private final Settings settings;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportPutEnrichPolicyAction(
@@ -56,7 +57,6 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             threadPool,
             actionFilters,
             PutEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.settings = settings;
@@ -64,6 +64,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.client = client;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

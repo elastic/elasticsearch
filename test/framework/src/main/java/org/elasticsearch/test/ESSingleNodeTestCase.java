@@ -73,7 +73,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_ACTION_NAME;
+import static org.elasticsearch.action.search.SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME;
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
@@ -280,7 +280,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
-        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();
         } catch (NodeValidationException e) {
@@ -477,7 +477,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     protected void ensureAllFreeContextActionsAreConsumed() throws Exception {
         logger.info("--> waiting for all free_context tasks to complete within a reasonable time");
-        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_ACTION_NAME + "*").setWaitForCompletion(true).execute());
+        safeGet(clusterAdmin().prepareListTasks().setActions(FREE_CONTEXT_SCROLL_ACTION_NAME + "*").setWaitForCompletion(true).execute());
     }
 
     /**

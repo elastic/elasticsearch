@@ -605,7 +605,12 @@ public class JobManager {
 
     private static void appendCommaSeparatedSet(Set<String> items, StringBuilder sb) {
         sb.append("[");
-        Strings.collectionToDelimitedString(items, ", ", "'", "'", sb);
+        if (items.isEmpty() == false) {
+            // surround each item with single-quotes
+            sb.append('\'');
+            Strings.collectionToDelimitedString(items, "', '", sb);
+            sb.append('\'');
+        }
         sb.append("]");
     }
 

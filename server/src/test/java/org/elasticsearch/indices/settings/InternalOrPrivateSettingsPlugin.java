@@ -133,7 +133,6 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
                 threadPool,
                 actionFilters,
                 UpdateInternalOrPrivateAction.Request::new,
-                indexNameExpressionResolver,
                 UpdateInternalOrPrivateAction.Response::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );

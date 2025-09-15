@@ -1,0 +1,49 @@
+[discrete]
+[[esql-change_point]]
+=== `CHANGE_POINT`
+
+[NOTE]
+====
+The `CHANGE_POINT` command requires a https://www.elastic.co/subscriptions[platinum license].
+====
+
+preview::[]
+
+`CHANGE_POINT` detects spikes, dips, and change points in a metric.
+
+**Syntax**
+
+[source,esql]
+----
+CHANGE_POINT value [ON key] [AS type_name, pvalue_name]
+----
+
+*Parameters*
+
+`value`::
+The column with the metric in which you want to detect a change point.
+
+`key`::
+The column with the key to order the values by. If not specified, `@timestamp` is used.
+
+`type_name`::
+The name of the output column with the change point type. If not specified, `type` is used.
+
+`pvalue_name`::
+The name of the output column with the p-value that indicates how extreme the change point is. If not specified, `pvalue` is used.
+
+[NOTE]
+====
+There must be at least 22 values for change point detection. Fewer than 1,000 is preferred.
+====
+
+*Example*
+
+[source.merge.styled,esql]
+----
+include::{esql-specs}/change_point.csv-spec[tag=changePointForDocs]
+----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/change_point.csv-spec[tag=changePointForDocs-result]
+|===

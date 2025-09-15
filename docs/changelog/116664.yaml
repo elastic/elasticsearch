@@ -1,6 +1,0 @@
-pr: 116664
-summary: Hides `hugging_face_elser` service from the `GET _inference/_services API`
-area: Machine Learning
-type: bug
-issues:
- - 116644

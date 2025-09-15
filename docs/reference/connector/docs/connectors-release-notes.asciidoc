@@ -9,8 +9,254 @@
 Prior to version *8.16.0*, the connector release notes were published as part of the {enterprise-search-ref}/changelog.html[Enterprise Search documentation].
 ====
 
-*Release notes*:
+[discrete]
+[[es-connectors-release-notes-8-19-3]]
+=== 8.19.3
 
-* <<es-connectors-release-notes-8-16-0>>
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
-include::release-notes/connectors-release-notes-8.16.0.asciidoc[]
+[discrete]
+[[es-connectors-release-notes-8-19-2]]
+=== 8.19.2
+
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+[discrete]
+[[es-connectors-release-notes-8-19-1]]
+=== 8.19.1
+
+[discrete]
+[[es-connectors-release-notes-8-19-1-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
+[[es-connectors-release-notes-8-19-0]]
+=== 8.19.0
+
+There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
+
+[discrete]
+[[es-connectors-release-notes-8-18-6]]
+=== 8.18.6
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-18-5]]
+=== 8.18.5
+
+[discrete]
+[[es-connectors-release-notes-8-18-5-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
+[[es-connectors-release-notes-8-18-3]]
+=== 8.18.3
+
+[discrete]
+[[es-connectors-release-notes-8-18-3-enhancements]]
+==== Enhancements
+
+* Improve UUID handling by correctly parsing type 4 UUIDs and skipping unsupported type 3 with a warning.
+See https://github.com/elastic/connectors/pull/3459[*PR 3459*].
+
+* Confluence connector no longer swallows errors that may occur during ingestion.
+See https://github.com/elastic/connectors/pull/3384[*PR 3384*].
+
+[discrete]
+[[es-connectors-release-notes-8-18-0]]
+=== 8.18.0
+
+[discrete#release-notes-8-18-0-Enterprise-search-support]
+== Enterprise Search is discontinued in Elastic 9.0.0
+
+Elastic 9.0.0 and 8.18.0 are released at the same time.
+Please note that Enterprise Search is not available in Elastic 9.0+, including App Search, Workplace Search, the Elastic Web Crawler, and Elastic managed connectors.
+If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer to https://www.elastic.co/resources/search/enterprise-search-faq#what-features-are-impacted-by-this-announcement[our Enterprise Search FAQ].
+It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
+
+[discrete]
+[[es-connectors-release-notes-8-18-0-enhancements]]
+==== Enhancements
+
+* Updated the OSS Dockerfile in the https://github.com/elastic/connectors[Connectors] repository to use a different base image for improved security.
++
+IMPORTANT: Users building custom docker images based on this Dockerfile may have to review their configuration for compatibility with the new base image.
+See https://github.com/elastic/connectors/pull/3063[*PR 3063*].
+
+[discrete]
+[[es-connectors-release-notes-8-17-10]]
+=== 8.17.10
+
+[discrete]
+[[es-connectors-release-notes-8-17-10-bug-fixes]]
+===== Bug fixes
+
+.Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+[%collapsible]
+====
+Permissions granted to the “Everyone Except External Users” group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+PR https://github.com/elastic/connectors/pull/3577[*#3577*] resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+====
+
+[discrete]
+[[es-connectors-release-notes-8-17-9]]
+=== 8.17.9
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-8]]
+=== 8.17.8
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-7]]
+=== 8.17.7
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-6]]
+=== 8.17.6
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-5]]
+=== 8.17.5
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-4]]
+=== 8.17.4
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-3]]
+=== 8.17.3
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-2]]
+=== 8.17.2
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-1]]
+=== 8.17.1
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-17-0]]
+=== 8.17.0
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-16-3]]
+=== 8.16.3
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-16-2]]
+=== 8.16.2
+
+[discrete]
+[[es-connectors-release-notes-8-16-2-bug-fixes]]
+==== Bug fixes
+
+* Fixed a bug where full syncs may delete documents they just ingested if the document ID when fetched from the 3rd party was numeric.
+See https://github.com/elastic/connectors/pull/3031[*PR 3031*].
+
+[discrete]
+[[es-connectors-release-notes-8-16-1]]
+=== 8.16.1
+
+[discrete]
+[[es-connectors-release-notes-8-16-1-bug-fixes]]
+==== Bug fixes
+
+* Fixed a bug in the Outlook Connector where having deactivated users could cause the sync to fail.
+See https://github.com/elastic/connectors/pull/2967[*PR 2967*].
+* Fixed a bug where the Confluence connector was not downloading some blog post documents due to unexpected response format.
+See https://github.com/elastic/connectors/pull/2984[*PR 2984*].
+
+[discrete]
+[[es-connectors-release-notes-8-16-0]]
+=== 8.16.0
+
+[discrete]
+[[es-connectors-release-notes-deprecation-notice]]
+==== Deprecation notices
+
+* *Direct index access for connectors and sync jobs*
++
+IMPORTANT: Directly accessing connector and sync job state through `.elastic-connectors*` indices is deprecated, and will be disallowed entirely in a future release.
+
+* Instead, the Elasticsearch Connector APIs should be used. Connectors framework code now uses the <<connector-apis,Connector APIs>> by default.
+See https://github.com/elastic/connectors/pull/2884[*PR 2902*].
+
+* *Docker `enterprise-search` namespace deprecation*
++
+IMPORTANT: The `enterprise-search` Docker namespace is deprecated and will be discontinued in a future release. 
++
+Starting in `8.16.0`, Docker images are being transitioned to the new `integrations` namespace, which will become the sole location for future releases. This affects the https://github.com/elastic/connectors[Elastic Connectors] and https://github.com/elastic/data-extraction-service[Elastic Data Extraction Service].
++
+During this transition period, images are published to both namespaces:
++
+** *Example*:
++
+Deprecated namespace::
+`docker.elastic.co/enterprise-search/elastic-connectors:v8.16.0`
++
+New namespace::
+`docker.elastic.co/integrations/elastic-connectors:v8.16.0`
++
+Users should migrate to the new `integrations` namespace as soon as possible to ensure continued access to future releases.
+
+[discrete]
+[[es-connectors-release-notes-8-16-0-enhancements]]
+==== Enhancements
+
+* Connectors now support working with index aliases.
+See https://github.com/elastic/connectors/pull/2796[*PR 2796*].
+
+* Docker images now use Chainguard's Wolfi base image (`docker.elastic.co/wolfi/jdk:openjdk-11-dev`), replacing the previous `ubuntu:focal` base.
+
+* The Sharepoint Online connector now works with the `Sites.Selected` permission instead of the broader permission `Sites.Read.All`.
+See https://github.com/elastic/connectors/pull/2762[*PR 2762*].
+
+* Starting in 8.16.0, connectors will start using proper SEMVER, with `MAJOR.MINOR.PATCH`, which aligns with Elasticsearch/Kibana versions. This drops the previous `.BUILD` suffix, which we used to release connectors between Elastic stack releases. Going forward, these inter-stack-release releases will be suffixed instead with `+<timestamp>`, aligning with Elastic Agent and conforming to SEMVER. 
+See https://github.com/elastic/connectors/pull/2749[*PR 2749*].
+
+* Connector logs now use UTC timestamps, instead of machine-local timestamps. This only impacts logging output.
+See https://github.com/elastic/connectors/pull/2695[*PR 2695*].
+
+[discrete]
+[[es-connectors-release-notes-8-16-0-bug-fixes]]
+==== Bug fixes
+
+* The Dropbox connector now fetches the files from team shared folders.
+See https://github.com/elastic/connectors/pull/2718[*PR 2718*].

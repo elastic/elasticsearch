@@ -5,6 +5,12 @@
 <titleabbrev>Delete service account token</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Deletes  <<service-accounts,service account>> tokens for a `service` in a
 specified `namespace`.
 

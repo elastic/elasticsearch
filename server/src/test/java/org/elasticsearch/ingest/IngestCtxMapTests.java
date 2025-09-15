@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestCtxMapTests extends ESTestCase {
 
@@ -110,7 +111,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("abc", 123);
         source.put("def", 456);
         source.put("hij", 789);
-        map = new IngestCtxMap(source, new TestIngestCtxMetadata(new HashMap<>(), new HashMap<>()));
+        map = new IngestCtxMap(source, new IngestDocMetadata(new HashMap<>(Map.of("_version", 1L)), null));
 
         // Make sure there isn't a ConcurrentModificationException when removing a key from the iterator
         String removedKey = null;
@@ -129,31 +130,18 @@ public class IngestCtxMapTests extends ESTestCase {
     }
 
     public void testRemove() {
-        String cannotRemove = "cannotRemove";
-        String canRemove = "canRemove";
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put(cannotRemove, "value");
-        map = new IngestCtxMap(
-            new HashMap<>(),
-            new TestIngestCtxMetadata(
-                metadata,
-                Map.of(
-                    cannotRemove,
-                    new Metadata.FieldProperty<>(String.class, false, true, null),
-                    canRemove,
-                    new Metadata.FieldProperty<>(String.class, true, true, null)
-                )
-            )
-        );
-        String msg = "cannotRemove cannot be removed";
+        String cannotRemove = "_version"; // writable, but not *nullable*
+        String canRemove = "_id"; // writable, and *nullable*
+        map = new IngestCtxMap(new HashMap<>(), new IngestDocMetadata(new HashMap<>(Map.of(cannotRemove, 1L)), null));
+        String msg = "_version cannot be removed";
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.remove(cannotRemove));
         assertEquals(msg, err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.put(cannotRemove, null));
-        assertEquals("cannotRemove cannot be null", err.getMessage());
+        assertEquals("_version cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> map.entrySet().iterator().next().setValue(null));
-        assertEquals("cannotRemove cannot be null", err.getMessage());
+        assertEquals("_version cannot be null", err.getMessage());
 
         err = expectThrows(IllegalArgumentException.class, () -> {
             Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator();
@@ -175,6 +163,10 @@ public class IngestCtxMapTests extends ESTestCase {
 
         err = expectThrows(IllegalArgumentException.class, () -> map.clear());
         assertEquals(msg, err.getMessage());
+
+        // depending on iteration order, this may have been removed, so put it back before checking the size
+        map.put(canRemove, "value");
+        assertEquals("value", map.get(canRemove));
 
         assertEquals(2, map.size());
 
@@ -205,7 +197,7 @@ public class IngestCtxMapTests extends ESTestCase {
         source.put("foo", "bar");
         source.put("baz", "qux");
         source.put("noz", "zon");
-        map = new IngestCtxMap(source, TestIngestCtxMetadata.withNullableVersion(metadata));
+        map = new IngestCtxMap(source, new IngestDocMetadata(metadata, null));
         md = map.getMetadata();
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
@@ -240,8 +232,10 @@ public class IngestCtxMapTests extends ESTestCase {
         assertTrue(map.containsKey("noz"));
         assertEquals(3, map.entrySet().size());
         assertEquals(3, map.size());
-        map.clear();
-        assertEquals(0, map.size());
+
+        // since an IngestCtxMap must have a _version (and the _version cannot be null), we can't just .clear()
+        map.entrySet().removeIf(e -> e.getKey().equals("_version") == false);
+        assertEquals(1, map.size());
     }
 
     public void testContainsValue() {
@@ -334,6 +328,29 @@ public class IngestCtxMapTests extends ESTestCase {
 
         md.setVersionType(null);
         assertNull(md.getVersionType());
+    }
+
+    public void testGetOrDefault() {
+        map = new IngestCtxMap(Map.of("foo", "bar"), new IngestDocMetadata(Map.of("_version", 5L), null));
+
+        // it does the expected thing for fields that are present
+        assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
+        assertThat(map.getOrDefault("foo", "wat"), equalTo("bar"));
+
+        // it does the expected thing for fields that are not present
+        assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
+        assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // a ctxMap will, as an optimization, just use the passed-in map reference
+        Map<String, Object> source = Map.of("index", "id");
+
+        map = new IngestCtxMap(source, new IngestDocMetadata(Map.of("_version", 5L), null));
+        assertThat(map.getSource(), sameInstance(source));
+
+        map = new IngestCtxMap(null, null, 10L, null, null, null, source);
+        assertThat(map.getSource(), sameInstance(source));
     }
 
     private static class TestEntry implements Map.Entry<String, Object> {

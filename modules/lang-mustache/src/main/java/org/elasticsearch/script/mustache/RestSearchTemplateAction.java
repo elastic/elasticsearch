@@ -11,6 +11,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -50,10 +51,10 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/{index}/_search/template"),
             new Route(POST, "/{index}/_search/template"),
             Route.builder(GET, "/{index}/{type}/_search/template")
-                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build(),
             Route.builder(POST, "/{index}/{type}/_search/template")
-                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build()
         );
     }

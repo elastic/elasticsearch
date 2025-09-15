@@ -53,3 +53,13 @@ have a high level dashboard that is accessed by a large number of users and it
 uses a complex aggregation over a large dataset, it may be more efficient to
 create a {transform} to cache results. Thus, each user doesn't need to run the
 aggregation query.
+
+* You need to account for late-arriving data.
++
+In some cases, data might not be immediately available when a {transform} runs, leading to missing records in the destination index. This can happen due to ingestion delays, where documents take a few seconds or minutes to become searchable after being indexed.
+To handle this, the `delay` parameter in the {transform}'s sync configuration allows you to postpone processing new data. Instead of always querying the most recent records, the {transform} will skip a short period of time (for example, 60 seconds) to ensure all relevant data has arrived before processing.
++
+For example, if a {transform} runs every 5 minutes, it usually processes data from 5 minutes ago up to the current time. However, if you set `delay` to 60 seconds, the {transform} will instead process data from 6 minutes ago up to 1 minute ago, making sure that any documents that arrived late are included.
+By adjusting the `delay` parameter, you can improve the accuracy of transformed data while still maintaining near real-time results.
+
+

@@ -5,6 +5,12 @@
 <titleabbrev>Delete forecasts</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Deletes forecasts from a {ml} job.
 
 [[ml-delete-forecast-request]]

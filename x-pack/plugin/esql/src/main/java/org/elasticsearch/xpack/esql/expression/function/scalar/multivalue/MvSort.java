@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
@@ -29,10 +31,11 @@ import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -58,13 +61,13 @@ import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 /**
  * Sorts a multivalued field in lexicographical order.
  */
-public class MvSort extends EsqlScalarFunction implements OptionalArgument, Validatable {
+public class MvSort extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvSort", MvSort::new);
 
     private final Expression field, order;
 
-    private static final Literal ASC = new Literal(Source.EMPTY, "ASC", DataType.KEYWORD);
-    private static final Literal DESC = new Literal(Source.EMPTY, "DESC", DataType.KEYWORD);
+    private static final Literal ASC = Literal.keyword(Source.EMPTY, "ASC");
+    private static final Literal DESC = Literal.keyword(Source.EMPTY, "DESC");
 
     private static final String INVALID_ORDER_ERROR = "Invalid order value in [{}], expected one of [{}, {}] but got [{}]";
 
@@ -153,14 +156,14 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
                     null,
                     INVALID_ORDER_ERROR,
                     sourceText(),
-                    ASC.value(),
-                    DESC.value(),
-                    ((BytesRef) order.fold()).utf8ToString()
+                    BytesRefs.toString(ASC.value()),
+                    BytesRefs.toString(DESC.value()),
+                    BytesRefs.toString(order.fold(toEvaluator.foldCtx()))
                 )
             );
         }
         if (order != null && order.foldable()) {
-            ordering = ((BytesRef) order.fold()).utf8ToString().equalsIgnoreCase((String) ASC.value());
+            ordering = BytesRefs.toString(order.fold(toEvaluator.foldCtx())).equalsIgnoreCase(BytesRefs.toString(ASC.value()));
         }
 
         return switch (PlannerUtils.toElementType(field.dataType())) {
@@ -230,7 +233,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         if (order == null) {
             return;
         }
@@ -238,7 +241,14 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         failures.add(isFoldable(order, operation, SECOND));
         if (isValidOrder() == false) {
             failures.add(
-                Failure.fail(order, INVALID_ORDER_ERROR, sourceText(), ASC.value(), DESC.value(), ((BytesRef) order.fold()).utf8ToString())
+                Failure.fail(
+                    order,
+                    INVALID_ORDER_ERROR,
+                    sourceText(),
+                    BytesRefs.toString(ASC.value()),
+                    BytesRefs.toString(DESC.value()),
+                    BytesRefs.toString(order.fold(FoldContext.small() /* TODO remove me */))
+                )
             );
         }
     }
@@ -246,14 +256,16 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     private boolean isValidOrder() {
         boolean isValidOrder = true;
         if (order != null && order.foldable()) {
-            Object obj = order.fold();
+            Object obj = order.fold(FoldContext.small() /* TODO remove me */);
             String o = null;
             if (obj instanceof BytesRef ob) {
                 o = ob.utf8ToString();
             } else if (obj instanceof String os) {
                 o = os;
             }
-            if (o == null || o.equalsIgnoreCase((String) ASC.value()) == false && o.equalsIgnoreCase((String) DESC.value()) == false) {
+            if (o == null
+                || o.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false
+                    && o.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false) {
                 isValidOrder = false;
             }
         }
@@ -278,6 +290,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     }
 
     private static class Evaluator implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Evaluator.class);
+
         private final BlockFactory blockFactory;
         private final EvalOperator.ExpressionEvaluator field;
         private final boolean order;
@@ -311,6 +325,13 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         }
 
         @Override
-        public void close() {}
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            field.close();
+        }
     }
 }

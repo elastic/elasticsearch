@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -36,8 +35,7 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetRepositoriesAction.NAME,
@@ -46,7 +44,6 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetRepositoriesRequest::new,
-            indexNameExpressionResolver,
             GetRepositoriesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -12,23 +12,36 @@ package org.elasticsearch;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
+
+    /**
+     * This test is specific for 8.19, to ensure that transport versions are backported correctly. Do not forward or backport it,
+     * and do not adjust the TransportVersion to check (INITIAL_ELASTICSEARCH_8_19).
+     * If the test fails, there is something wrong with your backport PR.
+     */
+    public void testMaximumAllowedTransportVersion() {
+        assertThat(TransportVersion.current().isPatchFrom(TransportVersions.INITIAL_ELASTICSEARCH_8_19), is(true));
+    }
 
     public void testVersionComparison() {
         TransportVersion V_7_2_0 = TransportVersions.V_7_2_0;
@@ -69,21 +82,18 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testStaticTransportVersionChecks() {
         assertThat(
-            TransportVersions.getAllVersionIds(CorrectFakeVersion.class),
-            equalTo(
-                Map.of(
-                    199,
-                    CorrectFakeVersion.V_0_00_01,
-                    2,
-                    CorrectFakeVersion.V_0_000_002,
-                    3,
-                    CorrectFakeVersion.V_0_000_003,
-                    4,
-                    CorrectFakeVersion.V_0_000_004
-                )
+            TransportVersions.collectAllVersionIdsDefinedInClass(CorrectFakeVersion.class),
+            contains(
+                CorrectFakeVersion.V_0_000_002,
+                CorrectFakeVersion.V_0_000_003,
+                CorrectFakeVersion.V_0_000_004,
+                CorrectFakeVersion.V_0_00_01
             )
         );
-        AssertionError e = expectThrows(AssertionError.class, () -> TransportVersions.getAllVersionIds(DuplicatedIdFakeVersion.class));
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> TransportVersions.collectAllVersionIdsDefinedInClass(DuplicatedIdFakeVersion.class)
+        );
         assertThat(e.getMessage(), containsString("have the same version number"));
     }
 
@@ -163,15 +173,15 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_00_4);
-        assertThat(TransportVersion.fromId(8_799_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_00_9).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_3).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_4).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_00_9).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_01_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_00_0).isPatchFrom(patchVersion), is(false));
+        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
+        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {
@@ -186,7 +196,20 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testCURRENTIsLatest() {
-        assertThat(Collections.max(TransportVersions.getAllVersions()), is(TransportVersion.current()));
+        assertThat(Collections.max(TransportVersion.getAllVersions()), is(TransportVersion.current()));
+    }
+
+    public void testPatchVersionsStillAvailable() {
+        for (TransportVersion tv : TransportVersionUtils.allReleasedVersions()) {
+            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+                fail(
+                    "Transport version "
+                        + tv
+                        + " is nearing the limit of available patch numbers."
+                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
+                );
+            }
+        }
     }
 
     public void testToReleaseVersion() {
@@ -210,8 +233,8 @@ public class TransportVersionTests extends ESTestCase {
     public void testDenseTransportVersions() {
         Set<Integer> missingVersions = new TreeSet<>();
         TransportVersion previous = null;
-        for (var tv : TransportVersions.getAllVersions()) {
-            if (tv.before(TransportVersions.V_8_15_2)) {
+        for (var tv : TransportVersion.getAllVersions()) {
+            if (tv.before(TransportVersions.V_8_16_0)) {
                 continue;
             }
             if (previous == null) {
@@ -235,5 +258,205 @@ public class TransportVersionTests extends ESTestCase {
             }
             fail(msg.toString());
         }
+    }
+
+    public void testDuplicateConstants() {
+        List<TransportVersion> tvs = TransportVersion.getAllVersions().stream().sorted().toList();
+        TransportVersion previous = tvs.get(0);
+        for (int i = 1; i < tvs.size(); i++) {
+            TransportVersion next = tvs.get(i);
+            if (next.id() == previous.id()) {
+                throw new AssertionError("Duplicate transport version id: " + next.id());
+            }
+            previous = next;
+        }
+    }
+
+    public void testLatest() {
+        TransportVersion latest = TransportVersion.parseFromBufferedReader(
+            "<test>",
+            "/transport/definitions/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv",
+            TransportVersion.class::getResourceAsStream,
+            (c, p, br) -> TransportVersion.fromBufferedReader(c, p, true, false, br, Integer.MAX_VALUE)
+        );
+        // TODO: once placeholder is removed, test the latest known version can be found fromName
+        // assertThat(latest, is(TransportVersion.fromName(latest.name())));
+    }
+
+    public void testSupports() {
+        byte[] data0 = "100001000,3001000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test0 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports0",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data0), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 2003000, null).supports(test0), is(false));
+        assertThat(new TransportVersion(null, 3001000, null).supports(test0), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test0), is(true));
+
+        byte[] data1 = "3002000".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test1 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports1",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 2003000, null).supports(test1), is(false));
+        assertThat(new TransportVersion(null, 3001000, null).supports(test1), is(false));
+        assertThat(new TransportVersion(null, 3001001, null).supports(test1), is(false));
+        assertThat(new TransportVersion(null, 3002000, null).supports(test1), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test1), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test1), is(true));
+
+        byte[] data2 = "3003000,2001001,1001001".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test2 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports2",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1001000, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 1001001, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 1001002, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 1002000, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 1002001, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 2001000, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 2001001, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 2001002, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 2003000, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 2003001, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 3001000, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 3001001, null).supports(test2), is(false));
+        assertThat(new TransportVersion(null, 3003000, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 3003001, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 3003002, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 3003003, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test2), is(true));
+
+        byte[] data3 = "100002000,3003001,2001002".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test3 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1001001, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 1001002, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 1001003, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 1002001, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 1002002, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 2001001, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 2001002, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 2001003, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 2003000, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 2003001, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 3001000, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 3001001, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 3003000, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 3003001, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 3003002, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 3003003, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 3004000, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test3), is(true));
+
+        byte[] data4 = "100002000,3003002,2001003,1001002".getBytes(StandardCharsets.UTF_8);
+        TransportVersion test4 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data4), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1001001, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 1001002, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 1001003, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 1002001, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 1002002, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 1002003, null).supports(test3), is(false));
+        assertThat(new TransportVersion(null, 2001002, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 2001003, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 2001004, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 2003000, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 2003001, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 3001000, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 3001001, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 3003000, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 3003001, null).supports(test4), is(false));
+        assertThat(new TransportVersion(null, 3003002, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 3003003, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 3003004, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 3004000, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
+    }
+
+    public void testComment() {
+        byte[] data1 = ("#comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
+        TransportVersion test1 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data1), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test1), is(true));
+
+        byte[] data2 = (" # comment" + System.lineSeparator() + "1000000").getBytes(StandardCharsets.UTF_8);
+        TransportVersion test2 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data2), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test2), is(true));
+
+        byte[] data3 = ("#comment" + System.lineSeparator() + "# comment3" + System.lineSeparator() + "1000000").getBytes(
+            StandardCharsets.UTF_8
+        );
+        TransportVersion test3 = TransportVersion.fromBufferedReader(
+            "<test>",
+            "testSupports3",
+            false,
+            true,
+            new BufferedReader(new InputStreamReader(new ByteArrayInputStream(data3), StandardCharsets.UTF_8)),
+            5000000
+        );
+        assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
+    }
+
+    public void testMoreLikeThis() {
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("esql_ixed_index_like"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [esql_ixed_index_like]. "
+                    + "Did you mean [esql_fixed_index_like]? "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+
+        ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("brand_new_version_unrelated_to_others"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [brand_new_version_unrelated_to_others]. "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
     }
 }

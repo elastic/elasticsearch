@@ -40,15 +40,19 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class MlHiddenIndicesFullClusterRestartIT extends AbstractXpackFullClusterRestartTestCase {
+public class MlHiddenIndicesFullClusterRestartIT extends MlFullClusterRestartTestCase {
 
     private static final String JOB_ID = "ml-hidden-indices-old-cluster-job";
     private static final List<Tuple<List<String>, String>> EXPECTED_INDEX_ALIAS_PAIRS = List.of(
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-read"),
         Tuple.tuple(List.of(".ml-annotations-000001"), ".ml-annotations-write"),
-        Tuple.tuple(List.of(".ml-state", ".ml-state-000001"), ".ml-state-write"),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-" + JOB_ID),
-        Tuple.tuple(List.of(".ml-anomalies-shared"), ".ml-anomalies-.write-" + JOB_ID)
+        // .ml-state-000002 is will be created on upgrade if earlier indices are 7.x versions
+        Tuple.tuple(List.of(".ml-state", ".ml-state-000001", ".ml-state-000002"), ".ml-state-write"),
+        // .ml-anomalies-shared-000001 is created if upgrading from 7.x
+        // The read alias will point to all indices
+        Tuple.tuple(List.of(".ml-anomalies-shared", ".ml-anomalies-shared-000001"), ".ml-anomalies-" + JOB_ID),
+        // and the write alias will point to the latest one of these indices
+        Tuple.tuple(List.of(".ml-anomalies-shared", ".ml-anomalies-shared-000001"), ".ml-anomalies-.write-" + JOB_ID)
     );
 
     public MlHiddenIndicesFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

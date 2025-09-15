@@ -144,10 +144,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiersPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());
@@ -260,10 +256,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     }
 
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();
         Locale locale = randomLocale(random());

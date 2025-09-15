@@ -508,6 +508,12 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
             .orElseThrow()
             .queue();
 
+        // There is one task in the queue for computing and forking the cleanup work.
+        assertThat(queueLength.getAsInt(), equalTo(1));
+
+        safeAwait(barrier); // unblock the barrier thread and let it process the queue
+        safeAwait(barrier); // wait for the queue to be processed
+
         // There are indexCount (=3*snapshotPoolSize) index-deletion tasks, plus one for cleaning up the root metadata. However, the
         // throttled runner only enqueues one task per SNAPSHOT thread to start with, and then the eager runner adds another one. This shows
         // we are not spamming the threadpool with all the tasks at once, which means that other snapshot activities can run alongside this

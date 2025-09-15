@@ -4,6 +4,14 @@
 <titleabbrev>Events reference</titleabbrev>
 ++++
 
+++++
+<style>
+  div#url-to-v3 {
+    display: none !important;
+  }
+</style>
+++++
+
 Behavioral Analytics logs events using the {ecs-ref}/ecs-reference.html[Elastic Common Schema^], including a custom field set for analytics events.
 Refer to <<behavioral-analytics-event-reference-examples,examples>> of the full data objects that are logged.
 

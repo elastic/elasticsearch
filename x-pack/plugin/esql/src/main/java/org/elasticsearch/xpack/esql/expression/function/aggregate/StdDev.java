@@ -36,12 +36,12 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @FunctionInfo(
         returnType = "double",
-        description = "The standard deviation of a numeric field.",
+        description = "The population standard deviation of a numeric field.",
         isAggregation = true,
         examples = {
             @Example(file = "stats", tag = "stdev"),
             @Example(
-                description = "The expression can use inline functions. For example, to calculate the standard "
+                description = "The expression can use inline functions. For example, to calculate the population standard "
                     + "deviation of each employee's maximum salary changes, first use `MV_MAX` on each row, "
                     + "and then use `STD_DEV` on the result",
                 file = "stats",
@@ -96,16 +96,16 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(inputChannels);
+            return new StdDevLongAggregatorFunctionSupplier();
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(inputChannels);
+            return new StdDevIntAggregatorFunctionSupplier();
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(inputChannels);
+            return new StdDevDoubleAggregatorFunctionSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

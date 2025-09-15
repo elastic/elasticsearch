@@ -15,8 +15,9 @@ import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 
-import javax.inject.Inject;
 import java.util.Map;
+
+import javax.inject.Inject;
 
 public class LicensingPlugin implements Plugin<Project> {
     static final String ELASTIC_LICENSE_URL_PREFIX = "https://raw.githubusercontent.com/elastic/elasticsearch/";
@@ -33,24 +34,33 @@ public class LicensingPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         Provider<String> revision = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getRevision();
-        Provider<String> licenseCommitProvider = providerFactory.provider(() ->
-             isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion()
+        Provider<String> licenseCommitProvider = providerFactory.provider(
+            () -> isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion()
         );
 
-        Provider<String> elasticLicenseURL = licenseCommitProvider.map(licenseCommit -> ELASTIC_LICENSE_URL_PREFIX +
-                licenseCommit + ELASTIC_LICENSE_URL_POSTFIX);
-        Provider<String> agplLicenseURL = licenseCommitProvider.map(licenseCommit -> ELASTIC_LICENSE_URL_PREFIX +
-            licenseCommit + AGPL_ELASTIC_LICENSE_URL_POSTFIX);
+        Provider<String> elasticLicenseURL = licenseCommitProvider.map(
+            licenseCommit -> ELASTIC_LICENSE_URL_PREFIX + licenseCommit + ELASTIC_LICENSE_URL_POSTFIX
+        );
+        Provider<String> agplLicenseURL = licenseCommitProvider.map(
+            licenseCommit -> ELASTIC_LICENSE_URL_PREFIX + licenseCommit + AGPL_ELASTIC_LICENSE_URL_POSTFIX
+        );
         // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
         project.getExtensions().getExtraProperties().set("elasticLicenseUrl", elasticLicenseURL);
 
-        MapProperty<String, String> licensesProperty = project.getObjects().mapProperty(String.class, String.class).convention(
-                providerFactory.provider(() -> Map.of(
-                        "Server Side Public License, v 1", "https://www.mongodb.com/licensing/server-side-public-license",
-                        "Elastic License 2.0", elasticLicenseURL.get(),
-                        "GNU Affero General Public License Version 3", agplLicenseURL.get())
+        MapProperty<String, Provider<String>> licensesProperty = project.getObjects()
+            .mapProperty(String.class, (Class<Provider<String>>) (Class<?>) Provider.class)
+            .convention(
+                providerFactory.provider(
+                    () -> Map.of(
+                        "Server Side Public License, v 1",
+                        providerFactory.provider(() -> "https://www.mongodb.com/licensing/server-side-public-license"),
+                        "Elastic License 2.0",
+                        elasticLicenseURL,
+                        "GNU Affero General Public License Version 3",
+                        agplLicenseURL
+                    )
                 )
-        );
+            );
 
         // Default to the SSPL+Elastic dual license
         project.getExtensions().getExtraProperties().set("projectLicenses", licensesProperty);

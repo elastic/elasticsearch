@@ -93,7 +93,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         }
         final boolean requireSignedAssertions;
         if (response.isSigned()) {
-            validateSignature(response.getSignature());
+            validateSignature(response.getSignature(), response.getIssuer());
             requireSignedAssertions = false;
         } else {
             requireSignedAssertions = true;
@@ -121,7 +121,7 @@ class SamlAuthenticator extends SamlResponseHandler {
             logger.debug(
                 "The Attribute Statements of SAML Response with ID [{}] contained no attributes and the SAML Assertion Subject "
                     + "did not contain a SAML NameID. Please verify that the Identity Provider configuration with regards to attribute "
-                    + "release is correct. ",
+                    + "release is correct.",
                 response.getID()
             );
             throw samlException("Could not process any SAML attributes in {}", response.getElementQName());
@@ -199,7 +199,7 @@ class SamlAuthenticator extends SamlResponseHandler {
         }
         // Do not further process unsigned Assertions
         if (assertion.isSigned()) {
-            validateSignature(assertion.getSignature());
+            validateSignature(assertion.getSignature(), assertion.getIssuer());
         } else if (requireSignature) {
             throw samlException("Assertion [{}] is not signed, but a signature is required", assertion.getElementQName());
         }

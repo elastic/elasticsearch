@@ -95,22 +95,20 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         InternalMappedSignificantTerms<?, ?> read = (InternalMappedSignificantTerms<?, ?>) in.readNamedWriteable(InternalAggregation.class);
 
         assertEquals(sigTerms.getSignificanceHeuristic(), read.getSignificanceHeuristic());
+        assertThat(read.getSubsetSize(), equalTo(10L));
+        assertThat(read.getSupersetSize(), equalTo(20L));
         SignificantTerms.Bucket originalBucket = sigTerms.getBuckets().get(0);
         SignificantTerms.Bucket streamedBucket = read.getBuckets().get(0);
         assertThat(originalBucket.getKeyAsString(), equalTo(streamedBucket.getKeyAsString()));
         assertThat(originalBucket.getSupersetDf(), equalTo(streamedBucket.getSupersetDf()));
         assertThat(originalBucket.getSubsetDf(), equalTo(streamedBucket.getSubsetDf()));
-        assertThat(streamedBucket.getSubsetSize(), equalTo(10L));
-        assertThat(streamedBucket.getSupersetSize(), equalTo(20L));
     }
 
     InternalMappedSignificantTerms<?, ?> getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         if (randomBoolean()) {
             SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(
                 1,
-                2,
                 3,
-                4,
                 123,
                 InternalAggregations.EMPTY,
                 DocValueFormat.RAW,
@@ -121,9 +119,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
             SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(
                 new BytesRef("someterm"),
                 1,
-                2,
                 3,
-                4,
                 InternalAggregations.EMPTY,
                 DocValueFormat.RAW,
                 randomDoubleBetween(0, 100, true)
@@ -136,15 +132,13 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         List<InternalAggregation> aggs = createInternalAggregations();
         AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         SignificantTerms reducedAgg = (SignificantTerms) InternalAggregationTestCase.reduce(aggs, context);
+        assertThat(reducedAgg.getSubsetSize(), equalTo(16L));
+        assertThat(reducedAgg.getSupersetSize(), equalTo(30L));
         assertThat(reducedAgg.getBuckets().size(), equalTo(2));
         assertThat(reducedAgg.getBuckets().get(0).getSubsetDf(), equalTo(8L));
-        assertThat(reducedAgg.getBuckets().get(0).getSubsetSize(), equalTo(16L));
         assertThat(reducedAgg.getBuckets().get(0).getSupersetDf(), equalTo(10L));
-        assertThat(reducedAgg.getBuckets().get(0).getSupersetSize(), equalTo(30L));
         assertThat(reducedAgg.getBuckets().get(1).getSubsetDf(), equalTo(8L));
-        assertThat(reducedAgg.getBuckets().get(1).getSubsetSize(), equalTo(16L));
         assertThat(reducedAgg.getBuckets().get(1).getSupersetDf(), equalTo(10L));
-        assertThat(reducedAgg.getBuckets().get(1).getSupersetSize(), equalTo(30L));
     }
 
     public void testBasicScoreProperties() {
@@ -234,9 +228,9 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
             : new AbstractSignificanceHeuristicTestCase.LongTestAggFactory();
 
         List<InternalAggregation> aggs = new ArrayList<>();
-        aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 0)));
-        aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 1)));
-        aggs.add(factory.createAggregation(significanceHeuristic, 8, 10, 2, (f, i) -> f.createBucket(4, 4, 5, 10, i)));
+        aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 5, 0)));
+        aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 5, 1)));
+        aggs.add(factory.createAggregation(significanceHeuristic, 8, 10, 2, (f, i) -> f.createBucket(4, 5, i)));
         return aggs;
     }
 
@@ -254,7 +248,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
         abstract A createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize, List<B> buckets);
 
-        abstract B createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label);
+        abstract B createBucket(long subsetDF, long supersetDF, long label);
     }
 
     private class StringTestAggFactory extends TestAggFactory<SignificantStringTerms, SignificantStringTerms.Bucket> {
@@ -279,13 +273,11 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         }
 
         @Override
-        SignificantStringTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
+        SignificantStringTerms.Bucket createBucket(long subsetDF, long supersetDF, long label) {
             return new SignificantStringTerms.Bucket(
                 new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)),
                 subsetDF,
-                subsetSize,
                 supersetDF,
-                supersetSize,
                 InternalAggregations.EMPTY,
                 DocValueFormat.RAW,
                 0
@@ -315,17 +307,8 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         }
 
         @Override
-        SignificantLongTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
-            return new SignificantLongTerms.Bucket(
-                subsetDF,
-                subsetSize,
-                supersetDF,
-                supersetSize,
-                label,
-                InternalAggregations.EMPTY,
-                DocValueFormat.RAW,
-                0
-            );
+        SignificantLongTerms.Bucket createBucket(long subsetDF, long supersetDF, long label) {
+            return new SignificantLongTerms.Bucket(subsetDF, supersetDF, label, InternalAggregations.EMPTY, DocValueFormat.RAW, 0);
         }
     }
 

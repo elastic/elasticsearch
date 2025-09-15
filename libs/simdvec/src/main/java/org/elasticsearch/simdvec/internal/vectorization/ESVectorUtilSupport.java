@@ -14,4 +14,16 @@ public interface ESVectorUtilSupport {
     short B_QUERY = 4;
 
     long ipByteBinByte(byte[] q, byte[] d);
+
+    int ipByteBit(byte[] q, byte[] d);
+
+    float ipFloatBit(float[] q, byte[] d);
+
+    float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda);
+
+    void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts);
+
+    void centerAndCalculateOSQStatsEuclidean(float[] target, float[] centroid, float[] centered, float[] stats);
+
+    void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats);
 }

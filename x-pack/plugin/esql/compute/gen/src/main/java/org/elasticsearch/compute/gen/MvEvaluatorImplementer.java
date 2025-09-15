@@ -128,7 +128,7 @@ public class MvEvaluatorImplementer {
     private TypeSpec type() {
         TypeSpec.Builder builder = TypeSpec.classBuilder(implementation);
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", EXPRESSION_EVALUATOR, declarationType);
-        builder.addJavadoc("This class is generated. Do not edit it.");
+        builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         if (warnExceptions.isEmpty()) {
             builder.superclass(ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR);
@@ -137,6 +137,7 @@ public class MvEvaluatorImplementer {
             builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
         }
+        builder.addField(EvaluatorImplementer.baseRamBytesUsed(implementation));
 
         builder.addMethod(ctor());
         builder.addMethod(name());
@@ -159,6 +160,7 @@ public class MvEvaluatorImplementer {
         if (warnExceptions.isEmpty() == false) {
             builder.addMethod(EvaluatorImplementer.warnings());
         }
+        builder.addMethod(baseRamBytesUsed());
         return builder.build();
     }
 
@@ -580,5 +582,13 @@ public class MvEvaluatorImplementer {
                 fetch(builder, "result", resultType, "first + idx", workType.equals(fieldType) ? "firstScratch" : "valueScratch");
             }
         }
+    }
+
+    MethodSpec baseRamBytesUsed() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("baseRamBytesUsed").addAnnotation(Override.class);
+        builder.addModifiers(Modifier.PUBLIC).returns(TypeName.LONG);
+
+        builder.addStatement("return BASE_RAM_BYTES_USED + field.baseRamBytesUsed()");
+        return builder.build();
     }
 }

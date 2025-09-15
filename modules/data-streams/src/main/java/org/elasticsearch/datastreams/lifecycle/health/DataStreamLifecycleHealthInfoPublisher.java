@@ -45,7 +45,7 @@ public class DataStreamLifecycleHealthInfoPublisher {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
-    public static final NodeFeature DSL_HEALTH_INFO_FEATURE = new NodeFeature("health.dsl.info");
+    public static final NodeFeature DSL_HEALTH_INFO_FEATURE = new NodeFeature("health.dsl.info", true);
 
     private final Client client;
     private final ClusterService clusterService;

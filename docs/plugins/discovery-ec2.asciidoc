@@ -83,8 +83,8 @@ The available settings for the EC2 discovery plugin are as follows.
 
 `discovery.ec2.protocol`::
 
-    The protocol to use to connect to the EC2 service endpoint, which may be
-    either `http` or `https`. Defaults to `https`.
+    This setting has no effect. To use HTTP to connect to the EC2 service
+    endpoint, set `discovery.ec2.endpoint` to a URL that starts with `http://`.
 
 `discovery.ec2.proxy.host`::
 
@@ -241,7 +241,7 @@ The `discovery-ec2` plugin can automatically set the `aws_availability_zone`
 node attribute to the availability zone of each node. This node attribute
 allows you to ensure that each shard has copies allocated redundantly across
 multiple availability zones by using the
-{ref}/modules-cluster.html#shard-allocation-awareness[Allocation Awareness]
+{ref}/shard-allocation-awareness.html#[Allocation Awareness]
 feature.
 
 In order to enable the automatic definition of the `aws_availability_zone`
@@ -333,7 +333,7 @@ labelled as `Moderate` or `Low`.
 
 * It is a good idea to distribute your nodes across multiple
 https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability
-zones] and use {ref}/modules-cluster.html#shard-allocation-awareness[shard
+zones] and use {ref}/shard-allocation-awareness.html[shard
 allocation awareness] to ensure that each shard has copies in more than one
 availability zone.
 

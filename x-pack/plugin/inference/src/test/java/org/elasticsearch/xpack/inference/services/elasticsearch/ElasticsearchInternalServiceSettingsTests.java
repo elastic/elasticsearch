@@ -103,7 +103,7 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                 )
             )
         ).build();
-        assertEquals(new ElasticsearchInternalServiceSettings(1, 4, ".elser_model_1", null), serviceSettings);
+        assertEquals(new ElasticsearchInternalServiceSettings(1, 4, ".elser_model_1", null, null), serviceSettings);
     }
 
     public void testFromMapMissingOptions() {

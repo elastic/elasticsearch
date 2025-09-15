@@ -40,6 +40,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -174,14 +175,18 @@ public final class SourceConfirmedTextQuery extends Query {
             return false;
         }
         SourceConfirmedTextQuery that = (SourceConfirmedTextQuery) obj;
-        return Objects.equals(in, that.in)
-            && Objects.equals(valueFetcherProvider, that.valueFetcherProvider)
-            && Objects.equals(indexAnalyzer, that.indexAnalyzer);
+        // We intentionally do not compare the value fetcher or analyzer, as they
+        // do not typically implement equals() themselves, and the inner
+        // Query is sufficient to establish identity.
+        return Objects.equals(in, that.in);
     }
 
     @Override
     public int hashCode() {
-        return 31 * Objects.hash(in, valueFetcherProvider, indexAnalyzer) + classHash();
+        // We intentionally do not hash the value fetcher or analyzer, as they
+        // do not typically implement hashCode() themselves, and the inner
+        // Query is sufficient to establish identity.
+        return 31 * Objects.hash(in) + classHash();
     }
 
     @Override
@@ -407,7 +412,13 @@ public final class SourceConfirmedTextQuery extends Query {
                     if (value == null) {
                         continue;
                     }
-                    cacheEntry.memoryIndex.addField(field, value.toString(), indexAnalyzer);
+                    String valueStr;
+                    if (value instanceof BytesRef valueRef) {
+                        valueStr = valueRef.utf8ToString();
+                    } else {
+                        valueStr = value.toString();
+                    }
+                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
                 }
             }
             return cacheEntry.memoryIndex;

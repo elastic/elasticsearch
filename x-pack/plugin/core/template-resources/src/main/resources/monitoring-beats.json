@@ -966,6 +966,45 @@
                     },
                     "sampling": {
                       "properties": {
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "long"
+                            },
+                            "events": {
+                              "properties": {
+                                "dropped": {
+                                  "type": "long"
+                                },
+                                "failed_writes": {
+                                  "type": "long"
+                                },
+                                "head_unsampled": {
+                                  "type": "long"
+                                },
+                                "processed": {
+                                  "type": "long"
+                                },
+                                "sampled": {
+                                  "type": "long"
+                                },
+                                "stored": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "long"
+                                },
+                                "value_log_size": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
                         "transactions_dropped": {
                           "type": "long"
                         }

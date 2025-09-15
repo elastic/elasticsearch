@@ -83,8 +83,8 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             Integer.MIN_VALUE,
             0,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -95,8 +95,8 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             Long.MIN_VALUE,
             0L,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryUnsignedLong(
@@ -107,8 +107,8 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             BigInteger.ZERO,
             BigInteger.ZERO,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -119,12 +119,12 @@ public class Log10Tests extends AbstractScalarFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             0d,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

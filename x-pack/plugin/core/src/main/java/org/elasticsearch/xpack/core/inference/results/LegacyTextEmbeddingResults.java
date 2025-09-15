@@ -44,7 +44,7 @@ import java.util.Objects;
  *
  * Legacy text embedding results represents what was returned prior to the
  * {@link org.elasticsearch.TransportVersions#V_8_12_0} version.
- * @deprecated use {@link InferenceTextEmbeddingFloatResults} instead
+ * @deprecated use {@link TextEmbeddingFloatResults} instead
  */
 @Deprecated
 public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements InferenceResults {
@@ -114,8 +114,8 @@ public record LegacyTextEmbeddingResults(List<Embedding> embeddings) implements 
         return Objects.hash(embeddings);
     }
 
-    public InferenceTextEmbeddingFloatResults transformToTextEmbeddingResults() {
-        return new InferenceTextEmbeddingFloatResults(this);
+    public TextEmbeddingFloatResults transformToTextEmbeddingResults() {
+        return new TextEmbeddingFloatResults(this);
     }
 
     public record Embedding(float[] values) implements Writeable, ToXContentObject {

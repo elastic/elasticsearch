@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -280,9 +279,7 @@ public class PlanStreamOutputTests extends ESTestCase {
     private static final NamedWriteableRegistry REGISTRY;
 
     static {
-        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
-        writeables.addAll(BlockWritables.getNamedWriteables());
-        writeables.addAll(ExpressionWritables.attributes());
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>(ExpressionWritables.attributes());
         REGISTRY = new NamedWriteableRegistry(new ArrayList<>(new HashSet<>(writeables)));
     }
 }

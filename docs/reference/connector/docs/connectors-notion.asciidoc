@@ -140,7 +140,7 @@ Advanced sync rules for Notion take the following parameters:
 ====== Examples
 
 [discrete]
-======= Example 1
+*Example 1*
 
 Indexing every page where the title contains `Demo Page`:
 
@@ -160,7 +160,7 @@ Indexing every page where the title contains `Demo Page`:
 // NOTCONSOLE
 
 [discrete]
-======= Example 2
+*Example 2*
 
 Indexing every database where the title contains `Demo Database`:
 
@@ -180,7 +180,7 @@ Indexing every database where the title contains `Demo Database`:
 // NOTCONSOLE
 
 [discrete]
-======= Example 3
+*Example 3*
 
 Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
 
@@ -206,7 +206,7 @@ Indexing every database where the title contains `Demo Database` and every page 
 // NOTCONSOLE
 
 [discrete]
-======= Example 4
+*Example 4*
 
 Indexing all pages in the workspace:
 
@@ -226,7 +226,7 @@ Indexing all pages in the workspace:
 // NOTCONSOLE
 
 [discrete]
-======= Example 5
+*Example 5*
 
 Indexing all the pages and databases connected to the workspace:
 
@@ -243,7 +243,7 @@ Indexing all the pages and databases connected to the workspace:
 // NOTCONSOLE
 
 [discrete]
-======= Example 6
+*Example 6*
 
 Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
 
@@ -266,7 +266,7 @@ Indexing all the rows of a database where the record is `true` for the column `T
 // NOTCONSOLE
 
 [discrete]
-======= Example 7
+*Example 7*
 
 Indexing all rows of a specific database:
 
@@ -283,7 +283,7 @@ Indexing all rows of a specific database:
 // NOTCONSOLE
 
 [discrete]
-======= Example 8
+*Example 8*
 
 Indexing all blocks defined in `searches` and `database_query_filters`:
 
@@ -498,7 +498,7 @@ Advanced sync rules for Notion take the following parameters:
 ====== Examples
 
 [discrete]
-======= Example 1
+*Example 1*
 
 Indexing every page where the title contains `Demo Page`:
 
@@ -518,7 +518,7 @@ Indexing every page where the title contains `Demo Page`:
 // NOTCONSOLE
 
 [discrete]
-======= Example 2
+*Example 2*
 
 Indexing every database where the title contains `Demo Database`:
 
@@ -538,7 +538,7 @@ Indexing every database where the title contains `Demo Database`:
 // NOTCONSOLE
 
 [discrete]
-======= Example 3
+*Example 3*
 
 Indexing every database where the title contains `Demo Database` and every page where the title contains `Demo Page`:
 
@@ -564,7 +564,7 @@ Indexing every database where the title contains `Demo Database` and every page 
 // NOTCONSOLE
 
 [discrete]
-======= Example 4
+*Example 4*
 
 Indexing all pages in the workspace:
 
@@ -584,7 +584,7 @@ Indexing all pages in the workspace:
 // NOTCONSOLE
 
 [discrete]
-======= Example 5
+*Example 5*
 
 Indexing all the pages and databases connected to the workspace:
 
@@ -601,7 +601,7 @@ Indexing all the pages and databases connected to the workspace:
 // NOTCONSOLE
 
 [discrete]
-======= Example 6
+*Example 6*
 
 Indexing all the rows of a database where the record is `true` for the column `Task completed` and its property(datatype) is a checkbox:
 
@@ -624,7 +624,7 @@ Indexing all the rows of a database where the record is `true` for the column `T
 // NOTCONSOLE
 
 [discrete]
-======= Example 7
+*Example 7*
 
 Indexing all rows of a specific database:
 
@@ -641,7 +641,7 @@ Indexing all rows of a specific database:
 // NOTCONSOLE
 
 [discrete]
-======= Example 8
+*Example 8*
 
 Indexing all blocks defined in `searches` and `database_query_filters`:
 

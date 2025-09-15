@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -110,6 +112,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
             .nodeFeatures(
                 Map.of(
                     "n1",
@@ -141,10 +144,15 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // cluster doesn't have feature
-            ClusterState stateNoFeature = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()).build();
+            ClusterState stateNoFeature = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
+                .nodeFeatures(Map.of("n1", Set.of(), "n2", Set.of()))
+                .metadata(Metadata.builder())
+                .build();
 
+            Settings settings = Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build();
             DataStreamAutoShardingService noFeatureService = new DataStreamAutoShardingService(
-                Settings.builder().put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true).build(),
+                settings,
                 clusterService,
                 new FeatureService(List.of()),
                 () -> now
@@ -155,15 +163,16 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
 
         {
+            Settings settings = Settings.builder()
+                .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true)
+                .putList(
+                    DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(),
+                    List.of("foo", dataStreamName + "*")
+                )
+                .build();
             // patterns are configured to exclude the current data stream
             DataStreamAutoShardingService noFeatureService = new DataStreamAutoShardingService(
-                Settings.builder()
-                    .put(DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_ENABLED, true)
-                    .putList(
-                        DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.getKey(),
-                        List.of("foo", dataStreamName + "*")
-                    )
-                    .build(),
+                settings,
                 clusterService,
                 new FeatureService(List.of()),
                 () -> now
@@ -199,6 +208,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStream dataStream = dataStreamSupplier.apply(null);
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -237,6 +247,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -275,6 +286,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -313,6 +325,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStream dataStream = dataStreamSupplier.apply(null);
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -353,6 +366,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStream dataStream = dataStreamSupplier.apply(null);
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -401,6 +415,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -447,6 +462,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             );
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -487,6 +503,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             DataStream dataStream = dataStreamSupplier.apply(null);
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
                 .nodeFeatures(
                     Map.of(
                         "n1",
@@ -802,4 +819,37 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         return builder.build();
     }
 
+    public void testCalculateReturnsNotApplicableForLookupIndexMode() {
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createLookupModeDataStream(builder);
+        ClusterState state = createClusterStateWithDataStream(builder);
+
+        AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+    }
+
+    public void testCalculateReturnsNotApplicableForLookupIndexModeWithNullWriteLoad() {
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createLookupModeDataStream(builder);
+        ClusterState state = createClusterStateWithDataStream(builder);
+
+        AutoShardingResult autoShardingResult = service.calculate(state, dataStream, null);
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+    }
+
+    private DataStream createLookupModeDataStream(Metadata.Builder builder) {
+        DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
+            .setGeneration(1)
+            .setIndexMode(IndexMode.LOOKUP)
+            .build();
+        builder.put(dataStream);
+        return dataStream;
+    }
+
+    private ClusterState createClusterStateWithDataStream(Metadata.Builder builder) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
+            .metadata(builder.build())
+            .build();
+    }
 }

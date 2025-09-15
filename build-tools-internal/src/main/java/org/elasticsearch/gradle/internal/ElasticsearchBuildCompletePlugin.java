@@ -29,6 +29,8 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -46,6 +48,8 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project> {
+
+    private static final Logger log = LoggerFactory.getLogger(ElasticsearchBuildCompletePlugin.class);
 
     @Inject
     protected abstract FlowScope getFlowScope();
@@ -106,6 +110,8 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         projectDirFiles.include("**/build/testrun/*/temp/**");
         projectDirFiles.include("**/build/**/hs_err_pid*.log");
         projectDirFiles.include("**/build/**/replay_pid*.log");
+        // core dump files are in the working directory of the installation, which is not project specific
+        projectDirFiles.include("distribution/**/build/install/*/core.*");
         projectDirFiles.exclude("**/build/testclusters/**/data/**");
         projectDirFiles.exclude("**/build/testclusters/**/distro/**");
         projectDirFiles.exclude("**/build/testclusters/**/repo/**");
@@ -241,8 +247,11 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
                 tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_GNU);
                 tOut.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_STAR);
                 for (Path path : files.stream().map(File::toPath).toList()) {
-                    if (!Files.isRegularFile(path)) {
-                        throw new IOException("Support only file!");
+                    if (Files.exists(path) == false) {
+                        log.warn("File disappeared before it could be added to CI archive: " + path);
+                        continue;
+                    } else if (!Files.isRegularFile(path)) {
+                        throw new IOException("Support only file!: " + path);
                     }
 
                     long entrySize = Files.size(path);

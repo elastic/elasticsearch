@@ -46,10 +46,7 @@ public class GND extends NXYSignificanceHeuristic {
 
     @Override
     public boolean equals(Object other) {
-        if ((other instanceof GND) == false) {
-            return false;
-        }
-        return super.equals(other);
+        return other instanceof GND && super.equals(other);
     }
 
     @Override
@@ -99,17 +96,4 @@ public class GND extends NXYSignificanceHeuristic {
         return builder;
     }
 
-    public static class GNDBuilder extends NXYBuilder {
-        public GNDBuilder(boolean backgroundIsSuperset) {
-            super(true, backgroundIsSuperset);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME);
-            builder.field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
-            builder.endObject();
-            return builder;
-        }
-    }
 }

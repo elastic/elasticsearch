@@ -38,11 +38,11 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ResolvedRepositories;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
@@ -127,6 +127,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     @After
     public void assertConsistentHistoryInLuceneIndex() throws Exception {
+        internalCluster().beforeIndexDeletion();
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
     }
 
@@ -164,7 +165,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected RepositoryData getRepositoryData(String repoName, IndexVersion version) {
         final RepositoryData repositoryData = getRepositoryData(repoName);
-        if (SnapshotsService.includesUUIDs(version) == false) {
+        if (SnapshotsServiceUtils.includesUUIDs(version) == false) {
             return repositoryData.withoutUUIDs();
         } else {
             return repositoryData;
@@ -544,19 +545,19 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         safeAwait(
             (ActionListener<RepositoryData> listener) -> repo.finalizeSnapshot(
                 new FinalizeSnapshotContext(
-                    ShardGenerations.EMPTY,
+                    UpdatedShardGenerations.EMPTY,
                     getRepositoryData(repoName).getGenId(),
                     state.metadata(),
                     snapshotInfo,
                     SnapshotsService.OLD_SNAPSHOT_FORMAT,
                     listener,
-                    info -> {}
+                    () -> {}
                 )
             )
         );
     }
 
-    protected void awaitNDeletionsInProgress(int count) throws Exception {
+    protected void awaitNDeletionsInProgress(int count) {
         logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
         awaitClusterState(state -> SnapshotDeletionsInProgress.get(state).getEntries().size() == count);
     }
@@ -568,7 +569,6 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
         awaitClusterState(
-            logger,
             viaNode,
             state -> SnapshotsInProgress.get(state).isEmpty() && SnapshotDeletionsInProgress.get(state).hasDeletionsInProgress() == false
         );
@@ -603,13 +603,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .execute();
     }
 
-    protected void awaitNumberOfSnapshotsInProgress(int count) throws Exception {
+    protected void awaitNumberOfSnapshotsInProgress(int count) {
         awaitNumberOfSnapshotsInProgress(logger, count);
     }
 
-    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) {
         logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
-        awaitClusterState(logger, state -> SnapshotsInProgress.get(state).count() == count);
+        awaitClusterState(state -> SnapshotsInProgress.get(state).count() == count);
     }
 
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {

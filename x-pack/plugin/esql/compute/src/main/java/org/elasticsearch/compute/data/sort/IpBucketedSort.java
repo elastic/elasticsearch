@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
@@ -26,6 +27,11 @@ import java.util.stream.IntStream;
 /**
  * Aggregates the top N IP values per bucket.
  * See {@link BucketedSort} for more information.
+ * <p>
+ *     This is substantially different from {@link BytesRefBucketedSort} because
+ *     this takes advantage of IPs having a fixed length and allocates a dense
+ *     storage for them.
+ * </p>
  */
 public class IpBucketedSort implements Releasable {
     private static final int IP_LENGTH = 16; // Bytes. It's ipv6.
@@ -101,7 +107,7 @@ public class IpBucketedSort implements Releasable {
         // Gathering mode
         long requiredSize = common.endIndex(rootIndex) * IP_LENGTH;
         if (values.size() < requiredSize) {
-            grow(requiredSize);
+            grow(bucket);
         }
         int next = getNextGatherOffset(rootIndex);
         common.assertValidNextOffset(next);
@@ -268,17 +274,23 @@ public class IpBucketedSort implements Releasable {
      * Allocate storage for more buckets and store the "next gather offset"
      * for those new buckets.
      */
-    private void grow(long minSize) {
+    private void grow(int bucket) {
         long oldMax = values.size() / IP_LENGTH;
-        values = common.bigArrays.grow(values, minSize);
+        assert oldMax % common.bucketSize == 0;
+
+        int bucketBytes = common.bucketSize * IP_LENGTH;
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketBytes, PageCacheRecycler.BYTE_PAGE_SIZE, 1);
+        // Round up to the next full bucket.
+        newSize = (newSize + bucketBytes - 1) / bucketBytes;
+        values = common.bigArrays.resize(values, newSize * bucketBytes);
         // Set the next gather offsets for all newly allocated buckets.
-        setNextGatherOffsets(oldMax - (oldMax % common.bucketSize));
+        fillGatherOffsets(oldMax);
     }
 
     /**
      * Maintain the "next gather offsets" for newly allocated buckets.
      */
-    private void setNextGatherOffsets(long startingAt) {
+    private void fillGatherOffsets(long startingAt) {
         int nextOffset = common.bucketSize - 1;
         for (long bucketRoot = startingAt; bucketRoot < values.size() / IP_LENGTH; bucketRoot += common.bucketSize) {
             setNextGatherOffset(bucketRoot, nextOffset);

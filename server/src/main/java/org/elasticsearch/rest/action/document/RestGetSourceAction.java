@@ -50,8 +50,12 @@ public class RestGetSourceAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/{index}/_source/{id}"),
             new Route(HEAD, "/{index}/_source/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}/_source").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/{type}/{id}/_source").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/{id}/_source")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(HEAD, "/{index}/{type}/{id}/_source")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

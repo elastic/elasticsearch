@@ -15,7 +15,9 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkerTests.TEST_TEXT;
 import static org.hamcrest.Matchers.containsString;
@@ -27,10 +29,59 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SentenceBoundaryChunkerTests extends ESTestCase {
 
+    /**
+     * Utility method for testing.
+     * Use the chunk functions that return offsets where possible
+     */
+    private List<String> textChunks(
+        SentenceBoundaryChunker chunker,
+        String input,
+        int maxNumberWordsPerChunk,
+        boolean includePrecedingSentence
+    ) {
+        var chunkPositions = chunker.chunk(input, maxNumberWordsPerChunk, includePrecedingSentence);
+        return chunkPositions.stream().map(offset -> input.substring(offset.start(), offset.end())).collect(Collectors.toList());
+    }
+
+    public void testEmptyString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is(""));
+    }
+
+    public void testBlankString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   ", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is("   "));
+    }
+
+    public void testSingleChar() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("   b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), "b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), ". ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(". "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " , ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" , "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " ,", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" ,"));
+    }
+
+    public void testSingleCharRepeated() {
+        var input = "a".repeat(32_000);
+        var chunks = textChunks(new SentenceBoundaryChunker(), input, 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(input));
+    }
+
     public void testChunkSplitLargeChunkSizes() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, false);
+            var chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, false);
 
             int numChunks = expectedNumberOfChunks(sentenceSizes(TEST_TEXT), maxWordsPerChunk);
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(numChunks));
@@ -48,7 +99,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         boolean overlap = true;
         for (int maxWordsPerChunk : new int[] { 70, 80, 100, 120, 150, 200 }) {
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, overlap);
+            var chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, overlap);
 
             int[] overlaps = chunkOverlaps(sentenceSizes(TEST_TEXT), maxWordsPerChunk, overlap);
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(overlaps.length));
@@ -107,7 +158,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         }
 
         var chunker = new SentenceBoundaryChunker();
-        var chunks = chunker.chunk(sb.toString(), chunkSize, true);
+        var chunks = textChunks(chunker, sb.toString(), chunkSize, true);
         assertThat(chunks, hasSize(numChunks));
         for (int i = 0; i < numChunks; i++) {
             assertThat("num sentences " + numSentences, chunks.get(i), startsWith("SStart" + sentenceStartIndexes[i]));
@@ -128,10 +179,10 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
     public void testChunk_ChunkSizeLargerThanText() {
         int maxWordsPerChunk = 500;
         var chunker = new SentenceBoundaryChunker();
-        var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, false);
+        var chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, false);
         assertEquals(chunks.get(0), TEST_TEXT);
 
-        chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, true);
+        chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, true);
         assertEquals(chunks.get(0), TEST_TEXT);
     }
 
@@ -142,7 +193,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         for (int i = 0; i < chunkSizes.length; i++) {
             int maxWordsPerChunk = chunkSizes[i];
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, false);
+            var chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, false);
 
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(expectedNumberOFChunks[i]));
             for (var chunk : chunks) {
@@ -171,7 +222,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         for (int i = 0; i < chunkSizes.length; i++) {
             int maxWordsPerChunk = chunkSizes[i];
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, true);
+            var chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, true);
             assertThat(chunks.get(0), containsString("Word segmentation is the problem of dividing"));
             assertThat(chunks.get(chunks.size() - 1), containsString(", with solidification being a stronger norm."));
         }
@@ -190,7 +241,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         }
 
         var chunker = new SentenceBoundaryChunker();
-        var chunks = chunker.chunk(sb.toString(), maxWordsPerChunk, true);
+        var chunks = textChunks(chunker, sb.toString(), maxWordsPerChunk, true);
         assertThat(chunks, hasSize(5));
         assertTrue(chunks.get(0).trim().startsWith("SStart0"));  // Entire sentence
         assertTrue(chunks.get(0).trim().endsWith("."));  // Entire sentence
@@ -204,32 +255,6 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         assertTrue(chunks.get(4).trim().startsWith("SStart2"));  // contains previous sentence
         assertThat(chunks.get(4), containsString("SStart3"));   // last chunk contains 2 sentences
         assertTrue(chunks.get(4).trim().endsWith("."));   // full sentence(s)
-    }
-
-    public void testCountWords() {
-        // Test word count matches the whitespace separated word count.
-        var splitByWhiteSpaceSentenceSizes = sentenceSizes(TEST_TEXT);
-
-        var sentenceIterator = BreakIterator.getSentenceInstance(Locale.ROOT);
-        sentenceIterator.setText(TEST_TEXT);
-
-        var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-        wordIterator.setText(TEST_TEXT);
-
-        int start = 0;
-        int end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[0], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[1], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[2], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[3], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-
-        assertEquals(BreakIterator.DONE, sentenceIterator.next());
     }
 
     public void testSkipWords() {
@@ -256,54 +281,11 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         assertThat(pos, greaterThan(0));
     }
 
-    public void testCountWords_short() {
-        // Test word count matches the whitespace separated word count.
-        var text = "This is a short sentence. Followed by another.";
-
-        var sentenceIterator = BreakIterator.getSentenceInstance(Locale.ROOT);
-        sentenceIterator.setText(text);
-
-        var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-        wordIterator.setText(text);
-
-        int start = 0;
-        int end = sentenceIterator.next();
-        assertEquals(5, SentenceBoundaryChunker.countWords(0, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(3, SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        assertEquals(BreakIterator.DONE, sentenceIterator.next());
-    }
-
-    public void testCountWords_WithSymbols() {
-        {
-            var text = "foo != bar";
-            var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-            wordIterator.setText(text);
-            // "foo", "bar" - "!=" is not counted
-            assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
-        }
-        {
-            var text = "foo & bar";
-            var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-            wordIterator.setText(text);
-            // "foo", "bar" - the & is not counted
-            assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
-        }
-        {
-            var text = "m&s";
-            var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-            wordIterator.setText(text);
-            // "m", "s" - the & is not counted
-            assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
-        }
-    }
-
     public void testChunkSplitLargeChunkSizesWithChunkingSettings() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();
             SentenceBoundaryChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(maxWordsPerChunk, 0);
-            var chunks = chunker.chunk(TEST_TEXT, chunkingSettings);
+            var chunks = textChunks(chunker, TEST_TEXT, maxWordsPerChunk, false);
 
             int numChunks = expectedNumberOfChunks(sentenceSizes(TEST_TEXT), maxWordsPerChunk);
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(numChunks));

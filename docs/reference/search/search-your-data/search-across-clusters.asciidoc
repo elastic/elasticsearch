@@ -19,10 +19,10 @@ The following APIs support {ccs}:
 * <<search-field-caps,Field capabilities>>
 * {painless}/painless-execute-api.html[Painless execute API]
 * <<indices-resolve-index-api,Resolve Index API>>
+* <<search-vector-tile-api,Vector tile search>>
+* <<esql-cross-clusters,ES|QL>>
 * experimental:[] <<eql-search-api,EQL search>>
 * experimental:[] <<sql-search-api,SQL search>>
-* experimental:[] <<search-vector-tile-api,Vector tile search>>
-* experimental:[] <<esql,ES|QL>>
 
 [discrete]
 === Prerequisites
@@ -109,7 +109,7 @@ PUT _cluster/settings
 // end::ccs-remote-cluster-setup[]
 
 <1> Since `skip_unavailable` was not set on `cluster_three`, it uses
-the default of `false`. See the <<skip-unavailable-clusters>>
+the default of `true`. See the <<skip-unavailable-clusters>>
 section for details.
 
 

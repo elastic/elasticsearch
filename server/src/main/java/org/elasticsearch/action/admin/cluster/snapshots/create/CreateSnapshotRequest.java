@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,9 +68,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private String[] indices = EMPTY_ARRAY;
 
-    private IndicesOptions indicesOptions = DataStream.isFailureStoreFeatureFlagEnabled()
-        ? IndicesOptions.strictExpandHiddenIncludeFailureStore()
-        : IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHiddenFailureNoSelectors();
 
     private String[] featureStates = EMPTY_ARRAY;
 
@@ -118,7 +115,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readGenericMap();
-        uuid = in.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS) ? in.readOptionalString() : null;
+        uuid = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalString() : null;
     }
 
     @Override
@@ -136,7 +133,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeGenericMap(userMetadata);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REGISTER_SLM_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalString(uuid);
         }
     }

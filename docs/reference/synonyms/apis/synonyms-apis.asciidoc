@@ -7,6 +7,12 @@
 
 ---
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
+
 The synonyms management API provides a convenient way to define and manage synonyms in an internal system index. Related synonyms can be grouped in a "synonyms set".
 Create as many synonym sets as you need.
 

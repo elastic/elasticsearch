@@ -28,139 +28,67 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
-               "provider": "some_provider",
-               "task_types": [
-                  {
-               "task_type": "text_embedding",
-               "configuration": {
+               "service": "some_provider",
+               "name": "Some Provider",
+               "task_types": ["text_embedding", "completion"],
+               "configurations": {
                     "text_field_configuration": {
-                        "default_value": null,
-                        "depends_on": [
-                            {
-                                "field": "some_field",
-                                "value": true
-                            }
-                        ],
-                        "display": "textbox",
+                        "description": "Wow, this tooltip is useful.",
                         "label": "Very important field",
-                        "options": [],
-                        "order": 4,
                         "required": true,
                         "sensitive": true,
-                        "tooltip": "Wow, this tooltip is useful.",
-                        "type": "str",
-                        "ui_restrictions": [],
-                        "validations": null,
-                        "value": ""
+                        "updatable": false,
+                        "type": "str"
                     },
                     "numeric_field_configuration": {
                         "default_value": 3,
-                        "depends_on": null,
-                        "display": "numeric",
+                        "description": "Wow, this tooltip is useful.",
                         "label": "Very important numeric field",
-                        "options": [],
-                        "order": 2,
                         "required": true,
                         "sensitive": false,
-                        "tooltip": "Wow, this tooltip is useful.",
-                        "type": "int",
-                        "ui_restrictions": [],
-                        "validations": [
-                            {
-                                "constraint": 0,
-                                "type": "greater_than"
-                            }
-                        ],
-                        "value": ""
-                    }
-               }
-            },
-            {
-               "task_type": "completion",
-               "configuration": {
-                    "text_field_configuration": {
-                        "default_value": null,
-                        "depends_on": [
-                            {
-                                "field": "some_field",
-                                "value": true
-                            }
-                        ],
-                        "display": "textbox",
-                        "label": "Very important field",
-                        "options": [],
-                        "order": 4,
-                        "required": true,
-                        "sensitive": true,
-                        "tooltip": "Wow, this tooltip is useful.",
-                        "type": "str",
-                        "ui_restrictions": [],
-                        "validations": null,
-                        "value": ""
-                    },
-                    "numeric_field_configuration": {
-                        "default_value": 3,
-                        "depends_on": null,
-                        "display": "numeric",
-                        "label": "Very important numeric field",
-                        "options": [],
-                        "order": 2,
-                        "required": true,
-                        "sensitive": false,
-                        "tooltip": "Wow, this tooltip is useful.",
-                        "type": "int",
-                        "ui_restrictions": [],
-                        "validations": [
-                            {
-                                "constraint": 0,
-                                "type": "greater_than"
-                            }
-                        ],
-                        "value": ""
+                        "updatable": true,
+                        "type": "int"
                     }
                }
             }
-               ],
-               "configuration": {
+            """);
+
+        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            new BytesArray(content),
+            XContentType.JSON
+        );
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        InferenceServiceConfiguration parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = InferenceServiceConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
+    public void testToXContent_EmptyTaskTypes() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "service": "some_provider",
+               "name": "Some Provider",
+               "task_types": [],
+               "configurations": {
                     "text_field_configuration": {
-                        "default_value": null,
-                        "depends_on": [
-                            {
-                                "field": "some_field",
-                                "value": true
-                            }
-                        ],
-                        "display": "textbox",
+                        "description": "Wow, this tooltip is useful.",
                         "label": "Very important field",
-                        "options": [],
-                        "order": 4,
                         "required": true,
                         "sensitive": true,
-                        "tooltip": "Wow, this tooltip is useful.",
-                        "type": "str",
-                        "ui_restrictions": [],
-                        "validations": null,
-                        "value": ""
+                        "updatable": false,
+                        "type": "str"
                     },
                     "numeric_field_configuration": {
                         "default_value": 3,
-                        "depends_on": null,
-                        "display": "numeric",
+                        "description": "Wow, this tooltip is useful.",
                         "label": "Very important numeric field",
-                        "options": [],
-                        "order": 2,
                         "required": true,
                         "sensitive": false,
-                        "tooltip": "Wow, this tooltip is useful.",
-                        "type": "int",
-                        "ui_restrictions": [],
-                        "validations": [
-                            {
-                                "constraint": 0,
-                                "type": "greater_than"
-                            }
-                        ],
-                        "value": ""
+                        "updatable": true,
+                        "type": "int"
                     }
                }
             }
@@ -183,8 +111,9 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
         InferenceServiceConfiguration configField = InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
         Map<String, Object> configFieldAsMap = configField.toMap();
 
-        assertThat(configFieldAsMap.get("provider"), equalTo(configField.getProvider()));
+        assertThat(configFieldAsMap.get("service"), equalTo(configField.getService()));
+        assertThat(configFieldAsMap.get("name"), equalTo(configField.getName()));
         assertThat(configFieldAsMap.get("task_types"), equalTo(configField.getTaskTypes()));
-        assertThat(configFieldAsMap.get("configuration"), equalTo(configField.getConfiguration()));
+        assertThat(configFieldAsMap.get("configurations"), equalTo(configField.getConfigurations()));
     }
 }

@@ -40,11 +40,11 @@ public final class Expressions {
             return AttributeMap.emptyAttributeMap();
         }
 
-        AttributeMap<Expression> map = new AttributeMap<>();
+        AttributeMap.Builder<Expression> mapBuilder = AttributeMap.builder();
         for (NamedExpression exp : named) {
-            map.add(exp.toAttribute(), exp);
+            mapBuilder.put(exp.toAttribute(), exp);
         }
-        return map;
+        return mapBuilder.build();
     }
 
     public static boolean anyMatch(List<? extends Expression> exps, Predicate<? super Expression> predicate) {
@@ -107,10 +107,10 @@ public final class Expressions {
         return true;
     }
 
-    public static List<Object> fold(List<? extends Expression> exps) {
+    public static List<Object> fold(FoldContext ctx, List<? extends Expression> exps) {
         List<Object> folded = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
-            folded.add(exp.fold());
+            folded.add(exp.fold(ctx));
         }
 
         return folded;
@@ -121,19 +121,27 @@ public final class Expressions {
             return AttributeSet.EMPTY;
         }
 
-        AttributeSet set = new AttributeSet();
+        var setBuilder = AttributeSet.builder();
         for (Expression exp : exps) {
-            set.addAll(exp.references());
+            setBuilder.addAll(exp.references());
         }
-        return set;
+        return setBuilder.build();
     }
 
     public static String name(Expression e) {
         return e instanceof NamedExpression ne ? ne.name() : e.sourceText();
     }
 
-    public static boolean isNull(Expression e) {
-        return e.dataType() == DataType.NULL || (e.foldable() && e.fold() == null);
+    /**
+     * Is this {@linkplain Expression} <strong>guaranteed</strong> to have
+     * only the {@code null} value. {@linkplain Expression}s that
+     * {@link Expression#fold} to {@code null} <strong>may</strong>
+     * return {@code false} here, but should <strong>eventually</strong> be folded
+     * into a {@link Literal} containing {@code null} which will return
+     * {@code true} from here.
+     */
+    public static boolean isGuaranteedNull(Expression e) {
+        return e.dataType() == DataType.NULL || (e instanceof Literal lit && lit.value() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {

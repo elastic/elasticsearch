@@ -179,7 +179,15 @@ public interface RuntimeField extends ToXContentFragment {
                 }
                 Parser typeParser = parserContext.runtimeFieldParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on runtime field [" + fieldName + "]");
+                    throw new MapperParsingException(
+                        "The mapper type ["
+                            + type
+                            + "] declared on runtime field ["
+                            + fieldName
+                            + "] does not exist."
+                            + " It might have been created within a future version or requires a plugin to be installed."
+                            + " Check the documentation."
+                    );
                 }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");

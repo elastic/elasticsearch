@@ -46,7 +46,7 @@ public class SpatialRelatesQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return DataType.isSpatialGeo(dataType) ? new GeoShapeQueryBuilder() : new CartesianShapeQueryBuilder();
     }
 
@@ -86,6 +86,11 @@ public class SpatialRelatesQuery extends Query {
         };
     }
 
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
+
     /**
      * This class is a minimal implementation of the QueryBuilder interface.
      * We only need the toQuery method, but ESQL makes extensive use of QueryBuilder and trimming that interface down for ESQL only would
@@ -93,6 +98,8 @@ public class SpatialRelatesQuery extends Query {
      * Note that this class is only public for testing in PhysicalPlanOptimizerTests.
      */
     public abstract class ShapeQueryBuilder implements QueryBuilder {
+
+        private float boost = 0.0f;
 
         protected void doToXContent(String queryName, XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -139,12 +146,13 @@ public class SpatialRelatesQuery extends Query {
 
         @Override
         public float boost() {
-            return 0;
+            return boost;
         }
 
         @Override
         public QueryBuilder boost(float boost) {
-            throw new UnsupportedOperationException("Unimplemented: float");
+            this.boost = boost;
+            return this;
         }
 
         @Override

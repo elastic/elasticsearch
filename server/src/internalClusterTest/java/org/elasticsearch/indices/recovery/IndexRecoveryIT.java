@@ -147,7 +147,6 @@ import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
-import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
@@ -247,7 +246,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
     public Settings.Builder createRecoverySettingsChunkPerSecond(long chunkSizeBytes) {
         return Settings.builder()
             // Set the chunk size in bytes
-            .put(CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
+            .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), new ByteSizeValue(chunkSizeBytes, ByteSizeUnit.BYTES))
             // Set one chunk of bytes per second.
             .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSizeBytes, ByteSizeUnit.BYTES);
     }
@@ -270,7 +269,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             Settings.builder()
                 // 200mb is an arbitrary number intended to be large enough to avoid more throttling.
                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "200mb")
-                .put(CHUNK_SIZE_SETTING.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
+                .put(RecoverySettings.INDICES_RECOVERY_CHUNK_SIZE.getKey(), RecoverySettings.DEFAULT_CHUNK_SIZE)
         );
     }
 

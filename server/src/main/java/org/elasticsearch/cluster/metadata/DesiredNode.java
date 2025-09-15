@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -49,7 +48,7 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
 
     public static final NodeFeature RANGE_FLOAT_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.range_float_processors");
     public static final NodeFeature DOUBLE_PROCESSORS_SUPPORTED = new NodeFeature("desired_node.double_processors");
-    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated");
+    public static final NodeFeature DESIRED_NODE_VERSION_DEPRECATED = new NodeFeature("desired_node.version_deprecated", true);
 
     public static final TransportVersion RANGE_FLOAT_PROCESSORS_SUPPORT_TRANSPORT_VERSION = TransportVersions.V_8_3_0;
 
@@ -58,7 +57,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private static final ParseField PROCESSORS_RANGE_FIELD = new ParseField("processors_range");
     private static final ParseField MEMORY_FIELD = new ParseField("memory");
     private static final ParseField STORAGE_FIELD = new ParseField("storage");
-    @UpdateForV9 // Remove deprecated field
     private static final ParseField VERSION_FIELD = new ParseField("node_version");
 
     public static final ConstructingObjectParser<DesiredNode, Void> PARSER = new ConstructingObjectParser<>(
@@ -118,7 +116,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
     private final ByteSizeValue memory;
     private final ByteSizeValue storage;
 
-    @UpdateForV9 // Remove deprecated version field
     private final String version;
     private final String externalId;
     private final Set<DiscoveryNodeRole> roles;
@@ -278,7 +275,6 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         addDeprecatedVersionField(builder);
     }
 
-    @UpdateForV9 // Remove deprecated field from response
     private void addDeprecatedVersionField(XContentBuilder builder) throws IOException {
         if (version != null) {
             builder.field(VERSION_FIELD.getPreferredName(), version);

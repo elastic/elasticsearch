@@ -32,8 +32,8 @@ public class MaxDoubleGroupingAggregatorFunctionTests extends GroupingAggregator
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxDoubleAggregatorFunctionSupplier();
     }
 
     @Override

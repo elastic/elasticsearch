@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -17,7 +18,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 import java.util.Objects;
 
-public class Explain extends LeafPlan {
+public class Explain extends LeafPlan implements TelemetryAware {
 
     public enum Type {
         PARSED,
@@ -67,11 +68,6 @@ public class Explain extends LeafPlan {
             new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
             new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
         );
-    }
-
-    @Override
-    public String commandName() {
-        return "EXPLAIN";
     }
 
     @Override

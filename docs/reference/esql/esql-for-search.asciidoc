@@ -1,0 +1,163 @@
+[[esql-for-search]]
+=== Using {esql} for search
+
+This page provides an overview of how to use {esql} for search use cases.
+
+[TIP]
+====
+For a hands-on tutorial check out <<esql-search-tutorial>>.
+====
+
+[[esql-search-quick-reference]]
+==== {esql} search quick reference
+
+The following table summarizes the key search features available in {esql} and when they were introduced, organized chronologically by release.
+
+[cols="1,2,1", options="header"]
+|===
+|Feature |Description |Available since
+
+|<<esql-for-search-match-function-operator,Match function/operator>>
+|Perform basic text searches with `MATCH` function or match operator (`:`)
+|8.17
+
+|<<esql-for-search-query-string,Query string function>>
+|Execute complex queries with `QSTR` using Query String syntax
+|8.17
+
+|<<esql-for-search-scoring,Relevance scoring>>
+|Calculate and sort by relevance with `METADATA _score`
+|8.18/9.0
+
+|<<esql-for-search-semantic,Semantic search>>
+|Perform semantic searches on `semantic_text` field types
+|8.18/9.0
+
+|<<esql-for-search-hybrid,Hybrid search>>
+|Combine lexical and semantic search approaches with custom weights
+|8.18/9.0
+
+|<<esql-for-search-kql,Kibana Query Language>>
+|Use Kibana Query Language with the `KQL` function
+|8.18/9.0
+
+|<<esql-match-phrase-function,Match phrase function>>
+|Perform phrase matching with `MATCH_PHRASE` function
+|8.19/9.1
+|===
+
+[[how-search-works-in-esql]]
+==== How search works in {esql}
+
+{esql} provides two distinct approaches for finding documents: filtering and searching. Understanding the difference is crucial for building effective queries and choosing the right approach for your use case.
+
+**Filtering** removes documents that don't meet your criteria. It's a binary yes/no decision - documents either match your conditions or they don't. Filtering is faster because it doesn't calculate relevance scores and leverages efficient index structures for exact matches, ranges, and boolean logic.
+
+**Searching** both filters documents and ranks them by relevance. It calculates a score for each matching document based on how well the content matches your query, allowing you to sort results from most relevant to least relevant. Search functions use advanced text analysis including stemming, synonyms, and fuzzy matching.
+
+
+
+**When to choose filtering:**
+
+* Exact category matches (`category.keyword == "Electronics"`)
+* Date ranges (`date >= "2023-01-01"`)
+* Numerical comparisons (`price < 100`)
+* Any scenario where you want all matching results without ranking
+
+**When to choose searching:**
+
+* Text queries where some results are more relevant than others
+* Finding documents similar to a search phrase
+* Any scenario where you want the "best" matches first
+* You want to use <<analysis,analyzers>> or <<search-with-synonyms,synonyms>>
+
+{esql}'s search functions address several key limitations that existed for text filtering: they work directly on multivalued fields, leverage analyzers for proper text analysis, and use optimized Lucene index structures for better performance.
+
+[[esql-for-search-scoring]]
+===== Relevance scoring
+
+To get relevance-ranked results, you must explicitly request scoring with `METADATA _score` and sort by the score. Without this, even search functions like `MATCH` will only filter documents without ranking them.
+
+**Without `METADATA _score`**: All operations are filtering-only, even `MATCH`, `QSTR`, and `KQL` functions. Documents either match or don't match - no ranking occurs.
+
+**With `METADATA _score`**: <<esql-search-functions,Search functions>> contribute to relevance scores, while filtering operations (range conditions, exact matches) don't affect scoring. You must explicitly use `SORT _score DESC` to see the most relevant results first.
+
+This gives you full control over when to use fast filtering versus slower but more powerful relevance-based searching.
+
+[[search-functions]]
+==== Search functions
+
+The following functions provide text-based search capabilities in {esql} with different levels of precision and control.
+
+[[esql-for-search-match-function-operator]]
+===== `MATCH` function and operator
+
+
+{esql} offers two syntax options for match, which replicate the functionality of <<query-dsl-match-query, `match`>> queries in Query DSL.
+
+* Use the compact <<esql-search-operators,match operator (:)>> for simple text matching with default parameters.
+* Use the <<esql-match,MATCH function syntax>> for more control over the query, such as specifying analyzers, fuzziness, and other parameters.
+
+Refer to the <<esql-search-tutorial,tutorial>> for examples of both syntaxes.
+
+[[esql-match-phrase-function]]
+===== `MATCH_PHRASE` function
+
+Use the <<esql-match_phrase,`MATCH_PHRASE` function>> to perform a `match_phrase` query on the specified field. This is equivalent to using the <<query-dsl-match-query-phrase,match_phrase query>> in Query DSL.
+
+For exact phrase matching rather than individual word matching, use `MATCH_PHRASE`.
+
+[[esql-for-search-query-string]]
+===== Query string (`QSTR`) function
+
+The <<esql-qstr,`qstr` function>> provides the same functionality as the Query DSL's `query_string` query. This enables advanced search patterns with wildcards, boolean logic, and multi-field searches.
+
+For complete details, refer to the <<query-dsl-query-string-query, Query DSL `query_string` docs>>.
+
+[[esql-for-search-kql]]
+===== `KQL` function
+
+Use the <<esql-kql,KQL function>> to use the {kibana-ref}/kuery-query.html[Kibana Query Language] in your {esql} queries.
+
+For migrating queries from other Kibana interfaces, the `KQL` function preserves existing query syntax and allows gradual migration to {esql} without rewriting existing Kibana queries.
+
+[[advanced-search-capabilities]]
+==== Advanced search capabilities
+
+[[esql-for-search-semantic]]
+===== Semantic search
+
+<<semantic-search,Semantic search>> leverages machine learning models to understand the meaning of text, enabling more accurate and context-aware search results.
+
+In {esql}, you can perform semantic searches on <<semantic-text, `semantic_text`>> field types using the same match syntax as full-text search.
+
+Refer to <<semantic-search-semantic-text,semantic search with semantic_text>> for an example or follow the <<esql-search-tutorial,tutorial>>.
+
+[[esql-for-search-hybrid]]
+===== Hybrid search
+
+Hybrid search combines lexical and semantic search with custom weights to leverage both exact keyword matching and semantic understanding.
+
+Refer to <<semantic-text-hybrid-search,hybrid search with semantic_text>> for an example or follow the <<esql-search-tutorial,tutorial>>.
+
+[[esql-for-search-next-steps]]
+==== Next steps
+
+
+[[esql-for-search-tutorials]]
+===== Tutorials and how-to guides
+
+* <<esql-search-tutorial>>: Hands-on tutorial for getting started with search tools in {esql}, with concrete examples of the functionalities described in this page
+
+
+[[esql-for-search-reference]]
+===== Technical reference
+
+* <<esql-search-functions>>: Complete reference for all search functions
+* <<esql-limitations-full-text-search, Limitations>>: Current limitations for search functions in {esql}
+
+[[esql-for-search-blogs]]
+===== Related blog posts
+
+* https://www.elastic.co/search-labs/blog/esql-introducing-scoring-semantic-search[ES|QL, you know for Search]: Introducing scoring and semantic search
+* https://www.elastic.co/search-labs/blog/filtering-in-esql-full-text-search-match-qstr[Introducing full text filtering in ES|QL]: Overview of text filtering capabilities

@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -42,7 +43,6 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -196,11 +195,9 @@ public class ComputeService {
     ) {
         assert ThreadPool.assertCurrentThreadPool(
             EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
-            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_COORDINATION,
-            MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME
+            ThreadPool.Names.SEARCH_COORDINATION
         );
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
@@ -677,31 +674,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = listener.map(ignored -> {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug(
-                        "finished {}",
-                        DriverCompletionInfo.includingProfiles(
-                            drivers,
-                            context.description(),
-                            clusterService.getClusterName().value(),
-                            transportService.getLocalNode().getName(),
-                            localPlan.toString()
-                        )
-                    );
-                }
-                if (context.configuration().profile()) {
-                    return DriverCompletionInfo.includingProfiles(
-                        drivers,
-                        context.description(),
-                        clusterService.getClusterName().value(),
-                        transportService.getLocalNode().getName(),
-                        localPlan.toString()
-                    );
-                } else {
-                    return DriverCompletionInfo.excludingProfiles(drivers);
-                }
-            });
+            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan);
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -713,6 +686,50 @@ public class ComputeService {
             LOGGER.fatal("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
+    }
+
+    ActionListener<Void> addCompletionInfo(
+        ActionListener<DriverCompletionInfo> listener,
+        List<Driver> drivers,
+        ComputeContext context,
+        PhysicalPlan localPlan
+    ) {
+        /*
+         * We *really* don't want to close over the localPlan because it can
+         * be quite large, and it isn't tracked.
+         */
+        boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
+        String planString = needPlanString ? localPlan.toString() : null;
+        return listener.map(ignored -> {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug(
+                    "finished {}",
+                    DriverCompletionInfo.includingProfiles(
+                        drivers,
+                        context.description(),
+                        clusterService.getClusterName().value(),
+                        transportService.getLocalNode().getName(),
+                        planString
+                    )
+                );
+                /*
+                 * planString *might* be null if we *just* set DEBUG to *after*
+                 * we built the listener but before we got here. That's something
+                 * we can live with.
+                 */
+            }
+            if (context.configuration().profile()) {
+                return DriverCompletionInfo.includingProfiles(
+                    drivers,
+                    context.description(),
+                    clusterService.getClusterName().value(),
+                    transportService.getLocalNode().getName(),
+                    planString
+                );
+            } else {
+                return DriverCompletionInfo.excludingProfiles(drivers);
+            }
+        });
     }
 
     static PhysicalPlan reductionPlan(
@@ -734,7 +751,6 @@ public class ComputeService {
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
                 PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, plan)
-                    .filter(unused -> features != ReductionPlanFeatures.DISABLED)
                     .orElseGet(() -> plan.replaceChildren(List.of(source)));
             case PlannerUtils.ReducedPlan rp -> features == ReductionPlanFeatures.DIFFERENT_NODE
                 ? rp.plan().replaceChildren(List.of(source))

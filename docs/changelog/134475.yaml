@@ -1,0 +1,6 @@
+pr: 134475
+summary: ES|QL Absent and `AbsentOverTime` functions
+area: ES|QL
+type: enhancement
+issues:
+ - 131069

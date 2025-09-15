@@ -46,7 +46,7 @@
 - [Learn how to search your data](docs-content://solutions/search/querying-for-search.md)
 - Query data programmatically: use query languages to run advanced search, filtering, or analytics
   - [Query DSL](docs-content://explore-analyze/query-filter/languages/querydsl.md): full JSON-based query language
-  - [ES|QL](docs-content://explore-analyze/query-filter/languages/esql.md): fast, SQL-like language with piped syntax
+  - [ES|QL](/reference/query-languages/esql.md): fast, SQL-like language with piped syntax
   - [EQL](docs-content://explore-analyze/query-filter/languages/eql.md): for event-based time series data, such as logs, metrics, and traces
   - [SQL](docs-content://explore-analyze/query-filter/languages/sql.md): SQL-style queries on Elasticsearch data
 - [Search applications](docs-content://solutions/search/search-applications.md)

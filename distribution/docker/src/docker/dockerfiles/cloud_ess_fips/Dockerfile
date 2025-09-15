@@ -1,5 +1,6 @@
 ################################################################################
-# This Dockerfile was generated from the template at distribution/src/docker/Dockerfile
+# This Dockerfile was generated from the template at
+# distribution/src/docker/dockerfiles/cloud_ess_fips/Dockerfile
 #
 # Beginning of multi stage Dockerfile
 ################################################################################
@@ -24,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:173cd032e2a8b194c04e08f605b40c743cc52f8eb4ecfc9c5e3280ae97c119b4 AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:b30d05c61d6a318e15113d8542a745acb605941a5cb8b1321228ff671fc4a3c9 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -103,14 +104,14 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:173cd032e2a8b194c04e08f605b40c743cc52f8eb4ecfc9c5e3280ae97c119b4
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:b30d05c61d6a318e15113d8542a745acb605941a5cb8b1321228ff671fc4a3c9
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
           "      ${package_manager} update && \n" +
           "      ${package_manager} upgrade && \n" +
           "      ${package_manager} add --no-cache \n" +
-          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd && \n" +
+          "        bash java-cacerts curl libstdc++ libsystemd netcat-openbsd p11-kit p11-kit-trust posix-libc-utils shadow tini unzip zip zstd wget && \n" +
           "      rm -rf /var/cache/apk/* "
      ) %>
 

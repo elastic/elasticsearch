@@ -21,7 +21,6 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FilteredDocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -31,7 +30,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
@@ -45,6 +43,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.LongAccumulator;
+
+import static org.elasticsearch.search.vectors.AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE;
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
@@ -120,7 +121,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // we need to ensure we are getting at least 2*k results to ensure we cover overspill duplicates
         // TODO move the logic for automatically adjusting percentages to the query, so we can only pass
         // 2k to the collector.
-        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
+        IVFCollectorManager knnCollectorManager = getKnnCollectorManager(Math.round(2f * k), indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
@@ -160,7 +161,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {
         TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
         IntHashSet dedup = new IntHashSet(results.scoreDocs.length * 4 / 3);
@@ -182,7 +183,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new TopDocs(results.totalHits, deduplicatedScoreDocs);
     }
 
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, float visitRatio)
+    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
@@ -205,12 +206,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         LeafReaderContext context,
         Bits acceptDocs,
         int visitedLimit,
-        KnnCollectorManager knnCollectorManager,
+        IVFCollectorManager knnCollectorManager,
         float visitRatio
     ) throws IOException;
 
-    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new IVFCollectorManager(k);
+    protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        return new IVFCollectorManager(k, searcher);
     }
 
     @Override
@@ -236,14 +237,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
+        final LongAccumulator longAccumulator;
 
-        IVFCollectorManager(int k) {
+        IVFCollectorManager(int k, IndexSearcher searcher) {
             this.k = k;
+            longAccumulator = searcher.getIndexReader().leaves().size() > 1 ? new LongAccumulator(Long::max, LEAST_COMPETITIVE) : null;
         }
 
         @Override
-        public KnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context) throws IOException {
-            return new TopKnnCollector(k, visitedLimit, searchStrategy);
+        public AbstractMaxScoreKnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context)
+            throws IOException {
+            return new MaxScoreTopKnnCollector(k, visitedLimit, searchStrategy);
         }
     }
 }

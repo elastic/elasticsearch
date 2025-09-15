@@ -143,11 +143,26 @@ public class ValuesSourceReaderBenchmark {
     private static List<ValuesSourceReaderOperator.FieldInfo> fields(String name) {
         return switch (name) {
             case "3_stored_keywords" -> List.of(
-                new ValuesSourceReaderOperator.FieldInfo("keyword_1", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_1")),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_2", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_2")),
-                new ValuesSourceReaderOperator.FieldInfo("keyword_3", ElementType.BYTES_REF, shardIdx -> blockLoader("stored_keyword_3"))
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "keyword_1",
+                    ElementType.BYTES_REF,
+                    false,
+                    shardIdx -> blockLoader("stored_keyword_1")
+                ),
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "keyword_2",
+                    ElementType.BYTES_REF,
+                    false,
+                    shardIdx -> blockLoader("stored_keyword_2")
+                ),
+                new ValuesSourceReaderOperator.FieldInfo(
+                    "keyword_3",
+                    ElementType.BYTES_REF,
+                    false,
+                    shardIdx -> blockLoader("stored_keyword_3")
+                )
             );
-            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), shardIdx -> blockLoader(name)));
+            default -> List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType(name), false, shardIdx -> blockLoader(name)));
         };
     }
 

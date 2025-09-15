@@ -97,6 +97,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
@@ -105,6 +106,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
             maxPageSize,
             limit,
             sorts,
+            estimatedPerRowSortSize,
             true // scoring
         );
     }

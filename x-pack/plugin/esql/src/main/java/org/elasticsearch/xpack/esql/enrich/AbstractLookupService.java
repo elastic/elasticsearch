@@ -437,6 +437,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 new ValuesSourceReaderOperator.FieldInfo(
                     extractField.name(),
                     PlannerUtils.toElementType(extractField.dataType()),
+                    false,
                     shardIdx -> {
                         if (shardIdx != 0) {
                             throw new IllegalStateException("only one shard");

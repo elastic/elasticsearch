@@ -25,14 +25,13 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.OperatorTests;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -59,7 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Base class for testing Lucene query evaluators.
  */
-public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vector.Builder> extends ComputeTestCase {
+public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block.Builder> extends ComputeTestCase {
 
     private static final String FIELD = "g";
 
@@ -168,9 +167,9 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
         int matchCount = 0;
         for (Page page : results) {
             int initialBlockIndex = termsBlockIndex(page);
-            BytesRefVector terms = page.<BytesRefBlock>getBlock(initialBlockIndex).asVector();
+            BytesRefBlock terms = page.<BytesRefBlock>getBlock(initialBlockIndex);
             @SuppressWarnings("unchecked")
-            T resultVector = (T) page.getBlock(resultsBlockIndex(page)).asVector();
+            T resultVector = (T) page.getBlock(resultsBlockIndex(page));
             for (int i = 0; i < page.getPositionCount(); i++) {
                 BytesRef termAtPosition = terms.getBytesRef(i, new BytesRef());
                 boolean isMatch = matching.contains(termAtPosition.utf8ToString());
@@ -207,6 +206,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                         new ValuesSourceReaderOperator.FieldInfo(
                             FIELD,
                             ElementType.BYTES_REF,
+                            false,
                             unused -> new BlockDocValuesReader.BytesRefsFromOrdsBlockLoader(FIELD)
                         )
                     ),
@@ -217,7 +217,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
                 )
             );
             var shardConfig = new IndexedByShardIdFromSingleton<>(new LuceneQueryEvaluator.ShardConfig(searcher.rewrite(query), searcher));
-            operators.add(createOperator(blockFactory, shardConfig));
+            operators.add(createOperator(driverContext, shardConfig));
             List<Page> results = new ArrayList<>();
             Driver driver = TestDriverFactory.create(
                 driverContext,
@@ -297,7 +297,7 @@ public abstract class LuceneQueryEvaluatorTests<T extends Vector, U extends Vect
     /**
      * Create the operator to test
      */
-    protected abstract Operator createOperator(BlockFactory blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards);
+    protected abstract Operator createOperator(DriverContext blockFactory, IndexedByShardId<LuceneQueryEvaluator.ShardConfig> shards);
 
     /**
      * Should the test use scoring?

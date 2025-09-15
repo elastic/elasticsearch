@@ -55,6 +55,7 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -239,15 +240,17 @@ public final class TextFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> store;
+        private final Parameter<Boolean> norms;
 
         private final boolean isSyntheticSourceEnabled;
+
+        private final IndexMode indexMode;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
-        final Parameter<Boolean> norms = TextParams.norms(true, m -> ((TextFieldMapper) m).norms);
         final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
         final Parameter<Boolean> fieldData = Parameter.boolParam("fielddata", true, m -> ((TextFieldMapper) m).fieldData, false);
@@ -290,17 +293,25 @@ public final class TextFieldMapper extends FieldMapper {
         private final boolean withinMultiField;
 
         public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
-            this(name, IndexVersion.current(), indexAnalyzers, isSyntheticSourceEnabled, false);
+            this(name, IndexVersion.current(), null, indexAnalyzers, isSyntheticSourceEnabled, false);
         }
 
         public Builder(
             String name,
             IndexVersion indexCreatedVersion,
+            IndexMode indexMode,
             IndexAnalyzers indexAnalyzers,
             boolean isSyntheticSourceEnabled,
             boolean withinMultiField
         ) {
             super(name);
+
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.indexMode = indexMode;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.withinMultiField = withinMultiField;
+
+            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, this::normsDefault);
 
             // If synthetic source is used we need to either store this field
             // to recreate the source or use keyword multi-fields for that.
@@ -309,7 +320,6 @@ public final class TextFieldMapper extends FieldMapper {
             //
             // If 'store' parameter was explicitly provided we'll reject the request.
             // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
-            this.withinMultiField = withinMultiField;
             this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
                 if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
                     return isSyntheticSourceEnabled
@@ -319,14 +329,21 @@ public final class TextFieldMapper extends FieldMapper {
                     return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
                 }
             });
-            this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexCreatedVersion
             );
-            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+        }
+
+        private boolean normsDefault() {
+            if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                // don't enable norms by default if the index is LOGSDB or TSDB based
+                return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+            }
+            // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
+            return true;
         }
 
         public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(IndexVersion indexCreatedVersion) {
@@ -508,6 +525,7 @@ public final class TextFieldMapper extends FieldMapper {
         (n, c) -> new Builder(
             n,
             c.indexVersionCreated(),
+            c.getIndexSettings().getMode(),
             c.getIndexAnalyzers(),
             SourceFieldMapper.isSynthetic(c.getIndexSettings()),
             c.isWithinMultiField()
@@ -1003,7 +1021,7 @@ public final class TextFieldMapper extends FieldMapper {
          * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE;
+            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove().isSet() == false;
         }
 
         /**
@@ -1011,7 +1029,7 @@ public final class TextFieldMapper extends FieldMapper {
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
             return syntheticSourceDelegate != null
-                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
+                && syntheticSourceDelegate.ignoreAbove().isSet() == false
                 && syntheticSourceDelegate.isIndexed();
         }
 
@@ -1027,7 +1045,7 @@ public final class TextFieldMapper extends FieldMapper {
                 return false;
             }
             // Can't push equality if the field we're checking for is so big we'd ignore it.
-            return str.length() <= syntheticSourceDelegate.ignoreAbove();
+            return syntheticSourceDelegate.ignoreAbove().isIgnored(str) == false;
         }
 
         @Override
@@ -1323,6 +1341,7 @@ public final class TextFieldMapper extends FieldMapper {
     }
 
     private final IndexVersion indexCreatedVersion;
+    private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;
     private final String indexOptions;
@@ -1361,6 +1380,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexMode = builder.indexMode;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
@@ -1398,7 +1418,9 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexMode, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField).init(
+            this
+        );
     }
 
     @Override

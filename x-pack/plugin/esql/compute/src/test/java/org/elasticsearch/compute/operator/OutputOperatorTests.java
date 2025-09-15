@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.hamcrest.Matcher;
 
@@ -52,7 +53,7 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected void assertEmptyStatus(Map<String, Object> map) {
+    protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         assertThat(map, nullValue());
     }
 }

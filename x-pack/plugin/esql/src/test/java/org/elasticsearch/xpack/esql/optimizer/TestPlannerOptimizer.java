@@ -55,7 +55,15 @@ public class TestPlannerOptimizer {
         return physical;
     }
 
+    public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
+        return optimizedPlan(physicalPlan(query, analyzer), stats, esqlFlags);
+    }
+
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
+        return optimizedPlan(plan, searchStats, new EsqlFlags(true));
+    }
+
+    private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats, EsqlFlags esqlFlags) {
         // System.out.println("* Physical Before\n" + plan);
         var physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
         // System.out.println("* Physical After\n" + physicalPlan);
@@ -68,7 +76,7 @@ public class TestPlannerOptimizer {
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
-                new EsqlFlags(true),
+                esqlFlags,
                 config,
                 FoldContext.small(),
                 searchStats,

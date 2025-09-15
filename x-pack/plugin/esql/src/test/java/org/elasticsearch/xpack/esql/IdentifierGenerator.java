@@ -19,14 +19,10 @@ import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomValueOtherThan;
 
+/**
+ * Generate random index patterns.
+ */
 public class IdentifierGenerator {
-
-    /**
-     * Generate random identifier that could be used as a column name
-     */
-    public static String randomIdentifier() {
-        return ESTestCase.randomIdentifier();
-    }
 
     /**
      * Generates one or several coma separated index patterns
@@ -87,7 +83,7 @@ public class IdentifierGenerator {
         }
 
         if (canAdd(Features.CROSS_CLUSTER, features)) {
-            var cluster = randomIdentifier();
+            var cluster = ESTestCase.randomIdentifier();
             pattern = cluster + ":" + pattern;
         } else if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && canAdd(Features.INDEX_SELECTOR, features)) {
             pattern = pattern + "::" + randomFrom(IndexComponentSelector.values()).getKey();

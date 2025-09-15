@@ -96,31 +96,6 @@ The filter is a pre-filter, meaning that it is applied **during** the approximat
 `similarity`
 :   (Optional, float) The minimum similarity required for a document to be considered a match. The similarity value calculated relates to the raw [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) used. Not the document score. The matched documents are then scored according to [`similarity`](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-similarity) and the provided `boost` is applied.
 
-
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
-:   (Optional, object) Apply oversampling and rescoring to quantized vectors.
-
-::::{note}
-Rescoring only makes sense for quantized vectors; when [quantization](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) is not used, the original vectors are used for scoring. Rescore option will be ignored for non-quantized `dense_vector` fields.
-::::
-
-
-`oversample`
-:   (Required, float)
-
-    Applies the specified oversample factor to `k` on the approximate kNN search. The approximate kNN search will:
-
-    * Retrieve `num_candidates` candidates per shard.
-    * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
-    * The top `k` rescored candidates will be returned.
-    Must be one of the following values: 
-      * \>= 1f to indicate the oversample factor
-      * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
-
-
-See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
-
-
 `boost`
 :   (Optional, float) Floating point number used to multiply the scores of matched documents. This value cannot be negative. Defaults to `1.0`.
 
@@ -129,6 +104,27 @@ See [oversampling and rescoring quantized vectors](docs-content://solutions/sear
 :   (Optional, string) Name field to identify the query
 
 
+`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+:   (Optional, object) Apply oversampling and rescoring to quantized vectors.
+
+    **Parameters for `rescore_vector`**:
+    
+    `oversample`
+    :   (Required, float)
+
+        Applies the specified oversample factor to `k` on the approximate kNN search. The approximate kNN search will:
+
+     * Retrieve `num_candidates` candidates per shard.
+     * From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
+     * The top `k` rescored candidates will be returned. Must be one of the following values: 
+       * \>= 1f to indicate the oversample factor
+       * Exactly `0` to indicate that no oversampling and rescoring should occur. {applies_to}`stack: ga 9.1`
+
+    See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+
+    ::::{note}
+    Rescoring only makes sense for [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization) vectors. The `rescore_vector` option will be ignored for non-quantized `dense_vector` fields, because the original vectors are used for scoring.
+    ::::
 
 ## Pre-filters and post-filters in knn query [knn-query-filtering]
 
@@ -200,22 +196,47 @@ POST my-image-index/_search
 
 ## Knn query inside a nested query [knn-query-with-nested-query]
 
-`knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
+The `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
 
-* kNN search over nested dense_vectors diversifies the top results over the top-level document
+* kNN search over nested `dense_vector`s diversifies the top results over the top-level document
 * `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
 
-::::{note}
-To ensure correct results: each individual filter must be either over
-the top-level metadata or `nested` metadata. However, a single knn query
-supports multiple filters, where some filters can be over the top-level
-metadata and some over nested.
-::::
+To ensure correct results: each individual filter must be either over:
 
+- Top-level metadata
+- `nested` metadata {applies_to}`stack: ga 9.2`
+  :::{note}
+  A single knn query supports multiple filters, where some filters can be over the top-level metadata and some over nested.
+  :::
 
-Below is a sample query with filter over nested metadata.
-For scoring parents' documents,  this query only considers vectors that
-have "paragraph.language" set to "EN".
+### Basic nested knn search
+
+This query performs a basic nested knn search:
+
+```json
+{
+  "query" : {
+    "nested" : {
+      "path" : "paragraph",
+        "query" : {
+          "knn": {
+            "query_vector": [0.45, 0.50],
+            "field": "paragraph.vector"
+        }
+      }
+    }
+  }
+}
+```
+
+### Filter over nested metadata
+
+```{applies_to}
+stack: ga 9.2
+```
+
+This query filters over nested metadata. For scoring parent documents, this query only considers vectors that
+have "paragraph.language" set to "EN":
 
 ```json
 {
@@ -238,10 +259,15 @@ have "paragraph.language" set to "EN".
 }
 ```
 
-Below is a sample query with two filters: one over nested metadata
-and another over the top level metadata. For scoring parents' documents,
+### Multiple filters (nested and top-level metadata)
+
+```{applies_to}
+stack: ga 9.2
+```
+
+This query uses multiple filters: one over nested metadata and another over the top level metadata. For scoring parent documents,
 this query only considers vectors whose parent's title contain "essay"
-word and have "paragraph.language" set to "EN".
+word and have "paragraph.language" set to "EN":
 
 ```json
 {

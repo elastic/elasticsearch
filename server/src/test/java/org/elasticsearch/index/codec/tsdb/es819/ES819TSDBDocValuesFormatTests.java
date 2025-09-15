@@ -60,6 +60,7 @@ import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests {
 
@@ -773,7 +774,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                         {
                             // bulk loading timestamp:
-                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0);
+                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -785,10 +786,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                         {
                             // bulk loading counter field:
-                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
+                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
-                            var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0);
+                            var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                             assertNotNull(stringBlock);
                             assertEquals(size, stringBlock.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -805,7 +806,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         }
                         {
                             // bulk loading gauge field:
-                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0);
+                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                             assertNotNull(block);
                             assertEquals(size, block.size());
                             for (int j = 0; j < block.size(); j++) {
@@ -843,7 +844,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                 {
                     // bulk loading timestamp:
-                    var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset);
+                    var block = (TestBlock) timestampDV.tryRead(blockFactory, docs, randomOffset, false, null);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -855,11 +856,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 {
                     // bulk loading counter field:
-                    var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset);
+                    var block = (TestBlock) counterDV.tryRead(factory, docs, randomOffset, false, null);
                     assertNotNull(block);
                     assertEquals(size, block.size());
 
-                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset);
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, randomOffset, false, null);
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
 
@@ -877,7 +878,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 }
                 {
                     // bulk loading gauge field:
-                    var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset);
+                    var block = (TestBlock) gaugeDV.tryRead(factory, docs, randomOffset, false, null);
                     assertNotNull(block);
                     assertEquals(size, block.size());
                     for (int j = 0; j < block.size(); j++) {
@@ -902,11 +903,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 stringCounterDV = getBaseSortedDocValues(leafReader, counterFieldAsString);
                 {
                     // bulk loading counter field:
-                    var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
+                    var block = (TestBlock) counterDV.tryRead(factory, docs, 0, false, null);
                     assertNotNull(block);
                     assertEquals(size, block.size());
 
-                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0);
+                    var stringBlock = (TestBlock) stringCounterDV.tryRead(factory, docs, 0, false, null);
                     assertNotNull(stringBlock);
                     assertEquals(size, stringBlock.size());
 
@@ -929,6 +930,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         final String counterAsStringField = "counter_as_string";
         final String timestampField = "@timestamp";
         String queryField = "query_field";
+        String temperatureField = "temperature_field";
         long currentTimestamp = 1704067200000L;
         long currentCounter = 10_000_000;
 
@@ -936,26 +938,29 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             int numDocsPerQValue = 120;
             int numDocs = numDocsPerQValue * (1 + random().nextInt(40));
-
+            Long[] temperatureValues = new Long[numDocs];
             long q = 1;
             for (int i = 1; i <= numDocs; i++) {
                 var d = new Document();
-                long timestamp = currentTimestamp;
                 // Index sorting doesn't work with NumericDocValuesField:
-                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                currentTimestamp += 1000L;
                 d.add(new SortedNumericDocValuesField(counterField, currentCounter));
                 d.add(new SortedDocValuesField(counterAsStringField, new BytesRef(Long.toString(currentCounter))));
                 d.add(new SortedNumericDocValuesField(queryField, q));
                 if (i % 120 == 0) {
                     q++;
                 }
-
+                if (random().nextBoolean()) {
+                    long v = random().nextLong();
+                    temperatureValues[numDocs - i] = v;
+                    d.add(new NumericDocValuesField(temperatureField, v));
+                }
                 iw.addDocument(d);
                 if (i % 100 == 0) {
                     iw.commit();
                 }
                 if (i < numDocs - 1) {
-                    currentTimestamp += 1000L;
                     currentCounter++;
                 }
             }
@@ -1001,7 +1006,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var docs = TestBlock.docs(docIds);
                     {
                         timestampDV = getBaseDenseNumericValues(leafReader, timestampField);
-                        var block = (TestBlock) timestampDV.tryRead(factory, docs, 0);
+                        var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
@@ -1012,7 +1017,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     }
                     {
                         counterDV = getBaseDenseNumericValues(leafReader, counterField);
-                        var block = (TestBlock) counterDV.tryRead(factory, docs, 0);
+                        var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
@@ -1023,13 +1028,44 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     }
                     {
                         counterAsStringDV = getBaseSortedDocValues(leafReader, counterAsStringField);
-                        var block = (TestBlock) counterAsStringDV.tryRead(factory, docs, 0);
+                        var block = (TestBlock) counterAsStringDV.tryRead(factory, docs, 0, random().nextBoolean(), null);
                         assertNotNull(block);
                         assertEquals(numDocsPerQValue, block.size());
                         for (int j = 0; j < block.size(); j++) {
                             var actualCounter = ((BytesRef) block.get(j)).utf8ToString();
                             var expectedCounter = expectedCounterAsStrings[j];
                             assertEquals(expectedCounter, actualCounter);
+                        }
+                    }
+                    {
+                        int startIndex = ESTestCase.between(0, temperatureValues.length - 1);
+                        int endIndex = ESTestCase.between(startIndex + 1, temperatureValues.length);
+                        List<Integer> testDocs = new ArrayList<>();
+                        for (int i = startIndex; i < endIndex; i++) {
+                            if (temperatureValues[i] != null) {
+                                testDocs.add(i);
+                            }
+                        }
+                        if (testDocs.isEmpty() == false) {
+                            NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
+                            assertThat(dv, instanceOf(OptionalColumnAtATimeReader.class));
+                            OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
+                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                            assertNull(directReader.tryRead(factory, docs, 0, false, null));
+                            TestBlock block = (TestBlock) directReader.tryRead(factory, docs, 0, true, null);
+                            assertNotNull(block);
+                            for (int i = 0; i < testDocs.size(); i++) {
+                                assertThat(block.get(i), equalTo(temperatureValues[testDocs.get(i)]));
+                            }
+                        }
+                        if (testDocs.size() > 2) {
+                            // currently bulk loading is disabled with gaps
+                            testDocs.remove(ESTestCase.between(1, testDocs.size() - 2));
+                            docs = TestBlock.docs(testDocs.stream().mapToInt(n -> n).toArray());
+                            NumericDocValues dv = leafReader.getNumericDocValues(temperatureField);
+                            OptionalColumnAtATimeReader directReader = (OptionalColumnAtATimeReader) dv;
+                            assertNull(directReader.tryRead(factory, docs, 0, false, null));
+                            assertNull(directReader.tryRead(factory, docs, 0, true, null));
                         }
                     }
                 }
@@ -1086,7 +1122,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                             }
                         };
                         var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
-                        TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0);
+                        TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null);
                         assertNotNull(idBlock);
 
                         {
@@ -1100,7 +1136,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 block = (TestBlock) reader2.tryReadAHead(factory, docs, randomOffset);
                             } else {
                                 assertNull(reader2.tryReadAHead(factory, docs, randomOffset));
-                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset);
+                                block = (TestBlock) reader2.tryRead(factory, docs, randomOffset, false, null);
                             }
                             assertNotNull(block);
                             assertThat(block.size(), equalTo(docs.count() - randomOffset));
@@ -1122,7 +1158,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                 block = (TestBlock) reader3.tryReadAHead(factory, docs, randomOffset);
                             } else {
                                 assertNull(reader3.tryReadAHead(factory, docs, randomOffset));
-                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset);
+                                block = (TestBlock) reader3.tryRead(factory, docs, randomOffset, false, null);
                             }
                             assertNotNull(reader3);
                             assertNotNull(block);

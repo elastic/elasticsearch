@@ -384,13 +384,24 @@ public abstract class FullTextFunction extends Function
         return new LuceneQueryExpressionEvaluator.Factory(toShardConfigs(toEvaluator.shardContexts()));
     }
 
+    /**
+     * Returns the query builder to be used when the function cannot be pushed down to Lucene, but uses a
+     * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} instead
+     *
+     * @return the query builder to be used in the {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator}
+     */
+    protected QueryBuilder evaluatorQueryBuilder() {
+        // Use the same query builder as for the translation by default
+        return queryBuilder();
+    }
+
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
         return new LuceneQueryScoreEvaluator.Factory(toShardConfigs(toScorer.shardContexts()));
     }
 
     private IndexedByShardId<ShardConfig> toShardConfigs(IndexedByShardId<? extends EsPhysicalOperationProviders.ShardContext> contexts) {
-        return contexts.map(sc -> new ShardConfig(sc.toQuery(queryBuilder()), sc.searcher()));
+        return contexts.map(sc -> new ShardConfig(sc.toQuery(evaluatorQueryBuilder()), sc.searcher()));
     }
 
     // TODO: this should likely be replaced by calls to FieldAttribute#fieldName; the MultiTypeEsField case looks

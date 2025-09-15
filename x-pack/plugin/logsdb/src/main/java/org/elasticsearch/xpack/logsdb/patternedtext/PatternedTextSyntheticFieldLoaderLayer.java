@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
@@ -16,15 +17,13 @@ import java.io.IOException;
 
 class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-    private final String name;
-    private final String templateFieldName;
-    private final String argsFieldName;
     private PatternedTextSyntheticFieldLoader loader;
+    private final String name;
+    private final PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier;
 
-    PatternedTextSyntheticFieldLoaderLayer(String name, String templateFieldName, String argsFieldName) {
+    PatternedTextSyntheticFieldLoaderLayer(String name, PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier) {
         this.name = name;
-        this.templateFieldName = templateFieldName;
-        this.argsFieldName = argsFieldName;
+        this.docValuesSupplier = docValuesSupplier;
     }
 
     @Override
@@ -34,7 +33,7 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
 
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-        var docValues = PatternedTextDocValues.from(leafReader, templateFieldName, argsFieldName);
+        var docValues = docValuesSupplier.get(leafReader);
         if (docValues == null) {
             return null;
         }
@@ -60,10 +59,10 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
     }
 
     private static class PatternedTextSyntheticFieldLoader implements DocValuesLoader {
-        private final PatternedTextDocValues docValues;
+        private final BinaryDocValues docValues;
         private boolean hasValue = false;
 
-        PatternedTextSyntheticFieldLoader(PatternedTextDocValues docValues) {
+        PatternedTextSyntheticFieldLoader(BinaryDocValues docValues) {
             this.docValues = docValues;
         }
 

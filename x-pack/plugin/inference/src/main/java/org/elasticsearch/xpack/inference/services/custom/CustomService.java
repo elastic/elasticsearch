@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -64,7 +65,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
-public class CustomService extends SenderService {
+public class CustomService extends SenderService implements RerankingInferenceService {
 
     public static final String NAME = "custom";
     private static final String SERVICE_NAME = "Custom";
@@ -364,6 +365,14 @@ public class CustomService extends SenderService {
     public boolean hideFromConfigurationApi() {
         // The Custom service is very configurable so we're going to hide it from being exposed in the service API.
         return true;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // The model's max input length is not known at this point,
+        // return a small default that will work with the smallest models
+        // TODO add a way to configure this setting
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     public static class Configuration {

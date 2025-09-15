@@ -2,6 +2,7 @@ toc:
   - file: index.md
   - file: querydsl.md
     children:
+      - file: query-dsl/full-text-filter-tutorial.md
       - file: query-dsl/query-filter-context.md
       - file: query-dsl/compound-queries.md
         children:
@@ -84,6 +85,8 @@ toc:
       - file: query-dsl/regexp-syntax.md
   - file: esql.md
     children:
+      - file: esql/esql-getting-started.md
+      - file: esql/esql-rest.md
       - file: esql/esql-syntax-reference.md
         children:
           - file: esql/esql-syntax.md
@@ -104,6 +107,7 @@ toc:
                   - file: esql/commands/eval.md
                   - file: esql/commands/fork.md
                   - file: esql/commands/grok.md
+                  - file: esql/commands/inlinestats-by.md
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
@@ -128,6 +132,10 @@ toc:
               - file: esql/functions-operators/type-conversion-functions.md
               - file: esql/functions-operators/mv-functions.md
               - file: esql/functions-operators/operators.md
+      - file: esql/esql-multi.md
+        children:
+          - file: esql/esql-multi-index.md
+          - file: esql/esql-cross-clusters.md
       - file: esql/esql-advanced.md
         children:
           - file: esql/esql-process-data-with-dissect-grok.md
@@ -139,12 +147,14 @@ toc:
           - file: esql/esql-time-spans.md
           - file: esql/esql-metadata-fields.md
           - file: esql/esql-multivalued-fields.md
-
-      - file: esql/limitations.md
       - file: esql/esql-examples.md
+        children:
+          - file: esql/esql-search-tutorial.md
       - file: esql/esql-troubleshooting.md
         children:
           - file: esql/esql-query-log.md
+          - file: esql/esql-task-management.md
+      - file: esql/limitations.md
   - file: sql.md
     children:
       - file: sql/sql-spec.md

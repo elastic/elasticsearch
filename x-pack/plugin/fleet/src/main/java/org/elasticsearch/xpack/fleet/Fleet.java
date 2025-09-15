@@ -280,6 +280,9 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setType(Type.EXTERNAL_MANAGED)
             .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
             .setOrigin(FLEET_ORIGIN)
+            // This is a regular search index so it uses the shared thread pools.
+            // The only difference is that its mappings and settings are managed internally by Elasticsearch.
+            .setThreadPools(ExecutorNames.DEFAULT_INDEX_THREAD_POOLS)
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".integration_knowledge-" + CURRENT_INDEX_VERSION)

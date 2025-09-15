@@ -14,12 +14,12 @@ import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.Spli
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ParallelizeTimeSeriesSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -99,18 +99,24 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             firstRules.add(new AvoidFieldExtractionAfterTopN());
         }
         var prePushdown = new Batch<PhysicalPlan>("Pre-pushdown", Limiter.ONCE, firstRules.toArray(Rule[]::new));
-        var pushdownContinuous = new Batch<>("Push to ES", pushdownRules(optimizeForEsSource));
+        var pushdown = new Batch<>("Push to ES", pushdownRules(optimizeForEsSource));
 
+        // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
+        // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
+        // done, and it should be executed only once.
+        var substitutionRules = new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags());
         // add the field extraction in just one pass
-        // add it at the end after all the other rules have ran
-        List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(4);
+        // add it at the end after all the other rules have run
+        List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(3);
         fieldExtractionRules.add(new InsertFieldExtraction());
         fieldExtractionRules.add(new SpatialDocValuesExtraction());
         fieldExtractionRules.add(new SpatialShapeBoundsExtraction());
-        fieldExtractionRules.add(new ParallelizeTimeSeriesSource());
         var fieldExtractionBatch = new Batch<PhysicalPlan>("Field extraction", Limiter.ONCE, fieldExtractionRules.toArray(Rule[]::new));
 
-        return List.of(prePushdown, pushdownContinuous, fieldExtractionBatch);
+        return optimizeForEsSource ?
+
+            List.of(prePushdown, pushdown, substitutionRules, fieldExtractionBatch) : List.of(prePushdown, pushdown, fieldExtractionBatch);
+
     }
 
     @SuppressWarnings("unchecked")

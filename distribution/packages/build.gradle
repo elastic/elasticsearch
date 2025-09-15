@@ -354,10 +354,6 @@ tasks.register('buildDeb', Deb) {
   configure(commonDebConfig('x64'))
 }
 
-tasks.named('assemble'){
-  dependsOn 'buildDeb', 'buildAarch64Deb'
-}
-
 Closure commonRpmConfig(String architecture) {
   return {
     configure(commonPackageConfig('rpm', architecture))
@@ -391,11 +387,6 @@ tasks.register('buildRpm', Rpm) {
   configure(commonRpmConfig('x64'))
 }
 
-tasks.named('assemble'){
-  dependsOn 'buildRpm', 'buildAarch64Rpm'
-}
-
-
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }
 Closure rpmExists = { it -> new File('/bin/rpm').exists() || new File('/usr/bin/rpm').exists() || new File('/usr/local/bin/rpm').exists() }
 
@@ -409,6 +400,11 @@ subprojects {
 
   String buildTask = "build${it.name.replaceAll(/-[a-z]/) { it.substring(1).toUpperCase() }.capitalize()}"
   ext.buildDist = parent.tasks.named(buildTask)
+  tasks.named('assemble').configure {
+    dependsOn buildDist
+  }
+
+  // deprecated here for backwards compatibility of DistroTestPlugin and DistributionDownloadPlugin
   artifacts {
     'default' buildDist
   }

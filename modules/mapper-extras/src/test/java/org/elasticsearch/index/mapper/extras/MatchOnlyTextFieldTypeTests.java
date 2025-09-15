@@ -243,7 +243,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we delegate block loading to the synthetic source delegate
-        assertTrue(blockLoader instanceof MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader);
+        assertThat(blockLoader, Matchers.instanceOf(MatchOnlyTextFieldType.BytesFromMixedStringsBytesRefBlockLoader.class));
     }
 
     public void test_block_loader_uses_synthetic_source_delegate_when_ignore_above_is_not_set() {

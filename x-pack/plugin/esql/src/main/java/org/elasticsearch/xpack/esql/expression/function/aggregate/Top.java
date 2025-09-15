@@ -218,9 +218,9 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
         if (limitValue() == 1) {
             if (orderValue()) {
-                return new Min(s, field());
+                return new Min(s, field(), filter());
             } else {
-                return new Max(s, field());
+                return new Max(s, field(), filter());
             }
         }
 

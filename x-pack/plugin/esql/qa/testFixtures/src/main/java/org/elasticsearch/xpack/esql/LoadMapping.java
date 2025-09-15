@@ -103,7 +103,7 @@ public class LoadMapping {
             boolean isDimension = boolSetting(content.get("time_series_dimension"), false);
             boolean isMetric = content.containsKey("time_series_metric");
             if (isDimension && isMetric) {
-                throw new IllegalArgumentException("Field configured as both dimension and metric:" + value);
+                throw new IllegalStateException("Field configured as both dimension and metric:" + value);
             }
             EsField.TimeSeriesFieldType tsType = EsField.TimeSeriesFieldType.NONE;
             if (isDimension) {

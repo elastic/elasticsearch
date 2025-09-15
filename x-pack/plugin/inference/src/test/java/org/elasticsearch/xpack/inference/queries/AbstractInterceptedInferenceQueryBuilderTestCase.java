@@ -357,9 +357,17 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             mappings.startObject().startObject("_doc").startObject("properties");
 
             for (var entry : semanticTextFields.entrySet()) {
-                mappings.startObject(entry.getKey());
+                String fieldName = entry.getKey();
+                String inferenceId = entry.getValue();
+                MinimalServiceSettings modelSettings = INFERENCE_ENDPOINT_MAP.get(inferenceId);
+                if (modelSettings == null) {
+                    throw new IllegalArgumentException("No model settings for inference ID [" + inferenceId + "]");
+                }
+
+                mappings.startObject(fieldName);
                 mappings.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-                mappings.field("inference_id", entry.getValue());
+                mappings.field("inference_id", inferenceId);
+                mappings.field("model_settings", modelSettings);
                 mappings.endObject();
             }
             for (var entry : nonInferenceFields.entrySet()) {

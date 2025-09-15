@@ -15,7 +15,7 @@ import java.util.Objects;
 /**
  * A resolved attribute - we know its type.
  * Because the name alone is not sufficient to identify an attribute (two different relations can have the same attribute name),
- * we also have an id that, when present, is used in equality checks and hashing.
+ * we also have an id that is used in equality checks and hashing.
  */
 public abstract class TypedAttribute extends Attribute {
 

@@ -238,7 +238,7 @@ final class DynamicFieldsBuilder {
         String dynamicType = dynamicTemplate.isRuntimeMapping() ? matchType.defaultRuntimeMappingType() : matchType.defaultMappingType();
 
         String mappingType = dynamicTemplate.mappingType(dynamicType);
-        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
+        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType, context.getDynamicTemplateParams(name));
         if (dynamicTemplate.isRuntimeMapping()) {
             MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
             RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
@@ -263,7 +263,7 @@ final class DynamicFieldsBuilder {
         }
         String dynamicType = matchType.defaultMappingType();
         String mappingType = dynamicTemplate.mappingType(dynamicType);
-        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
+        Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType, context.getDynamicTemplateParams(name));
         return parseDynamicTemplateMapping(name, mappingType, mapping, null, context);
     }
 

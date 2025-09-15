@@ -890,6 +890,11 @@ public abstract class DocumentParserContext {
         return null;
     }
 
+    public final Map<String, String> getDynamicTemplateParams(String fieldName) {
+        final String pathAsString = path().pathAsText(fieldName);
+        return sourceToParse.dynamicTemplatesParams().getOrDefault(pathAsString, Map.of());
+    }
+
     // XContentParser that wraps an existing parser positioned on a value,
     // and a field name, and returns a stream that looks like { 'field' : 'value' }
     private static class CopyToParser extends FilterXContentParserWrapper {

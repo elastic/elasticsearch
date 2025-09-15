@@ -95,6 +95,44 @@ public class DynamicTemplateParseTests extends ESTestCase {
         );
     }
 
+    public void testMappingForNameWithParams() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("{key}", "{unit}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of("unit", "By", "key", "unit"));
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", "By"))));
+    }
+
+    public void testMappingForNameDontReplaceMissingParams() {
+        // if a param is not provided, the placeholder is not replaced as it may be an actual value that is not meant to be replaced
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("unit", "{percent}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", "{percent}"))));
+    }
+
+    public void testMappingForNameWithParamsDefaultValue() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("unit", "{unit:By}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", "By"))));
+    }
+
+    public void testMappingForNameWithParamsSpecialCharacterValue() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("price", "{price:$1}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("price", "$1"))));
+        mapping = template.mappingForName("my_name", "long", Map.of("price", "$2"));
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("price", "$2"))));
+    }
+
+    public void testMappingForNameWithParamsDefaultValueEmpty() {
+        var templateDef = Map.of("mapping", Map.of("type", "long", "meta", Map.of("unit", "{unit:}")));
+        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+        var mapping = template.mappingForName("my_name", "long", Map.of());
+        assertThat(mapping, equalTo(Map.of("type", "long", "meta", Map.of("unit", ""))));
+    }
+
     public void testMappingForNameRuntime() throws IOException {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");

@@ -351,3 +351,32 @@ host.name pass-through:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
   - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }
+
+---
+unit metadata:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - {"create": {"dynamic_templates":{"metrics.foo.bar":"gauge_double"},"dynamic_templates_params":{"metrics.foo.bar":{"unit": "{percent}"}}}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: foo
+            resource:
+              attributes:
+                host.name: localhost
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.metrics.properties.foo\.bar.type: 'double' }
+  - match: { .$idx0name.mappings.properties.metrics.properties.foo\.bar.meta.unit: '{percent}' }

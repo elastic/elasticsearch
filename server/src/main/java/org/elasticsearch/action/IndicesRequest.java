@@ -62,6 +62,10 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+
+        default boolean allowsCrossProjectSearch() {
+            return false;
+        }
     }
 
     /**

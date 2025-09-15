@@ -75,6 +75,17 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     @Override
     protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+        if (originalQuery.queryVector() == null && originalQuery.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder == false) {
+            // This should never happen because either query vector or query vector builder must be non-null, which is enforced by the
+            // KnnVectorQueryBuilder constructor. The only query vector builder used in production is TextEmbeddingQueryVectorBuilder,
+            // thus if it is not this type it is null.
+            // We could throw here _if_ we add a new query vector builder type and forget to update this class to support it, which would
+            // be a server-side error.
+            throw new IllegalStateException(
+                "No [" + TextEmbeddingQueryVectorBuilder.NAME + "] query vector builder or query vector specified"
+            );
+        }
+
         // Check if we are querying any non-inference fields
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {

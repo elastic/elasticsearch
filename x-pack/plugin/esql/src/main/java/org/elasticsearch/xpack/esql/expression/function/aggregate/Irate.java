@@ -115,16 +115,24 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> AtomType.isCounter(dt.atom()), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
+        return isType(
+            field(),
+            dt -> AtomType.isCounter(dt.atom()),
+            sourceText(),
+            FIRST,
+            "counter_long",
+            "counter_integer",
+            "counter_double"
+        );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type.atom()) {
-            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier();
-            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier();
-            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier();
+            case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
+            case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
+            case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

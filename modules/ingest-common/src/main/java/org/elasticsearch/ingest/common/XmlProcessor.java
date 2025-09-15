@@ -52,7 +52,7 @@ import javax.xml.xpath.XPathFactory;
 
 /**
  * Processor that parses XML documents and converts them to JSON objects using a single-pass streaming approach.
- *
+ * <p>
  * Features:<ul>
  *  <li>XML to JSON conversion with configurable structure options
  *  <li>XPath extraction with namespace support
@@ -206,7 +206,7 @@ public final class XmlProcessor extends AbstractProcessor {
     /**
      * Determines if a value should be considered empty for filtering purposes.
      * Used by the remove_empty_values feature to filter out empty content.
-     *
+     * <p>
      * Considers empty:<ul>
      *  <li>null values
      *  <li>empty or whitespace-only strings
@@ -258,7 +258,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
     /**
      * Applies force_array logic to ensure all fields are arrays when enabled.
-     *
+     * <p>
      * Behavior:<ul>
      *  <li>If force_array is false: returns content unchanged
      *  <li>If force_array is true and content is already a List: returns content unchanged
@@ -281,7 +281,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
     /**
      * Evaluates precompiled XPath expressions against a DOM document and adds results to the ingest document.
-     *
+     * <p>
      * Features:<ul>
      *  <li>Uses precompiled XPath expressions for optimal performance
      *  <li>Extracts text values from matched nodes (elements, attributes, text nodes)
@@ -867,7 +867,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
     /**
      * Selects the appropriate pre-configured SAX parser factory based on processor configuration.
-     *
+     * <p>
      * Factory selection matrix:<ul>
      *  <li>Regular parsing, no namespaces: SAX_PARSER_FACTORY
      *  <li>Regular parsing, with namespaces: SAX_PARSER_FACTORY_NS

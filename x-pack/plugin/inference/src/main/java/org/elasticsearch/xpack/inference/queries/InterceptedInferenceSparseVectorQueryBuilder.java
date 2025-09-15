@@ -19,6 +19,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -137,7 +139,14 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     private QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-        // TODO: Detect when querying a dense vector semantic text field here?
+        MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
+        if (modelSettings == null) {
+            // No inference results have been indexed yet
+            return new MatchNoneQueryBuilder();
+        } else if (modelSettings.taskType() != TaskType.SPARSE_EMBEDDING) {
+            throw new IllegalArgumentException("Field [" + getField() + "] does not use a [" + TaskType.SPARSE_EMBEDDING + "] model");
+        }
+
         List<WeightedToken> queryVector = originalQuery.getQueryVectors();
         if (queryVector == null) {
             String inferenceId = originalQuery.getInferenceId();

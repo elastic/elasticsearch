@@ -276,6 +276,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 if (knnVectorValues instanceof RescorableVectorValues rescorableVectorValues) {
                     rescore(leaf.docBase, rescorableVectorValues, results, filterIterator);
                 } else {
+                    // happens on compound files...
                     rescoreOldSchool(
                         leaf.docBase,
                         knnVectorValues,

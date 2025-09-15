@@ -22,6 +22,7 @@ package org.elasticsearch.index.codec.vectors.es818;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
 import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
@@ -43,7 +44,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.ReadAdvice;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SuppressForbidden;
@@ -209,7 +209,6 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.FLOAT32);
-        IndexInput bytesSlice = vectorData.slice("vector-data", fieldEntry.vectorDataOffset, fieldEntry.vectorDataLength);
         return new RescorerOffHeapVectorValues(
             OffHeapFloatVectorValues.load(
                 fieldEntry.similarityFunction,
@@ -221,7 +220,6 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
                 fieldEntry.vectorDataLength,
                 vectorData
             ),
-            bytesSlice,
             fieldEntry.similarityFunction
         );
     }
@@ -365,8 +363,13 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
         FloatVectorValues inner;
         IndexInput inputSlice;
 
-        RescorerOffHeapVectorValues(FloatVectorValues inner, IndexInput inputSlice, VectorSimilarityFunction similarityFunction) {
+        RescorerOffHeapVectorValues(FloatVectorValues inner, VectorSimilarityFunction similarityFunction) {
             this.inner = inner;
+            if (inner instanceof HasIndexSlice slice) {
+                this.inputSlice = slice.getSlice();
+            } else {
+                this.inputSlice = null;
+            }
             this.inputSlice = inputSlice;
             this.similarityFunction = similarityFunction;
         }
@@ -388,7 +391,7 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
 
         @Override
         public RescorerOffHeapVectorValues copy() throws IOException {
-            return new RescorerOffHeapVectorValues(inner.copy(), inputSlice.clone(), similarityFunction);
+            return new RescorerOffHeapVectorValues(inner.copy(), similarityFunction);
         }
 
         @Override
@@ -406,33 +409,48 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
                     if (conjunctionScorer.docID() == -1) {
                         conjunctionScorer.nextDoc();
                     }
-                    return new Bulk() {
-                        @Override
-                        public float nextDocsAndScores(int nextCount, Bits liveDocs, DocAndFloatFeatureBuffer buffer) throws IOException {
-                            buffer.growNoCopy(nextCount);
-                            int size = 0;
-                            for (int doc = conjunctionScorer.docID(); doc != DocIdSetIterator.NO_MORE_DOCS && size < nextCount; doc =
-                                conjunctionScorer.nextDoc()) {
-                                if (liveDocs == null || liveDocs.get(doc)) {
-                                    buffer.docs[size++] = indexIterator.index();
-                                }
+                    long byteSize = (long) dimension() * Float.BYTES;
+                    return (nextCount, liveDocs, buffer) -> {
+                        buffer.growNoCopy(nextCount);
+                        int size = 0;
+                        for (int doc = conjunctionScorer.docID(); doc != DocIdSetIterator.NO_MORE_DOCS && size < nextCount; doc =
+                            conjunctionScorer.nextDoc()) {
+                            if (liveDocs == null || liveDocs.get(doc)) {
+                                buffer.docs[size++] = indexIterator.index();
                             }
-                            for (int i = 0; i < size; i++) {
-                                long ord = buffer.docs[i];
-                                inputSlice.prefetch(ord * dimension() * Float.BYTES, (long) dimension() * Float.BYTES);
-                            }
-                            float maxScore = Float.NEGATIVE_INFINITY;
-                            for (int i = 0; i < size; i++) {
-                                float[] vector = inner.vectorValue(buffer.docs[i]);
-                                buffer.features[i] = similarityFunction.compare(vector, target);
-                                if (buffer.features[i] > maxScore) {
-                                    maxScore = buffer.features[i];
-                                }
-                                buffer.docs[i] = inner.ordToDoc(buffer.docs[i]);
-                            }
-                            buffer.size = size;
-                            return maxScore;
                         }
+                        int bulkSize = 32;
+                        int loopBound = size - (size % bulkSize);
+                        int i = 0;
+                        float maxScore = Float.NEGATIVE_INFINITY;
+                        for (; i < loopBound; i += bulkSize) {
+                            for (int j = 0; j < bulkSize; j++) {
+                                long ord = buffer.docs[i + j];
+                                inputSlice.prefetch(ord * byteSize, byteSize);
+                            }
+                            for (int j = 0; j < bulkSize; j++) {
+                                float[] vector = inner.vectorValue(buffer.docs[i + j]);
+                                buffer.features[i + j] = similarityFunction.compare(vector, target);
+                                if (buffer.features[i + j] > maxScore) {
+                                    maxScore = buffer.features[i + j];
+                                }
+                                buffer.docs[i + j] = inner.ordToDoc(buffer.docs[i + j]);
+                            }
+                        }
+                        for (int j = i; j < size; j++) {
+                            long ord = buffer.docs[j];
+                            inputSlice.prefetch(ord * byteSize, byteSize);
+                        }
+                        for (; i < size; i++) {
+                            float[] vector = inner.vectorValue(buffer.docs[i]);
+                            buffer.features[i] = similarityFunction.compare(vector, target);
+                            if (buffer.features[i] > maxScore) {
+                                maxScore = buffer.features[i];
+                            }
+                            buffer.docs[i] = inner.ordToDoc(buffer.docs[i]);
+                        }
+                        buffer.size = size;
+                        return maxScore;
                     };
                 }
             };

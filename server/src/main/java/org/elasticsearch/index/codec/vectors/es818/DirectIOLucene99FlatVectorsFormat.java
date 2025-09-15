@@ -30,6 +30,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.MergeReaderWrapper;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 
@@ -70,7 +71,8 @@ public class DirectIOLucene99FlatVectorsFormat extends AbstractFlatVectorsFormat
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
         assert USE_DIRECT_IO;
-        return FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
+        return FsDirectoryFactory.isHybridFs(state.directory)
+            && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
     }
 
     @Override

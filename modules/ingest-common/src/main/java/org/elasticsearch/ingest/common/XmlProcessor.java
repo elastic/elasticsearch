@@ -320,7 +320,7 @@ public final class XmlProcessor extends AbstractProcessor {
 
                     if (values.isEmpty() == false) {
                         if (values.size() == 1) {
-                            ingestDocument.setFieldValue(targetFieldName, values.get(0));
+                            ingestDocument.setFieldValue(targetFieldName, values.getFirst());
                         } else {
                             ingestDocument.setFieldValue(targetFieldName, values);
                         }
@@ -698,7 +698,7 @@ public final class XmlProcessor extends AbstractProcessor {
             String textContentString = textContent.toString();
             String trimmedText = textContentString.trim();
             boolean hasText = textContentString.isBlank() == false;
-            boolean hasChildren = element.size() > 0;
+            boolean hasChildren = element.isEmpty() == false;
 
             Object elementValue;
             if (hasText == false && hasChildren == false) {

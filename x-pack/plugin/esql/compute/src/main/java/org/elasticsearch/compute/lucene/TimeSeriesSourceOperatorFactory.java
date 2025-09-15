@@ -12,7 +12,7 @@ import java.util.function.Function;
 
 public class TimeSeriesSourceOperatorFactory extends LuceneSourceOperator.Factory {
     private TimeSeriesSourceOperatorFactory(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         int taskConcurrency,
         int maxPageSize,
@@ -34,7 +34,7 @@ public class TimeSeriesSourceOperatorFactory extends LuceneSourceOperator.Factor
         int limit,
         int maxPageSize,
         int taskConcurrency,
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction
     ) {
         // TODO: custom slice and return the next max_timestamp

@@ -27,7 +27,7 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
     private PhysicalVerifier() {}
 
     @Override
-    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
+    protected boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
         if (skipRemoteEnrichVerification) {
             // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
             var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
@@ -39,7 +39,7 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
     }
 
     @Override
-    void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+    protected void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
         optimizedPlan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();

@@ -44,6 +44,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
@@ -190,7 +191,7 @@ public class OperatorTests extends MapperServiceTestCase {
                         f -> new BlockDocValuesReader.LongsBlockLoader("v")
                     )
                 ),
-                List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+                new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
                 0
@@ -490,7 +491,7 @@ public class OperatorTests extends MapperServiceTestCase {
     static LuceneOperator.Factory luceneOperatorFactory(IndexReader reader, List<LuceneSliceQueue.QueryAndTags> queryAndTags, int limit) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneSourceOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             DataPartitioning.AutoStrategy.DEFAULT,
@@ -508,7 +509,7 @@ public class OperatorTests extends MapperServiceTestCase {
     ) {
         final ShardContext searchContext = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         return new LuceneCountOperator.Factory(
-            List.of(searchContext),
+            new IndexedByShardIdFromSingleton<>(searchContext),
             ctx -> queryAndTags,
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),

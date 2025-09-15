@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundT
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -34,19 +37,42 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
+    private static final List<Batch<PhysicalPlan>> RULES_REMOVE_PROJECT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.SPLIT);
+    private static final List<Batch<PhysicalPlan>> RULES_KEEP_PROJECT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.NO_SPLIT);
 
-    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+    private final PostOptimizationPhasePlanVerifier<PhysicalPlan> verifier;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
+        this(context, PhysicalVerifier.INSTANCE);
+    }
+
+    public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context, PostOptimizationPhasePlanVerifier<PhysicalPlan> verifier) {
         super(context);
+        this.verifier = verifier;
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
-        return verify(execute(plan), plan.output());
+        PhysicalPlan result = execute(plan);
+        try {
+            return verify(result, plan.output());
+        } catch (VerificationException e) {
+            return switch (context().splitDataDriverPlanAfterTopN()) {
+                case NO_SPLIT -> throw e;
+                // If we perform the split, the output will verify likely be different (since we modified the ProjectExec after TopNExec).
+                case SPLIT -> verifyTopNDataPlan(result);
+            };
+        }
     }
 
-    PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
+    private static PhysicalPlan verifyTopNDataPlan(PhysicalPlan result) {
+        if (result.output().stream().noneMatch(EsQueryExec::isSourceAttribute)) {
+            throw new VerificationException("Data-driver plan did not include source attribute");
+        }
+
+        return result;
+    }
+
+    private PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = verifier.verify(optimizedPlan, true, expectedOutputAttributes);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
@@ -56,39 +82,55 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return RULES;
+        return switch (context().splitDataDriverPlanAfterTopN()) {
+            case SPLIT -> RULES_REMOVE_PROJECT_AFTER_TOP_N;
+            case NO_SPLIT -> RULES_KEEP_PROJECT_AFTER_TOP_N;
+        };
     }
 
-    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
-        esSourceRules.add(new ReplaceSourceAttributes());
-        if (optimizeForEsSource) {
-            esSourceRules.add(new PushTopNToSource());
-            esSourceRules.add(new PushLimitToSource());
-            esSourceRules.add(new PushFiltersToSource());
-            esSourceRules.add(new PushSampleToSource());
-            esSourceRules.add(new PushStatsToSource());
-            esSourceRules.add(new EnableSpatialDistancePushdown());
+    @SuppressWarnings("unchecked")
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, SplitPlanAfterTopN split) {
+        // execute the rules multiple times to improve the chances of things being pushed down. If we we want to remove the Project after
+        // TopN, this should be done in the first pass.
+        var firstRules = new ArrayList<Rule<?, PhysicalPlan>>(2);
+        firstRules.add(new ReplaceSourceAttributes());
+        if (optimizeForEsSource && split == SplitPlanAfterTopN.SPLIT) {
+            // This rule should only be applied once, since it is not idempotent.
+            firstRules.add(new AvoidFieldExtractionAfterTopN());
         }
-
-        // execute the rules multiple times to improve the chances of things being pushed down
-        @SuppressWarnings("unchecked")
-        var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
+        var prePushdown = new Batch<PhysicalPlan>("Pre-pushdown", Limiter.ONCE, firstRules.toArray(Rule[]::new));
+        var pushdown = new Batch<>("Push to ES", pushdownRules(optimizeForEsSource));
 
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
         // done, and it should be executed only once.
         var substitutionRules = new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags());
-
         // add the field extraction in just one pass
-        // add it at the end after all the other rules have ran
-        var fieldExtraction = new Batch<>(
-            "Field extraction",
-            Limiter.ONCE,
-            new InsertFieldExtraction(),
-            new SpatialDocValuesExtraction(),
-            new SpatialShapeBoundsExtraction()
-        );
-        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
+        // add it at the end after all the other rules have run
+        List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(3);
+        fieldExtractionRules.add(new InsertFieldExtraction());
+        fieldExtractionRules.add(new SpatialDocValuesExtraction());
+        fieldExtractionRules.add(new SpatialShapeBoundsExtraction());
+        var fieldExtractionBatch = new Batch<PhysicalPlan>("Field extraction", Limiter.ONCE, fieldExtractionRules.toArray(Rule[]::new));
+
+        return optimizeForEsSource ?
+
+            List.of(prePushdown, pushdown, substitutionRules, fieldExtractionBatch) : List.of(prePushdown, pushdown, fieldExtractionBatch);
+
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Rule<?, PhysicalPlan>[] pushdownRules(boolean optimizeForEsSource) {
+        var rules = optimizeForEsSource
+            ? List.of(
+                new PushTopNToSource(),
+                new PushLimitToSource(),
+                new PushFiltersToSource(),
+                new PushSampleToSource(),
+                new PushStatsToSource(),
+                new EnableSpatialDistancePushdown()
+            )
+            : List.of();
+        return rules.toArray(Rule[]::new);
     }
 }

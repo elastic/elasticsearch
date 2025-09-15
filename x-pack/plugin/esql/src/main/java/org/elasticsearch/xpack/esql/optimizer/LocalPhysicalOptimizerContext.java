@@ -8,8 +8,21 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.AvoidFieldExtractionAfterTopN;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalPhysicalOptimizerContext(EsqlFlags flags, Configuration configuration, FoldContext foldCtx, SearchStats searchStats) {}
+public record LocalPhysicalOptimizerContext(
+    EsqlFlags flags,
+    Configuration configuration,
+    FoldContext foldCtx,
+    SearchStats searchStats,
+    SplitPlanAfterTopN splitDataDriverPlanAfterTopN
+) {
+    /** Controls whether to run the {@link AvoidFieldExtractionAfterTopN}. Will run on {@link SplitPlanAfterTopN#SPLIT}. */
+    public enum SplitPlanAfterTopN {
+        SPLIT,
+        NO_SPLIT
+    }
+}

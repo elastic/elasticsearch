@@ -22,6 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
@@ -136,7 +138,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 null,
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -167,7 +170,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 List.of(sort),
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -198,7 +202,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 List.of(sort),
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -222,7 +227,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
                 null,
                 estimatedRowSize,
                 List.of(new EsQueryExec.QueryBuilderAndTags(null, List.of()))
-            )
+            ),
+            EmptyIndexedByShardId.instance()
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -265,7 +271,13 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ),
             MappedFieldType.FieldExtractPreference.NONE
         );
-        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan("test", FoldContext.small(), fieldExtractExec);
+        LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
+            FoldContext.small(),
+            fieldExtractExec,
+
+            EmptyIndexedByShardId.instance()
+        );
         var p = plan.driverFactories.get(0).driverSupplier().physicalOperation();
         var fieldInfo = ((ValuesSourceReaderOperator.Factory) p.intermediateOperatorFactories.get(0)).fields().get(0);
         return fieldInfo.blockLoader().apply(0);
@@ -301,8 +313,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            esPhysicalOperationProviders(shardContexts),
-            shardContexts
+            esPhysicalOperationProviders(shardContexts)
         );
     }
 
@@ -328,7 +339,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
         return new EsPhysicalOperationProviders(
             FoldContext.small(),
-            shardContexts,
+            new IndexedByShardIdFromList<>(shardContexts),
             null,
             new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
         );

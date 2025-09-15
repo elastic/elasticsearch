@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -31,13 +32,9 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -55,6 +52,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext.SplitPlanAfterTopN;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -120,6 +118,8 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * </ul>
  */
 public class ComputeService {
+    public static final String DATA_DESCRIPTION = "data";
+    public static final String REDUCE_DESCRIPTION = "node_reduce";
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";
     public static final String CLUSTER_ACTION_NAME = EsqlQueryAction.NAME + "/cluster";
     private static final String LOCAL_CLUSTER = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -190,6 +190,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -204,7 +205,19 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                projectAfterTopN,
+                listener,
+                null
+            );
             return;
         }
 
@@ -232,7 +245,7 @@ public class ComputeService {
                 "main.final",
                 LOCAL_CLUSTER,
                 flags,
-                List.of(),
+                EmptyIndexedByShardId.instance(),
                 configuration,
                 foldContext,
                 mainExchangeSource::createExchangeSource,
@@ -251,7 +264,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute());
+                runCompute(rootTask, computeContext, mainPlan, projectAfterTopN, localListener.acquireCompute());
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -270,6 +283,7 @@ public class ComputeService {
                         foldContext,
                         execInfo,
                         "subplan-" + i,
+                        projectAfterTopN,
                         ActionListener.wrap(result -> {
                             exchangeSink.addCompletionListener(
                                 ActionListener.running(() -> { exchangeService.finishSinkHandler(childSessionId, null); })
@@ -295,6 +309,7 @@ public class ComputeService {
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
         String profileQualifier,
+        SplitPlanAfterTopN projectAfterTopN,
         ActionListener<Result> listener,
         Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
@@ -335,7 +350,7 @@ public class ComputeService {
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
-                List.of(),
+                EmptyIndexedByShardId.instance(),
                 configuration,
                 foldContext,
                 null,
@@ -352,7 +367,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
+                runCompute(rootTask, computeContext, coordinatorPlan, projectAfterTopN, computeListener.acquireCompute());
                 return;
             }
         } else {
@@ -427,13 +442,14 @@ public class ComputeService {
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
-                            List.of(),
+                            EmptyIndexedByShardId.instance(),
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        projectAfterTopN,
                         localListener.acquireCompute()
                     );
                     // starts computes on data nodes on the main cluster
@@ -590,33 +606,21 @@ public class ComputeService {
         ExceptionsHelper.reThrowIfNotNull(failureCollector.getFailure());
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<DriverCompletionInfo> listener) {
-        listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
-        List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
-        for (int i = 0; i < context.searchContexts().size(); i++) {
-            SearchContext searchContext = context.searchContexts().get(i);
-            var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
-
-                @Override
-                public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
-                    return new ReinitializingSourceProvider(super::createSourceProvider);
-                }
-            };
-            contexts.add(
-                new EsPhysicalOperationProviders.DefaultShardContext(
-                    i,
-                    searchContext,
-                    searchExecutionContext,
-                    searchContext.request().getAliasFilter()
-                )
-            );
-        }
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        SplitPlanAfterTopN projectAfterTopN,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
+        var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
-            contexts,
+            shardContexts,
             searchService.getIndicesService().getAnalysis(),
             physicalSettings
         );
+
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -631,30 +635,41 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
-                physicalOperationProviders,
-                contexts
+                physicalOperationProviders
             );
 
-            LOGGER.debug("Received physical plan:\n{}", plan);
+            LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
             var localPlan = PlannerUtils.localPlan(
                 context.flags(),
-                context.searchExecutionContexts(),
+                new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
                 context.foldCtx(),
+                projectAfterTopN,
                 plan
             );
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
+            }
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(
+                context.description(),
+                context.foldCtx(),
+                localPlan,
+                context.searchContexts().map(ComputeSearchContext::shardContext)
+            );
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
-            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
-            // will hold a reference to the contexts where relevant.
-            contexts.forEach(RefCounted::decRef);
+            // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the reader
+            // operators will hold a reference to the contexts where relevant. However, we should only do this for the data computations,
+            // because in other cases the drivers won't increment the reference count of the contexts (no readers).
+            if (context.description().equals(DATA_DESCRIPTION)) {
+                shardContexts.collection().forEach(RefCounted::decRef);
+            }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
             }
@@ -667,6 +682,8 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
+            Releasables.close(context.searchContexts().collection());
+            LOGGER.fatal("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
     }
@@ -715,15 +732,37 @@ public class ComputeService {
         });
     }
 
-    static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {
-        PhysicalPlan reducePlan = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-        if (enable) {
-            PhysicalPlan p = PlannerUtils.reductionPlan(plan);
-            if (p != null) {
-                reducePlan = p.replaceChildren(List.of(reducePlan));
-            }
+    static PhysicalPlan reductionPlan(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan,
+        ReductionPlanFeatures features
+    ) {
+        PhysicalPlan source = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        if (features == ReductionPlanFeatures.DISABLED) {
+            return plan.replaceChild(source);
         }
-        return new ExchangeSinkExec(plan.source(), plan.output(), plan.isIntermediateAgg(), reducePlan);
+
+        PhysicalPlan newPlan = switch (PlannerUtils.reductionPlan(plan)) {
+            case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
+            case PlannerUtils.SimplePlanReduction.TOP_N ->
+                // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
+                // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
+                // we also need the original plan, since we add the project in the reduction node.
+                PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, plan)
+                    .orElseGet(() -> plan.replaceChildren(List.of(source)));
+            case PlannerUtils.ReducedPlan rp -> features == ReductionPlanFeatures.DIFFERENT_NODE
+                ? rp.plan().replaceChildren(List.of(source))
+                : source;
+        };
+        return plan.replaceChild(newPlan);
+    }
+
+    enum ReductionPlanFeatures {
+        DIFFERENT_NODE,
+        SAME_NODE,
+        DISABLED,
     }
 
     String newChildSession(String session) {

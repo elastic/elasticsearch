@@ -27,7 +27,6 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -55,13 +54,13 @@ import java.util.stream.Collectors;
 public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     public static class Factory extends LuceneOperator.Factory {
-        private final List<? extends ShardContext> contexts;
+        private final IndexedByShardId<? extends ShardContext> contexts;
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
         private final long estimatedPerRowSortSize;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> contexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
@@ -123,6 +122,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
+    private final IndexedByShardId<? extends ShardContext> contexts;
     private final CircuitBreaker breaker;
     private final List<SortBuilder<?>> sorts;
     private final long estimatedPerRowSortSize;
@@ -135,11 +135,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private ScoreDoc[] topDocs;
 
     /**
-     * {@link ShardRefCounted} for collected docs.
-     */
-    private ShardRefCounted shardRefCounted;
-
-    /**
      * The offset in {@link #topDocs} of the next page.
      */
     private int offset = 0;
@@ -147,7 +142,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     private PerShardCollector perShardCollector;
 
     public LuceneTopNSourceOperator(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         CircuitBreaker breaker,
         BlockFactory blockFactory,
         int maxPageSize,
@@ -158,6 +153,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         boolean needsScore
     ) {
         super(contexts, blockFactory, maxPageSize, sliceQueue);
+        this.contexts = contexts;
         this.breaker = breaker;
         this.sorts = sorts;
         this.estimatedPerRowSortSize = estimatedPerRowSortSize;
@@ -175,7 +171,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     public void finish() {
         doneCollecting = true;
         topDocs = null;
-        shardRefCounted = null;
         assert isFinished();
     }
 
@@ -246,7 +241,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
              */
             topDocs = perShardCollector.collector.topDocs().scoreDocs;
             int shardId = perShardCollector.shardContext.index();
-            shardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
         } else {
             topDocs = new ScoreDoc[0];
         }
@@ -262,7 +256,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return null;
         }
         int size = Math.min(maxPageSize, topDocs.length - offset);
-        IntBlock shard = null;
+        IntVector shard = null;
         IntVector segments = null;
         IntVector docs = null;
         DocBlock docBlock = null;
@@ -275,7 +269,8 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         ) {
             int start = offset;
             offset += size;
-            List<LeafReaderContext> leafContexts = perShardCollector.shardContext.searcher().getLeafContexts();
+            ShardContext shardContext = perShardCollector.shardContext;
+            List<LeafReaderContext> leafContexts = shardContext.searcher().getLeafContexts();
             for (int i = start; i < offset; i++) {
                 int doc = topDocs[i].doc;
                 int segment = ReaderUtil.subIndex(doc, leafContexts);
@@ -289,11 +284,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 topDocs[i] = null;
             }
 
-            int shardId = perShardCollector.shardContext.index();
-            shard = blockFactory.newConstantIntBlockWith(shardId, size);
+            int shardId = shardContext.index();
+            shard = blockFactory.newConstantIntBlockWith(shardId, size).asVector();
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
-            docBlock = new DocVector(shardRefCounted, shard.asVector(), segments, docs, null).asBlock();
+            docBlock = new DocVector(refCounteds, shard, segments, docs, null).asBlock();
             shard = null;
             segments = null;
             docs = null;

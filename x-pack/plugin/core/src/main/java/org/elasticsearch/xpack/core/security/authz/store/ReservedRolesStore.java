@@ -781,7 +781,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8,
                         ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
-                        ReserveRolesStore.ENTITY_STORE_HISTORY_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX,
                         ReservedRolesStore.ASSET_CRITICALITY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
@@ -853,7 +853,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         ReservedRolesStore.ENTITY_STORE_V1_LATEST_INDEX,
-                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX,
+                        ReservedRolesStore.ENTITY_STORE_HISTORY_INDEX
                     )
                     .privileges("read", "view_index_metadata")
                     .build(),

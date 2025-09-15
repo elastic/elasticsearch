@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.type.AtomType;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;

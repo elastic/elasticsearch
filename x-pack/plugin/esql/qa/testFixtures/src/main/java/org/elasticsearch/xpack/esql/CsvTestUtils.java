@@ -592,6 +592,7 @@ public final class CsvTestUtils {
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case COLUMNS -> throw new IllegalArgumentException("can't assert on column blocks"); // NOCOMMIT be able to assert
                 case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };

@@ -23,7 +23,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchQueryTests extends ESTestCase {
@@ -65,14 +65,14 @@ public class MatchQueryTests extends ESTestCase {
 
     private static MatchQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD.type(), emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", options);
         return (MatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
+        FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD.type(), emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo");
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }

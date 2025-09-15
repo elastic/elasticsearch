@@ -119,10 +119,7 @@ public class DateExtract extends EsqlConfigurationFunction {
             case DATETIME -> false;
             case DATE_NANOS -> true;
             default -> throw new UnsupportedOperationException(
-                "Unsupported field type ["
-                    + field().dataType()
-                    + "]. "
-                    + "If you're seeing this, there’s a bug in DateExtract.resolveType"
+                "Unsupported field type [" + field().dataType() + "]. " + "If you're seeing this, there’s a bug in DateExtract.resolveType"
             );
         };
 

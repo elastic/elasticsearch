@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
     protected static EsqlParser parser;
@@ -155,7 +155,7 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         var multiIndexMapping = loadMapping("mapping-basic.json");
         multiIndexMapping.put(
             "partial_type_keyword",
-            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+            new EsField("partial_type_keyword", KEYWORD.type(), emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
         var multiIndex = IndexResolution.valid(
             new EsIndex(

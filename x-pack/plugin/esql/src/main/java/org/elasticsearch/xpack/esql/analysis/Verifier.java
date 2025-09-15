@@ -398,12 +398,7 @@ public class Verifier {
     private static Failure validateUnsignedLongNegation(Neg neg) {
         DataType childExpressionType = neg.field().dataType();
         if (childExpressionType.equals(UNSIGNED_LONG.type())) {
-            return fail(
-                neg,
-                "negation unsupported for arguments of type [{}] in expression [{}]",
-                childExpressionType,
-                neg.sourceText()
-            );
+            return fail(neg, "negation unsupported for arguments of type [{}] in expression [{}]", childExpressionType, neg.sourceText());
         }
         return null;
     }

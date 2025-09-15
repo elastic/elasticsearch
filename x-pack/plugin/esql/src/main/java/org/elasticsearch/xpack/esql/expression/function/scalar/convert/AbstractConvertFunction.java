@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -54,7 +53,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction implem
     // the numeric types convert functions need to handle; the other numeric types are converted upstream to one of these
     private static final List<DataType> NUMERIC_TYPES = List.of(INTEGER.type(), LONG.type(), UNSIGNED_LONG.type(), DOUBLE.type());
     private static final List<DataType> STRING_TYPES = AtomType.stringTypes().stream().map(AtomType::type).toList();
-
 
     protected AbstractConvertFunction(Source source, Expression field) {
         super(source, field);

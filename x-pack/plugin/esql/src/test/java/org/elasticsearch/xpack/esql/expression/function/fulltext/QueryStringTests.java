@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +50,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
         List<TestCaseSupplier> result = new ArrayList<>();
         for (TestCaseSupplier supplier : suppliers) {
             List<DataType> dataTypes = new ArrayList<>(supplier.types());
-            dataTypes.add(UNSUPPORTED);
+            dataTypes.add(UNSUPPORTED.type());
             result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {
                 List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
                 values.add(
@@ -59,12 +59,12 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
                             Source.EMPTY,
                             List.of(Literal.keyword(Source.EMPTY, "default_field"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
-                        UNSUPPORTED,
+                        UNSUPPORTED.type(),
                         "options"
                     ).forceLiteral()
                 );
 
-                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), BOOLEAN, equalTo(true));
+                return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), BOOLEAN.type(), equalTo(true));
             }));
         }
         return result;

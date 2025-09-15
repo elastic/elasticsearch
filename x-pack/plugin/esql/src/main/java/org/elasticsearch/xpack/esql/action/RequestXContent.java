@@ -190,12 +190,7 @@ final class RequestXContent {
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
                         type = AtomType.fromJava(paramValue);
-                        currentParam = new QueryParam(
-                            paramName,
-                            paramValue,
-                            (classification == VALUE) ? type : NULL,
-                            classification
-                        );
+                        currentParam = new QueryParam(paramName, paramValue, (classification == VALUE) ? type : NULL, classification);
                         namedParams.add(currentParam);
                     }
                 } else {

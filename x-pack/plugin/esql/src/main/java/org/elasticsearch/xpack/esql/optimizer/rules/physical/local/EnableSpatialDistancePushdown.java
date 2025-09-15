@@ -44,8 +44,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
-import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 

@@ -36,13 +36,7 @@ import static org.elasticsearch.xpack.esql.core.type.AtomType.DOC_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    public static final EsField DOC_ID_FIELD = new EsField(
-        "_doc",
-        DOC_DATA_TYPE.type(),
-        Map.of(),
-        false,
-        EsField.TimeSeriesFieldType.NONE
-    );
+    public static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE.type(), Map.of(), false, EsField.TimeSeriesFieldType.NONE);
 
     private final String indexPattern;
     private final IndexMode indexMode;

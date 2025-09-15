@@ -306,7 +306,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testAnalyzerAttributeLog() throws IOException {
-        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("analyzer", "log")));
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("analyzer", "delimiter")));
         var fieldMapper = (PatternedTextFieldMapper) mapper.mappingLookup().getMapper("field");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -314,7 +314,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
         assertThat(result.size(), equalTo(1));
         assertThat(result.get("type"), equalTo("patterned_text"));
-        assertThat(fieldMapper.getAnalyzer(), equalTo(LogAnalyzer.INSTANCE));
+        assertThat(fieldMapper.getAnalyzer(), equalTo(DelimiterAnalyzer.INSTANCE));
     }
 
     public void testAnalyzerAttributeIllegal() throws IOException {

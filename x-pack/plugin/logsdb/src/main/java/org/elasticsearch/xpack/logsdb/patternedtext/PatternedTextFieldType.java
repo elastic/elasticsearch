@@ -80,10 +80,10 @@ public class PatternedTextFieldType extends StringFieldType {
             new TextSearchInfo(
                 hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
                 null,
-                LogAnalyzer.INSTANCE,
-                LogAnalyzer.INSTANCE
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
             ),
-            LogAnalyzer.INSTANCE,
+            DelimiterAnalyzer.INSTANCE,
             syntheticSource,
             Collections.emptyMap()
         );

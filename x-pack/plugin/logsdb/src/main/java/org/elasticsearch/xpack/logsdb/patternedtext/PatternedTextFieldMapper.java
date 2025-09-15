@@ -130,13 +130,13 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         private static Parameter<NamedAnalyzer> analyzerParam(String name, Function<FieldMapper, NamedAnalyzer> initializer) {
-            return new Parameter<>("analyzer", false, () -> LogAnalyzer.INSTANCE, (n, c, o) -> {
+            return new Parameter<>("analyzer", false, () -> DelimiterAnalyzer.INSTANCE, (n, c, o) -> {
                 String analyzerName = o.toString();
                 switch (analyzerName) {
                     case "standard":
                         return STANDARD_ANALYZER;
-                    case "log":
-                        return LogAnalyzer.INSTANCE;
+                    case "delimiter":
+                        return DelimiterAnalyzer.INSTANCE;
                     default:
                         throw new IllegalArgumentException(
                             "unsupported analyzer [" + analyzerName + "] for field [" + name + "], supported analyzers are [standard, log]"

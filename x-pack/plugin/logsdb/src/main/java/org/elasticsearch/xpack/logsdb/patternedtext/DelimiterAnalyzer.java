@@ -22,13 +22,13 @@ import java.util.regex.Pattern;
  * An analyzer that tokenizes text by a pre-defined list of delimiters that work well for log messages.
  * The pre-defined list of delimiters is: whitespace characters, =, ?, :, [, ], {, }, ", \, '
  */
-public final class LogAnalyzer extends Analyzer {
+public final class DelimiterAnalyzer extends Analyzer {
 
-    static final NamedAnalyzer INSTANCE = new NamedAnalyzer("log", AnalyzerScope.GLOBAL, new LogAnalyzer());
+    static final NamedAnalyzer INSTANCE = new NamedAnalyzer("delimiter", AnalyzerScope.GLOBAL, new DelimiterAnalyzer());
 
     private final Pattern pattern;
 
-    private LogAnalyzer() {
+    private DelimiterAnalyzer() {
         this.pattern = Regex.compile("[\\s\\=\\?\\:\\[\\]\\{\\}\\\"\\\\\\']", null);
     }
 

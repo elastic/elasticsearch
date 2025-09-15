@@ -53,4 +53,18 @@ public class IntegerFieldMapperTests extends WholeNumberFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    public void testSingletonLongBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonInts) columnAtATimeReader);
+    }
+
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
+    }
+
+    @Override
+    protected Object[] getThreeSampleValues() {
+        return new Object[] { 1, 2, 3 };
+    }
 }

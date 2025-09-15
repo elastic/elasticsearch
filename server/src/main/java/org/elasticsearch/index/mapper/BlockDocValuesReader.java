@@ -262,7 +262,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonInts extends BlockDocValuesReader {
+    static class SingletonInts extends BlockDocValuesReader implements NumericDocValuesAccessor {
         private final NumericDocValues numericDocValues;
 
         SingletonInts(NumericDocValues numericDocValues) {
@@ -271,6 +271,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null);
+                if (result != null) {
+                    // This returns a long block, but should be handled ok downstream.
+                    // tryRead(...) doesn't support creating int blocks yet, but can be supported in the future.
+                    return result;
+                }
+            }
             try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -303,9 +311,14 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         public String toString() {
             return "BlockDocValuesReader.SingletonInts";
         }
+
+        @Override
+        public NumericDocValues numericDocValues() {
+            return numericDocValues;
+        }
     }
 
-    private static class Ints extends BlockDocValuesReader {
+    static class Ints extends BlockDocValuesReader {
         private final SortedNumericDocValues numericDocValues;
 
         Ints(SortedNumericDocValues numericDocValues) {

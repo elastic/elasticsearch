@@ -1525,7 +1525,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonDoubles) columnAtATimeReader);
     }
 
-    private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
+    protected void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
         throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
         var settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();
@@ -1561,7 +1561,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
                 for (int i = 0; i < block.size(); i++) {
-                    assertThat(block.get(i), equalTo(expectedSampleValues[i]));
+                    assertThat(block.get(i), equalTo(((Number) expectedSampleValues[i]).longValue()));
                 }
             };
             withLuceneIndex(mapperService, builder, test);
@@ -1596,8 +1596,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null));
                 block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null);
                 assertNotNull(block);
-                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
-                assertThat(block.get(1), equalTo(expectedSampleValues[2]));
+                assertThat(block.get(0), equalTo(((Number) expectedSampleValues[0]).longValue()));
+                assertThat(block.get(1), equalTo(((Number) expectedSampleValues[2]).longValue()));
             };
             withLuceneIndex(mapperService, builder, test);
         }
@@ -1624,7 +1624,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var columnReader = blockLoader.columnAtATimeReader(context);
                 assertThat(
                     columnReader,
-                    anyOf(instanceOf(BlockDocValuesReader.Longs.class), instanceOf(BlockDocValuesReader.Doubles.class))
+                    anyOf(
+                        instanceOf(BlockDocValuesReader.Longs.class),
+                        instanceOf(BlockDocValuesReader.Doubles.class),
+                        instanceOf(BlockDocValuesReader.Ints.class)
+                    )
                 );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);

@@ -29,12 +29,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_ENDPOINT_CACHE;
-
 public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagnosticsAction.Response> {
 
     public static final GetInferenceDiagnosticsAction INSTANCE = new GetInferenceDiagnosticsAction();
     public static final String NAME = "cluster:monitor/xpack/inference/diagnostics/get";
+
+    private static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = TransportVersion.fromName("ml_inference_endpoint_cache");
     private static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = TransportVersion.fromName("inference_api_eis_diagnostics");
 
     public GetInferenceDiagnosticsAction() {
@@ -151,7 +151,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             } else {
                 eisMtlsConnectionPoolStats = ConnectionPoolStats.EMPTY;
             }
-            inferenceEndpointRegistryStats = in.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)
+            inferenceEndpointRegistryStats = in.getTransportVersion().supports(ML_INFERENCE_ENDPOINT_CACHE)
                 ? in.readOptionalWriteable(Stats::new)
                 : null;
         }
@@ -164,7 +164,7 @@ public class GetInferenceDiagnosticsAction extends ActionType<GetInferenceDiagno
             if (out.getTransportVersion().supports(INFERENCE_API_EIS_DIAGNOSTICS)) {
                 eisMtlsConnectionPoolStats.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(ML_INFERENCE_ENDPOINT_CACHE)) {
+            if (out.getTransportVersion().supports(ML_INFERENCE_ENDPOINT_CACHE)) {
                 out.writeOptionalWriteable(inferenceEndpointRegistryStats);
             }
         }

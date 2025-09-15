@@ -24,10 +24,10 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.ConfidenceInterval;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppend;
 import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -120,6 +120,8 @@ public class Approximate {
 
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 100000;
+
+    private static final int BUCKET_COUNT = 25;
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
@@ -313,6 +315,7 @@ public class Approximate {
                 if (plan instanceof Aggregate aggregate) {
                     encounteredStats.set(true);
                     Expression sampleProbabilityExpr = new Literal(Source.EMPTY, sampleProbability, DataType.DOUBLE);
+                    Expression bucketProbabilityExpr = new Literal(Source.EMPTY, sampleProbability / BUCKET_COUNT, DataType.DOUBLE);
                     Sample sample = new Sample(Source.EMPTY, sampleProbabilityExpr, aggregate.child());
                     Alias sampleId = new Alias(
                         Source.EMPTY,
@@ -320,7 +323,7 @@ public class Approximate {
                         new MvAppend(
                             Source.EMPTY,
                             new Literal(Source.EMPTY, -1, DataType.INTEGER),
-                            new Random(Source.EMPTY, new Literal(Source.EMPTY, 25, DataType.INTEGER))
+                            new Random(Source.EMPTY, new Literal(Source.EMPTY, BUCKET_COUNT, DataType.INTEGER))
                         )
                     );
                     Eval addSampleId = new Eval(Source.EMPTY, sample, List.of(sampleId));
@@ -337,8 +340,10 @@ public class Approximate {
                     aggregates.add(sampleId.toAttribute());
                     Aggregate aggregateWithSampledId = (Aggregate) aggregate.with(addSampleId, groupings, aggregates)
                         .transformExpressionsOnlyUp(
-                            expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(sampleProbabilityExpr) : expr
-                        );
+                            expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(
+                                new Case(Source.EMPTY,
+                                    new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                    List.of(sampleProbabilityExpr, bucketProbabilityExpr))) : expr);
                     aggregates = new ArrayList<>();
                     for (int i = 0; i < aggregate.aggregates().size(); i++) {
                         NamedExpression aggr = aggregate.aggregates().get(i);
@@ -356,13 +361,9 @@ public class Approximate {
                                         ),
                                         new Top(
                                             Source.EMPTY,
-                                            new Mul( // TODO: make this mul a sample correction 1/buckets
-                                                Source.EMPTY,
-                                                Literal.integer(Source.EMPTY, 25),
-                                                sampledAggr.toAttribute()
-                                            ),
+                                            sampledAggr.toAttribute(),
                                             new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                                            Literal.integer(Source.EMPTY, 25),
+                                            Literal.integer(Source.EMPTY, BUCKET_COUNT),
                                             Literal.keyword(Source.EMPTY, "ASC")
                                         )
                                     )

@@ -701,38 +701,42 @@ public final class XmlProcessor extends AbstractProcessor {
             boolean hasChildren = element.isEmpty() == false;
 
             Object elementValue;
-            if (hasText == false && hasChildren == false) {
-                // Empty element
-                if (removeEmptyValues == false) {
-                    elementValue = applyForceArray(elementName, null);
-                } else {
-                    elementValue = null;
-                }
-            } else if (hasText && hasChildren == false) {
-                // Only text content
-                if (forceContent) {
-                    Map<String, Object> contentMap = new HashMap<>();
+            if (hasChildren) {
+                if (hasText) {
+                    // Both text and children/attributes
                     if (removeEmptyValues == false || isEmptyValue(trimmedText) == false) {
-                        contentMap.put("#text", trimmedText);
+                        element.put("#text", trimmedText);
                     }
-                    elementValue = contentMap;
+                    elementValue = (forceArray && forceContent) ? applyForceArray(elementName, element) : element;
                 } else {
-                    if (removeEmptyValues && isEmptyValue(trimmedText)) {
-                        elementValue = null;
+                    // Only child elements/attributes
+                    elementValue = (forceArray && forceContent) ? applyForceArray(elementName, element) : element;
+                }
+            } else {
+                if (hasText) {
+                    // Only text content
+                    if (forceContent) {
+                        Map<String, Object> contentMap = new HashMap<>();
+                        if (removeEmptyValues == false || isEmptyValue(trimmedText) == false) {
+                            contentMap.put("#text", trimmedText);
+                        }
+                        elementValue = contentMap;
                     } else {
-                        elementValue = trimmedText;
+                        if (removeEmptyValues && isEmptyValue(trimmedText)) {
+                            elementValue = null;
+                        } else {
+                            elementValue = trimmedText;
+                        }
+                    }
+                    elementValue = applyForceArray(elementName, elementValue);
+                } else {
+                    // Empty element
+                    if (removeEmptyValues == false) {
+                        elementValue = applyForceArray(elementName, null);
+                    } else {
+                        elementValue = null;
                     }
                 }
-                elementValue = applyForceArray(elementName, elementValue);
-            } else if (hasText == false && hasChildren) {
-                // Only child elements/attributes
-                elementValue = (forceArray && forceContent) ? applyForceArray(elementName, element) : element;
-            } else {
-                // Both text and children/attributes
-                if (removeEmptyValues == false || isEmptyValue(trimmedText) == false) {
-                    element.put("#text", trimmedText);
-                }
-                elementValue = (forceArray && forceContent) ? applyForceArray(elementName, element) : element;
             }
 
             // If this is the root element, store the result

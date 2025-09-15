@@ -548,7 +548,7 @@ public final class XmlProcessor extends AbstractProcessor {
     /**
      * Gets the parser reference or creates a new one if the soft reference has been cleared.
      */
-    private SAXParser getParser(SAXParserFactory factory) throws SAXException, ParserConfigurationException {
+    private static SAXParser getParser(SAXParserFactory factory) throws SAXException, ParserConfigurationException {
         final ThreadLocal<SoftReference<SAXParser>> threadLocal = PARSERS.getOrDefault(factory, new ThreadLocal<>());
         final SoftReference<SAXParser> parserReference = threadLocal.get();
 

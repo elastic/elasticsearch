@@ -38,7 +38,6 @@ Combining `query` and `retrievers` is not supported.
     When used with the [multi-field query format](../retrievers.md#multi-field-query-format) (`query` parameter), normalizes scores per [field grouping](../retrievers.md#multi-field-field-grouping).
 
     Otherwise this serves as the default normalizer for any sub-retriever that doesn't specify its own normalizer. Per-retriever normalizers always take precedence over the top-level normalizer. {applies_to}`stack: ga 9.2`
-    {applies_to}`stack: ga 9.2`
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.

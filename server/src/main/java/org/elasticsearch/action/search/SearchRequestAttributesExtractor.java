@@ -11,6 +11,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -34,15 +35,17 @@ import java.util.Map;
  * ever breaking: if something goes wrong around extracting attributes, it should skip extracting
  * them as opposed to failing the search.
  */
-public class SearchRequestAttributesExtractor {
+public final class SearchRequestAttributesExtractor {
     private static final Logger logger = LogManager.getLogger(SearchRequestAttributesExtractor.class);
+
+    private SearchRequestAttributesExtractor() {}
 
     /**
      * Introspects the provided search request and extracts metadata from it about some of its characteristics.
      *
      */
-    public static Map<String, Object> extractAttributes(SearchRequest searchRequest) {
-        String target = extractIndices(searchRequest.indices());
+    public static Map<String, Object> extractAttributes(SearchRequest searchRequest, String[] localIndices) {
+        String target = extractIndices(localIndices);
 
         String pitOrScroll = null;
         if (searchRequest.scroll() != null) {
@@ -147,6 +150,7 @@ public class SearchRequestAttributesExtractor {
             // If indices resolve to data streams, the name of the data stream is returned as opposed to its backing indices
             if (indices.length == 1) {
                 String index = indices[0];
+                assert Regex.isSimpleMatchPattern(index) == false;
                 if (index.startsWith(".")) {
                     if (index.startsWith(TARGET_KIBANA)) {
                         return TARGET_KIBANA;

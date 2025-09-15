@@ -424,7 +424,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {
-                Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(original);
+                Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                    original,
+                    Arrays.stream(resolvedIndices.getConcreteLocalIndices()).map(Index::getName).toArray(String[]::new)
+                );
                 if (collectCCSTelemetry == false || resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                     searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, searchRequestAttributes);
                 } else {

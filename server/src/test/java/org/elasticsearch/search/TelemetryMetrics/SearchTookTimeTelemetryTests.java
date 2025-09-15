@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -82,6 +83,133 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         return pluginList(TestTelemetryPlugin.class);
     }
 
+    public void testOthersDottedIndexName() {
+        createIndex(".whatever");
+        createIndex(".kibana");
+        {
+            SearchResponse searchResponse = client().prepareSearch(".whatever").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+            assertEquals(1, measurements.size());
+            Measurement measurement = measurements.getFirst();
+            assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(3, attributes.size());
+            assertEquals(".others", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(".kibana*").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+            assertEquals(2, measurements.size());
+            Measurement measurement = measurements.getLast();
+            assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(3, attributes.size());
+            assertEquals(".kibana", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(".*").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+            assertEquals(3, measurements.size());
+            Measurement measurement = measurements.getLast();
+            assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+            // two dotted indices: categorized as "user"
+            assertSimpleQueryAttributes(measurement.attributes());
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(".kibana", ".whatever").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+            assertEquals(4, measurements.size());
+            Measurement measurement = measurements.getLast();
+            assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+            // two dotted indices: categorized as "user"
+            assertSimpleQueryAttributes(measurement.attributes());
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch(".kibana", ".does_not_exist")
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+                .setQuery(simpleQueryStringQuery("foo"))
+                .get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse);
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+            assertEquals(5, measurements.size());
+            Measurement measurement = measurements.getLast();
+            assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(3, attributes.size());
+            // because the second index does not exist, yet the search goes through, the remaining index is categorized correctly
+            assertEquals(".kibana", attributes.get("target"));
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("_all").setQuery(simpleQueryStringQuery("foo")).get();
+            try {
+                assertNoFailures(searchResponse);
+                assertSearchHits(searchResponse, "1", "2");
+            } finally {
+                searchResponse.decRef();
+            }
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+            assertEquals(6, measurements.size());
+            Measurement measurement = measurements.getLast();
+            assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+            assertSimpleQueryAttributes(measurement.attributes());
+        }
+    }
+
+    public void testIndexNameMustExist() {
+        SearchResponse searchResponse = client().prepareSearch(".must_exist")
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
+            .setQuery(simpleQueryStringQuery("foo"))
+            .get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        assertEquals(1, measurements.size());
+        Measurement measurement = measurements.getFirst();
+        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
+        // edge case rather than under .others (as it's a dotted index name), the index is categorized under "user" because no existing
+        // indices are targeted.
+        assertSimpleQueryAttributes(measurement.attributes());
+    }
+
     public void testSimpleQuery() {
         SearchResponse searchResponse = client().prepareSearch(indexName).setQuery(simpleQueryStringQuery("foo")).get();
         try {
@@ -119,10 +247,10 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
             RestUtils.REST_MASTER_TIMEOUT_DEFAULT,
             new TimeValue(30, TimeUnit.SECONDS)
         );
-        indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().indices(indexName).alias("alias"));
+        indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().indices(indexName).alias(".alias"));
         IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().aliases(indicesAliasesRequest).actionGet();
         assertFalse(indicesAliasesResponse.hasErrors());
-        SearchResponse searchResponse = client().prepareSearch("alias").setQuery(simpleQueryStringQuery("foo")).get();
+        SearchResponse searchResponse = client().prepareSearch(".alias").setQuery(simpleQueryStringQuery("foo")).get();
         try {
             assertNoFailures(searchResponse);
             assertSearchHits(searchResponse, "1", "2");

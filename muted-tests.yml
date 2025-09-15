@@ -555,18 +555,6 @@ tests:
 - class: org.elasticsearch.discovery.DiscoveryDisruptionIT
   method: testElectMasterWithLatestVersion
   issue: https://github.com/elastic/elasticsearch/issues/134748
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
-  method: testLargeValueIsStored
-  issue: https://github.com/elastic/elasticsearch/issues/134760
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
-  method: testSourceMatchAllManyValues
-  issue: https://github.com/elastic/elasticsearch/issues/134761
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
-  method: testQueryResultsSameAsMatchOnlyText
-  issue: https://github.com/elastic/elasticsearch/issues/134762
-- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
-  method: testSmallValueNotStored
-  issue: https://github.com/elastic/elasticsearch/issues/134763
 
 # Examples:
 #

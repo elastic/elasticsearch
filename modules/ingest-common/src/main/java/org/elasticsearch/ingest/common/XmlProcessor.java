@@ -191,12 +191,14 @@ public final class XmlProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is not a string, cannot parse XML");
         }
 
+        // TODO this just seems like misconfiguration to me. Why should we all this at all?
+        if (storeXml == false && xpathExpressions.isEmpty()) {
+            return document;
+        }
+
         String xml = (String) fieldValue;
         try {
-            // Always use streaming parser for optimal performance and memory usage
-            if (storeXml || xpathExpressions.isEmpty() == false) {
-                parseXmlAndXPath(document, xml.trim());
-            }
+            parseXmlAndXPath(document, xml.trim());
         } catch (Exception e) {
             throw new IllegalArgumentException("field [" + field + "] contains invalid XML", e);
         }

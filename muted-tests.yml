@@ -561,6 +561,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
   method: testSourceMatchAllManyValues
   issue: https://github.com/elastic/elasticsearch/issues/134761
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testQueryResultsSameAsMatchOnlyText
+  issue: https://github.com/elastic/elasticsearch/issues/134762
 
 # Examples:
 #

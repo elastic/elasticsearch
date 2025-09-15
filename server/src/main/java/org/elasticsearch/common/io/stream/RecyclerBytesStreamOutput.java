@@ -242,6 +242,20 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
             final int c = str.charAt(i);
             if (c <= 0x007F) {
                 buffer[offset++] = ((byte) c);
+            } else {
+                offset += writeNonAscii(str, i, charCount, buffer, offset);
+                break;
+            }
+        }
+        this.currentPageOffset = offset - bytesRefOffset;
+    }
+
+    private int writeNonAscii(String str, int charOffset, int charCount, byte[] buffer, int offset) {
+        int startOffset = offset;
+        for (int i = charOffset; i < charCount; i++) {
+            final int c = str.charAt(i);
+            if (c <= 0x007F) {
+                buffer[offset++] = ((byte) c);
             } else if (c > 0x07FF) {
                 buffer[offset++] = ((byte) (0xE0 | c >> 12 & 0x0F));
                 buffer[offset++] = ((byte) (0x80 | c >> 6 & 0x3F));
@@ -251,7 +265,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 buffer[offset++] = ((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-        this.currentPageOffset = offset - bytesRefOffset;
+        return offset - startOffset;
     }
 
     @Override

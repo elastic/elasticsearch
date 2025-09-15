@@ -14,8 +14,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Configuration for sampling raw documents in an index.
@@ -28,8 +36,10 @@ import java.io.IOException;
  */
 public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
     implements
-        Writeable {
+        Writeable,
+        ToXContentObject {
 
+    private static final String SAMPLE_CONFIG_DOWNLOADER = "sample-configuration-downloader";
     // Constants for validation and defaults
     public static final int MAX_SAMPLES_LIMIT = 10_000;
     public static final long MAX_SIZE_LIMIT_GIGABYTES = 5;
@@ -49,6 +59,37 @@ public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue
         + MAX_TIME_TO_LIVE_DAYS
         + " days";
     public static final String INVALID_CONDITION_MESSAGE = "condition must be a non-empty string";
+
+    private static final ConstructingObjectParser<SampleConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+        SAMPLE_CONFIG_DOWNLOADER,
+        true,
+        args -> {
+            double rate = (double) args[0];
+            Integer maxSamples = (Integer) args[1];
+            ByteSizeValue maxSize = (ByteSizeValue) args[2];
+            TimeValue timeToLive = (TimeValue) args[3];
+            String condition = (String) args[4];
+            return new SampleConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
+        }
+    );
+
+    static {
+        PARSER.declareDouble(constructorArg(), new ParseField("rate"));
+        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_SAMPLES, new ParseField("maxSamples"));
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), "maxSize"),
+            new org.elasticsearch.xcontent.ParseField("maxSize"),
+            org.elasticsearch.xcontent.ObjectParser.ValueType.STRING
+        );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), "timeToLive"),
+            new org.elasticsearch.xcontent.ParseField("timeToLive"),
+            org.elasticsearch.xcontent.ObjectParser.ValueType.STRING
+        );
+        PARSER.declareStringOrNull(optionalConstructorArg(), new org.elasticsearch.xcontent.ParseField("condition"));
+    }
 
     /*
      * Constructor with validation and defaulting for optional fields.
@@ -90,6 +131,33 @@ public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue
         out.writeOptionalString(this.condition);
     }
 
+    // Serialize to XContent (JSON)
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field("rate", rate);
+        if (maxSamples != null) {
+            builder.field("maxSamples", maxSamples);
+        }
+        if (maxSize != null) {
+            builder.field("maxSize", maxSize.toString());
+        }
+        if (timeToLive != null) {
+            builder.field("timeToLive", timeToLive.toString());
+        }
+        if (condition != null && condition.isEmpty() == false) {
+            builder.field("condition", condition);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    // Deserialize from XContent (JSON)
+    public static SampleConfiguration fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    // Input validation method
     private static void validateInputs(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         // Validate rate
         if (rate <= 0 || rate > 1) {

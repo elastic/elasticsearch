@@ -11,12 +11,20 @@ package org.elasticsearch.action.admin.indices.sample;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SampleConfigurationTests extends AbstractWireSerializingTestCase<SampleConfiguration> {
+public class SampleConfigurationTests extends AbstractXContentSerializingTestCase<SampleConfiguration> {
+
+    @Override
+    protected SampleConfiguration doParseInstance(XContentParser parser) throws IOException {
+        return SampleConfiguration.fromXContent(parser);
+    }
 
     @Override
     protected Writeable.Reader<SampleConfiguration> instanceReader() {

@@ -409,7 +409,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 threadPoolMergeExecutorService.abortQueuedMergeTasks(mergeTask -> mergeTask.owner == this);
             }
             if (abortedBackloggedTasks > 0) {
-
+                // I think we can have worker threads waiting for backlogged tasks to be reenqueed, but if those tasks have been aborted
+                // they will wait indefinitely
             }
         } catch (Exception e) {
             logger.warn("exception when aborting non-running merge tasks", e);

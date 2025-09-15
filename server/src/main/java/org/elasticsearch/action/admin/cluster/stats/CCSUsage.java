@@ -81,11 +81,6 @@ public class CCSUsage {
             return this;
         }
 
-        public Builder setFeatures(Set<String> features) {
-            this.features.addAll(features);
-            return this;
-        }
-
         public Builder setClient(String client) {
             this.client = client;
             return this;

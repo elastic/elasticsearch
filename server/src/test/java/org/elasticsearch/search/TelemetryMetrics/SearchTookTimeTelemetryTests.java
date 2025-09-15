@@ -18,21 +18,22 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -137,6 +138,29 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertEquals("_score", attributes.get("sort"));
     }
 
+    public void testCompoundRetriever() {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.retriever(
+            new RescorerRetrieverBuilder(
+                new StandardRetrieverBuilder(new MatchAllQueryBuilder()),
+                List.of(new QueryRescorerBuilder(new MatchAllQueryBuilder()))
+            )
+        );
+        SearchResponse searchResponse = client().prepareSearch(indexName).setSource(searchSourceBuilder).get();
+        try {
+            assertNoFailures(searchResponse);
+            assertSearchHits(searchResponse, "1", "2");
+        } finally {
+            searchResponse.decRef();
+        }
+
+        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
+        // compound retriever does its own search as an async action, whose took time is recorded separately
+        assertEquals(2, measurements.size());
+        assertThat(measurements.getFirst().getLong(), Matchers.lessThan(searchResponse.getTook().millis()));
+        assertEquals(searchResponse.getTook().millis(), measurements.getLast().getLong());
+    }
+
     public void testMultiSearch() {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         int numSearchRequests = randomIntBetween(3, 10);
@@ -203,7 +227,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
     }
 
-    //TODO test PIT (e.g. open PIT does not record took time
+    // TODO test PIT (e.g. open PIT does not record took time
 
     // TODO test resolved indices (and alias) with security enabled
 
@@ -227,7 +251,10 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
 
         prepareIndex("foo").setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse searchResponse = client().prepareSearch("foo").addSort(new FieldSortBuilder("@timestamp")).setQuery(new RangeQueryBuilder("@timestamp").from("2024-01-01")).get();
+        SearchResponse searchResponse = client().prepareSearch("foo")
+            .addSort(new FieldSortBuilder("@timestamp"))
+            .setQuery(new RangeQueryBuilder("@timestamp").from("2024-01-01"))
+            .get();
         try {
             assertNoFailures(searchResponse);
             assertSearchHits(searchResponse, "1", "2");

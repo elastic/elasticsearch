@@ -73,8 +73,7 @@ public class SearchResponseMetrics {
         return tookTime;
     }
 
-    public long recordTookTime(long tookTime, SearchRequest searchRequest) {
-        Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(searchRequest);
+    public long recordTookTime(long tookTime, Map<String, Object> attributes) {
         tookDurationTotalMillisHistogram.record(tookTime, attributes);
         return tookTime;
     }

@@ -74,7 +74,8 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
             && ((arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux")))
                 || (arch.equals("amd64") && osName.equals("Linux")))) {
             assertThat(vectorSimilarityFunctions, isPresent());
-            return true;
+            // only implemented in this architecture
+            return arch.equals("aarch64") && (osName.startsWith("Mac"));
         } else {
             assertThat(vectorSimilarityFunctions, not(isPresent()));
             return false;

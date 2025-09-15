@@ -102,11 +102,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
 
-<<<<<<< Updated upstream
-        int numDocs = 3; // randomIntBetween(1, 100);
-=======
         int numDocs = randomIntBetween(1, 100);
->>>>>>> Stashed changes
         List<String> messages = randomMessagesOfVariousSizes(numDocs);
         indexDocs(messages);
 

@@ -48,8 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
-
 public class PatternedTextFieldType extends StringFieldType {
 
     private static final String STORED_SUFFIX = ".stored";
@@ -116,7 +114,7 @@ public class PatternedTextFieldType extends StringFieldType {
             @Override
             public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
                 if (false == docValues.advanceExact(doc)) {
-                    return emptyList();
+                    return List.of();
                 }
                 return List.of(docValues.binaryValue().utf8ToString());
             }

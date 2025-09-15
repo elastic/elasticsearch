@@ -451,7 +451,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (shouldMinimizeRoundtrips(rewritten)) {
                         usageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
                     }
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, searchRequestAttributes, usageService, usageBuilder);
+                    searchResponseActionListener = new SearchTelemetryListener(
+                        delegate,
+                        searchResponseMetrics,
+                        searchRequestAttributes,
+                        usageService,
+                        usageBuilder
+                    );
                 }
             } else {
                 searchResponseActionListener = delegate;
@@ -2053,7 +2059,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             this.usageBuilder = usageBuilder;
         }
 
-        SearchTelemetryListener(ActionListener<SearchResponse> listener, SearchResponseMetrics searchResponseMetrics, Map<String, Object> searchRequestAttributes) {
+        SearchTelemetryListener(
+            ActionListener<SearchResponse> listener,
+            SearchResponseMetrics searchResponseMetrics,
+            Map<String, Object> searchRequestAttributes
+        ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
             this.searchRequestAttributes = searchRequestAttributes;

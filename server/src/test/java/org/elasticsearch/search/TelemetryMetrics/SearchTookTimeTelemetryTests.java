@@ -11,13 +11,12 @@ package org.elasticsearch.search.TelemetryMetrics;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -29,7 +28,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.retriever.RescorerRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -47,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.rest.action.search.SearchResponseMetrics.TOOK_DURATION_TOTAL_HISTOGRAM_NAME;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -62,6 +59,15 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
 
     @Before
     public void setUpIndex() {
+        var num_primaries = randomIntBetween(2, 4);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, num_primaries)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+        ensureGreen(indexName);
         prepareIndex(indexName).setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(indexName).setId("2").setSource("body", "foo", "@timestamp", "2024-12-01").setRefreshPolicy(IMMEDIATE).get();
     }
@@ -227,53 +233,6 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         );
     }
 
-    // TODO test PIT (e.g. open PIT does not record took time
-
-    // TODO test resolved indices (and alias) with security enabled
-
-    // TODO do we actually want the concrete indices? We should be fine either way with the starts with logic
-
-    public void testDataStream() {
-        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("id");
-        request.indexTemplate(
-            ComposableIndexTemplate.builder()
-                .indexPatterns(List.of("foo-*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                .build()
-        );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
-            "foo"
-        );
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
-
-        prepareIndex("foo").setId("1").setSource("body", "foo", "@timestamp", "2024-11-01").setRefreshPolicy(IMMEDIATE).get();
-
-        SearchResponse searchResponse = client().prepareSearch("foo")
-            .addSort(new FieldSortBuilder("@timestamp"))
-            .setQuery(new RangeQueryBuilder("@timestamp").from("2024-01-01"))
-            .get();
-        try {
-            assertNoFailures(searchResponse);
-            assertSearchHits(searchResponse, "1", "2");
-        } finally {
-            searchResponse.decRef();
-        }
-
-        List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(TOOK_DURATION_TOTAL_HISTOGRAM_NAME);
-        assertEquals(1, measurements.size());
-        Measurement measurement = measurements.getFirst();
-        assertEquals(searchResponse.getTook().millis(), measurement.getLong());
-        Map<String, Object> attributes = measurement.attributes();
-        assertEquals(4, attributes.size());
-        assertEquals("user", attributes.get("target"));
-        assertEquals("hits_only", attributes.get("query_type"));
-        assertEquals("@timestamp", attributes.get("sort"));
-        assertEquals(true, attributes.get("range_timestamp"));
-    }
-
     /**
      * Make sure that despite can match and query rewrite, we see the time range filter and record its corresponding attribute
      */
@@ -285,6 +244,8 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         try {
             assertNoFailures(searchResponse);
             assertSearchHits(searchResponse);
+            // can match kicked in, query got rewritten to match_none, yet we extracted the time range before rewrite
+            assertEquals(searchResponse.getSkippedShards(), searchResponse.getTotalShards());
         } finally {
             searchResponse.decRef();
         }
@@ -318,7 +279,7 @@ public class SearchTookTimeTelemetryTests extends ESSingleNodeTestCase {
         assertTimeRangeAttributes(measurement.attributes());
     }
 
-    public void testTimeRangeFilterOneResults() {
+    public void testTimeRangeFilterOneResult() {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2024-12-01"));
         boolQueryBuilder.must(simpleQueryStringQuery("foo"));

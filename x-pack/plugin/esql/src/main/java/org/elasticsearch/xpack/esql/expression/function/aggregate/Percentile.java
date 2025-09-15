@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.expression.Foldables.intValueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.doubleValueOf;
 
 public class Percentile extends NumericAggregate implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -168,8 +168,8 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
         return new PercentileDoubleAggregatorFunctionSupplier(percentileValue());
     }
 
-    private int percentileValue() {
-        return intValueOf(percentile(), source().text(), "Percentile");
+    private double percentileValue() {
+        return doubleValueOf(percentile(), source().text(), "Percentile");
     }
 
     @Override

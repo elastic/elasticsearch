@@ -13,7 +13,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
 @Deprecated
-public class LegacySemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
+public class LegacySemanticMatchQueryRewriteInterceptor extends LegacySemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_match_query_rewrite_interception_supported"

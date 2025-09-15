@@ -42,7 +42,6 @@ public class InstrumentedSecurityActionListener {
         }), () -> metrics.recordTime(context, startTimeNano));
     }
 
-
     /**
      * A simpler variant that re-uses the Authentication Result as the context. This can be handy in situations when the attributes that are
      * of interest are only available after the authentication is completed and not before.

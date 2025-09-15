@@ -17,9 +17,10 @@ import java.io.IOException;
 
 /**
  * Marker for optional attributes. Acting as a dummy placeholder to avoid using null
- * in the tree (which is not allowed).
+ * in the tree (which is not allowed). All empty attributes are considered equal.
  */
 public class EmptyAttribute extends Attribute {
+    // TODO: Could be a singleton - all instances are already considered equal.
     public EmptyAttribute(Source source) {
         super(source, StringUtils.EMPTY, null);
     }

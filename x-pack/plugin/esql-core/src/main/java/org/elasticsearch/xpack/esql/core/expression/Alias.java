@@ -150,6 +150,16 @@ public final class Alias extends NamedExpression {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), id());
+    }
+
+    /**
+     * Compared to e.g. {@link UnresolvedAttribute}, the id is part of equality for Alias because the {@link ReferenceAttribute} created
+     * by {@link #toAttribute()} uses it.
+     */
+    @Override
     protected boolean innerEquals(Object o) {
         var other = (Alias) o;
         return super.innerEquals(other) && Objects.equals(id(), other.id());

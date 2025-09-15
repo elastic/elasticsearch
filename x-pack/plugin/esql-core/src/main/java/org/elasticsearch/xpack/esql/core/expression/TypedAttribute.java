@@ -12,6 +12,11 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.Objects;
 
+/**
+ * A resolved attribute - we know its type.
+ * Because the name alone is not sufficient to identify an attribute (two different relations can have the same attribute name),
+ * we also have an id that, when present, is used in equality checks and hashing.
+ */
 public abstract class TypedAttribute extends Attribute {
 
     private final DataType dataType;
@@ -48,9 +53,12 @@ public abstract class TypedAttribute extends Attribute {
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), dataType);
+        return Objects.hash(super.hashCode(), id(), dataType);
     }
 
+    /**
+     * After resolution, the name id uniquely identifies an attribute, so it is included in equality check.
+     */
     @Override
     protected boolean innerEquals(Object o) {
         var other = (TypedAttribute) o;

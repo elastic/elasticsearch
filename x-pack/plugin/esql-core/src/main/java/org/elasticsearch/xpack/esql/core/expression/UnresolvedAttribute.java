@@ -178,6 +178,10 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 
+    /**
+     * We ignore the {@link #id()} in equality checks because unresolved attributes are not yet referring to a specific upstream field or
+     * attribute.
+     */
     @Override
     protected boolean innerEquals(Object o) {
         var other = (UnresolvedAttribute) o;

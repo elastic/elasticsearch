@@ -81,7 +81,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         );
     }
 
-    public static class Builder extends BuilderWithSyntheticSourceSupport {
+    public static class Builder extends BuilderWithSyntheticSourceContext {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());
@@ -107,14 +107,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
                 m -> builder(m).analyzers.positionIncrementGap.getValue(),
                 indexCreatedVersion
             );
-            this.store = Parameter.storeParam(m -> builder(m).store.getValue(), this::storeDefault);
-        }
-
-        private boolean storeDefault() {
-            if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion())) {
-                return false;
-            }
-            return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            this.store = Parameter.storeParam(m -> builder(m).store.getValue(), () -> {
+                if (TextFieldMapper.keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion())) {
+                    return false;
+                }
+                return isSyntheticSourceEnabled() && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+            });
         }
 
         @Override

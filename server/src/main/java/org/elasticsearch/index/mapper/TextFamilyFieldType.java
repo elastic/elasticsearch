@@ -11,6 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Map;
 
+/**
+ * This is a quality of life class that adds synthetic source context for text fields that need it.
+ */
 public abstract class TextFamilyFieldType extends StringFieldType {
 
     private final boolean isSyntheticSourceEnabled;

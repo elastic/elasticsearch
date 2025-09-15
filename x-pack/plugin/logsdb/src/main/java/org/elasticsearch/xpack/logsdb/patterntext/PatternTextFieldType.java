@@ -31,8 +31,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
-import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextFamilyFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -68,7 +66,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
     private final boolean disableTemplating;
 
-    PatternedTextFieldType(
+    PatternTextFieldType(
         String name,
         TextSearchInfo tsi,
         Analyzer indexAnalyzer,

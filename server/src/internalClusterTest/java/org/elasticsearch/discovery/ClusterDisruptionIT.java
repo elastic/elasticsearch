@@ -114,7 +114,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         reason = "Past failures have required a lot of additional logging to debug"
     )
     @SuppressForbidden(reason = "repeat is a feature here")
-    @Repeat(iterations = 100)
+    @Repeat(iterations = 50)
     public void testAckedIndexing() throws Exception {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;

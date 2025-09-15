@@ -540,9 +540,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
                         "logs-microsoft_defender_cloud.assessment-*",
-                        "logs-sentinel_one.application_risk-*",
-                        "logs-island_browser.user-*",
-                        "logs-island_browser.device-*"
+                        "logs-sentinel_one.application_risk-*"
                     )
                     .privileges(
                         "read",

@@ -1774,9 +1774,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-m365_defender.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_endpoint.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-microsoft_defender_cloud.assessment-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-sentinel_one.application_risk-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-island_browser.user-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-island_browser.device-" + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-sentinel_one.application_risk-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));

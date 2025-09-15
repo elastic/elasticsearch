@@ -21,7 +21,17 @@ import static org.elasticsearch.simdvec.internal.Similarities.int4BitDotProductB
 /** Native scorer for quantized vectors stored as an {@link IndexInput}. */
 public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91PanamaOSQVectorsScorer {
 
-    private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+    private static final boolean NATIVE_SUPPORTED;
+    static {
+        boolean nativeSupported = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
+        if (nativeSupported) {
+            MemorySegment query = MemorySegment.ofArray(new byte[4]);
+            MemorySegment doc = MemorySegment.ofArray(new byte[1]);
+            long qScore = int4BitDotProduct(query, doc, 0L, 1);
+            nativeSupported = qScore != -1;
+        }
+        NATIVE_SUPPORTED = nativeSupported;
+    }
 
     public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
         super(in, dimensions, memorySegment);
@@ -41,9 +51,6 @@ public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91Pa
         long initialOffset = in.getFilePointer();
         MemorySegment query = MemorySegment.ofArray(q);
         long qScore = int4BitDotProduct(query, memorySegment, initialOffset, length);
-        if (qScore == -1) {
-            return panamaQuantizeScore(q);
-        }
         in.skipBytes(length);
         return qScore;
     }
@@ -64,11 +71,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91Pa
         MemorySegment query = MemorySegment.ofArray(q);
         MemorySegment scoresSegment = MemorySegment.ofArray(scores);
         int4BitDotProductBulk(query, memorySegment, initialOffset, scoresSegment, count, length);
-        if (scores[0] == -1) {
-            panamaQuantizeScoreBulk(q, count, scores);
-        } else {
-            in.skipBytes(count * length);
-        }
+        in.skipBytes(count * length);
     }
 
     @Override

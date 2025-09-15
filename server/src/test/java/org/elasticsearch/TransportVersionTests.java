@@ -391,4 +391,25 @@ public class TransportVersionTests extends ESTestCase {
         );
         assertThat(new TransportVersion(null, 1000000, null).supports(test3), is(true));
     }
+
+    public void testMoreLikeThis() {
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("esql_ixed_index_like"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [esql_ixed_index_like]. "
+                    + "Did you mean [esql_fixed_index_like]? "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+
+        ise = expectThrows(IllegalStateException.class, () -> TransportVersion.fromName("brand_new_version_unrelated_to_others"));
+        assertThat(
+            ise.getMessage(),
+            is(
+                "Unknown transport version [brand_new_version_unrelated_to_others]. "
+                    + "If this is a new transport version, run './gradle generateTransportVersion'."
+            )
+        );
+    }
 }

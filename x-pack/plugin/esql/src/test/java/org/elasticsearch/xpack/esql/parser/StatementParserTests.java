@@ -4771,18 +4771,26 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInWithMultivalues() {
-        checkInWithMultivalues(List.of(1, 2, 3), statement("from test | where foo in ([1, 2, 3])"));
-        checkInWithMultivalues(
+        checkInList(List.of(1, 2, 3), statement("from test | where foo in ([1, 2, 3])"));
+        checkInList(
             List.of(1, 2, 3),
             statement("from test | where foo in (?n1)", new QueryParams(List.of(paramAsConstant("n1", List.of(1, 2, 3)))))
         );
-        checkInWithMultivalues(
+        checkInList(
             List.of(1, 2, 3),
             statement("from test | where foo in (?)", new QueryParams(List.of(paramAsConstant(null, List.of(1, 2, 3)))))
         );
     }
 
-    public void checkInWithMultivalues(List<Integer> expectedValues, LogicalPlan plan) {
+    public void testInWithListIncludingMultifields() {
+        checkInList(List.of(1, List.of(2, 3), 4), statement("from test | where foo in (1, [2, 3], 4)"));
+    }
+
+    public void testInWithListValue() {
+        checkInList(List.of(1, 2, 3), statement("from test | where foo in (1, 2, 3)"));
+    }
+
+    private static void checkInList(List<Object> expectedValues, LogicalPlan plan) {
         Filter filter = as(plan, Filter.class);
         In in = as(filter.condition(), In.class);
         var field = as(in.singleValueField(), UnresolvedAttribute.class);
@@ -4791,10 +4799,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(list.size(), is(3));
         List<Object> values = list.stream().map(v -> ((Literal) v).value()).toList();
         assertThat(values, equalTo(expectedValues));
-    }
-
-    public void testInWithListValue() {
-        checkInWithMultivalues(List.of(1, 2, 3), statement("from test | where foo in (1, 2, 3)"));
     }
 
     public void testInWithSingleValue() {

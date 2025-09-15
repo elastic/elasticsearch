@@ -342,7 +342,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
                 var state = flushAndCombineState(group);
-                // don't combine intervals until final as we might have overlapping intervals from other indices
+                // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
                     timestamps.beginPositionEntry();
                     values.beginPositionEntry();

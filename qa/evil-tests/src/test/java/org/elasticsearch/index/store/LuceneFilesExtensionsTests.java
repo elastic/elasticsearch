@@ -21,6 +21,7 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
         if (Assertions.ENABLED) {
             AssertionError e = expectThrows(AssertionError.class, () -> LuceneFilesExtensions.fromExtension("abc"));
             assertThat(e.getMessage(), containsString("unknown Lucene file extension [abc]"));
+            assertFalse(LuceneFilesExtensions.isLuceneExtension("abc"));
 
             setEsAllowUnknownLuceneFileExtensions("true");
             try {

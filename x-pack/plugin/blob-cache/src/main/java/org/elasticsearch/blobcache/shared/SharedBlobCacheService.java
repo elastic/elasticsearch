@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -2089,8 +2090,13 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return LuceneFilesExtensions.CFS.getExtension();
         }
         try {
-            LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
-            return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+            String extension = IndexFileNames.getExtension(resourceDescription);
+            if (LuceneFilesExtensions.isLuceneExtension(extension)) {
+                LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromExtension(resourceDescription);
+                return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
+            } else {
+                return NON_LUCENE_EXTENSION_TO_RECORD;
+            }
         } catch (Exception t) {
             return NON_LUCENE_EXTENSION_TO_RECORD;
         }

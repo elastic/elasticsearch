@@ -5,7 +5,7 @@ stack: preview 9.2.0
 
 **Brief description**
 
-The `TS` command is similar to the `FROM` source command,
+The `TS` source command is similar to the `FROM` source command,
 with the following key differences:
 
  - Targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
@@ -28,9 +28,8 @@ TS index_pattern [METADATA fields]
 
 **Description**
 
-The `TS` command is intended to be used in conjunction with the `STATS` command
-to perform time-series analysis. `STATS` evaluation is adjusted to fit this context,
-enabling the use of time-series aggregation functions such as `last_over_time()`,
+The `TS` source command enables time series semantics and enables the usage of 
+time series aggregation functions in the `STATS` command, such as `last_over_time()`,
 or `rate`. These functions are implicitly evaluated per per time-series, with
 their results then aggregated per grouping bucket using a secondary aggregation
 function. More concretely, consider the following query:

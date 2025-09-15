@@ -71,7 +71,11 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest(StreamInput in) throws IOException {
-        this(null, 0, in);
+        this(null, in);
+    }
+
+    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        this(shardId, 0, in);
     }
 
     public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount, StreamInput in) throws IOException {
@@ -94,10 +98,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
-            this.reshardSplitShardCount = in.readInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
+            if (thinRead) {
+                this.reshardSplitShardCount = reshardSplitShardCount;
+            } else {
+                this.reshardSplitShardCount = in.readInt();
+            }
         } else {
-            this.reshardSplitShardCount = reshardSplitShardCount;
+            this.reshardSplitShardCount = 0;
         }
     }
 

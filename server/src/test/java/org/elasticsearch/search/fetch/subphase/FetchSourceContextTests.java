@@ -33,9 +33,11 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
 
     @Override
     protected FetchSourceContext createTestInstance() {
+        Boolean excludeVectors = randomBoolean() ? null : randomBoolean();
         return FetchSourceContext.of(
             true,
-            randomBoolean() ? null : randomBoolean(),
+            excludeVectors,
+            excludeVectors,
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5)),
             randomArray(0, 5, String[]::new, () -> randomAlphaOfLength(5))
         );

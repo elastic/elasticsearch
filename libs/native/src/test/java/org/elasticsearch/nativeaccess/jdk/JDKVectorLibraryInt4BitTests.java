@@ -17,6 +17,9 @@ import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
+import static org.hamcrest.Matchers.not;
+
 public class JDKVectorLibraryInt4BitTests extends VectorSimilarityFunctionsTests {
 
     public JDKVectorLibraryInt4BitTests(int size) {
@@ -36,6 +39,18 @@ public class JDKVectorLibraryInt4BitTests extends VectorSimilarityFunctionsTests
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         return VectorSimilarityFunctionsTests.parametersFactory();
+    }
+
+
+    @Override
+    public boolean supported() {
+        if (super.supported()) {
+            var arch = System.getProperty("os.arch");
+            var osName = System.getProperty("os.name");
+            // only implemented in this architecture
+            return arch.equals("aarch64") && (osName.startsWith("Mac"));
+        }
+        return false;
     }
 
     private static int discretize(int value, int bucket) {

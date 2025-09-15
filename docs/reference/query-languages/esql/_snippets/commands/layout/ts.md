@@ -62,9 +62,7 @@ include:
 - `ABSENT_OVER_TIME()`: gauges only
 
 These functions are supported for downsampled data too, with the same semantics
-as for raw data. For instance, `RATE()` applies to downsampled counters only,
-not gauges. No change in the syntax is required to query a time-series data
-stream containing mixed raw and downsampled data.
+as for raw data.
 
 ::::{note}
 If a query is missing an inner (time-series) aggregation function,

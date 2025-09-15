@@ -41,6 +41,9 @@ public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91Pa
         long initialOffset = in.getFilePointer();
         MemorySegment query = MemorySegment.ofArray(q);
         long qScore = int4BitDotProduct(query, memorySegment, initialOffset, length);
+        if (qScore == -1) {
+            return panamaQuantizeScore(q);
+        }
         in.skipBytes(length);
         return qScore;
     }
@@ -61,7 +64,11 @@ public final class MemorySegmentES91OSQVectorsScorer extends MemorySegmentES91Pa
         MemorySegment query = MemorySegment.ofArray(q);
         MemorySegment scoresSegment = MemorySegment.ofArray(scores);
         int4BitDotProductBulk(query, memorySegment, initialOffset, scoresSegment, count, length);
-        in.skipBytes(count * length);
+        if (scores[0] == -1) {
+            panamaQuantizeScoreBulk(q, count, scores);
+        } else {
+            in.skipBytes(count * length);
+        }
     }
 
     @Override

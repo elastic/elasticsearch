@@ -237,7 +237,7 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends BuilderWithExtendedSyntheticSourceSupport {
+    public static class Builder extends BuilderWithSyntheticSourceSupport {
 
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;

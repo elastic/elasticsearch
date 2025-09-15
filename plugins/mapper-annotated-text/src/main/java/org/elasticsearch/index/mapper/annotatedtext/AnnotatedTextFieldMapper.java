@@ -81,7 +81,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         );
     }
 
-    public static class Builder extends BuilderWithExtendedSyntheticSourceSupport {
+    public static class Builder extends BuilderWithSyntheticSourceSupport {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.getValue());
         final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.getValue());

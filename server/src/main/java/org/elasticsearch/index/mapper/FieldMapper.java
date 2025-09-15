@@ -1663,13 +1663,13 @@ public abstract class FieldMapper extends Mapper {
     /**
      * Creates mappers for fields that require additional context for supporting synthetic source.
      */
-    public abstract static class BuilderWithExtendedSyntheticSourceSupport extends Builder {
+    public abstract static class BuilderWithSyntheticSourceSupport extends Builder {
 
         private final IndexVersion indexCreatedVersion;
         private final boolean isSyntheticSourceEnabled;
         private final boolean isWithinMultiField;
 
-        protected BuilderWithExtendedSyntheticSourceSupport(
+        protected BuilderWithSyntheticSourceSupport(
             String name,
             IndexVersion indexCreatedVersion,
             boolean isSyntheticSourceEnabled,

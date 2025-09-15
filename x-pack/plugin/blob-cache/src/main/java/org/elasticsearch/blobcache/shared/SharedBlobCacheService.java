@@ -2091,7 +2091,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         try {
             LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(resourceDescription);
             return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
-        } catch (Throwable t) {
+        } catch (Exception t) {
             return NON_LUCENE_EXTENSION_TO_RECORD;
         }
     }

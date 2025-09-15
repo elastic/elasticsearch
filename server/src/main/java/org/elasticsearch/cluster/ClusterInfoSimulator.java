@@ -102,7 +102,7 @@ public class ClusterInfoSimulator {
      * Balance is later recalculated with a refreshed cluster info containing actual shards placement.
      */
     public void simulateShardStarted(ShardRouting shard) {
-        assert shard.initializing();
+        assert shard.initializing() : "expected an initializing shard, but got: " + shard;
 
         var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
@@ -129,7 +129,12 @@ public class ClusterInfoSimulator {
         shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
-    public void simulatedShardStarted(ShardRouting startedShard, @Nullable String sourceNodeId) {
+    /**
+     * This method simulates starting an already started shard with an optional {@code sourceNodeId} in case of a relocation.
+     * @param startedShard The shard to simulate. Must be started already.
+     * @param sourceNodeId The source node ID if the shard started as a result of relocation. {@code null} otherwise.
+     */
+    public void simulateAlreadyStartedShard(ShardRouting startedShard, @Nullable String sourceNodeId) {
         assert startedShard.started() : "expected an already started shard, but got: " + startedShard;
         if (logger.isDebugEnabled()) {
             logger.debug(

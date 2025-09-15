@@ -144,7 +144,7 @@ public class DesiredBalanceComputer {
             return new DesiredBalance(desiredBalanceInput.index(), Map.of(), Map.of(), finishReason);
         }
 
-        simulateAlreadyStartedShards(desiredBalanceInput.routingAllocation().clusterInfo(), routingNodes, clusterInfoSimulator);
+        maybeSimulateAlreadyStartedShards(desiredBalanceInput.routingAllocation().clusterInfo(), routingNodes, clusterInfoSimulator);
 
         // we assume that all ongoing recoveries will complete
         for (final var routingNode : routingNodes) {
@@ -494,13 +494,15 @@ public class DesiredBalanceComputer {
      * account for their impacts by simulating the events, either relocation or new shard start. This is done
      * by comparing the current RoutingNodes against the shard allocation information from the ClusterInfo to
      * find out the shard allocation changes. Note this approach is approximate in some edge cases:
-     * 1. If a shard is relocated twice from node A to B to C. It is considered as relocating from A to C directly
-     *    for simulation purpose.
-     * 2. If a shard has 2 replicas and they both relocate, replica 1 from A to X and replica 2 from B to Y. The
-     *    simulation may see them as relocations A->X and B->Y. But it may also see them as A->Y and B->X.
+     * <ol>
+     * <li> If a shard is relocated twice from node A to B to C. It is considered as relocating from A to C directly
+     * for simulation purpose.</li>
+     * <li>If a shard has 2 replicas and they both relocate, replica 1 from A to X and replica 2 from B to Y. The
+     * simulation may see them as relocations A->X and B->Y. But it may also see them as A->Y and B->X. </li>
+     * </ol>
      * In both cases, it should not really matter for simulation to account for resource changes.
      */
-    private static void simulateAlreadyStartedShards(
+    static void maybeSimulateAlreadyStartedShards(
         ClusterInfo clusterInfo,
         RoutingNodes routingNodes,
         ClusterInfoSimulator clusterInfoSimulator
@@ -548,7 +550,8 @@ public class DesiredBalanceComputer {
             if (sourceNodeId != null) {
                 alreadySeenSourceNodes.computeIfAbsent(startedShard.shardId(), k -> new HashSet<>()).add(sourceNodeId);
             }
-            clusterInfoSimulator.simulatedShardStarted(startedShard, sourceNodeId);
+            logger.info("--> simulate already started shard [{}] from [{}]", startedShard, sourceNodeId);
+            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
         }
     }
 

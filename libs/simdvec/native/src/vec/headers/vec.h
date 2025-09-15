@@ -29,5 +29,5 @@ EXPORT float sqrf32(const float *a, const float *b, size_t elementCount);
 
 EXPORT int64_t int4Bit(uint8_t* query, uint8_t* doc, int64_t offset, int length);
 
-EXPORT void int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float32_t* scores, int count, int dims);
+EXPORT void int4BitBulk(uint8_t* query, uint8_t* doc, int64_t offset, float_t* scores, int count, int dims);
 

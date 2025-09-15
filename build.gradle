@@ -300,11 +300,6 @@ if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || 
 
 subprojects { proj ->
   apply plugin: 'elasticsearch.base'
-
-repositories {
-    // TODO: Temporary for Lucene RC builds. REMOVE
-    maven { url = "https://dist.apache.org/repos/dist/dev/lucene/lucene-10.3.0-RC2-rev-e2871287e4a378739f0b74081d124e3668347875/lucene/maven" }
-  }
 }
 
 allprojects {

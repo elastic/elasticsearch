@@ -108,12 +108,12 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         //
         // -Dtests.bwc.refspec.main=deadbeef -Dtests.bwc.main.version=9.0.0
         //
-        // The 'test.bwc.main.version' property should map to the version returned by the commit referenced in 'tests.bwc.refspec.main'.
+        // The distribution version set by 'test.bwc.main.version' property should map to the version returned by the commit
+        // referenced in 'tests.bwc.refspec.main'.
         resolutions.add(new DistributionResolution("detached", (project, distribution) -> {
             if (distribution.isDetachedVersion()) {
-                String versionProperty = System.getProperty("tests.bwc.main.version");
                 BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
-                    Version.fromString(versionProperty),
+                    Version.fromString(distribution.getVersion()),
                     "main",
                     ":distribution:bwc:main"
                 );

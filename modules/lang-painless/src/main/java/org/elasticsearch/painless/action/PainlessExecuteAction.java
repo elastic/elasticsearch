@@ -21,6 +21,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -124,6 +125,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class PainlessExecuteAction {
 
+    private static final TransportVersion NEW_BOOLEAN_FIELD = TransportVersion.fromName("new_boolean_field");
     public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute");
     public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
@@ -376,6 +378,9 @@ public class PainlessExecuteAction {
             script = new Script(in);
             context = fromScriptContextName(in.readString());
             contextSetup = in.readOptionalWriteable(ContextSetup::new);
+            if (in.getTransportVersion().supports(NEW_BOOLEAN_FIELD)) {
+                in.readBoolean();
+            }
         }
 
         public Script getScript() {
@@ -413,6 +418,9 @@ public class PainlessExecuteAction {
             script.writeTo(out);
             out.writeString(context.name);
             out.writeOptionalWriteable(contextSetup);
+            if (out.getTransportVersion().supports(NEW_BOOLEAN_FIELD)) {
+                out.writeBoolean(false);
+            }
         }
 
         // For testing only:

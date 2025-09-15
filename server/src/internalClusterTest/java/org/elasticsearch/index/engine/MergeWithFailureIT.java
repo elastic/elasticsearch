@@ -260,7 +260,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 //        at java.lang.Object.wait(Object.java:389)
 //        at org.apache.lucene.index.IndexWriter.doWait(IndexWriter.java:5531)
 //        at org.apache.lucene.index.IndexWriter.abortMerges(IndexWriter.java:2733)
-//        at org.apache.lucene.index.IndexWriter.rollbackInternalNo Commit(IndexWriter.java:2488)
+//        at org.apache.lucene.index.IndexWriter.rollbackInternalnocommit(IndexWriter.java:2488)
 //        at org.apache.lucene.index.IndexWriter.rollbackInternal(IndexWriter.java:2457)
 //        - locked <0x429a> (a java.lang.Object)
 //        at org.apache.lucene.index.IndexWriter.maybeCloseOnTragicEvent(IndexWriter.java:5765)

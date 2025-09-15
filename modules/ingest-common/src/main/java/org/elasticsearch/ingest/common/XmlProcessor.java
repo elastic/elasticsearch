@@ -191,11 +191,11 @@ public final class XmlProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is not a string, cannot parse XML");
         }
 
-        String xmlString = (String) fieldValue;
+        String xml = (String) fieldValue;
         try {
             // Always use streaming parser for optimal performance and memory usage
             if (storeXml || xpathExpressions.isEmpty() == false) {
-                parseXmlAndXPath(document, xmlString.trim());
+                parseXmlAndXPath(document, xml.trim());
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("field [" + field + "] contains invalid XML", e);
@@ -294,11 +294,11 @@ public final class XmlProcessor extends AbstractProcessor {
      *  <li>Single matches stored as strings, multiple matches as string arrays
      * </ul>
      *
-     * @param ingestDocument the ingest document to add XPath results to
+     * @param document the ingest document to add XPath results to
      * @param xmlDocument the DOM document to evaluate XPath expressions against
      * @throws XPathExpressionException if XPath processing fails
      */
-    private void processXPathExpressionsFromDom(IngestDocument ingestDocument, Document xmlDocument) throws XPathExpressionException {
+    private void processXPathExpressionsFromDom(IngestDocument document, Document xmlDocument) throws XPathExpressionException {
         // Use precompiled XPath expressions for optimal performance
         for (Map.Entry<String, XPathExpression> entry : compiledXPathExpressions.entrySet()) {
             String targetFieldName = entry.getKey();
@@ -312,7 +312,7 @@ public final class XmlProcessor extends AbstractProcessor {
                     Node node = nodeList.item(0);
                     String value = getNodeValue(node);
                     if (Strings.hasText(value)) {
-                        ingestDocument.setFieldValue(targetFieldName, value);
+                        document.setFieldValue(targetFieldName, value);
                     }
                 } else if (nodeList.getLength() > 1) {
                     List<String> values = new ArrayList<>();
@@ -326,9 +326,9 @@ public final class XmlProcessor extends AbstractProcessor {
 
                     if (values.isEmpty() == false) {
                         if (values.size() == 1) {
-                            ingestDocument.setFieldValue(targetFieldName, values.getFirst());
+                            document.setFieldValue(targetFieldName, values.getFirst());
                         } else {
-                            ingestDocument.setFieldValue(targetFieldName, values);
+                            document.setFieldValue(targetFieldName, values);
                         }
                     }
                 }
@@ -511,11 +511,11 @@ public final class XmlProcessor extends AbstractProcessor {
      * Uses streaming SAX parser with optional DOM building for XPath processing.
      *
      * @param document the ingest document to modify with parsed results
-     * @param xmlString the XML string to parse (should be trimmed)
+     * @param xml the XML string to parse (should be trimmed)
      * @throws Exception if XML parsing fails
      */
-    private void parseXmlAndXPath(IngestDocument document, String xmlString) throws Exception {
-        if (Strings.hasText(xmlString) == false) {
+    private void parseXmlAndXPath(IngestDocument document, String xml) throws Exception {
+        if (Strings.hasText(xml) == false) {
             return;
         }
 
@@ -524,7 +524,7 @@ public final class XmlProcessor extends AbstractProcessor {
         try {
             // Use enhanced handler that can build DOM during streaming when needed
             handler = new XmlStreamingWithDomHandler(needsDom);
-            parser.parse(new InputSource(new StringReader(xmlString)), handler);
+            parser.parse(new InputSource(new StringReader(xml)), handler);
         } finally {
             parser.reset();
         }

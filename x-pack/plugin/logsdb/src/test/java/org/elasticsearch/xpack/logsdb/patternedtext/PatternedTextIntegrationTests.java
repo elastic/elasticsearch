@@ -102,7 +102,11 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
 
+<<<<<<< Updated upstream
         int numDocs = 3; // randomIntBetween(1, 100);
+=======
+        int numDocs = randomIntBetween(1, 100);
+>>>>>>> Stashed changes
         List<String> messages = randomMessagesOfVariousSizes(numDocs);
         indexDocs(messages);
 
@@ -160,7 +164,10 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         createRequest.settings(LOGSDB_SETTING);
         assertAcked(admin().indices().create(createRequest));
 
-        List<String> logMessages = List.of("cat dog 123 house mouse");
+        String smallMessage = "cat dog 123 house mouse";
+        final String message = randomBoolean() ? smallMessage : smallMessage.repeat(32_000 / smallMessage.length());
+
+        List<String> logMessages = List.of(message);
         indexDocs(logMessages);
         assertMappings();
 
@@ -322,6 +329,14 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
             sb.append(randomMessage());
         }
         return sb.toString();
+    }
+
+    public static String randomMessageMaybeLarge() {
+        if (randomDouble() < 0.2) {
+            return randomMessage(32 * 1024);
+        } else {
+            return randomMessage();
+        }
     }
 
     public static String randomMessage() {

@@ -30,7 +30,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -38,6 +37,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -46,6 +47,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.emptyList;
 
 public class PatternedTextFieldType extends StringFieldType {
 
@@ -98,11 +101,32 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        // This operation is really a SEARCH, not a SCRIPT operation.
-        // But we only allow direct access to field data for scripts.
-        // The value fetcher uses field data internally though, so pretend the operation is script.
-        var fielddataOperation = FielddataOperation.SCRIPT;
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, fielddataOperation));
+        return new ValueFetcher() {
+            PatternedTextCompositeValues docValues;
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                try {
+                    this.docValues = PatternedTextCompositeValues.from(context.reader(), PatternedTextFieldType.this);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                if (false == docValues.advanceExact(doc)) {
+                    return emptyList();
+                }
+                return List.of(docValues.binaryValue().utf8ToString());
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                // PatternedTextCompositeValues may require a stored field, but it handles loading this field internally.
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        };
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(

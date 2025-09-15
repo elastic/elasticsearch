@@ -13,15 +13,20 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -224,13 +229,17 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        assumeFalse("We don't have a way to assert things here", true);
-        return null;
+        return PatternedTextIntegrationTests.randomMessageMaybeLarge();
     }
 
     @Override
-    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
-        assumeFalse("We don't have a way to assert things here", true);
+    protected boolean useSearchOperationForFetchTests() {
+        return false;
+    }
+
+    @Override
+    protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
+        assumeFalse("patterned_text currently don't support multiple values in the same field", false);
     }
 
     @Override

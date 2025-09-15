@@ -22,7 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.inference.queries.BwCSemanticMatchQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
 import org.junit.Before;
@@ -30,7 +30,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-public class BwCSemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
+public class LegacySemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
@@ -141,7 +141,8 @@ public class BwCSemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("deprecation")
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new BwCSemanticMatchQueryRewriteInterceptor();
+        return new LegacySemanticMatchQueryRewriteInterceptor();
     }
 }

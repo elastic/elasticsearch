@@ -24,7 +24,8 @@ import java.util.Map;
 public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQueryBuilder<MatchQueryBuilder> {
     public static final String NAME = "intercepted_inference_match";
 
-    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new BwCSemanticMatchQueryRewriteInterceptor();
+    @SuppressWarnings("deprecation")
+    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticMatchQueryRewriteInterceptor();
 
     public InterceptedInferenceMatchQueryBuilder(MatchQueryBuilder originalQuery) {
         super(originalQuery);

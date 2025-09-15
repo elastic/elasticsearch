@@ -53,7 +53,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
             assertFalse(intercepted.inferenceResultsMap.isEmpty());
         } else {
             // Rewrite using the query rewrite context to populate the inference results
-            QueryBuilder expectedLegacyIntercepted = new BwCSemanticMatchQueryRewriteInterceptor().interceptAndRewrite(
+            @SuppressWarnings("deprecation")
+            QueryBuilder expectedLegacyIntercepted = new LegacySemanticMatchQueryRewriteInterceptor().interceptAndRewrite(
                 queryRewriteContext,
                 original
             );

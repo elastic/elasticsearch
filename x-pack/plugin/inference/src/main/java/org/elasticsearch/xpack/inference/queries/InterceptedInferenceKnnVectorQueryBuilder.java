@@ -197,7 +197,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         if (queryVector == null) {
             String modelId = getQueryVectorBuilderModelId();
             if (modelId == null) {
-                throw new IllegalArgumentException("Either query vector or query vector builder model ID must be specified");
+                // This should never happen because we validate that either query vector or a valid query vector builder is specified in:
+                // - The KnnVectorQueryBuilder constructor
+                // - coordinatorNodeValidate
+                throw new IllegalStateException("No query vector or query vector builder model ID specified");
             }
 
             MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(modelId);

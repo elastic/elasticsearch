@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 public class SamplingService implements ClusterStateListener, SchedulerEngine.Listener {
     private static final Logger logger = LogManager.getLogger(SamplingService.class);
@@ -184,28 +185,30 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     }
 
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) {
-        Map<String, Object> sourceAsMap;
-        try {
-            sourceAsMap = indexRequest.sourceAsMap();
-        } catch (XContentParseException e) {
-            sourceAsMap = Map.of();
-            logger.trace("Invalid index request source, attempting to sample anyway");
-        }
-        maybeSample(
-            projectMetadata,
-            indexRequest,
-            new IngestDocument(
+        maybeSample(projectMetadata, indexRequest, () -> {
+            Map<String, Object> sourceAsMap;
+            try {
+                sourceAsMap = indexRequest.sourceAsMap();
+            } catch (XContentParseException e) {
+                sourceAsMap = Map.of();
+                logger.trace("Invalid index request source, attempting to sample anyway");
+            }
+            return new IngestDocument(
                 indexRequest.index(),
                 indexRequest.id(),
                 indexRequest.version(),
                 indexRequest.routing(),
                 indexRequest.versionType(),
                 sourceAsMap
-            )
-        );
+            );
+        });
     }
 
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        maybeSample(projectMetadata, indexRequest, () -> ingestDocument);
+    }
+
+    private void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, Supplier<IngestDocument> ingestDocumentSupplier) {
         long startTime = relativeNanoTimeSupplier.getAsLong();
         TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(
             TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME
@@ -226,33 +229,43 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
                     stats.potentialSamples.increment();
                     try {
                         if (sampleInfo.getSamples().size() < samplingConfig.maxSamples) {
-                            String condition = samplingConfig.condition;
-                            if (condition != null) {
-                                if (sampleInfo.script == null || sampleInfo.factory == null) {
-                                    // We don't want to pay for synchronization because worst case, we compile the script twice
-                                    long compileScriptStartTime = relativeNanoTimeSupplier.getAsLong();
-                                    try {
-                                        if (sampleInfo.compilationFailed) {
-                                            // we don't want to waste time
-                                            stats.samplesRejectedForException.increment();
-                                            return;
-                                        } else {
-                                            Script script = getScript(condition);
-                                            sampleInfo.setScript(script, scriptService.compile(script, IngestConditionalScript.CONTEXT));
+                            if (Math.random() < samplingConfig.rate) {
+                                String condition = samplingConfig.condition;
+                                if (condition != null) {
+                                    if (sampleInfo.script == null || sampleInfo.factory == null) {
+                                        // We don't want to pay for synchronization because worst case, we compile the script twice
+                                        long compileScriptStartTime = relativeNanoTimeSupplier.getAsLong();
+                                        try {
+                                            if (sampleInfo.compilationFailed) {
+                                                // we don't want to waste time
+                                                stats.samplesRejectedForException.increment();
+                                                return;
+                                            } else {
+                                                Script script = getScript(condition);
+                                                sampleInfo.setScript(
+                                                    script,
+                                                    scriptService.compile(script, IngestConditionalScript.CONTEXT)
+                                                );
+                                            }
+                                        } catch (Exception e) {
+                                            sampleInfo.compilationFailed = true;
+                                            throw e;
+                                        } finally {
+                                            stats.timeCompilingCondition.add(
+                                                (relativeNanoTimeSupplier.getAsLong() - compileScriptStartTime)
+                                            );
                                         }
-                                    } catch (Exception e) {
-                                        sampleInfo.compilationFailed = true;
-                                        throw e;
-                                    } finally {
-                                        stats.timeCompilingCondition.add((relativeNanoTimeSupplier.getAsLong() - compileScriptStartTime));
                                     }
                                 }
-                            }
-                            long conditionStartTime = relativeNanoTimeSupplier.getAsLong();
-                            if (condition == null
-                                || evaluateCondition(ingestDocument, sampleInfo.script, sampleInfo.factory, sampleInfo.stats)) {
-                                stats.timeEvaluatingCondition.add((relativeNanoTimeSupplier.getAsLong() - conditionStartTime));
-                                if (Math.random() < samplingConfig.rate) {
+                                long conditionStartTime = relativeNanoTimeSupplier.getAsLong();
+                                if (condition == null
+                                    || evaluateCondition(
+                                        ingestDocumentSupplier.get(),
+                                        sampleInfo.script,
+                                        sampleInfo.factory,
+                                        sampleInfo.stats
+                                    )) {
+                                    stats.timeEvaluatingCondition.add((relativeNanoTimeSupplier.getAsLong() - conditionStartTime));
                                     indexRequest.incRef();
                                     if (indexRequest.source() instanceof ReleasableBytesReference releaseableSource) {
                                         releaseableSource.incRef();
@@ -261,10 +274,10 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
                                     stats.samples.increment();
                                     logger.info("Sampling " + indexRequest);
                                 } else {
-                                    stats.samplesRejectedForRate.increment();
+                                    stats.samplesRejectedForCondition.increment();
                                 }
                             } else {
-                                stats.samplesRejectedForCondition.increment();
+                                stats.samplesRejectedForRate.increment();
                             }
                         } else {
                             stats.samplesRejectedForSize.increment();

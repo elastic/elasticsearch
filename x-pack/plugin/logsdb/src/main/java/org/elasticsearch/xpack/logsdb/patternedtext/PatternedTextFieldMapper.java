@@ -10,7 +10,10 @@ package org.elasticsearch.xpack.logsdb.patternedtext;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -174,7 +177,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             PatternedTextFieldType patternedTextFieldType = buildFieldType(fieldType, context);
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
-                patternedTextFieldType.templateIdFieldName(),
+                patternedTextFieldType.templateIdFieldName(leafName()),
                 indexSettings.getMode(),
                 indexCreatedVersion,
                 true
@@ -261,20 +264,24 @@ public class PatternedTextFieldMapper extends FieldMapper {
         // Add index on original value
         context.doc().add(new Field(fieldType().name(), value, fieldType));
 
-        // Add template doc_values
-        context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
-
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
 
-        // Add args Info
-        String argsInfoEncoded = Arg.encodeInfo(parts.argsInfo());
-        context.doc().add(new SortedSetDocValuesField(fieldType().argsInfoFieldName(), new BytesRef(argsInfoEncoded)));
+        if (parts.useStoredField()) {
+            context.doc().add(new StoredField(fieldType().storedNamed(), new BytesRef(value)));
+        } else {
+            // Add template doc_values
+            context.doc().add(new SortedSetDocValuesField(fieldType().templateFieldName(), new BytesRef(parts.template())));
 
-        // Add args doc_values
-        if (parts.args().isEmpty() == false) {
-            String remainingArgs = Arg.encodeRemainingArgs(parts);
-            context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+            // Add args Info
+            String argsInfoEncoded = Arg.encodeInfo(parts.argsInfo());
+            context.doc().add(new SortedSetDocValuesField(fieldType().argsInfoFieldName(), new BytesRef(argsInfoEncoded)));
+
+            // Add args doc_values
+            if (parts.args().isEmpty() == false) {
+                String remainingArgs = Arg.encodeRemainingArgs(parts);
+                context.doc().add(new SortedSetDocValuesField(fieldType().argsFieldName(), new BytesRef(remainingArgs)));
+            }
         }
     }
 
@@ -288,6 +295,11 @@ public class PatternedTextFieldMapper extends FieldMapper {
         return (PatternedTextFieldType) super.fieldType();
     }
 
+    @FunctionalInterface
+    interface DocValuesSupplier {
+        BinaryDocValues get(LeafReader leafReader) throws IOException;
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         return new SyntheticSourceSupport.Native(
@@ -296,9 +308,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 fullPath(),
                 new PatternedTextSyntheticFieldLoaderLayer(
                     fieldType().name(),
-                    fieldType().templateFieldName(),
-                    fieldType().argsFieldName(),
-                    fieldType().argsInfoFieldName()
+                    leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType())
                 )
             )
         );

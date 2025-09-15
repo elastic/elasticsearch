@@ -15,9 +15,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -53,7 +53,7 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
         XPackInfoRequest xPackInfoRequest = new XPackInfoRequest();
         xPackInfoRequest.setCategories(EnumSet.of(XPackInfoRequest.Category.FEATURES));
         getClient(state.projectId()).execute(XPackInfoFeatureAction.CCR, xPackInfoRequest, ActionListener.wrap((xPackInfoResponse) -> {
@@ -62,14 +62,13 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
                 listener.onResponse(true, null);
                 return;
             }
-            leaderIndexCheck(state.projectId(), index, listener);
+            leaderIndexCheck(state.projectId(), indexMetadata.getIndex().getName(), listener);
         }, listener::onFailure));
     }
 
-    private void leaderIndexCheck(ProjectId projectId, Index index, Listener listener) {
+    private void leaderIndexCheck(ProjectId projectId, String indexName, Listener listener) {
         IndicesStatsRequest request = new IndicesStatsRequest();
         request.clear();
-        String indexName = index.getName();
         request.indices(indexName);
 
         getClient(projectId).admin().indices().stats(request, ActionListener.wrap((response) -> {

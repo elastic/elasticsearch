@@ -126,10 +126,10 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 queryExec.indexMode(),
                 queryExec.indexNameWithModes(),
                 queryExec.output(),
-                query,
                 queryExec.limit(),
                 queryExec.sorts(),
-                queryExec.estimatedRowSize()
+                queryExec.estimatedRowSize(),
+                List.of(new EsQueryExec.QueryBuilderAndTags(query, List.of()))
             );
             // If the eval contains other aliases, not just field attributes, we need to keep them in the plan
             PhysicalPlan plan = evalFields.isEmpty() ? queryExec : new EvalExec(filterExec.source(), queryExec, evalFields);

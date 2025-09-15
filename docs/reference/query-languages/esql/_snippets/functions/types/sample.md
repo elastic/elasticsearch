@@ -12,10 +12,14 @@
 | double | integer | double |
 | geo_point | integer | geo_point |
 | geo_shape | integer | geo_shape |
+| geohash | integer | geohash |
+| geohex | integer | geohex |
+| geotile | integer | geotile |
 | integer | integer | integer |
 | ip | integer | ip |
 | keyword | integer | keyword |
 | long | integer | long |
 | text | integer | keyword |
+| unsigned_long | integer | unsigned_long |
 | version | integer | version |
 

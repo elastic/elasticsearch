@@ -193,7 +193,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 final IndexCommit lastCommit = commitList.get(commitList.size() - 1);
                 safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commitList, globalCheckpoint.get());
                 assertThat(
-                    indexPolicy.releaseCommit(snapshot),
+                    indexPolicy.releaseIndexCommit(snapshot),
                     equalTo(pendingSnapshots == 0 && snapshot.equals(lastCommit) == false && snapshot.equals(safeCommit) == false)
                 );
             }
@@ -211,7 +211,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
                 )
             );
         }
-        snapshottingCommits.forEach(indexPolicy::releaseCommit);
+        snapshottingCommits.forEach(indexPolicy::releaseIndexCommit);
         globalCheckpoint.set(randomLongBetween(lastMaxSeqNo, Long.MAX_VALUE));
         commitList.forEach(this::resetDeletion);
         indexPolicy.onCommit(commitList);
@@ -350,8 +350,8 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             }
 
             @Override
-            synchronized boolean releaseCommit(IndexCommit acquiredCommit) {
-                return super.releaseCommit(wrapCommit(acquiredCommit));
+            public synchronized boolean releaseIndexCommit(IndexCommit acquiredCommit) {
+                return super.releaseIndexCommit(wrapCommit(acquiredCommit));
             }
         };
 
@@ -383,7 +383,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(deletedCommits, hasSize(0));
         assertThat(newCommitFiles, containsInAnyOrder(equalTo("_1.cfe"), equalTo("_1.si"), equalTo("_1.cfs"), equalTo("segments_2")));
 
-        boolean maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit0);
+        boolean maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit0);
         assertThat(maybeCleanUpCommits, equalTo(true));
 
         globalCheckpoint.set(20L);
@@ -454,7 +454,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
             )
         );
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit2);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit2);
         assertThat("No commits to clean up (commit #2 is the safe commit)", maybeCleanUpCommits, equalTo(false));
 
         globalCheckpoint.set(30L);
@@ -499,13 +499,13 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         assertThat(deletedCommits, contains(commit0, commit2));
         assertThat(newCommitFiles, containsInAnyOrder(equalTo("_4.cfe"), equalTo("_4.si"), equalTo("_4.cfs"), equalTo("segments_4")));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit3);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit3);
         assertThat("No commits to clean up (commit #3 is the safe commit)", maybeCleanUpCommits, equalTo(false));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit4);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit4);
         assertThat("No commits to clean up (commit #4 is the last commit)", maybeCleanUpCommits, equalTo(false));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit1);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit1);
         assertThat(maybeCleanUpCommits, equalTo(true));
 
         final boolean globalCheckpointCatchUp = randomBoolean();
@@ -560,7 +560,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         }
         assertThat(newCommitFiles, containsInAnyOrder(equalTo("_5.cfe"), equalTo("_5.si"), equalTo("_5.cfs"), equalTo("segments_5")));
 
-        maybeCleanUpCommits = combinedDeletionPolicy.releaseCommit(commit5);
+        maybeCleanUpCommits = combinedDeletionPolicy.releaseIndexCommit(commit5);
         assertThat("No commits to clean up (commit #5 is the last commit)", maybeCleanUpCommits, equalTo(false));
     }
 

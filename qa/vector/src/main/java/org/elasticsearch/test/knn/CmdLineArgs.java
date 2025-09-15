@@ -36,7 +36,7 @@ record CmdLineArgs(
     KnnIndexTester.IndexType indexType,
     int numCandidates,
     int k,
-    int[] nProbes,
+    double[] visitPercentages,
     int ivfClusterSize,
     int overSamplingFactor,
     int hnswM,
@@ -52,7 +52,8 @@ record CmdLineArgs(
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination
+    boolean earlyTermination,
+    KnnIndexTester.MergePolicyType mergePolicy
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -62,7 +63,8 @@ record CmdLineArgs(
     static final ParseField INDEX_TYPE_FIELD = new ParseField("index_type");
     static final ParseField NUM_CANDIDATES_FIELD = new ParseField("num_candidates");
     static final ParseField K_FIELD = new ParseField("k");
-    static final ParseField N_PROBE_FIELD = new ParseField("n_probe");
+    // static final ParseField N_PROBE_FIELD = new ParseField("n_probe");
+    static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
@@ -79,13 +81,14 @@ record CmdLineArgs(
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
+    static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
         return builder.build();
     }
 
-    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", true, Builder::new);
+    static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", false, Builder::new);
 
     static {
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
@@ -95,7 +98,8 @@ record CmdLineArgs(
         PARSER.declareString(Builder::setIndexType, INDEX_TYPE_FIELD);
         PARSER.declareInt(Builder::setNumCandidates, NUM_CANDIDATES_FIELD);
         PARSER.declareInt(Builder::setK, K_FIELD);
-        PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
+        // PARSER.declareIntArray(Builder::setNProbe, N_PROBE_FIELD);
+        PARSER.declareDoubleArray(Builder::setVisitPercentages, VISIT_PERCENTAGE_FIELD);
         PARSER.declareInt(Builder::setIvfClusterSize, IVF_CLUSTER_SIZE_FIELD);
         PARSER.declareInt(Builder::setOverSamplingFactor, OVER_SAMPLING_FACTOR_FIELD);
         PARSER.declareInt(Builder::setHnswM, HNSW_M_FIELD);
@@ -112,6 +116,7 @@ record CmdLineArgs(
         PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
+        PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
     }
 
     @Override
@@ -129,7 +134,8 @@ record CmdLineArgs(
         builder.field(INDEX_TYPE_FIELD.getPreferredName(), indexType.name().toLowerCase(Locale.ROOT));
         builder.field(NUM_CANDIDATES_FIELD.getPreferredName(), numCandidates);
         builder.field(K_FIELD.getPreferredName(), k);
-        builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
+        // builder.field(N_PROBE_FIELD.getPreferredName(), nProbes);
+        builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentages);
         builder.field(IVF_CLUSTER_SIZE_FIELD.getPreferredName(), ivfClusterSize);
         builder.field(OVER_SAMPLING_FACTOR_FIELD.getPreferredName(), overSamplingFactor);
         builder.field(HNSW_M_FIELD.getPreferredName(), hnswM);
@@ -162,7 +168,7 @@ record CmdLineArgs(
         private KnnIndexTester.IndexType indexType = KnnIndexTester.IndexType.HNSW;
         private int numCandidates = 1000;
         private int k = 10;
-        private int[] nProbes = new int[] { 10 };
+        private double[] visitPercentages = new double[] { 1.0 };
         private int ivfClusterSize = 1000;
         private int overSamplingFactor = 1;
         private int hnswM = 16;
@@ -179,6 +185,7 @@ record CmdLineArgs(
         private boolean earlyTermination;
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
+        private KnnIndexTester.MergePolicyType mergePolicy = null;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -219,8 +226,8 @@ record CmdLineArgs(
             return this;
         }
 
-        public Builder setNProbe(List<Integer> nProbes) {
-            this.nProbes = nProbes.stream().mapToInt(Integer::intValue).toArray();
+        public Builder setVisitPercentages(List<Double> visitPercentages) {
+            this.visitPercentages = visitPercentages.stream().mapToDouble(Double::doubleValue).toArray();
             return this;
         }
 
@@ -304,6 +311,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setMergePolicy(String mergePolicy) {
+            this.mergePolicy = KnnIndexTester.MergePolicyType.valueOf(mergePolicy.toUpperCase(Locale.ROOT));
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -321,7 +333,7 @@ record CmdLineArgs(
                 indexType,
                 numCandidates,
                 k,
-                nProbes,
+                visitPercentages,
                 ivfClusterSize,
                 overSamplingFactor,
                 hnswM,
@@ -337,7 +349,8 @@ record CmdLineArgs(
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination
+                earlyTermination,
+                mergePolicy
             );
         }
     }

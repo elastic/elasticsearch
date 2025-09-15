@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -107,6 +106,16 @@ public class ClusterServiceUtils {
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
         return createClusterService(threadPool, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+    }
+
+    public static ClusterService createClusterService(ThreadPool threadPool, ProjectId projectId) {
+        return createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            projectId
+        );
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode) {
@@ -229,10 +238,8 @@ public class ClusterServiceUtils {
         clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
     }
 
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
-        throws Exception {
-        final var listener = addTemporaryStateListener(clusterService, statePredicate, ESTestCase.TEST_REQUEST_TIMEOUT);
-        ESTestCase.safeAwait(listener, ESTestCase.TEST_REQUEST_TIMEOUT);
+    public static void awaitClusterState(Predicate<ClusterState> statePredicate, ClusterService clusterService) {
+        ESTestCase.safeAwait(addTemporaryStateListener(clusterService, statePredicate, TimeValue.THIRTY_SECONDS), TimeValue.THIRTY_SECONDS);
     }
 
     public static void awaitNoPendingTasks(ClusterService clusterService) {

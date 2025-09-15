@@ -67,7 +67,7 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -100,7 +100,6 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
@@ -133,6 +132,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  * CSV-based unit testing.
@@ -193,7 +193,7 @@ public class CsvTests extends ESTestCase {
     private ThreadPool threadPool;
     private Executor executor;
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
@@ -305,7 +305,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use KNN function in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V3.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V5.capabilityName())
             );
             assumeFalse(
                 "lookup join disabled for csv tests",
@@ -427,7 +427,13 @@ public class CsvTests extends ESTestCase {
             if (mapping.containsKey(entry.getKey())) {
                 DataType dataType = DataType.fromTypeName(entry.getValue());
                 EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                EsField editedField = new EsField(
+                    field.getName(),
+                    dataType,
+                    field.getProperties(),
+                    field.isAggregatable(),
+                    field.getTimeSeriesFieldType()
+                );
                 mapping.put(entry.getKey(), editedField);
             }
         }
@@ -524,18 +530,12 @@ public class CsvTests extends ESTestCase {
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        var indices = preAnalysis.indices;
-        if (indices.isEmpty()) {
-            /*
-             * If the data set doesn't matter we'll just grab one we know works.
-             * Employees is fine.
-             */
+        if (preAnalysis.index() == null) {
+            // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"));
-        } else if (preAnalysis.indices.size() > 1) {
-            throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
 
-        String indexName = indices.getFirst().indexPattern();
+        String indexName = preAnalysis.index().indexPattern();
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);
@@ -705,9 +705,9 @@ public class CsvTests extends ESTestCase {
             configuration,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),
-            Mockito.mock(EnrichLookupService.class),
-            Mockito.mock(LookupFromIndexService.class),
-            Mockito.mock(InferenceRunner.class),
+            mock(EnrichLookupService.class),
+            mock(LookupFromIndexService.class),
+            mock(InferenceService.class),
             physicalOperationProviders,
             List.of()
         );

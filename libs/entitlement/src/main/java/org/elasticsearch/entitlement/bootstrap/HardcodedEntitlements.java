@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -92,8 +93,9 @@ class HardcodedEntitlements {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
-                            // TODO: what in es.base is accessing shared repo?
+                            // necessary due to lack of delegation ES-12382
                             FilesEntitlement.FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
@@ -112,7 +114,28 @@ class HardcodedEntitlements {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
-            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
+            new Scope(
+                "java.desktop",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement() // For sun.java2d.Disposer. TODO: https://elasticco.atlassian.net/browse/ES-12888
+                )
+            ),
+            new Scope(
+                "java.xml",
+                List.of(
+                    new ReadJdkImageEntitlement(),
+                    // java.xml does some reflective stuff that reads calling jars, so allow reading the codebases
+                    // of any code in the system so that they can all use java.xml
+                    new FilesEntitlement(
+                        List.of(
+                            FilesEntitlement.FileData.ofBaseDirPath(LIB, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(MODULES, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(PLUGINS, READ)
+                        )
+                    )
+                )
+            ),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",
@@ -122,6 +145,7 @@ class HardcodedEntitlements {
                     new FilesEntitlement(
                         List.of(
                             FilesEntitlement.FileData.ofBaseDirPath(CONFIG, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )
@@ -130,7 +154,12 @@ class HardcodedEntitlements {
             new Scope(
                 "org.apache.lucene.misc",
                 List.of(
-                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE))),
+                    new FilesEntitlement(
+                        List.of(
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
+                        )
+                    ),
                     new ReadStoreAttributesEntitlement()
                 )
             ),
@@ -145,7 +174,12 @@ class HardcodedEntitlements {
                 "org.elasticsearch.nativeaccess",
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)))
+                    new FilesEntitlement(
+                        List.of(
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
+                        )
+                    )
                 )
             )
         );

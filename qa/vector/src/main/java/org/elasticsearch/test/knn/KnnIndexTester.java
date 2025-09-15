@@ -15,6 +15,14 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.store.FSDirectory;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -22,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.IVFVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.logging.Level;
@@ -32,7 +40,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,6 +79,13 @@ public class KnnIndexTester {
         IVF
     }
 
+    enum MergePolicyType {
+        TIERED,
+        LOG_BYTE,
+        NO,
+        LOG_DOC
+    }
+
     private static String formatIndexPath(CmdLineArgs args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
@@ -89,7 +106,7 @@ public class KnnIndexTester {
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
-            format = new IVFVectorsFormat(args.ivfClusterSize());
+            format = new ES920DiskBBQVectorsFormat(args.ivfClusterSize(), ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {
@@ -174,9 +191,9 @@ public class KnnIndexTester {
         FormattedResults formattedResults = new FormattedResults();
 
         for (CmdLineArgs cmdLineArgs : cmdLineArgsList) {
-            int[] nProbes = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
-                ? cmdLineArgs.nProbes()
-                : new int[] { 0 };
+            double[] visitPercentages = cmdLineArgs.indexType().equals(IndexType.IVF) && cmdLineArgs.numQueries() > 0
+                ? cmdLineArgs.visitPercentages()
+                : new double[] { 0 };
             String indexType = cmdLineArgs.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(
                 cmdLineArgs.docVectors().get(0).getFileName().toString(),
@@ -184,8 +201,8 @@ public class KnnIndexTester {
                 cmdLineArgs.numDocs(),
                 cmdLineArgs.filterSelectivity()
             );
-            Results[] results = new Results[nProbes.length];
-            for (int i = 0; i < nProbes.length; i++) {
+            Results[] results = new Results[visitPercentages.length];
+            for (int i = 0; i < visitPercentages.length; i++) {
                 results[i] = new Results(
                     cmdLineArgs.docVectors().get(0).getFileName().toString(),
                     indexType,
@@ -193,9 +210,11 @@ public class KnnIndexTester {
                     cmdLineArgs.filterSelectivity()
                 );
             }
+            logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
+            MergePolicy mergePolicy = getMergePolicy(cmdLineArgs);
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     cmdLineArgs.docVectors(),
@@ -205,7 +224,8 @@ public class KnnIndexTester {
                     cmdLineArgs.vectorEncoding(),
                     cmdLineArgs.dimensions(),
                     cmdLineArgs.vectorSpace(),
-                    cmdLineArgs.numDocs()
+                    cmdLineArgs.numDocs(),
+                    mergePolicy
                 );
                 if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);
@@ -215,14 +235,12 @@ public class KnnIndexTester {
                 }
                 if (cmdLineArgs.forceMerge()) {
                     knnIndexer.forceMerge(indexResults);
-                } else {
-                    knnIndexer.numSegments(indexResults);
                 }
             }
+            numSegments(indexPath, indexResults);
             if (cmdLineArgs.queryVectors() != null && cmdLineArgs.numQueries() > 0) {
                 for (int i = 0; i < results.length; i++) {
-                    int nProbe = nProbes[i];
-                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, nProbe);
+                    KnnSearcher knnSearcher = new KnnSearcher(indexPath, cmdLineArgs, visitPercentages[i]);
                     knnSearcher.runSearch(results[i], cmdLineArgs.earlyTermination());
                 }
             }
@@ -230,6 +248,32 @@ public class KnnIndexTester {
             formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
+    }
+
+    private static MergePolicy getMergePolicy(CmdLineArgs args) {
+        MergePolicy mergePolicy = null;
+        if (args.mergePolicy() != null) {
+            if (args.mergePolicy() == MergePolicyType.TIERED) {
+                mergePolicy = new TieredMergePolicy();
+            } else if (args.mergePolicy() == MergePolicyType.LOG_BYTE) {
+                mergePolicy = new LogByteSizeMergePolicy();
+            } else if (args.mergePolicy() == MergePolicyType.NO) {
+                mergePolicy = NoMergePolicy.INSTANCE;
+            } else if (args.mergePolicy() == MergePolicyType.LOG_DOC) {
+                mergePolicy = new LogDocMergePolicy();
+            } else {
+                throw new IllegalArgumentException("Invalid merge policy: " + args.mergePolicy());
+            }
+        }
+        return mergePolicy;
+    }
+
+    static void numSegments(Path indexPath, KnnIndexTester.Results result) {
+        try (FSDirectory dir = FSDirectory.open(indexPath); IndexReader reader = DirectoryReader.open(dir)) {
+            result.numSegments = reader.leaves().size();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to get segment count for index at " + indexPath, e);
+        }
     }
 
     static class FormattedResults {
@@ -248,7 +292,7 @@ public class KnnIndexTester {
             String[] searchHeaders = {
                 "index_name",
                 "index_type",
-                "n_probe",
+                "visit_percentage(%)",
                 "latency(ms)",
                 "net_cpu_time(ms)",
                 "avg_cpu_count",
@@ -279,7 +323,7 @@ public class KnnIndexTester {
                 queryResultsArray[i] = new String[] {
                     queryResult.indexName,
                     queryResult.indexType,
-                    Integer.toString(queryResult.nProbe),
+                    String.format(Locale.ROOT, "%.2f", queryResult.visitPercentage),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgLatency),
                     String.format(Locale.ROOT, "%.2f", queryResult.netCpuTimeMS),
                     String.format(Locale.ROOT, "%.2f", queryResult.avgCpuCount),
@@ -350,12 +394,12 @@ public class KnnIndexTester {
 
     static class Results {
         final String indexType, indexName;
-        final int numDocs;
+        int numDocs;
         final float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;
         int numSegments;
-        int nProbe;
+        double visitPercentage;
         double avgLatency;
         double qps;
         double avgRecall;

@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
@@ -42,6 +43,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -52,6 +54,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.IntFunction;
 
 import static java.util.Collections.emptySet;
@@ -683,14 +687,125 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
-    public void testErrorMessageForArrayValuesInParams() throws IOException {
+    public void testArrayValuesAllowedInValueParams() throws IOException {
+        Map<String, Object> responseMap = runEsql(
+            RequestObjectBuilder.jsonBuilder()
+                .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e")
+                .params(
+                    "[{\"a\" : [\"a1\", \"a2\"]}, {\"b\" : [1, 2]}, {\"c\": [true, false]}, {\"d\": [1.1, 2.2]},"
+                        + " {\"e\": [1674835275193, 1674835275193]}]"
+                )
+        );
+        System.out.println(responseMap);
+
+        ListMatcher values = matchesList().item(
+            matchesList().item(matchesList().item("a1").item("a2"))
+                .item(matchesList().item(1).item(2))
+                .item(matchesList().item(true).item(false))
+                .item(matchesList().item(1.1).item(2.2))
+                .item(matchesList().item(1674835275193L).item(1674835275193L))
+        );
+    }
+
+    public void testArrayValuesNullsNotAllowedInValueParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
+            () -> runEsqlSync(
+                RequestObjectBuilder.jsonBuilder()
+                    .query("row a = ?a | eval b = ?b, c = ?c, d = ?d, e = ?e, f = ?f")
+                    .params(
+                        "[{\"a\" : [null, \"a2\"]}, {\"b\" : [null, 2]}, {\"c\": [null, false]}, {\"d\": [null, 2.2]},"
+                            + " {\"e\": [null, 1674835275193]}, {\"f\": [null, null]}]"
+                    )
+            )
+        );
+
+        String error = EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(
+            error,
+            containsString(
+                "[1:79] Parameter [a] contains a null entry: [null, a2]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:101] Parameter [b] contains a null entry: [null, 2]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:120] Parameter [c] contains a null entry: [null, false]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:142] Parameter [d] contains a null entry: [null, 2.2]. " + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:162] Parameter [e] contains a null entry: [null, 1674835275193]. "
+                    + "Null values are not allowed in multivalued params;"
+            )
+        );
+        assertThat(
+            error,
+            containsString(
+                "[1:192] Parameter [f] contains a null entry: [null, null]. " + "Null values are not allowed in multivalued params"
+            )
+        );
+    }
+
+    public void testArrayValuesAllowedInUnnamedParams() throws IOException {
+        Map<String, Object> responseMap = runEsql(
+            RequestObjectBuilder.jsonBuilder()
+                .query("row a = ? | eval b = ?, c = ?, d = ?, e = ?")
+                .params("[[\"a1\", \"a2\"], [1, 2], [true, false], [1.1, 2.2], [1674835275193, 1674835275193]]")
+        );
+        System.out.println(responseMap);
+
+        ListMatcher values = matchesList().item(
+            matchesList().item(matchesList().item("a1").item("a2"))
+                .item(matchesList().item(1).item(2))
+                .item(matchesList().item(true).item(false))
+                .item(matchesList().item(1.1).item(2.2))
+                .item(matchesList().item(1674835275193L).item(1674835275193L))
+        );
+
+        assertResultMap(
+            responseMap,
+            matchesList().item(matchesMap().entry("name", "a").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "b").entry("type", "integer"))
+                .item(matchesMap().entry("name", "c").entry("type", "boolean"))
+                .item(matchesMap().entry("name", "d").entry("type", "double"))
+                .item(matchesMap().entry("name", "e").entry("type", "long")),
+            values
+        );
+    }
+
+    public void testErrorMessageForArrayValuesInNonValueParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(
+                RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval ?n1 = 5").params("[{\"n1\" : {\"identifier\" : [\"integer\"]}}]")
+            )
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("Failed to parse params: [1:45] n1=[5, 6, 7] is not supported as a parameter")
+            containsString("\"Failed to parse params: [1:47] n1={identifier=[integer]} parameter is multivalued")
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | keep ?n1").params("[{\"n1\" : {\"pattern\" : [\"a*\"]}}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("\"Failed to parse params: [1:43] n1={pattern=[a*]} parameter is multivalued")
         );
     }
 
@@ -801,7 +916,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
-            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sample', 'sort'"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'rerank', 'sample', 'sort'"));
         }
     }
 
@@ -1105,7 +1220,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      *     query. It's part of the "configuration" of the query.
      * </p>
      */
-    @AwaitsFix(bugUrl = "Disabled temporarily until JOIN implementation is completed")
     public void testInlineStatsNow() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
@@ -1121,8 +1235,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .item("value" + i)
                     .item("value" + i)
                     .item(i)
-                    .item(any(String.class))
                     .item(499.5)
+                    .item(any(String.class))
             );
         }
         assertResultMap(
@@ -1131,8 +1245,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
                 .item(matchesMap().entry("name", "value").entry("type", "long"))
-                .item(matchesMap().entry("name", "now").entry("type", "date"))
-                .item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
+                .item(matchesMap().entry("name", "now").entry("type", "date")),
             values
         );
     }
@@ -1334,8 +1448,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
-        var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
-        var supportsSuggestedCast = clusterHasCapability("POST", "/_query", List.of(), List.of("suggested_cast")).orElse(false);
+        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers"));
+        var supportsSuggestedCast = hasCapabilities(adminClient(), List.of("suggested_cast"));
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
@@ -1409,11 +1523,31 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
+            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
             if (isProfileSafe) {
                 requestObject.profile(true);
             }
         }
+    }
+
+    record CapabilitesCacheKey(RestClient client, List<String> capabilities) {}
+
+    /**
+     * Cache of capabilities.
+     */
+    private static final ConcurrentMap<CapabilitesCacheKey, Boolean> capabilities = new ConcurrentHashMap<>();
+
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) {
+        if (requiredCapabilities.isEmpty()) {
+            return true;
+        }
+        return capabilities.computeIfAbsent(new CapabilitesCacheKey(client, requiredCapabilities), r -> {
+            try {
+                return clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {

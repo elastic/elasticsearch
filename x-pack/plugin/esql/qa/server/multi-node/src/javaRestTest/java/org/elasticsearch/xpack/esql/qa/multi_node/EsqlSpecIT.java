@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.qa.multi_node;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -24,16 +23,8 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public EsqlSpecIT(
-        String fileName,
-        String groupName,
-        String testName,
-        Integer lineNumber,
-        CsvTestCase testCase,
-        String instructions,
-        Mode mode
-    ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override

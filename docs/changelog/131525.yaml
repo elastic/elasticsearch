@@ -1,6 +1,0 @@
-pr: 131525
-summary: Fix semantic highlighting bug on flat quantized fields
-area: Highlighting
-type: bug
-issues:
- - 131443

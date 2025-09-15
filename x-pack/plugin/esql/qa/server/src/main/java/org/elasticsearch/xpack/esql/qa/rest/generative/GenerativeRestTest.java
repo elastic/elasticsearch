@@ -32,6 +32,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_NAME;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
+import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.COLUMN_TYPE;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
 
@@ -47,7 +50,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "cannot sort on .*",
         "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
-        "Unbounded sort not supported yet",
+        "Unbounded SORT not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
 
@@ -70,7 +73,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }
 
@@ -160,7 +163,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         );
         if (outputValidation.success() == false) {
             for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                if (isAllowedError(outputValidation.errorMessage(), allowedError)) {
                     return outputValidation;
                 }
             }
@@ -171,11 +174,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
+            if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
+    }
+
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\n\\s*\\\\");
+
+    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
     }
 
     @SuppressWarnings("unchecked")
@@ -201,27 +215,49 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
-        List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
+        List<Map<String, ?>> cols = (List<Map<String, ?>>) a.get("columns");
         if (cols == null) {
             return null;
         }
-        return cols.stream().map(x -> new EsqlQueryGenerator.Column(x.get("name"), x.get("type"))).collect(Collectors.toList());
+        return cols.stream()
+            .map(x -> new EsqlQueryGenerator.Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .collect(Collectors.toList());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> originalTypes(Map<String, ?> x) {
+        List<String> originalTypes = (List<String>) x.get(COLUMN_ORIGINAL_TYPES);
+        if (originalTypes == null) {
+            return List.of();
+        }
+        return originalTypes;
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(client(), true, supportsSourceFieldMapping()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();
     }
 
-    public record LookupIdx(String idxName, String key, String keyType) {}
+    public record LookupIdxColumn(String name, String type) {}
+
+    public record LookupIdx(String idxName, List<LookupIdxColumn> keys) {}
 
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();
         // we don't have key info from the dataset loader, let's hardcode it for now
-        result.add(new LookupIdx("languages_lookup", "language_code", "integer"));
-        result.add(new LookupIdx("message_types_lookup", "message", "keyword"));
+        result.add(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer"))));
+        result.add(new LookupIdx("message_types_lookup", List.of(new LookupIdxColumn("message", "keyword"))));
+        List<LookupIdxColumn> multiColumnJoinableLookupKeys = List.of(
+            new LookupIdxColumn("id_int", "integer"),
+            new LookupIdxColumn("name_str", "keyword"),
+            new LookupIdxColumn("is_active_bool", "boolean"),
+            new LookupIdxColumn("ip_addr", "ip"),
+            new LookupIdxColumn("other1", "keyword"),
+            new LookupIdxColumn("other2", "integer")
+        );
+        result.add(new LookupIdx("multi_column_joinable_lookup", multiColumnJoinableLookupKeys));
         return result;
     }
 

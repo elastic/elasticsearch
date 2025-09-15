@@ -40,6 +40,19 @@ public sealed interface DoubleBlock extends Block permits DoubleArrayBlock, Doub
     @Override
     DoubleBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default DoubleBlock deepCopy(BlockFactory blockFactory) {
+        try (DoubleBlock.Builder builder = blockFactory.newDoubleBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     DoubleBlock keepMask(BooleanVector mask);
 

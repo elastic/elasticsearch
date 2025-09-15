@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -35,6 +36,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +54,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -131,7 +133,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceRunner inferenceRunner;
+    private final InferenceService inferenceService;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final AtomicLong childSessionIdGenerator = new AtomicLong();
@@ -158,7 +160,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, esqlExecutor);
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
-        this.inferenceRunner = transportActionServices.inferenceRunner();
+        this.inferenceService = transportActionServices.inferenceService();
         this.clusterService = transportActionServices.clusterService();
         this.projectResolver = transportActionServices.projectResolver();
         this.dataNodeComputeHandler = new DataNodeComputeHandler(
@@ -190,6 +192,12 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            ThreadPool.Names.SYSTEM_READ,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION
+        );
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();
@@ -590,7 +598,7 @@ public class ComputeService {
             var searchExecutionContext = new SearchExecutionContext(searchContext.getSearchExecutionContext()) {
 
                 @Override
-                public SourceProvider createSourceProvider() {
+                public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
                     return new ReinitializingSourceProvider(super::createSourceProvider);
                 }
             };
@@ -622,7 +630,7 @@ public class ComputeService {
                 context.exchangeSinkSupplier(),
                 enrichLookupService,
                 lookupFromIndexService,
-                inferenceRunner,
+                inferenceService,
                 physicalOperationProviders,
                 contexts
             );
@@ -651,31 +659,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = listener.map(ignored -> {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug(
-                        "finished {}",
-                        DriverCompletionInfo.includingProfiles(
-                            drivers,
-                            context.description(),
-                            clusterService.getClusterName().value(),
-                            transportService.getLocalNode().getName(),
-                            localPlan.toString()
-                        )
-                    );
-                }
-                if (context.configuration().profile()) {
-                    return DriverCompletionInfo.includingProfiles(
-                        drivers,
-                        context.description(),
-                        clusterService.getClusterName().value(),
-                        transportService.getLocalNode().getName(),
-                        localPlan.toString()
-                    );
-                } else {
-                    return DriverCompletionInfo.excludingProfiles(drivers);
-                }
-            });
+            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan);
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -685,6 +669,50 @@ public class ComputeService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    ActionListener<Void> addCompletionInfo(
+        ActionListener<DriverCompletionInfo> listener,
+        List<Driver> drivers,
+        ComputeContext context,
+        PhysicalPlan localPlan
+    ) {
+        /*
+         * We *really* don't want to close over the localPlan because it can
+         * be quite large, and it isn't tracked.
+         */
+        boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
+        String planString = needPlanString ? localPlan.toString() : null;
+        return listener.map(ignored -> {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug(
+                    "finished {}",
+                    DriverCompletionInfo.includingProfiles(
+                        drivers,
+                        context.description(),
+                        clusterService.getClusterName().value(),
+                        transportService.getLocalNode().getName(),
+                        planString
+                    )
+                );
+                /*
+                 * planString *might* be null if we *just* set DEBUG to *after*
+                 * we built the listener but before we got here. That's something
+                 * we can live with.
+                 */
+            }
+            if (context.configuration().profile()) {
+                return DriverCompletionInfo.includingProfiles(
+                    drivers,
+                    context.description(),
+                    clusterService.getClusterName().value(),
+                    transportService.getLocalNode().getName(),
+                    planString
+                );
+            } else {
+                return DriverCompletionInfo.excludingProfiles(drivers);
+            }
+        });
     }
 
     static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference.completion;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
@@ -23,15 +24,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
 
-    public void testBuildSmallOutput() {
+    public void testBuildSmallOutput() throws Exception {
         assertBuildOutput(between(1, 100));
     }
 
-    public void testBuildLargeOutput() {
+    public void testBuildLargeOutput() throws Exception {
         assertBuildOutput(between(10_000, 100_000));
     }
 
-    private void assertBuildOutput(int size) {
+    private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
         try (
             CompletionOperatorOutputBuilder outputBuilder = new CompletionOperatorOutputBuilder(
@@ -50,11 +51,9 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
             assertOutputContent(outputPage.getBlock(outputPage.getBlockCount() - 1));
 
             outputPage.releaseBlocks();
-
-        } finally {
-            inputPage.releaseBlocks();
         }
 
+        allBreakersEmpty();
     }
 
     private void assertOutputContent(BytesRefBlock block) {
@@ -73,7 +72,7 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
             for (int i = 0; i < columnCount; i++) {
                 blocks[i] = RandomBlock.randomBlock(
                     blockFactory(),
-                    RandomBlock.randomElementType(),
+                    RandomBlock.randomElementExcluding(List.of(ElementType.AGGREGATE_METRIC_DOUBLE)),
                     positionCount,
                     randomBoolean(),
                     0,

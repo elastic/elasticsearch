@@ -33,7 +33,31 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "cartesian_shape",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "date",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
           "optional" : false,
           "description" : ""
         }
@@ -58,6 +82,54 @@
         {
           "name" : "field",
           "type" : "geo_point",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_shape",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohash",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohex",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geotile",
           "optional" : false,
           "description" : ""
         }

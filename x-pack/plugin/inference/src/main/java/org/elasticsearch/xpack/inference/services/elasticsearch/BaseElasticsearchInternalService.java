@@ -299,6 +299,10 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
+    protected ClusterService getClusterService() {
+        return clusterService;
+    }
+
     boolean isClusterInElasticCloud() {
         // Use the ml lazy node count as a heuristic to determine if in Elastic cloud.
         // A value > 0 means scaling should be available for ml nodes

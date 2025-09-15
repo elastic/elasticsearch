@@ -21,6 +21,7 @@ import org.elasticsearch.ingest.DropProcessor;
 import org.elasticsearch.ingest.PipelineProcessor;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -33,7 +34,7 @@ import java.util.function.Supplier;
 
 import static java.util.Map.entry;
 
-public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin, ExtensiblePlugin {
 
     public IngestCommonPlugin() {}
 
@@ -63,6 +64,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
+            entry(RecoverFailureDocumentProcessor.TYPE, new RecoverFailureDocumentProcessor.Factory()),
             entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
             entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
             entry(RerouteProcessor.TYPE, new RerouteProcessor.Factory()),

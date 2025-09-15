@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -21,7 +22,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.net.URI;
@@ -746,6 +749,25 @@ public final class ServiceUtils {
         return field;
     }
 
+    public static Integer extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
+        Map<String, Object> map,
+        String settingName,
+        int minValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer field = extractRequiredPositiveInteger(map, settingName, scope, validationException);
+
+        if (field != null && field < minValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, field, minValue)
+            );
+            return null;
+        }
+
+        return field;
+    }
+
     public static Integer extractRequiredPositiveIntegerBetween(
         Map<String, Object> map,
         String settingName,
@@ -778,6 +800,25 @@ public final class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
+        return extractOptionalInteger(map, settingName, scope, validationException, true);
+    }
+
+    public static Integer extractOptionalInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        return extractOptionalInteger(map, settingName, scope, validationException, false);
+    }
+
+    private static Integer extractOptionalInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException,
+        boolean mustBePositive
+    ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
         Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
 
@@ -785,7 +826,7 @@ public final class ServiceUtils {
             return null;
         }
 
-        if (optionalField != null && optionalField <= 0) {
+        if (optionalField != null && mustBePositive && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
             return null;
         }
@@ -1096,6 +1137,25 @@ public final class ServiceUtils {
         if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
             throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
         }
+    }
+
+    /**
+     * Resolves the inference timeout based on input type and cluster settings.
+     *
+     * @param timeout The provided timeout value, may be null
+     * @param inputType The input type for the inference request
+     * @param clusterService The cluster service to get timeout settings from
+     * @return The resolved timeout value
+     */
+    public static TimeValue resolveInferenceTimeout(@Nullable TimeValue timeout, InputType inputType, ClusterService clusterService) {
+        if (timeout == null) {
+            if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
+                return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
+            } else {
+                return InferenceAction.Request.DEFAULT_TIMEOUT;
+            }
+        }
+        return timeout;
     }
 
     private ServiceUtils() {}

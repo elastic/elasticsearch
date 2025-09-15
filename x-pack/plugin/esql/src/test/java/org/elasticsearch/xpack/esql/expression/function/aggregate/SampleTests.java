@@ -21,9 +21,11 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,8 +44,10 @@ public class SampleTests extends AbstractAggregationTestCase {
 
         for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 100, false)) {
             Stream.of(
+                MultiRowTestCaseSupplier.nullCases(1, 1000),
                 MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                 MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+                MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
                 MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
                 MultiRowTestCaseSupplier.dateCases(1, 1000),
                 MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
@@ -55,7 +59,10 @@ public class SampleTests extends AbstractAggregationTestCase {
                 MultiRowTestCaseSupplier.geoPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, MultiRowTestCaseSupplier.IncludingAltitude.NO),
                 MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
-                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO)
+                MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 20, MultiRowTestCaseSupplier.IncludingAltitude.NO),
+                MultiRowTestCaseSupplier.geohashCases(1, 1000),
+                MultiRowTestCaseSupplier.geotileCases(1, 1000),
+                MultiRowTestCaseSupplier.geohexCases(1, 1000)
             )
                 .flatMap(List::stream)
                 .map(fieldCaseSupplier -> makeSupplier(fieldCaseSupplier, limitCaseSupplier))
@@ -78,11 +85,11 @@ public class SampleTests extends AbstractAggregationTestCase {
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
 
-            var rows = fieldTypedData.multiRowData();
+            var rows = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).toList();
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, limitTypedData),
-                "Sample[field=Attribute[channel=0], limit=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("Sample", fieldSupplier.type()),
                 fieldSupplier.type(),
                 subsetOfSize(rows, limit)
             );

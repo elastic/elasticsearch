@@ -58,6 +58,9 @@
             }
           }
         },
+        "last_known_status": {
+          "type": "keyword"
+        },
         "unhealthy_reason": {
           "type": "keyword"
         },
@@ -222,6 +225,9 @@
           "type": "integer"
         },
         "policy_id": {
+          "type": "keyword"
+        },
+        "agent_policy_id": {
           "type": "keyword"
         },
         "policy_output_permissions_hash": {

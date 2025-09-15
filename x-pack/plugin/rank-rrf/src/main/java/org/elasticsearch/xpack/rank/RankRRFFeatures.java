@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_R
 public class RankRRFFeatures implements FeatureSpecification {
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
+    public static final NodeFeature LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER = new NodeFeature("linear_retriever.top_level_normalizer");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -36,7 +37,10 @@ public class RankRRFFeatures implements FeatureSpecification {
             LINEAR_RETRIEVER_L2_NORM,
             LINEAR_RETRIEVER_MINSCORE_FIX,
             LinearRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
-            RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT
+            RRFRetrieverBuilder.MULTI_FIELDS_QUERY_FORMAT_SUPPORT,
+            RRFRetrieverBuilder.WEIGHTED_SUPPORT,
+            LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER,
+            LinearRetrieverBuilder.MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT
         );
     }
 }

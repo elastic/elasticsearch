@@ -63,7 +63,13 @@ public class PredicateTokenScriptFilterTests extends ESTokenStreamTestCase {
             }
         };
 
-        ScriptService scriptService = new ScriptService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L) {
+        ScriptService scriptService = new ScriptService(
+            indexSettings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        ) {
             @Override
             @SuppressWarnings("unchecked")
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {

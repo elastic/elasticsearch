@@ -7,38 +7,39 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.response;
 
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
+import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponseUtils;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
-public class IbmWatsonxErrorResponseEntity extends ErrorResponse {
+public class IbmWatsonxErrorResponseEntity extends UnifiedChatCompletionErrorResponse {
+    private static final String WATSONX_ERROR = "watsonx_error";
+    public static final UnifiedChatCompletionErrorParserContract WATSONX_ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
+        .createErrorParserWithGenericParser(IbmWatsonxErrorResponseEntity::doParse);
 
     private IbmWatsonxErrorResponseEntity(String errorMessage) {
-        super(errorMessage);
+        super(errorMessage, WATSONX_ERROR, null, null);
     }
 
-    @SuppressWarnings("unchecked")
-    public static ErrorResponse fromResponse(HttpResult response) {
-        try (
-            XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(XContentParserConfiguration.EMPTY, response.body())
-        ) {
-            var responseMap = jsonParser.map();
-            var error = (Map<String, Object>) responseMap.get("error");
-            if (error != null) {
-                var message = (String) error.get("message");
-                return new IbmWatsonxErrorResponseEntity(Objects.requireNonNullElse(message, ""));
-            }
-        } catch (Exception e) {
-            // swallow the error
+    public static UnifiedChatCompletionErrorResponse fromResponse(HttpResult result) {
+        return WATSONX_ERROR_PARSER.parse(result);
+    }
+
+    private static Optional<UnifiedChatCompletionErrorResponse> doParse(XContentParser parser) throws IOException {
+        var responseMap = parser.map();
+        @SuppressWarnings("unchecked")
+        var error = (Map<String, Object>) responseMap.get("error");
+        if (error != null) {
+            var message = (String) error.get("message");
+            return Optional.of(new IbmWatsonxErrorResponseEntity(Objects.requireNonNullElse(message, "")));
         }
 
-        return ErrorResponse.UNDEFINED_ERROR;
+        return Optional.of(UnifiedChatCompletionErrorResponse.UNDEFINED_ERROR);
     }
 }

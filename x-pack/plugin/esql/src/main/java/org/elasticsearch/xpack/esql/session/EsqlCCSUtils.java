@@ -58,7 +58,7 @@ public class EsqlCCSUtils {
     static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(Map<String, List<FieldCapabilitiesFailure>> failures) {
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>(failures.size());
         for (var e : failures.entrySet()) {
-            if (Strings.isEmpty(e.getKey())) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(e.getKey())) {
                 continue;
             }
             if (e.getValue().stream().allMatch(f -> ExceptionsHelper.isRemoteUnavailableException(f.getException()))) {
@@ -109,8 +109,9 @@ public class EsqlCCSUtils {
 
         if (e instanceof NoClustersToSearchException || ExceptionsHelper.isRemoteUnavailableException(e)) {
             for (String clusterAlias : executionInfo.clusterAliases()) {
-                if (executionInfo.isSkipUnavailable(clusterAlias) == false
-                    && clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
+                // Check if we have any remotes that can't be skipped on failure.
+                if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false
+                    && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                     return false;
                 }
             }
@@ -227,7 +228,7 @@ public class EsqlCCSUtils {
                     "Unknown index [%s]",
                     (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) ? indexExpression : c + ":" + indexExpression)
                 );
-                if (executionInfo.isSkipUnavailable(c) == false || usedFilter) {
+                if (executionInfo.shouldSkipOnFailure(c) == false || usedFilter) {
                     if (fatalErrorMessage == null) {
                         fatalErrorMessage = error;
                     } else {
@@ -239,7 +240,7 @@ public class EsqlCCSUtils {
                     markClusterWithFinalStateAndNoShards(
                         executionInfo,
                         c,
-                        executionInfo.isSkipUnavailable(c) ? Cluster.Status.SKIPPED : Cluster.Status.FAILED,
+                        executionInfo.shouldSkipOnFailure(c) ? Cluster.Status.SKIPPED : Cluster.Status.FAILED,
                         new VerificationException(error)
                     );
                 }
@@ -321,31 +322,35 @@ public class EsqlCCSUtils {
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        List<IndexPattern> patterns,
+        IndexPattern pattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (patterns.isEmpty()) {
+        if (pattern == null) {
             return;
         }
-        assert patterns.size() == 1 : "Only single index pattern is supported";
         try {
             var groupedIndices = indicesGrouper.groupIndices(
                 // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
                 // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                patterns.getFirst().indexPattern()
+                pattern.indexPattern()
             );
 
+            executionInfo.clusterInfoInitializing(true);
             // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
             // so that the CCS telemetry handler can recognize that this error is CCS-related
-            for (var entry : groupedIndices.entrySet()) {
-                final String clusterAlias = entry.getKey();
-                final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-                executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
-                });
+            try {
+                for (var entry : groupedIndices.entrySet()) {
+                    final String clusterAlias = entry.getKey();
+                    final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+                    executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                        assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                        return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.shouldSkipOnFailure(clusterAlias));
+                    });
+                }
+            } finally {
+                executionInfo.clusterInfoInitializing(false);
             }
 
             // check if it is a cross-cluster query
@@ -387,13 +392,6 @@ public class EsqlCCSUtils {
             }
             return builder.build();
         });
-    }
-
-    /**
-     * We will ignore the error if it's remote unavailable and the cluster is marked to skip unavailable.
-     */
-    public static boolean shouldIgnoreRuntimeError(EsqlExecutionInfo executionInfo, String clusterAlias, Exception e) {
-        return executionInfo.isSkipUnavailable(clusterAlias);
     }
 
     /**

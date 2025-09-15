@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -64,9 +63,9 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -1304,6 +1303,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
+            "from a | enrich countries on foo . * ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo.*]"
+        );
+        expectError(
             "from a | enrich typo:countries on foo",
             "line 1:17: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
@@ -2333,10 +2336,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
-    public void testSpaceNotAllowedInIdPatternKeep() {
-        expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
-    }
-
     public void testEnrichOnMatchField() {
         var plan = statement("ROW a = \"1\" | ENRICH languages_policy ON a WITH ```name``* = language_name`");
         var enrich = as(plan, Enrich.class);
@@ -2378,7 +2377,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricsWithoutStats() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
 
         assertStatement("TS foo", unresolvedTSRelation("foo"));
         assertStatement("TS foo,bar", unresolvedTSRelation("foo,bar"));
@@ -2388,7 +2387,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricsIdentifiers() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Map<String, String> patterns = Map.ofEntries(
             Map.entry("ts foo,test-*", "foo,test-*"),
             Map.entry("ts 123-test@foo_bar+baz1", "123-test@foo_bar+baz1"),
@@ -2401,7 +2400,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testSimpleMetricsWithStats() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         assertStatement(
             "TS foo | STATS load=avg(cpu) BY ts",
             new TimeSeriesAggregate(
@@ -2536,7 +2535,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetricWithGroupKeyAsAgg() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var queries = List.of("TS foo | STATS a BY a");
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
@@ -2598,17 +2597,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFailingMetadataWithSquareBrackets() {
-        expectError(
-            "FROM test [METADATA _index] | STATS count(*)",
-            "line 1:11: mismatched input '[' expecting {<EOF>, '|', ',', 'metadata'}"
-        );
+        expectError("FROM test [METADATA _index] | STATS count(*)", "line 1:11: token recognition error at: '['");
     }
 
-    public void testNamedFunctionArgumentInMap() {
+    public void testFunctionNamedParameterInMap() {
         // functions can be scalar, grouping and aggregation
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
-        // In eval and where clause as function arguments
+        // In eval and where clause as function named parameters
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
         expectedMap1.put("option2", 1);
@@ -2652,7 +2648,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 """)
         );
 
-        // In stats, by and sort as function arguments
+        // In stats, by and sort as function named parameters
         assertEquals(
             new OrderBy(
                 EMPTY,
@@ -2688,7 +2684,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 """)
         );
 
-        // In dissect and grok as function arguments
+        // In dissect and grok as function named parameter
         LogicalPlan plan = statement("""
             from test
             | dissect fn1(f1, f2, {"option1":"string", "option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
@@ -2707,7 +2703,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(ur, relation("test"));
     }
 
-    public void testNamedFunctionArgumentInMapWithNamedParameters() {
+    public void testFunctionNamedParameterInMapWithNamedParameters() {
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
@@ -2850,7 +2846,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(ur, relation("test"));
     }
 
-    public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
+    public void testFunctionNamedParameterWithCaseSensitiveKeys() {
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
         expectedMap1.put("option", "string");
         expectedMap1.put("Option", 1);
@@ -2888,7 +2884,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMultipleNamedFunctionArgumentsNotAllowed() {
+    public void testMultipleFunctionNamedParametersNotAllowed() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "41"),
             Map.entry("where {}", "38"),
@@ -2912,7 +2908,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentNotInMap() {
+    public void testFunctionNamedParameterNotInMap() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "38"),
             Map.entry("where {}", "35"),
@@ -2936,7 +2932,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentNotConstant() {
+    public void testFunctionNamedParameterNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
             Map.entry("where {}", new String[] { "28", "32" }),
@@ -2952,7 +2948,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error1 = command.getValue()[0];
             String error2 = command.getValue()[1];
             String errorMessage1 = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "mismatched input '1' expecting QUOTED_STRING"
+                ? "mismatched input '1' expecting {QUOTED_STRING"
                 : "no viable alternative at input 'fn(f1, { 1'";
             String errorMessage2 = cmd.startsWith("dissect") || cmd.startsWith("grok")
                 ? "mismatched input 'string' expecting {QUOTED_STRING"
@@ -2968,7 +2964,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentEmptyMap() {
+    public void testNamedFunctionNamedParametersEmptyMap() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "30"),
             Map.entry("where {}", "27"),
@@ -2982,17 +2978,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
         for (Map.Entry<String, String> command : commands.entrySet()) {
             String cmd = command.getKey();
             String error = command.getValue();
-            String errorMessage = cmd.startsWith("dissect") || cmd.startsWith("grok")
-                ? "mismatched input '}' expecting QUOTED_STRING"
-                : "no viable alternative at input 'fn(f1, {}'";
-            expectError(
-                LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {}})"),
-                LoggerMessageFormat.format(null, "line 1:{}: {}", error, errorMessage)
-            );
+
+            statement(LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {})"));
         }
     }
 
-    public void testNamedFunctionArgumentMapWithNULL() {
+    public void testNamedFunctionNamedParametersMapWithNULL() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3008,17 +2999,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named function argument [\"option\":null], NULL is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"option\":null], NULL is not supported")
             );
         }
     }
 
-    public void testNamedFunctionArgumentMapWithEmptyKey() {
+    public void testNamedFunctionNamedParametersMapWithEmptyKey() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3034,26 +3020,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"\":1})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named function argument [\"\":1], empty key is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"\":1], empty key is not supported")
             );
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"  \":1})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named function argument [\"  \":1], empty key is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"  \":1], empty key is not supported")
             );
         }
     }
 
-    public void testNamedFunctionArgumentMapWithDuplicatedKey() {
+    public void testNamedFunctionNamedParametersMapWithDuplicatedKey() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3073,13 +3049,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Duplicated function arguments with the same name [dup] is not supported"
+                    "Duplicated named parameters with the same name [dup] is not supported"
                 )
             );
         }
     }
 
-    public void testNamedFunctionArgumentInInvalidPositions() {
+    public void testNamedFunctionNamedParametersInInvalidPositions() {
         // negative, named arguments are not supported outside of a functionExpression where booleanExpression or indexPattern is supported
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
@@ -3108,7 +3084,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
+    public void testNamedFunctionNamedParametersWithUnsupportedNamedParameterTypes() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3129,7 +3105,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                    "Invalid named parameter [\"option1\":?n1], only constant value is supported"
                 )
             );
             expectError(
@@ -3139,7 +3115,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                    "Invalid named parameter [\"option1\":?n1], only constant value is supported"
                 )
             );
         }
@@ -3173,7 +3149,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidFromPatterns() {
-        var sourceCommands = Build.current().isSnapshot() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
+        var sourceCommands = EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() ? new String[] { "FROM", "TS" } : new String[] { "FROM" };
         var indexIsBlank = "Blank index specified in index pattern";
         var remoteIsEmpty = "remote part is empty";
         var invalidDoubleColonUsage = "invalid usage of :: separator";
@@ -3295,7 +3271,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPatternWithRemote() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
         var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier());
@@ -3362,13 +3337,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         {
             var fromPatterns = randomIndexPattern();
-            // Generate a syntactically invalid (partial quoted) pattern.
+            // Generate a syntactically invalid (partially quoted) pattern.
             var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
                 "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
-                "expecting UNQUOTED_SOURCE"
+                "no viable alternative at input"
             );
         }
 
@@ -3409,7 +3384,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 joinPattern = unquoteIndexPattern(joinPattern);
                 expectError(
                     "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    "extraneous input ':' expecting UNQUOTED_SOURCE"
+                    "no viable alternative at input "
                 );
             }
             {
@@ -3449,7 +3424,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // partially quoted.
                 expectError(
                     "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    " mismatched input ':' expecting UNQUOTED_SOURCE"
+                    "no viable alternative at input"
                 );
             }
         }
@@ -3577,7 +3552,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
-               ( COMPLETION a = b WITH c )
+               ( COMPLETION a=b WITH { "inference_id": "c" } )
             | KEEP a
             """;
 
@@ -3614,7 +3589,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( LOOKUP JOIN idx2 ON f1 )
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
-               ( COMPLETION a = b WITH c )
+               ( COMPLETION a=b WITH { "inference_id": "c" } )
                ( SAMPLE 0.99 )
             | KEEP a
             """;
@@ -3645,18 +3620,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | FORK (where true) (where true) (where true) (where true)
                    (where true) (where true) (where true) (where true)
                    (where true)
-            """, "Fork requires less than 8 branches");
+            """, "Fork supports up to 8 branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");
         expectError("FROM foo* | FORK (where true) ()", "line 1:32: mismatched input ')'");
         expectError("FROM foo* | FORK () (where true)", "line 1:19: mismatched input ')'");
 
-        var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
-        expectError(
-            "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
-            "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
-        );
+        if (EsqlCapabilities.Cap.ENABLE_FORK_FOR_REMOTE_INDICES.isEnabled() == false) {
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+            expectError(
+                "FROM " + fromPatterns + " | FORK (EVAL a = 1) (EVAL a = 2)",
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with FORK"
+            );
+        }
     }
 
     public void testFieldNamesAsCommands() throws Exception {
@@ -3708,8 +3685,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankDefaultInferenceIdAndScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         var plan = processingCommand("RERANK \"query text\" ON title");
         var rerank = as(plan, Rerank.class);
 
@@ -3719,22 +3694,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
 
-    public void testRerankInferenceId() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId");
+    public void testRerankEmptyOptions() {
+        var plan = processingCommand("RERANK \"query text\" ON title WITH {}");
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
-        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
-    public void testRerankQuotedInferenceId() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=\"inferenceId\"");
+    public void testRerankInferenceId() {
+        var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3744,21 +3715,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=rerank_score");
-        var rerank = as(plan, Rerank.class);
-
-        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
-        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
-        assertThat(rerank.queryText(), equalTo(literalString("query text")));
-        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
-    }
-
-    public void testRerankQuotedScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH scoreColumn=\"rerank_score\"");
+        var plan = processingCommand("RERANK rerank_score=\"query text\" ON title");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
@@ -3768,9 +3725,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankInferenceIdAnddScoreAttribute() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceId, scoreColumn=rerank_score");
+        var plan = processingCommand("RERANK rerank_score=\"query text\" ON title WITH { \"inference_id\" : \"inferenceId\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.inferenceId(), equalTo(literalString("inferenceId")));
@@ -3780,9 +3735,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankSingleField() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title WITH inferenceId=inferenceID");
+        var plan = processingCommand("RERANK \"query text\" ON title WITH { \"inference_id\" : \"inferenceID\" }");
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3792,9 +3745,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankMultipleFields() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH inferenceId=inferenceID");
+        var plan = processingCommand(
+            "RERANK \"query text\" ON title, description, authors_renamed=authors WITH { \"inference_id\" : \"inferenceID\" }"
+        );
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3813,11 +3766,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFields() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var plan = processingCommand(
-            "RERANK \"query text\" ON title, short_description = SUBSTRING(description, 0, 100) WITH inferenceId=inferenceID"
-        );
+        var plan = processingCommand("""
+            RERANK "query text" ON title, short_description = SUBSTRING(description, 0, 100) WITH { "inference_id": "inferenceID" }
+            """);
         var rerank = as(plan, Rerank.class);
 
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
@@ -3834,14 +3785,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
     }
 
-    public void testRerankWithPositionalParameters() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var queryParams = new QueryParams(
-            List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker"), paramAsConstant(null, "rerank_score"))
+    public void testRerankComputedFieldsWithoutName() {
+        // Unnamed alias are forbidden
+        expectError(
+            "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
+            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
         );
+    }
+
+    public void testRerankWithPositionalParameters() {
+        var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
         var rerank = as(
-            parser.createStatement("row a = 1 | RERANK ? ON title WITH inferenceId=?, scoreColumn=? ", queryParams, EsqlTestUtils.TEST_CFG),
+            parser.createStatement(
+                "row a = 1 | RERANK rerank_score = ? ON title WITH { \"inference_id\" : ? }",
+                queryParams,
+                EsqlTestUtils.TEST_CFG
+            ),
             Rerank.class
         );
 
@@ -3852,18 +3811,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankWithNamedParameters() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-
-        var queryParams = new QueryParams(
-            List.of(
-                paramAsConstant("queryText", "query text"),
-                paramAsConstant("inferenceId", "reranker"),
-                paramAsConstant("scoreColumnName", "rerank_score")
-            )
-        );
+        var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
         var rerank = as(
             parser.createStatement(
-                "row a = 1 | RERANK ?queryText ON title WITH inferenceId=?inferenceId, scoreColumn=?scoreColumnName",
+                "row a = 1 | RERANK rerank_score=?queryText ON title WITH { \"inference_id\": ?inferenceId }",
                 queryParams,
                 EsqlTestUtils.TEST_CFG
             ),
@@ -3873,22 +3824,49 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.queryText(), equalTo(literalString("query text")));
         assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("rerank_score")));
     }
 
     public void testInvalidRerank() {
-        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
-        expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING");
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": 3 }",
+            "line 1:65: Option [inference_id] must be a valid string, found [3]"
+        );
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
+            "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+        );
+        expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         expectError(
-            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH inferenceId=inferenceId",
+            "FROM " + fromPatterns + " | RERANK \"query text\" ON title WITH { \"inference_id\" : \"inference_id\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with RERANK"
+        );
+
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": { \"a\": 123 } }",
+            "Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
+        );
+    }
+
+    public void testCompletionMissingOptions() {
+        expectError("FROM foo* | COMPLETION targetField = prompt", "line 1:44: Missing mandatory option [inference_id] in COMPLETION");
+    }
+
+    public void testCompletionEmptyOptions() {
+        expectError(
+            "FROM foo* | COMPLETION targetField = prompt WITH { }",
+            "line 1:45: Missing mandatory option [inference_id] in COMPLETION"
         );
     }
 
     public void testCompletionUsingFieldAsPrompt() {
-        var plan = as(processingCommand("COMPLETION targetField=prompt_field WITH inferenceID"), Completion.class);
+        var plan = as(
+            processingCommand("COMPLETION targetField=prompt_field WITH{ \"inference_id\" : \"inferenceID\" }"),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3896,7 +3874,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionUsingFunctionAsPrompt() {
-        var plan = as(processingCommand("COMPLETION targetField=CONCAT(fieldA, fieldB) WITH inferenceID"), Completion.class);
+        var plan = as(
+            processingCommand("COMPLETION targetField=CONCAT(fieldA, fieldB) WITH { \"inference_id\" : \"inferenceID\" }"),
+            Completion.class
+        );
 
         assertThat(plan.prompt(), equalTo(function("CONCAT", List.of(attribute("fieldA"), attribute("fieldB")))));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3904,7 +3885,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionDefaultFieldName() {
-        var plan = as(processingCommand("COMPLETION prompt_field WITH inferenceID"), Completion.class);
+        var plan = as(processingCommand("COMPLETION prompt_field WITH{ \"inference_id\" : \"inferenceID\" }"), Completion.class);
 
         assertThat(plan.prompt(), equalTo(attribute("prompt_field")));
         assertThat(plan.inferenceId(), equalTo(literalString("inferenceID")));
@@ -3914,7 +3895,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithPositionalParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "inferenceId")));
         var plan = as(
-            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?", queryParams, EsqlTestUtils.TEST_CFG),
+            parser.createStatement(
+                "row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ? }",
+                queryParams,
+                EsqlTestUtils.TEST_CFG
+            ),
             Completion.class
         );
 
@@ -3926,7 +3911,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testCompletionWithNamedParameters() {
         var queryParams = new QueryParams(List.of(paramAsConstant("inferenceId", "myInference")));
         var plan = as(
-            parser.createStatement("row a = 1 | COMPLETION prompt_field WITH ?inferenceId", queryParams, EsqlTestUtils.TEST_CFG),
+            parser.createStatement(
+                "row a = 1 | COMPLETION prompt_field WITH { \"inference_id\" : ?inferenceId }",
+                queryParams,
+                EsqlTestUtils.TEST_CFG
+            ),
             Completion.class
         );
 
@@ -3936,16 +3925,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCompletion() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": 3 }",
+            "line 1:54: Option [inference_id] must be a valid string, found [3]"
+        );
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
+            "line 1:31: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
+        );
+
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
-        expectError("FROM foo* | COMPLETION completion=prompt WITH", "line 1:46: mismatched input '<EOF>' expecting {");
-
-        expectError("FROM foo* | COMPLETION completion=prompt", "line 1:41: mismatched input '<EOF>' expecting {");
+        expectError("FROM foo* | COMPLETION completion=prompt WITH", "ine 1:46: mismatched input '<EOF>' expecting '{'");
 
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         expectError(
-            "FROM " + fromPatterns + " | COMPLETION prompt_field WITH inferenceId",
+            "FROM " + fromPatterns + " | COMPLETION prompt_field WITH { \"inference_id\" : \"inference_id\" }",
             "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported with COMPLETION"
+        );
+
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": { \"a\": 123 } }",
+            "line 1:54: Option [inference_id] must be a valid string, found [{ \"a\": 123 }]"
         );
     }
 
@@ -3969,7 +3970,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -3978,22 +3979,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 | FUSE
             """);
 
-        var dedup = as(plan, Dedup.class);
-        assertThat(dedup.groupings().size(), equalTo(2));
-        assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
-        assertThat(dedup.groupings().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(dedup.groupings().get(1).name(), equalTo("_index"));
-        assertThat(dedup.aggregates().size(), equalTo(1));
-        assertThat(dedup.aggregates().get(0), instanceOf(Alias.class));
+        var fuse = as(plan, Fuse.class);
+        assertThat(fuse.groupings().size(), equalTo(2));
+        assertThat(fuse.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.groupings().get(0).name(), equalTo("_id"));
+        assertThat(fuse.groupings().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.groupings().get(1).name(), equalTo("_index"));
+        assertThat(fuse.discriminator().name(), equalTo("_fork"));
+        assertThat(fuse.score().name(), equalTo("_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
 
-        var rrfScoreEval = as(dedup.child(), RrfScoreEval.class);
-        assertThat(rrfScoreEval.scoreAttribute(), instanceOf(UnresolvedAttribute.class));
-        assertThat(rrfScoreEval.scoreAttribute().name(), equalTo("_score"));
-        assertThat(rrfScoreEval.forkAttribute(), instanceOf(UnresolvedAttribute.class));
-        assertThat(rrfScoreEval.forkAttribute().name(), equalTo("_fork"));
+        assertThat(fuse.child(), instanceOf(Fork.class));
+    }
 
-        assertThat(rrfScoreEval.child(), instanceOf(Fork.class));
+    public void testInvalidFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+
+        expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
+
+        expectError(queryPrefix + " | FUSE WITH 1", "line 1:85: mismatched input '1' expecting '{'");
     }
 
     public void testDoubleParamsForIdentifier() {

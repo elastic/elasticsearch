@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -24,9 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
-
-    private final ProjectResolver projectResolver;
+public class TransportGetStoredScriptAction extends TransportMasterNodeReadProjectAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
     @Inject
     public TransportGetStoredScriptAction(
@@ -43,25 +41,25 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetStoredScriptRequest::new,
+            projectResolver,
             GetStoredScriptResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(
         Task task,
         GetStoredScriptRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetStoredScriptResponse> listener
     ) throws Exception {
-        listener.onResponse(new GetStoredScriptResponse(request.id(), ScriptService.getStoredScript(state, request)));
+        listener.onResponse(new GetStoredScriptResponse(request.id(), ScriptService.getStoredScript(state.metadata(), request)));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ);
+    protected ClusterBlockException checkBlock(GetStoredScriptRequest request, ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
 }

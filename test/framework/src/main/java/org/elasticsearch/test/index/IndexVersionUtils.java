@@ -45,12 +45,12 @@ public class IndexVersionUtils {
 
     /** Returns a random {@link IndexVersion} from all available versions. */
     public static IndexVersion randomVersion() {
-        return VersionUtils.randomFrom(random(), ALL_VERSIONS, IndexVersion::fromId);
+        return VersionUtils.randomFrom(random(), ALL_VERSIONS);
     }
 
     /** Returns a random {@link IndexVersion} from all versions that can be written to. */
     public static IndexVersion randomWriteVersion() {
-        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS, IndexVersion::fromId);
+        return VersionUtils.randomFrom(random(), ALL_WRITE_VERSIONS);
     }
 
     /** Returns a random {@link IndexVersion} from all available versions without the ignore set */
@@ -78,7 +78,7 @@ public class IndexVersionUtils {
             versions = versions.headSet(maxVersion, true);
         }
 
-        return VersionUtils.randomFrom(random, versions, IndexVersion::fromId);
+        return VersionUtils.randomFrom(random, versions);
     }
 
     public static IndexVersion getPreviousVersion() {

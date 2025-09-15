@@ -14,10 +14,16 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,11 +41,6 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
             final byte b = randomByte();
 
             @Override
-            public int size() {
-                return 1;
-            }
-
-            @Override
             public void applyToBuilder(BreakingBytesRefBuilder builder) {
                 builder.append(b);
             }
@@ -54,11 +55,6 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
     public void testAddBytesRef() {
         testAgainstOracle(() -> new TestIteration() {
             final BytesRef ref = new BytesRef(randomAlphaOfLengthBetween(1, 100));
-
-            @Override
-            public int size() {
-                return ref.length;
-            }
 
             @Override
             public void applyToBuilder(BreakingBytesRefBuilder builder) {
@@ -91,11 +87,6 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
             final byte b = randomByte();
 
             @Override
-            public int size() {
-                return length;
-            }
-
-            @Override
             public void applyToBuilder(BreakingBytesRefBuilder builder) {
                 builder.grow(builder.length() + length);
                 builder.bytes()[builder.length()] = b;
@@ -111,9 +102,90 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
         });
     }
 
-    interface TestIteration {
-        int size();
+    public void testStream() {
+        testAgainstOracle(() -> switch (between(0, 3)) {
+            case 0 -> new XContentTestIteration() {
+                @Override
+                protected void apply(XContentBuilder builder) throws IOException {
+                    // Noop
+                }
 
+                @Override
+                public String toString() {
+                    return "noop";
+                }
+            };
+            case 1 -> new XContentTestIteration() {
+                private final String value = randomAlphanumericOfLength(10);
+
+                @Override
+                protected void apply(XContentBuilder builder) throws IOException {
+                    builder.value(value);
+                }
+
+                @Override
+                public String toString() {
+                    return '"' + value + '"';
+                }
+            };
+            case 2 -> new XContentTestIteration() {
+                private final long value = randomLong();
+
+                @Override
+                protected void apply(XContentBuilder builder) throws IOException {
+                    builder.value(value);
+                }
+
+                @Override
+                public String toString() {
+                    return Long.toString(value);
+                }
+            };
+            case 3 -> new XContentTestIteration() {
+                private final String name = randomAlphanumericOfLength(5);
+                private final String value = randomAlphanumericOfLength(5);
+
+                @Override
+                protected void apply(XContentBuilder builder) throws IOException {
+                    builder.startObject().field(name, value).endObject();
+                }
+
+                @Override
+                public String toString() {
+                    return name + ": " + value;
+                }
+            };
+            default -> throw new UnsupportedOperationException();
+        });
+    }
+
+    private abstract static class XContentTestIteration implements TestIteration {
+        protected abstract void apply(XContentBuilder builder) throws IOException;
+
+        @Override
+        public void applyToBuilder(BreakingBytesRefBuilder builder) {
+            applyToStream(builder.stream());
+        }
+
+        @Override
+        public void applyToOracle(BytesRefBuilder oracle) {
+            BytesRefStreamOutput out = new BytesRefStreamOutput();
+            applyToStream(out);
+            oracle.append(out.get());
+        }
+
+        private void applyToStream(StreamOutput out) {
+            try {
+                try (XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, out)) {
+                    apply(builder);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    interface TestIteration {
         void applyToBuilder(BreakingBytesRefBuilder builder);
 
         void applyToOracle(BytesRefBuilder oracle);
@@ -131,7 +203,11 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
             assertThat(builder.bytesRefView(), equalTo(oracle.get()));
             while (true) {
                 TestIteration iteration = iterations.get();
-                int targetSize = builder.length() + iteration.size();
+
+                int prevOracle = oracle.length();
+                iteration.applyToOracle(oracle);
+                int size = oracle.length() - prevOracle;
+                int targetSize = builder.length() + size;
                 boolean willResize = targetSize >= builder.bytes().length;
                 if (willResize) {
                     long resizeMemoryUsage = BreakingBytesRefBuilder.SHALLOW_SIZE + ramForArray(builder.bytes().length);
@@ -143,7 +219,6 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
                     }
                 }
                 iteration.applyToBuilder(builder);
-                iteration.applyToOracle(oracle);
                 assertThat(builder.bytesRefView(), equalTo(oracle.get()));
                 assertThat(
                     builder.ramBytesUsed(),

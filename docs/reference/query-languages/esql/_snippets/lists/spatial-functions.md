@@ -10,3 +10,6 @@
   * [preview] [`ST_XMIN`](../../functions-operators/spatial-functions.md#esql-st_xmin)
   * [preview] [`ST_YMAX`](../../functions-operators/spatial-functions.md#esql-st_ymax)
   * [preview] [`ST_YMIN`](../../functions-operators/spatial-functions.md#esql-st_ymin)
+* [preview] [`ST_GEOTILE`](../../functions-operators/spatial-functions.md#esql-st_geotile)
+* [preview] [`ST_GEOHEX`](../../functions-operators/spatial-functions.md#esql-st_geohex)
+* [preview] [`ST_GEOHASH`](../../functions-operators/spatial-functions.md#esql-st_geohash)

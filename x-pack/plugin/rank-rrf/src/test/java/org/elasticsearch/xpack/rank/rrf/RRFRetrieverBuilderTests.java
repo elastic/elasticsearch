@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,8 +41,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests for the rrf retriever. */
 public class RRFRetrieverBuilderTests extends ESTestCase {
@@ -59,7 +63,17 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(
-                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                        new QueryRewriteContext(
+                            parserConfig(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
+                            null
+                        )
                     )
             );
             assertEquals("[search_after] cannot be used in children of compound retrievers", iae.getMessage());
@@ -77,11 +91,76 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
                 IllegalArgumentException.class,
                 () -> ssb.parseXContent(parser, true, nf -> true)
                     .rewrite(
-                        new QueryRewriteContext(parserConfig(), null, null, null, new PointInTimeBuilder(new BytesArray("pitid")), null)
+                        new QueryRewriteContext(
+                            parserConfig(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            new PointInTimeBuilder(new BytesArray("pitid")),
+                            null,
+                            null
+                        )
                     )
             );
             assertEquals("[terminate_after] cannot be used in children of compound retrievers", iae.getMessage());
         }
+    }
+
+    public void testRRFRetrieverParsingSyntax() throws IOException {
+        BiConsumer<String, float[]> testCase = (json, expectedWeights) -> {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+                assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+                RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+                assertArrayEquals(expectedWeights, rrf.weights(), 0.001f);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+
+        String legacyJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "standard": { "query": { "match_all": {} } } },
+                    { "standard": { "query": { "match_all": {} } } }
+                  ]
+                }
+              }
+            }
+            """;
+        testCase.accept(legacyJson, new float[] { 1.0f, 1.0f });
+
+        String weightedJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 2.5 },
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 0.5 }
+                  ]
+                }
+              }
+            }
+            """;
+        testCase.accept(weightedJson, new float[] { 2.5f, 0.5f });
+
+        String mixedJson = """
+            {
+              "retriever": {
+                "rrf_nl": {
+                  "retrievers": [
+                    { "standard": { "query": { "match_all": {} } } },
+                    { "retriever": { "standard": { "query": { "match_all": {} } } }, "weight": 0.6 }
+                  ]
+                }
+              }
+            }
+            """;
+        testCase.accept(mixedJson, new float[] { 1.0f, 0.6f });
     }
 
     public void testMultiFieldsParamsRewrite() {
@@ -92,8 +171,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -103,7 +185,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -119,7 +202,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2,
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -135,7 +219,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("field_*", "*_field_1"),
             "bar",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -151,7 +236,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             List.of("*"),
             "baz",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -172,8 +258,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             parserConfig(),
             null,
             null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
             null
         );
 
@@ -182,7 +271,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             null,
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
         );
 
         IllegalArgumentException iae = expectThrows(

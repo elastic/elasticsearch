@@ -32,7 +32,6 @@ import java.io.StringReader;
 import java.lang.ref.SoftReference;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -356,11 +355,15 @@ public final class XmlProcessor extends AbstractProcessor {
         boolean hasNamespaces = namespaces.isEmpty() == false;
         if (hasNamespaces) {
             // build a read-only reverse map for quick look up
-            Map<String, Set<String>> uriToPrefixes = new HashMap<>();
-            for (Map.Entry<String, String> entry : namespaces.entrySet()) {
-                uriToPrefixes.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey());
+            final Map<String, Set<String>> uriToPrefixes;
+            {
+                Map<String, Set<String>> innerUriToPrefixes = new HashMap<>();
+                for (Map.Entry<String, String> entry : namespaces.entrySet()) {
+                    innerUriToPrefixes.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey());
+                }
+                innerUriToPrefixes.replaceAll((k, v) -> Set.copyOf(v));
+                uriToPrefixes = Map.copyOf(innerUriToPrefixes);
             }
-            uriToPrefixes.replaceAll((k, v) -> Collections.unmodifiableSet(v));
 
             xpath.setNamespaceContext(new NamespaceContext() {
                 @Override

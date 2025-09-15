@@ -138,9 +138,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
         final Client client,
         final ActionListener<List<SnapshotInfo>> listener
     ) {
-        var snapshotIds = findCompletedRegisteredSnapshotNames(projectState, policyId);
+        var snapshotNames = findCompletedRegisteredSnapshotNames(projectState, policyId);
 
-        if (snapshotIds.isEmpty() == false) {
+        if (snapshotNames.isEmpty() == false) {
             var policyMetadata = getSnapPolicyMetadataById(projectState.metadata(), policyId);
             if (policyMetadata.isPresent() == false) {
                 listener.onFailure(new IllegalStateException(format("snapshot lifecycle policy [%s] no longer exists", policyId)));
@@ -151,7 +151,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             GetSnapshotsRequest request = new GetSnapshotsRequest(
                 TimeValue.MAX_VALUE,    // do not time out internal request in case of slow master node
                 new String[] { policy.getRepository() },
-                snapshotIds.toArray(new String[0])
+                snapshotNames.toArray(new String[0])
             );
             request.ignoreUnavailable(true);
             request.includeIndexNames(false);

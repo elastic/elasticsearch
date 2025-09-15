@@ -29,6 +29,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -291,7 +293,19 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void testStoreParameterDefaults() throws IOException {
+    public void test_store_parameter_defaults_to_false_in_latest_index_version_when_synthetic_source_is_enabled() throws IOException {
+        // given
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "annotated_text"); }));
+
+        // when
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
+
+        // then
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertFalse(fields.getFirst().fieldType().stored());
+    }
+
+    public void testStoreParameterDefaultsBwc() throws IOException {
         var timeSeriesIndexMode = randomBoolean();
         var isStored = randomBoolean();
         var hasKeywordFieldForSyntheticSource = randomBoolean();
@@ -330,7 +344,9 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
             }
         });
-        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        IndexVersion bwcIndexVersion = IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED;
+        DocumentMapper mapper = createMapperService(bwcIndexVersion, indexSettings, () -> true, mapping).documentMapper();
 
         var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");

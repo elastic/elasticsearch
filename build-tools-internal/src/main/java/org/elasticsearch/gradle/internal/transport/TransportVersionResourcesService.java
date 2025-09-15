@@ -108,6 +108,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return readDefinitions(transportResourcesDir.resolve(REFERABLE_DIR), true);
     }
 
+    /** Return a single referable definition by name */
+    TransportVersionDefinition getReferableDefinition(String name) throws IOException {
+        Path resourcePath = transportResourcesDir.resolve(getReferableDefinitionRelativePath(name));
+        return TransportVersionDefinition.fromString(resourcePath, Files.readString(resourcePath, StandardCharsets.UTF_8));
+    }
+
     /** Get a referable definition from upstream if it exists there, or null otherwise */
     TransportVersionDefinition getReferableDefinitionFromUpstream(String name) {
         Path resourcePath = getDefinitionRelativePath(name, true);
@@ -206,10 +212,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Write the given upper bound to a file in the transport resources */
-    void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
+    void writeUpperBound(TransportVersionUpperBound upperBound, boolean stageInGit) throws IOException {
         Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.name()));
         logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
         Files.writeString(path, upperBound.definitionName() + "," + upperBound.definitionId().complete() + "\n", StandardCharsets.UTF_8);
+
+        if (stageInGit) {
+            gitCommand("add", path.toString());
+        }
     }
 
     /** Return the path within the repository of the given latest */

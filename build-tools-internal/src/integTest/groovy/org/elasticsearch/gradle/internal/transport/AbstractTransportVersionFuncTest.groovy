@@ -122,7 +122,7 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             apply plugin: 'elasticsearch.transport-version-references'
             apply plugin: 'elasticsearch.transport-version-resources'
 
-            tasks.named('generateTransportVersionDefinition') {
+            tasks.named('generateTransportVersion') {
                 currentUpperBoundName = '9.2'
             }
         """

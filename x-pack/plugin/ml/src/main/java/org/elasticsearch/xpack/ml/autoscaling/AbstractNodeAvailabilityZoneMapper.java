@@ -11,8 +11,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -24,13 +23,17 @@ public abstract class AbstractNodeAvailabilityZoneMapper implements ClusterState
     private volatile Map<List<String>, Collection<DiscoveryNode>> allNodesByAvailabilityZone;
     private volatile Map<List<String>, Collection<DiscoveryNode>> mlNodesByAvailabilityZone;
 
-    public AbstractNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings) {
-        this(settings, clusterSettings, null);
-    }
-
-    public AbstractNodeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
+    public AbstractNodeAvailabilityZoneMapper(@Nullable DiscoveryNodes discoveryNodes) {
         lastDiscoveryNodes = discoveryNodes;
     }
+
+    /**
+     * Build a node by zone map for all nodes in the cluster and
+     * for just the ml nodes.
+     * @param discoveryNodes All the nodes in the cluster
+     * @return All nodes by zone and ml nodes by zone.
+     */
+    protected abstract NodesByAvailabilityZone buildNodesByAvailabilityZone(Collection<DiscoveryNode> discoveryNodes);
 
     /**
      * @return A map whose keys are lists of attributes that together define an availability zone, and whose values are
@@ -86,7 +89,7 @@ public abstract class AbstractNodeAvailabilityZoneMapper implements ClusterState
             mlNodesByAvailabilityZone = allNodesByAvailabilityZone;
             return;
         }
-        NodesByAvailabilityZone nodesByAvailabilityZone = buildNodesByAvailabilityZone(lastDiscoveryNodes);
+        NodesByAvailabilityZone nodesByAvailabilityZone = buildNodesByAvailabilityZone(lastDiscoveryNodes.getAllNodes());
         this.allNodesByAvailabilityZone = nodesByAvailabilityZone.allNodes();
         this.mlNodesByAvailabilityZone = nodesByAvailabilityZone.mlNodes();
     }

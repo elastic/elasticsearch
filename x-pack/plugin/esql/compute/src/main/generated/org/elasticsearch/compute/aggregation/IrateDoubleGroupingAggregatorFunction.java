@@ -36,16 +36,20 @@ public final class IrateDoubleGroupingAggregatorFunction implements GroupingAggr
 
   private final DriverContext driverContext;
 
+  private final boolean isDelta;
+
   public IrateDoubleGroupingAggregatorFunction(List<Integer> channels,
-      IrateDoubleAggregator.DoubleIrateGroupingState state, DriverContext driverContext) {
+      IrateDoubleAggregator.DoubleIrateGroupingState state, DriverContext driverContext,
+      boolean isDelta) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.isDelta = isDelta;
   }
 
   public static IrateDoubleGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new IrateDoubleGroupingAggregatorFunction(channels, IrateDoubleAggregator.initGrouping(driverContext), driverContext);
+      DriverContext driverContext, boolean isDelta) {
+    return new IrateDoubleGroupingAggregatorFunction(channels, IrateDoubleAggregator.initGrouping(driverContext, isDelta), driverContext, isDelta);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

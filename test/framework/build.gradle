@@ -10,6 +10,16 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+configurations {
+  // we do not wanto expose the inheritedly conflict in transitive dependencies by
+  // bringing in different versions of junit, hamcrest and randomizedtesting
+  // so we exclude them here and re-declare the versions we want below
+  // to keep the example build happy that does not align transitive dependencies.
+  //
+  runtimeElements {
+    transitive = false
+  }
+}
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')

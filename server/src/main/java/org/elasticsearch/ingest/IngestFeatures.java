@@ -9,7 +9,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
@@ -21,11 +20,7 @@ public class IngestFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            return Set.of(IngestService.FIELD_ACCESS_PATTERN);
-        } else {
-            return Set.of();
-        }
+        return Set.of(IngestService.FIELD_ACCESS_PATTERN);
     }
 
     @Override

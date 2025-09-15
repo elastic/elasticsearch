@@ -113,7 +113,7 @@ public interface SearchStats {
      * A default implementat that throws {@link UnsupportedOperationException} on all methods. Implemetors can override only the methods
      * they <i>know</i> would be called.
      */
-    abstract class UnsupportedSearchStates implements SearchStats {
+    abstract class UnsupportedSearchStats implements SearchStats {
         @Override
         public boolean exists(FieldName field) {
             throw new UnsupportedOperationException();

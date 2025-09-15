@@ -382,15 +382,79 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             frozenIndexCheck(resolvedIndices);
         }
 
+        final SearchSourceBuilder source = original.source();
+        if (shouldOpenPIT(source)) {
+            // disabling shard reordering for request
+            original.setPreFilterShardSize(Integer.MAX_VALUE);
+            openPIT(
+                client,
+                original,
+                searchService.getDefaultKeepAliveInMillis(),
+                originalListener.delegateFailureAndWrap((delegate, resp) -> {
+                    // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
+                    // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
+                    source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
+                    var pitListener = new ActionListener<SearchResponse>() {
+                        @Override
+                        public void onResponse(SearchResponse response) {
+                            // we need to close the PIT first so we delay the release of the response to after the closing
+                            response.incRef();
+                            closePIT(
+                                client,
+                                original.source().pointInTimeBuilder(),
+                                () -> ActionListener.respondAndRelease(delegate, response)
+                            );
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
+                        }
+                    };
+                    executeRequest(task, original, pitListener, searchPhaseProvider, true);
+                })
+            );
+            return;
+        }
+
         ActionListener<SearchRequest> rewriteListener = originalListener.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(rewritten);
             }
 
-            final CCSUsage.Builder ccsUsageBuilder = new CCSUsage.Builder();
-            final ActionListener<SearchResponse> searchResponseActionListener = collectSearchTelemetry
-                ? new SearchTelemetryListener(delegate, ccsUsageBuilder, searchResponseMetrics, usageService, collectCCSTelemetry)
-                : delegate;
+            final ActionListener<SearchResponse> searchResponseActionListener;
+            if (collectSearchTelemetry) {
+                if (collectCCSTelemetry == false || resolvedIndices.getRemoteClusterIndices().isEmpty()) {
+                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics);
+                } else {
+                    CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
+                    usageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
+                    usageBuilder.setClientFromTask(task);
+                    if (task.isAsync()) {
+                        usageBuilder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
+                    }
+                    if (original.pointInTimeBuilder() != null) {
+                        usageBuilder.setFeature(CCSUsageTelemetry.PIT_FEATURE);
+                    }
+                    // Check if any of the index patterns are wildcard patterns
+                    var localIndices = resolvedIndices.getLocalIndices();
+                    if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
+                        usageBuilder.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                    }
+                    if (resolvedIndices.getRemoteClusterIndices()
+                        .values()
+                        .stream()
+                        .anyMatch(indices -> Arrays.stream(indices.indices()).anyMatch(Regex::isSimpleMatchPattern))) {
+                        usageBuilder.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
+                    }
+                    if (shouldMinimizeRoundtrips(rewritten)) {
+                        usageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
+                    }
+                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, usageService, usageBuilder);
+                }
+            } else {
+                searchResponseActionListener = delegate;
+            }
 
             if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
                 executeLocalSearch(
@@ -403,30 +467,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchPhaseProvider.apply(searchResponseActionListener)
                 );
             } else {
-                ccsUsageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
-                if (task.isAsync()) {
-                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
-                }
-                if (original.pointInTimeBuilder() != null) {
-                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.PIT_FEATURE);
-                }
-                ccsUsageBuilder.setClientFromTask(task);
-                // Check if any of the index patterns are wildcard patterns
-                var localIndices = resolvedIndices.getLocalIndices();
-                if (localIndices != null && Arrays.stream(localIndices.indices()).anyMatch(Regex::isSimpleMatchPattern)) {
-                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
-                }
-                if (resolvedIndices.getRemoteClusterIndices()
-                    .values()
-                    .stream()
-                    .anyMatch(indices -> Arrays.stream(indices.indices()).anyMatch(Regex::isSimpleMatchPattern))) {
-                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.WILDCARD_FEATURE);
-                }
-
                 final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    ccsUsageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
-
                     final AggregationReduceContext.Builder aggregationReduceContextBuilder = rewritten.source() != null
                         && rewritten.source().aggregations() != null
                             ? searchService.aggReduceContextBuilder(task::isCancelled, rewritten.source().aggregations())
@@ -530,54 +572,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         });
 
-        final SearchSourceBuilder source = original.source();
         final boolean isExplain = source != null && source.explain() != null && source.explain();
-        if (shouldOpenPIT(source)) {
-            // disabling shard reordering for request
-            original.setPreFilterShardSize(Integer.MAX_VALUE);
-            openPIT(
-                client,
-                original,
-                searchService.getDefaultKeepAliveInMillis(),
-                originalListener.delegateFailureAndWrap((delegate, resp) -> {
-                    // We set the keep alive to -1 to indicate that we don't need the pit id in the response.
-                    // This is needed since we delete the pit prior to sending the response so the id doesn't exist anymore.
-                    source.pointInTimeBuilder(new PointInTimeBuilder(resp.getPointInTimeId()).setKeepAlive(TimeValue.MINUS_ONE));
-                    var pitListener = new ActionListener<SearchResponse>() {
-                        @Override
-                        public void onResponse(SearchResponse response) {
-                            // we need to close the PIT first so we delay the release of the response to after the closing
-                            response.incRef();
-                            closePIT(
-                                client,
-                                original.source().pointInTimeBuilder(),
-                                () -> ActionListener.respondAndRelease(delegate, response)
-                            );
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            closePIT(client, original.source().pointInTimeBuilder(), () -> delegate.onFailure(e));
-                        }
-                    };
-                    executeRequest(task, original, pitListener, searchPhaseProvider, true);
-                })
-            );
-        } else {
-            Rewriteable.rewriteAndFetch(
-                original,
-                searchService.getRewriteContext(
-                    timeProvider::absoluteStartMillis,
-                    clusterState.getMinTransportVersion(),
-                    original.getLocalClusterAlias(),
-                    resolvedIndices,
-                    original.pointInTimeBuilder(),
-                    shouldMinimizeRoundtrips(original),
-                    isExplain
-                ),
-                rewriteListener
-            );
-        }
+        Rewriteable.rewriteAndFetch(
+            original,
+            searchService.getRewriteContext(
+                timeProvider::absoluteStartMillis,
+                clusterState.getMinTransportVersion(),
+                original.getLocalClusterAlias(),
+                resolvedIndices,
+                original.pointInTimeBuilder(),
+                shouldMinimizeRoundtrips(original),
+                isExplain
+            ),
+            rewriteListener
+        );
     }
 
     /**
@@ -2030,23 +2038,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         SearchTelemetryListener(
             ActionListener<SearchResponse> listener,
-            CCSUsage.Builder usageBuilder,
             SearchResponseMetrics searchResponseMetrics,
             UsageService usageService,
-            boolean collectCCSTelemetry
+            CCSUsage.Builder usageBuilder
         ) {
             super(listener);
-            this.usageBuilder = usageBuilder;
             this.searchResponseMetrics = searchResponseMetrics;
+            this.collectCCSTelemetry = true;
             this.usageService = usageService;
-            this.collectCCSTelemetry = collectCCSTelemetry;
+            this.usageBuilder = usageBuilder;
         }
 
-        /**
-         * Should we collect telemetry for this search?
-         */
-        private boolean collectCCSTelemetry() {
-            return collectCCSTelemetry && usageBuilder.getRemotesCount() > 0;
+        SearchTelemetryListener(ActionListener<SearchResponse> listener, SearchResponseMetrics searchResponseMetrics) {
+            super(listener);
+            this.searchResponseMetrics = searchResponseMetrics;
+            this.collectCCSTelemetry = false;
+            this.usageService = null;
+            this.usageBuilder = null;
         }
 
         @Override
@@ -2072,7 +2080,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
                 searchResponseMetrics.incrementResponseCount(responseCountTotalStatus);
 
-                if (collectCCSTelemetry()) {
+                if (collectCCSTelemetry) {
                     extractCCSTelemetry(searchResponse);
                     recordTelemetry();
                 }
@@ -2087,7 +2095,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onFailure(Exception e) {
             searchResponseMetrics.incrementResponseCount(SearchResponseMetrics.ResponseCountTotalStatus.FAILURE);
-            if (collectCCSTelemetry()) {
+            if (collectCCSTelemetry) {
                 usageBuilder.setFailure(e);
                 recordTelemetry();
             }

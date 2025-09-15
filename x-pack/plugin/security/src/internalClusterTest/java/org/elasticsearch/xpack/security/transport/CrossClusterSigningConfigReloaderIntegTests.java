@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigne
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_TYPE;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_PATH;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEY_SECURE_PASSPHRASE;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTestCase {
 
@@ -196,6 +197,18 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                     .setSecureSettings(new MockSecureSettings())
             );
         }
+    }
+
+    public void testValidationFailsWhenUpdateWithInvalidPath() throws Exception {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> updateClusterSettings(
+                Settings.builder()
+                    .put(SIGNING_CERT_PATH.getConcreteSettingForNamespace("test").getKey(), "/unknown/path")
+                    .put(SIGNING_KEY_PATH.getConcreteSettingForNamespace("test").getKey(), "/unknown/path")
+            )
+        );
+        assertThat(exception.getMessage(), equalTo("File [/unknown/path] configured for remote cluster [test] does no exist"));
     }
 
     private void addAndRemoveClusterConfigsRuntime(

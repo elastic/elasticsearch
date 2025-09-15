@@ -19,6 +19,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
@@ -81,6 +82,19 @@ public class CrossClusterApiKeySigner {
         logger.trace("No valid signing config settings found for [{}] with settings [{}]", clusterAlias, settings);
         signingConfigByClusterAlias.remove(clusterAlias);
         return Optional.empty();
+    }
+
+    public void validateSigningConfigUpdate(String clusterAlias, Settings settings) {
+        if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
+            var keyConfig = CertParsingUtils.createKeyConfig(settings, SETTINGS_PART_SIGNING + ".", environment, false);
+            keyConfig.getDependentFiles().stream().forEach(file -> {
+                if (Files.exists(file) == false) {
+                    throw new IllegalArgumentException(
+                        String.format("File [%s] configured for remote cluster [%s] does no exist", file, clusterAlias)
+                    );
+                }
+            });
+        }
     }
 
     public X509CertificateSignature sign(String clusterAlias, String... headers) {

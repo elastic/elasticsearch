@@ -73,7 +73,23 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
         clusterSettings.addAffixGroupUpdateConsumer(getDynamicSettings(), (key, val) -> {
             reloadConsumer(key, val.getByPrefix("cluster.remote." + key + "."), false);
             logger.info("Updated signing configuration for [{}] due to updated cluster settings", key);
-        });
+        }, this::validateUpdate);
+    }
+
+    private void validateUpdate(String clusterAlias, Settings settings) {
+        try {
+            var apiKeySigner = crossClusterApiKeySignerFuture.get();
+            apiKeySigner.validateSigningConfigUpdate(clusterAlias, settings.getByPrefix("cluster.remote." + clusterAlias + "."));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            throw new ElasticsearchException("Failed to obtain crossClusterApiKeySigner", e);
+        } catch (Exception e) {
+            logger.debug(
+                Strings.format("Failed to update cluster [%s] with settings [%s] due validation error [%s]", clusterAlias, settings, e)
+            );
+            throw e;
+        }
     }
 
     private void reloadConsumer(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {

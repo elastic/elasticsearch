@@ -258,7 +258,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            var value = PatternedTextVsMatchOnlyTextTests.randomMessage();
+            var value = PatternedTextIntegrationTests.randomMessage();
             return Tuple.tuple(value, value);
         }
 

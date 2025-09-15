@@ -380,8 +380,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNode_CallsStopAfterCompletingPendingWork()
-        throws InterruptedException {
+    public void testClusterChanged_WhenAssignmentIsRoutedToShuttingDownNode_CallsStopAfterCompletingPendingWork() throws Exception {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -430,9 +429,11 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
             fail("Failed waiting for the stop process call to complete");
         }
 
-        verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stopParamsCapture.capture());
-        assertThat(stopParamsCapture.getValue().getModelId(), equalTo(modelOne));
-        assertThat(stopParamsCapture.getValue().getDeploymentId(), equalTo(deploymentOne));
+        assertBusy(() -> {
+            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stopParamsCapture.capture());
+            assertThat(stopParamsCapture.getValue().getModelId(), equalTo(modelOne));
+            assertThat(stopParamsCapture.getValue().getDeploymentId(), equalTo(deploymentOne));
+        });
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()
@@ -571,7 +572,7 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
     }
 
-    public void testClusterChanged_WhenNodeDoesNotExistInAssignmentRoutingTable_DoesGracefullyStopTheDeployment() {
+    public void testClusterChanged_WhenNodeDoesNotExistInAssignmentRoutingTable_DoesGracefullyStopTheDeployment() throws Exception {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
         final DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId(NODE_ID).add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID)).build();
         String modelOne = "model-1";
@@ -600,7 +601,9 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
         trainedModelAssignmentNodeService.clusterChanged(event);
 
-        verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any());
+        assertBusy(() -> {
+            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(any());
+        });
         // This still shouldn't trigger a cluster state update because the routing entry wasn't in the table so we won't add a new routing
         // entry for stopping
         verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
@@ -762,7 +765,9 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
 
         assertBusy(() -> {
             ArgumentCaptor<TrainedModelDeploymentTask> stoppedTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-            verify(deploymentManager, times(1)).stopDeployment(stoppedTaskCapture.capture());
+            // deployment-2 was originally started on node NODE_ID but in the latest cluster event it is no longer on that node so we will
+            // gracefully stop it
+            verify(deploymentManager, times(1)).stopAfterCompletingPendingWork(stoppedTaskCapture.capture());
             assertThat(stoppedTaskCapture.getAllValues().get(0).getDeploymentId(), equalTo(deploymentTwo));
         });
         ArgumentCaptor<TrainedModelDeploymentTask> startTaskCapture = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);

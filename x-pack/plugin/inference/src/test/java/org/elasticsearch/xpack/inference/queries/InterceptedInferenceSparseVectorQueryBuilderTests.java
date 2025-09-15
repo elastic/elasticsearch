@@ -82,7 +82,8 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
             assertThat(intercepted.inferenceResultsMap.size(), equalTo(1));
         } else {
             // Rewrite using the query rewrite context to populate the inference results
-            QueryBuilder expectedLegacyIntercepted = new BwCSemanticSparseVectorQueryRewriteInterceptor().interceptAndRewrite(
+            @SuppressWarnings("deprecation")
+            QueryBuilder expectedLegacyIntercepted = new LegacySemanticSparseVectorQueryRewriteInterceptor().interceptAndRewrite(
                 queryRewriteContext,
                 original
             );

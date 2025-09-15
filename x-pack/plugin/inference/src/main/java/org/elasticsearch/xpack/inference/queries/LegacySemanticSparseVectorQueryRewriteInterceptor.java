@@ -18,13 +18,14 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import java.util.List;
 import java.util.Map;
 
-public class BwCSemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
+@Deprecated
+public class LegacySemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
         "search.semantic_sparse_vector_query_rewrite_interception_supported"
     );
 
-    public BwCSemanticSparseVectorQueryRewriteInterceptor() {}
+    public LegacySemanticSparseVectorQueryRewriteInterceptor() {}
 
     @Override
     protected String getFieldName(QueryBuilder queryBuilder) {

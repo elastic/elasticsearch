@@ -34,7 +34,8 @@ import java.util.Map;
 public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "intercepted_inference_sparse_vector";
 
-    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new BwCSemanticSparseVectorQueryRewriteInterceptor();
+    @SuppressWarnings("deprecation")
+    private static final QueryRewriteInterceptor BWC_INTERCEPTOR = new LegacySemanticSparseVectorQueryRewriteInterceptor();
 
     public InterceptedInferenceSparseVectorQueryBuilder(SparseVectorQueryBuilder originalQuery) {
         super(originalQuery);

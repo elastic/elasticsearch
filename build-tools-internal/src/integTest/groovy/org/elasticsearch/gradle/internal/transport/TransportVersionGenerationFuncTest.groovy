@@ -357,7 +357,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8123100")
     }
 
-    def "an non-positive increment should fail"() {
+    def "a non-positive increment should fail"() {
         given:
         referencedTransportVersion("new_tv")
 

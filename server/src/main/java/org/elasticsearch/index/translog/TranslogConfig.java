@@ -26,7 +26,7 @@ import java.nio.file.Path;
  */
 public final class TranslogConfig {
 
-    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_BUFFER_SIZE = ByteSizeValue.of(4, ByteSizeUnit.MB);
     public static final ByteSizeValue EMPTY_TRANSLOG_BUFFER_SIZE = ByteSizeValue.ofBytes(10);
     public static final OperationListener NOOP_OPERATION_LISTENER = (d, s, l) -> {};
 

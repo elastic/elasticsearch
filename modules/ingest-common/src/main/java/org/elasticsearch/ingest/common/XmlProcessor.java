@@ -178,17 +178,11 @@ public final class XmlProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        Object fieldValue = document.getFieldValue(field, Object.class, ignoreMissing);
-
-        if (fieldValue == null) {
-            if (ignoreMissing) {
-                return document;
-            }
+        String input = document.getFieldValue(field, String.class, ignoreMissing);
+        if (input == null && ignoreMissing) {
+            return document;
+        } else if (input == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse XML");
-        }
-
-        if (fieldValue instanceof String == false) {
-            throw new IllegalArgumentException("field [" + field + "] is not a string, cannot parse XML");
         }
 
         // TODO this just seems like misconfiguration to me. Why should we all this at all?
@@ -196,9 +190,8 @@ public final class XmlProcessor extends AbstractProcessor {
             return document;
         }
 
-        String xml = (String) fieldValue;
         try {
-            parseXmlAndXPath(document, xml.trim());
+            parseXmlAndXPath(document, input.trim());
         } catch (Exception e) {
             throw new IllegalArgumentException("field [" + field + "] contains invalid XML", e);
         }

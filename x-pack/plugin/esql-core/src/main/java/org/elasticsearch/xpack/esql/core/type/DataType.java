@@ -623,7 +623,7 @@ public enum DataType {
         return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE);
     }
 
-    public static boolean isUnsignedLong(DataType t){
+    public static boolean isUnsignedLong(DataType t) {
         return t == UNSIGNED_LONG;
     }
 

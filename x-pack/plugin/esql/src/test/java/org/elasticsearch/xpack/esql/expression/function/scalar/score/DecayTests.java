@@ -801,9 +801,24 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         var offsetUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(offset);
 
         return switch (type) {
-            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(originUnsignedLongAsDouble, scaleUnsignedLongAsDouble, offsetUnsignedLongAsDouble, decay).decayNumericLinear(valueUnsignedLongAsDouble);
-            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(originUnsignedLongAsDouble, scaleUnsignedLongAsDouble, offsetUnsignedLongAsDouble, decay).decayNumericGauss(valueUnsignedLongAsDouble);
-            case "exp" -> new ScoreScriptUtils.DecayNumericExp(originUnsignedLongAsDouble, scaleUnsignedLongAsDouble, offsetUnsignedLongAsDouble, decay).decayNumericExp(valueUnsignedLongAsDouble);
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericLinear(valueUnsignedLongAsDouble);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericGauss(valueUnsignedLongAsDouble);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(
+                originUnsignedLongAsDouble,
+                scaleUnsignedLongAsDouble,
+                offsetUnsignedLongAsDouble,
+                decay
+            ).decayNumericExp(valueUnsignedLongAsDouble);
             default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
         };
     }

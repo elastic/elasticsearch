@@ -237,7 +237,7 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             );
         } else if (isMillisOrNanos(valueType)) {
             return validateOriginAndScale(DataType::isMillisOrNanos, "datetime or date_nanos", DataType::isTimeDuration, "time_duration");
-        } else if(isUnsignedLong(valueType)){
+        } else if (isUnsignedLong(valueType)) {
             return validateOriginAndScale(DataType::isUnsignedLong, "unsigned long", DataType::isUnsignedLong, "unsigned_long");
         } else {
             return validateOriginAndScale(DataType::isNumeric, "numeric", DataType::isNumeric, "numeric");

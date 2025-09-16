@@ -415,7 +415,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         service.authenticate("action", transportRequest, true, ActionListener.wrap(authentication -> {
-            assertThat(threadContext.getTransient(AuthenticationResult.THREAD_CONTEXT_KEY), is(authenticationResult));
+            assertThat(AuthenticationResult.THREAD_CONTEXT_VALUE.get(threadContext), is(authenticationResult));
             assertThat(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY), is(authentication));
             assertThat(authentication.getEffectiveSubject().getRealm().getDomain(), is(secondDomain));
             verify(auditTrail).authenticationSuccess(anyString(), eq(authentication), eq("action"), eq(transportRequest));
@@ -1980,6 +1980,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException(getTestName()));
         } else {
             when(projectIndex.isAvailable(any())).thenReturn(true);
+            doAnswer(invocationOnMock -> {
+                Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
+                runnable.run();
+                return null;
+            }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
             doAnswer(inv -> {
                 final GetRequest request = inv.getArgument(0);
                 final ActionListener<GetResponse> listener = inv.getArgument(1);

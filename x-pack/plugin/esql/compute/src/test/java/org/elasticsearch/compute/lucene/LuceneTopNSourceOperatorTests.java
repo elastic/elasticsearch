@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.compute.lucene.LuceneSourceOperatorTests.assertAllRefCountedSameInstance;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
@@ -102,6 +103,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+        long estimatedPerRowSortSize = 16;
         return new LuceneTopNSourceOperator.Factory(
             List.of(ctx),
             queryFunction,
@@ -110,6 +112,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
             maxPageSize,
             limit,
             sorts,
+            estimatedPerRowSortSize,
             scoring
         );
     }
@@ -207,6 +210,7 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), equalTo(expectedS++));
             }
         }
+        assertAllRefCountedSameInstance(results);
         int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
         assertThat(results, hasSize(pages));
     }

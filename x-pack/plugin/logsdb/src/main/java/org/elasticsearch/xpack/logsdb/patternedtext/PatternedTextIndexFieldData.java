@@ -72,11 +72,7 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
         LeafReader leafReader = context.reader();
-        PatternedTextDocValues docValues = PatternedTextDocValues.from(
-            leafReader,
-            fieldType.templateFieldName(),
-            fieldType.argsFieldName()
-        );
+        PatternedTextCompositeValues values = PatternedTextCompositeValues.from(leafReader, fieldType);
         return new LeafFieldData() {
 
             final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
@@ -91,7 +87,7 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
                 return new SortedBinaryDocValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
-                        return docValues.advanceExact(doc);
+                        return values.advanceExact(doc);
                     }
 
                     @Override
@@ -101,7 +97,7 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
 
                     @Override
                     public BytesRef nextValue() throws IOException {
-                        return docValues.binaryValue();
+                        return values.binaryValue();
                     }
                 };
             }

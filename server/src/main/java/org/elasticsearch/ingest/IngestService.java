@@ -77,7 +77,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -133,12 +132,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * @return true if the node feature can be supported in the local library code, false if it is not supported
      */
     public static boolean locallySupportedIngestFeature(NodeFeature nodeFeature) {
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            // logs_stream feature flag guard
-            return IngestService.FIELD_ACCESS_PATTERN.equals(nodeFeature);
-        }
-        // Default to unsupported if not contained here
-        return false;
+        return IngestService.FIELD_ACCESS_PATTERN.equals(nodeFeature);
     }
 
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
@@ -1453,7 +1447,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(XContentParserDecorator.NOOP)
+            request.sourceAsMap()
         );
     }
 
@@ -1562,7 +1556,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     processorFactories,
                     scriptService,
                     projectId,
-                    (nodeFeature) -> featureService.clusterHasFeature(clusterService.state(), nodeFeature)
+                    (nodeFeature) -> featureService.clusterHasFeature(state, nodeFeature)
                 );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 

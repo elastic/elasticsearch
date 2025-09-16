@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.List;
 
 /**
  * The class is responsible for invoking any steps that need to be applied to the logical plan,
@@ -24,6 +28,8 @@ public class LogicalPlanPreOptimizer {
     public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
         this.preOptimizerContext = preOptimizerContext;
     }
+
+    private static final List<Rule> RULES = List.of();
 
     /**
      * Pre-optimize a logical plan.
@@ -44,7 +50,27 @@ public class LogicalPlanPreOptimizer {
     }
 
     private void doPreOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        // this is where we will be executing async tasks
-        listener.onResponse(plan);
+        SubscribableListener<LogicalPlan> ruleChainListener = SubscribableListener.newSucceeded(plan);
+        for (Rule rule : RULES) {
+            ruleChainListener = ruleChainListener.andThen((l, p) -> rule.apply(p, l));
+        }
+        ruleChainListener.addListener(listener);
+    }
+
+    public interface Rule {
+        void apply(LogicalPlan plan, ActionListener<LogicalPlan> listener);
+    }
+
+    private static class FoldInferenceFunction implements Rule {
+        private final InferenceFunctionEvaluator inferenceEvaluator;
+
+        private FoldInferenceFunction(LogicalPreOptimizerContext preOptimizerContext) {
+            this.inferenceEvaluator = new InferenceFunctionEvaluator(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService());
+        }
+
+        @Override
+        public void apply(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
+
+        }
     }
 }

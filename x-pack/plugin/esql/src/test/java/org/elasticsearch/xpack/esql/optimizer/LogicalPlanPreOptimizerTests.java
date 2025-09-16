@@ -72,7 +72,7 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlanPreOptimizer preOptimizer() {
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small());
+        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small(), null);
         return new LogicalPlanPreOptimizer(preOptimizerContext);
     }
 

@@ -324,7 +324,8 @@ public class TransportVersions {
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
     public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
-    public static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = def(9_161_0_00);
+    public static final TransportVersion INFERENCE_API_OPENAI_HEADERS = def(9_161_0_00);
+    public static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = def(9_162_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

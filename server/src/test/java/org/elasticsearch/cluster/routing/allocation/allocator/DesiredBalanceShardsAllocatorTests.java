@@ -62,6 +62,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.List;
@@ -876,11 +877,11 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         final var zeroUsageStats = new ThreadPoolUsageStats(10, 0.0f, 0);
         final Map<String, NodeUsageStatsForThreadPools> initialThreadPoolStats = Map.of(
             firstNode.getId(),
-            new NodeUsageStatsForThreadPools(firstNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 10.0f, 30))),
+            new NodeUsageStatsForThreadPools(firstNode.getId(), Map.of(ThreadPool.Names.WRITE, new ThreadPoolUsageStats(10, 10.0f, 30))),
             secondNode.getId(),
-            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", zeroUsageStats)),
+            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of(ThreadPool.Names.WRITE, zeroUsageStats)),
             thirdNode.getId(),
-            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", zeroUsageStats))
+            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of(ThreadPool.Names.WRITE, zeroUsageStats))
         );
 
         final var clusterInfoRef = new AtomicReference<>(
@@ -916,12 +917,14 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             final var firstNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
                 .get(firstNode.getId())
                 .threadPoolUsageStatsMap()
-                .get("write");
+                .get(ThreadPool.Names.WRITE);
             assertThat(
                 firstNodeUpdatedStats.averageThreadPoolUtilization(),
                 equalTo(
-                    initialThreadPoolStats.get(firstNode.getId()).threadPoolUsageStatsMap().get("write").averageThreadPoolUtilization()
-                        - 1.0f
+                    initialThreadPoolStats.get(firstNode.getId())
+                        .threadPoolUsageStatsMap()
+                        .get(ThreadPool.Names.WRITE)
+                        .averageThreadPoolUtilization() - 1.0f
                 )
             );
             assertThat(firstNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
@@ -930,7 +933,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             final var secondNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
                 .get(secondNode.getId())
                 .threadPoolUsageStatsMap()
-                .get("write");
+                .get(ThreadPool.Names.WRITE);
             assertThat(secondNodeUpdatedStats.averageThreadPoolUtilization(), equalTo(1.0f));
             assertThat(secondNodeUpdatedStats.maxThreadPoolQueueLatencyMillis(), equalTo(0L));
 
@@ -938,7 +941,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             final var thirdNodeUpdatedStats = updatedClusterInfo.getNodeUsageStatsForThreadPools()
                 .get(thirdNode.getId())
                 .threadPoolUsageStatsMap()
-                .get("write");
+                .get(ThreadPool.Names.WRITE);
             assertThat(thirdNodeUpdatedStats.averageThreadPoolUtilization(), equalTo(1.0f));
 
             // 2. Reroute again and the simulated ClusterInfo remains the same due to no new change
@@ -1009,11 +1012,20 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                     .nodeUsageStatsForThreadPools(
                         Map.of(
                             firstNode.getId(),
-                            new NodeUsageStatsForThreadPools(firstNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 5.0f, 30))),
+                            new NodeUsageStatsForThreadPools(
+                                firstNode.getId(),
+                                Map.of(ThreadPool.Names.WRITE, new ThreadPoolUsageStats(10, 5.0f, 30))
+                            ),
                             secondNode.getId(),
-                            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 5.0f, 30))),
+                            new NodeUsageStatsForThreadPools(
+                                secondNode.getId(),
+                                Map.of(ThreadPool.Names.WRITE, new ThreadPoolUsageStats(10, 5.0f, 30))
+                            ),
                             thirdNode.getId(),
-                            new NodeUsageStatsForThreadPools(secondNode.getId(), Map.of("write", new ThreadPoolUsageStats(10, 1.0f, 5)))
+                            new NodeUsageStatsForThreadPools(
+                                secondNode.getId(),
+                                Map.of(ThreadPool.Names.WRITE, new ThreadPoolUsageStats(10, 1.0f, 5))
+                            )
                         )
                     )
                     .build()

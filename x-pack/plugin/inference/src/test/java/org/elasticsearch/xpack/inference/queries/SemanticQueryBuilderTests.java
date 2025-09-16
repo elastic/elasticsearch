@@ -95,6 +95,7 @@ import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -106,10 +107,6 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final int TEXT_EMBEDDING_DIMENSION_COUNT = 16; // Must be a multiple of 8 to be a valid bit embedding
     private static final String INFERENCE_ID = "test_service";
     private static final String SEARCH_INFERENCE_ID = "search_test_service";
-
-    private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = TransportVersion.fromName(
-        "semantic_query_multiple_inference_ids"
-    );
 
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
@@ -405,7 +402,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             );
 
             QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
-            SemanticQueryBuilder expectedQuery = version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS) ? originalQuery : bwcQuery;
+            SemanticQueryBuilder expectedQuery = version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV) ? originalQuery : bwcQuery;
             assertThat(deserializedQuery, equalTo(expectedQuery));
         };
 
@@ -440,7 +437,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             String expectedErrorMessage;
             if (version.supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
                 expectedErrorMessage = null;
-            } else if (version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+            } else if (version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
                 expectedErrorMessage = remoteCluster
                     ? "Cannot serialize remote cluster inference results in a mixed-version cluster"
                     : null;

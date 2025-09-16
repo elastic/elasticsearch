@@ -29,15 +29,15 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A rate grouping aggregation definition for int.
+ * A rate grouping aggregation definition for int. This implementation supports the `irate` and `idelta` functions.
  * This class is generated. Edit `X-IrateAggregator.java.st` instead.
  */
 @GroupingAggregator(
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
 public class IrateIntAggregator {
-    public static IntIrateGroupingState initGrouping(DriverContext driverContext) {
-        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker());
+    public static IntIrateGroupingState initGrouping(DriverContext driverContext, boolean isDelta) {
+        return new IntIrateGroupingState(driverContext.bigArrays(), driverContext.breaker(), isDelta);
     }
 
     public static void combine(IntIrateGroupingState current, int groupId, int value, long timestamp) {
@@ -83,11 +83,13 @@ public class IrateIntAggregator {
         private final BigArrays bigArrays;
         private final CircuitBreaker breaker;
         private long stateBytes; // for individual states
+        private final boolean isDelta;
 
-        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
+        IntIrateGroupingState(BigArrays bigArrays, CircuitBreaker breaker, boolean isDelta) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
             this.states = bigArrays.newObjectArray(1);
+            this.isDelta = isDelta;
         }
 
         void ensureCapacity(int groupId) {
@@ -195,13 +197,18 @@ public class IrateIntAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    // When the last value is less than the previous one, we assume a reset
-                    // and use the last value directly.
-                    final double ydiff = state.lastValue >= state.secondLastValue
-                        ? state.lastValue - state.secondLastValue
-                        : state.lastValue;
-                    final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
-                    rates.appendDouble(ydiff / xdiff * 1000);
+                    if (isDelta) {
+                        // delta: just return the difference
+                        rates.appendDouble(state.lastValue - state.secondLastValue);
+                    } else {
+                        // When the last value is less than the previous one, we assume a reset
+                        // and use the last value directly.
+                        final double ydiff = state.lastValue >= state.secondLastValue
+                            ? state.lastValue - state.secondLastValue
+                            : state.lastValue;
+                        final long xdiff = state.lastTimestamp - state.secondLastTimestamp;
+                        rates.appendDouble(ydiff / xdiff * 1000);
+                    }
                 }
                 return rates.build();
             }

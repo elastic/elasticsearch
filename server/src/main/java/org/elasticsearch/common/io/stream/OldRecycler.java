@@ -31,7 +31,7 @@ import java.util.Objects;
  * avoids frequent reallocation &amp; copying of the internal data. When {@link #close()} is called,
  * the bytes will be released.
  */
-public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
+public class OldRecycler extends BytesStream implements Releasable {
 
     static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
@@ -45,7 +45,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private int currentCapacity = 0;
     private int currentPageOffset;
 
-    public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
+    public OldRecycler(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
         this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
@@ -155,28 +155,28 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    @Override
-    public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
-        // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
-        // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
-        // that make assumptions about the page size
-        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
-            tmp.setTransportVersion(getTransportVersion());
-            writeable.writeTo(tmp);
-            int size = tmp.size();
-            writeVInt(size);
-            int tmpPage = 0;
-            while (size > 0) {
-                final Recycler.V<BytesRef> p = tmp.pages.get(tmpPage);
-                final BytesRef b = p.v();
-                final int writeSize = Math.min(size, b.length);
-                writeBytes(b.bytes, b.offset, writeSize);
-                tmp.pages.set(tmpPage, null).close();
-                size -= writeSize;
-                tmpPage++;
-            }
-        }
-    }
+//    @Override
+//    public void legacyWriteWithSizePrefix(Writeable writeable) throws IOException {
+//        // TODO: do this without copying the bytes from tmp by calling writeBytes and just use the pages in tmp directly through
+//        // manipulation of the offsets on the pages after writing to tmp. This will require adjustments to the places in this class
+//        // that make assumptions about the page size
+//        try (RecyclerBytesStreamOutput tmp = new RecyclerBytesStreamOutput(recycler)) {
+//            tmp.setTransportVersion(getTransportVersion());
+//            writeable.writeTo(tmp);
+//            int size = tmp.size();
+//            writeVInt(size);
+//            int tmpPage = 0;
+//            while (size > 0) {
+//                final Recycler.V<BytesRef> p = tmp.pages.get(tmpPage);
+//                final BytesRef b = p.v();
+//                final int writeSize = Math.min(size, b.length);
+//                writeBytes(b.bytes, b.offset, writeSize);
+//                tmp.pages.set(tmpPage, null).close();
+//                size -= writeSize;
+//                tmpPage++;
+//            }
+//        }
+//    }
 
     // overridden with some code duplication the same way other write methods in this class are overridden to bypass StreamOutput's
     // intermediary buffers

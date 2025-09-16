@@ -53,6 +53,8 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final String CLUSTER_EXTENSION = "clivf";
     static final String IVF_META_EXTENSION = "mivf";
 
+    static final String RAW_VECTOR_FORMAT = "raw_vector_format";
+
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
@@ -106,12 +108,18 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES920DiskBBQVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster, centroidsPerParentCluster);
+        return new ES920DiskBBQVectorsWriter(
+            rawVectorFormat.getName(),
+            state,
+            rawVectorFormat.fieldsWriter(state),
+            vectorPerCluster,
+            centroidsPerParentCluster
+        );
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES920DiskBBQVectorsReader(state, rawVectorFormat.fieldsReader(state));
+        return new ES920DiskBBQVectorsReader(state);
     }
 
     @Override

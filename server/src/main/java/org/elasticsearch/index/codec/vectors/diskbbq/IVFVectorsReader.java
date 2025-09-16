@@ -32,7 +32,12 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DYNAMIC_VISIT_RATIO;
@@ -46,14 +51,14 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
-    private final FlatVectorsReader rawVectorsReader;
+    private final Map<String, FlatVectorsReader> rawVectorReaders;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
+    protected IVFVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorReaders) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
-        this.rawVectorsReader = rawVectorsReader;
         this.fields = new IntObjectHashMap<>();
+        this.rawVectorReaders = rawVectorReaders;
         String meta = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
             state.segmentSuffix,
@@ -212,26 +217,34 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public final void checkIntegrity() throws IOException {
-        rawVectorsReader.checkIntegrity();
+        for (var reader : rawVectorReaders.values()) {
+            reader.checkIntegrity();
+        }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
+    private FlatVectorsReader getReaderForField(String field) {
+        FlatVectorsReader reader = rawVectorReaders.get(field);
+        if (reader == null) throw new IllegalArgumentException("No recorded raw vector reader for field " + field);
+        return reader;
+    }
+
     @Override
     public final FloatVectorValues getFloatVectorValues(String field) throws IOException {
-        return rawVectorsReader.getFloatVectorValues(field);
+        return getReaderForField(field).getFloatVectorValues(field);
     }
 
     @Override
     public final ByteVectorValues getByteVectorValues(String field) throws IOException {
-        return rawVectorsReader.getByteVectorValues(field);
+        return getReaderForField(field).getByteVectorValues(field);
     }
 
     @Override
     public final void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32) == false) {
-            rawVectorsReader.search(field, target, knnCollector, acceptDocs);
+            getReaderForField(field).search(field, target, knnCollector, acceptDocs);
             return;
         }
         if (fieldInfo.getVectorDimension() != target.length) {
@@ -243,7 +256,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         if (acceptDocs instanceof BitSet bitSet) {
             percentFiltered = Math.max(0f, Math.min(1f, (float) bitSet.approximateCardinality() / bitSet.length()));
         }
-        int numVectors = rawVectorsReader.getFloatVectorValues(field).size();
+        int numVectors = getReaderForField(field).getFloatVectorValues(field).size();
         float visitRatio = DYNAMIC_VISIT_RATIO;
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
@@ -309,7 +322,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     @Override
     public final void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
         final FieldInfo fieldInfo = state.fieldInfos.fieldInfo(field);
-        final ByteVectorValues values = rawVectorsReader.getByteVectorValues(field);
+        final ByteVectorValues values = getReaderForField(field).getByteVectorValues(field);
         for (int i = 0; i < values.size(); i++) {
             final float score = fieldInfo.getVectorSimilarityFunction().compare(target, values.vectorValue(i));
             knnCollector.collect(values.ordToDoc(i), score);
@@ -321,7 +334,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(rawVectorsReader, ivfCentroids, ivfClusters);
+        List<Closeable> closeables = new ArrayList<>(rawVectorReaders.values());
+        Collections.addAll(closeables, ivfCentroids, ivfClusters);
+        IOUtils.close(closeables);
     }
 
     protected record FieldEntry(

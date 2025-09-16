@@ -107,7 +107,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     }
 
     @Override
-    public final KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+    public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
         if (fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE) {
             throw new IllegalArgumentException("IVF does not support cosine similarity");
         }

@@ -119,14 +119,15 @@ public class IgnoreNullMetricsTests extends ESTestCase {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan actual = localPlan("""
             TS test
-            | STATS max(max_over_time(metric_1))
+            | STATS max(max_over_time(metric_1)) BY BUCKET(@timestamp, 1 min)
             | LIMIT 10
             """);
         Limit limit = as(actual, Limit.class);
         Aggregate agg = as(limit.child(), Aggregate.class);
         // The optimizer expands the STATS out into two STATS steps
         Aggregate tsAgg = as(agg.child(), Aggregate.class);
-        Filter filter = as(tsAgg.child(), Filter.class);
+        Eval bucketEval = as(tsAgg.child(), Eval.class);
+        Filter filter = as(bucketEval.child(), Filter.class);
         IsNotNull condition = as(filter.condition(), IsNotNull.class);
         FieldAttribute attribute = as(condition.field(), FieldAttribute.class);
         assertEquals("metric_1", attribute.fieldName().string());

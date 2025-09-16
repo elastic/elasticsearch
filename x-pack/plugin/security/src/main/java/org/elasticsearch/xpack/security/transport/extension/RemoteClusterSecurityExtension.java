@@ -21,18 +21,23 @@ import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 
+/**
+ * Allows defining an SPI extension point for providing a custom remote cluster security interceptor
+ * and authentication service.
+ *
+ * <p>
+ *  Currently, the SPI extension point only allows providing a single remote cluster security extension.
+ *  If none is provided, it will fall back to {@link CrossClusterAccessSecurityExtension} by default.
+ */
 public interface RemoteClusterSecurityExtension {
 
-    RemoteClusterTransportInterceptor getTransportInterceptor();
+    RemoteClusterTransportInterceptor getTransportInterceptor(Components components);
 
-    RemoteClusterAuthenticationService getAuthenticationService();
+    RemoteClusterAuthenticationService getAuthenticationService(Components components);
 
-    interface Provider {
-
-        RemoteClusterSecurityExtension getExtension(Components components);
-
-    }
-
+    /**
+     * Provides access to components that can be used by interceptor and authentication service.
+     */
     interface Components {
 
         AuthenticationService authenticationService();

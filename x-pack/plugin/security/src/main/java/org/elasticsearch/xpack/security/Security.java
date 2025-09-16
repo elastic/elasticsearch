@@ -635,7 +635,7 @@ public class Security extends Plugin
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
-    private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
+    private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
@@ -938,8 +938,38 @@ public class Security extends Plugin
 
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
         // Need to set to default if it wasn't set by an extension
+        if (putRoleRequestBuilderFactory.get() == null) {
+            putRoleRequestBuilderFactory.set(new PutRoleRequestBuilderFactory.Default());
+        }
         if (bulkPutRoleRequestBuilderFactory.get() == null) {
             bulkPutRoleRequestBuilderFactory.set(new BulkPutRoleRequestBuilderFactory.Default());
+        }
+        if (createApiKeyRequestBuilderFactory.get() == null) {
+            createApiKeyRequestBuilderFactory.set(new CreateApiKeyRequestBuilderFactory.Default());
+        }
+        if (getBuiltinPrivilegesResponseTranslator.get() == null) {
+            getBuiltinPrivilegesResponseTranslator.set(new GetBuiltinPrivilegesResponseTranslator.Default());
+        }
+        if (updateApiKeyRequestTranslator.get() == null) {
+            updateApiKeyRequestTranslator.set(new UpdateApiKeyRequestTranslator.Default());
+        }
+        if (bulkUpdateApiKeyRequestTranslator.get() == null) {
+            bulkUpdateApiKeyRequestTranslator.set(new BulkUpdateApiKeyRequestTranslator.Default());
+        }
+        if (grantApiKeyRequestTranslator.get() == null) {
+            grantApiKeyRequestTranslator.set(new RestGrantApiKeyAction.RequestTranslator.Default());
+        }
+        if (hasPrivilegesRequestBuilderFactory.get() == null) {
+            hasPrivilegesRequestBuilderFactory.trySet(new HasPrivilegesRequestBuilderFactory.Default());
+        }
+        if (reservedRoleNameCheckerFactory.get() == null) {
+            reservedRoleNameCheckerFactory.set(new ReservedRoleNameChecker.Factory.Default());
+        }
+        if (fileRoleValidator.get() == null) {
+            fileRoleValidator.set(new FileRoleValidator.Default());
+        }
+        if (samlAuthenticateResponseHandlerFactory.get() == null) {
+            samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
         }
         components.add(
             new PluginComponentBinding<>(
@@ -1152,9 +1182,9 @@ public class Security extends Plugin
             threadPool,
             settings
         );
-        RemoteClusterSecurityExtension rcsExtension = this.getRemoteClusterSecurityExtension(rcsComponents);
-        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = rcsExtension.getTransportInterceptor();
-        remoteClusterAuthenticationService.set(rcsExtension.getAuthenticationService());
+        RemoteClusterSecurityExtension rcsExtension = this.getRemoteClusterSecurityExtension();
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = rcsExtension.getTransportInterceptor(rcsComponents);
+        remoteClusterAuthenticationService.set(rcsExtension.getAuthenticationService(rcsComponents));
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
 
         securityInterceptor.set(
@@ -1228,9 +1258,11 @@ public class Security extends Plugin
         return components;
     }
 
-    private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension(RemoteClusterSecurityExtension.Components components) {
-        RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtensionProvider.get().getExtension(components);
-        assert rcsExtension != null : "remote cluster security extension must not be null";
+    private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension() {
+        if (this.remoteClusterSecurityExtension.get() == null) {
+            this.remoteClusterSecurityExtension.set(new CrossClusterAccessSecurityExtension());
+        }
+        RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtension.get();
         if (false == isInternalExtension(rcsExtension)) {
             throw new IllegalStateException(
                 "The ["
@@ -2441,88 +2473,24 @@ public class Security extends Plugin
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            putRoleRequestBuilderFactory,
-            PutRoleRequestBuilderFactory.class,
-            PutRoleRequestBuilderFactory.Default::new
-        );
+        loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         // TODO add bulkPutRoleRequestBuilderFactory loading here when available
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            getBuiltinPrivilegesResponseTranslator,
-            GetBuiltinPrivilegesResponseTranslator.class,
-            GetBuiltinPrivilegesResponseTranslator.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            updateApiKeyRequestTranslator,
-            UpdateApiKeyRequestTranslator.class,
-            UpdateApiKeyRequestTranslator.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            bulkUpdateApiKeyRequestTranslator,
-            BulkUpdateApiKeyRequestTranslator.class,
-            BulkUpdateApiKeyRequestTranslator.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            createApiKeyRequestBuilderFactory,
-            CreateApiKeyRequestBuilderFactory.class,
-            CreateApiKeyRequestBuilderFactory.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            hasPrivilegesRequestBuilderFactory,
-            HasPrivilegesRequestBuilderFactory.class,
-            HasPrivilegesRequestBuilderFactory.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            authorizationDenialMessages,
-            AuthorizationDenialMessages.class,
-            AuthorizationDenialMessages.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            reservedRoleNameCheckerFactory,
-            ReservedRoleNameChecker.Factory.class,
-            ReservedRoleNameChecker.Factory.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            grantApiKeyRequestTranslator,
-            RestGrantApiKeyAction.RequestTranslator.class,
-            RestGrantApiKeyAction.RequestTranslator.Default::new
-        );
-        loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class, FileRoleValidator.Default::new);
-        loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class, () -> Set::of);
+        loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, createApiKeyRequestBuilderFactory, CreateApiKeyRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, hasPrivilegesRequestBuilderFactory, HasPrivilegesRequestBuilderFactory.class);
+        loadSingletonExtensionAndSetOnce(loader, authorizationDenialMessages, AuthorizationDenialMessages.class);
+        loadSingletonExtensionAndSetOnce(loader, reservedRoleNameCheckerFactory, ReservedRoleNameChecker.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
+        loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
+        loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            samlAuthenticateResponseHandlerFactory,
-            SamlAuthenticateResponseHandler.Factory.class,
-            SamlAuthenticateResponseHandler.DefaultFactory::new
-        );
-        loadSingletonExtensionAndSetOnce(
-            loader,
-            remoteClusterSecurityExtensionProvider,
-            RemoteClusterSecurityExtension.Provider.class,
-            CrossClusterAccessSecurityExtension.Provider::new
-        );
+        loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
+        loadSingletonExtensionAndSetOnce(loader, remoteClusterSecurityExtension, RemoteClusterSecurityExtension.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {
-        loadSingletonExtensionAndSetOnce(loader, setOnce, clazz, () -> null);
-    }
-
-    private <T> void loadSingletonExtensionAndSetOnce(
-        ExtensionLoader loader,
-        SetOnce<T> setOnce,
-        Class<T> clazz,
-        Supplier<T> defaultExtensionProvider
-    ) {
         final List<T> loaded = loader.loadExtensions(clazz);
         if (loaded.size() > 1) {
             throw new IllegalStateException(clazz + " may not have multiple implementations");
@@ -2531,15 +2499,7 @@ public class Security extends Plugin
             setOnce.set(singleLoaded);
             logger.debug("Loaded implementation [{}] for interface [{}]", singleLoaded.getClass().getCanonicalName(), clazz);
         } else {
-            T defaultExtension = defaultExtensionProvider.get();
-            if (defaultExtension != null) {
-                logger.debug(
-                    "Will fall back on default implementation [{}] for interface [{}]",
-                    defaultExtension.getClass().getCanonicalName(),
-                    clazz
-                );
-                setOnce.set(defaultExtension);
-            }
+            logger.debug("Will fall back on default implementation for interface [{}]", clazz);
         }
     }
 

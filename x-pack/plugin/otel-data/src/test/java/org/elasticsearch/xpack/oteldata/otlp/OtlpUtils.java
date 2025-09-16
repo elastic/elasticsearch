@@ -13,13 +13,21 @@ import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.common.v1.KeyValueList;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
+import io.opentelemetry.proto.metrics.v1.ExponentialHistogram;
+import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Gauge;
+import io.opentelemetry.proto.metrics.v1.Histogram;
+import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.Metric;
 import io.opentelemetry.proto.metrics.v1.NumberDataPoint;
 import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
 import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.metrics.v1.Sum;
+import io.opentelemetry.proto.metrics.v1.Summary;
+import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
+
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,6 +44,10 @@ public class OtlpUtils {
 
     public static KeyValue keyValue(String key, String value) {
         return KeyValue.newBuilder().setKey(key).setValue(AnyValue.newBuilder().setStringValue(value).build()).build();
+    }
+
+    public static List<KeyValue> mappingHints(String... mappingHints) {
+        return List.of(keyValue(MappingHints.MAPPING_HINTS, mappingHints));
     }
 
     public static KeyValue keyValue(String key, String... values) {
@@ -89,6 +101,34 @@ public class OtlpUtils {
         return Metric.newBuilder().setName(name).setUnit(unit).setGauge(Gauge.newBuilder().addAllDataPoints(dataPoints).build()).build();
     }
 
+    public static Metric createExponentialHistogramMetric(
+        String name,
+        String unit,
+        List<ExponentialHistogramDataPoint> dataPoints,
+        AggregationTemporality temporality
+    ) {
+        return Metric.newBuilder()
+            .setName(name)
+            .setUnit(unit)
+            .setExponentialHistogram(
+                ExponentialHistogram.newBuilder().setAggregationTemporality(temporality).addAllDataPoints(dataPoints).build()
+            )
+            .build();
+    }
+
+    public static Metric createHistogramMetric(
+        String name,
+        String unit,
+        List<HistogramDataPoint> dataPoints,
+        AggregationTemporality temporality
+    ) {
+        return Metric.newBuilder()
+            .setName(name)
+            .setUnit(unit)
+            .setHistogram(Histogram.newBuilder().setAggregationTemporality(temporality).addAllDataPoints(dataPoints).build())
+            .build();
+    }
+
     public static Metric createSumMetric(
         String name,
         String unit,
@@ -102,6 +142,14 @@ public class OtlpUtils {
             .setSum(
                 Sum.newBuilder().addAllDataPoints(dataPoints).setIsMonotonic(isMonotonic).setAggregationTemporality(temporality).build()
             )
+            .build();
+    }
+
+    public static Metric createSummaryMetric(String name, String unit, List<SummaryDataPoint> dataPoints) {
+        return Metric.newBuilder()
+            .setName(name)
+            .setUnit(unit)
+            .setSummary(Summary.newBuilder().addAllDataPoints(dataPoints).build())
             .build();
     }
 
@@ -128,6 +176,16 @@ public class OtlpUtils {
             .setStartTimeUnixNano(startTimeUnixNano)
             .addAllAttributes(attributes)
             .setAsInt(randomLong())
+            .build();
+    }
+
+    public static SummaryDataPoint createSummaryDataPoint(long timestamp, List<KeyValue> attributes) {
+        return SummaryDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(timestamp)
+            .addAllAttributes(attributes)
+            .setCount(randomLong())
+            .setSum(randomDouble())
             .build();
     }
 

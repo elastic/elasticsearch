@@ -12,8 +12,8 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -33,7 +33,6 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -159,21 +158,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("hosts").get();
     }
 
-    public void testSimpleMetrics() {
-        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
-        client().admin().indices().prepareRefresh("hosts").get();
-        try (EsqlQueryResponse resp = run("TS hosts | STATS load=avg(cpu) BY host | SORT host")) {
-            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
-            assertThat(rows, hasSize(sortedGroups.size()));
-            for (int i = 0; i < rows.size(); i++) {
-                List<Object> r = rows.get(i);
-                String pod = (String) r.get(1);
-                assertThat(pod, equalTo(sortedGroups.get(i)));
-                List<Double> values = docs.stream().filter(d -> d.host.equals(pod)).map(d -> d.cpu).toList();
-                double avg = values.stream().mapToDouble(n -> n).sum() / values.size();
-                assertThat((double) r.get(0), equalTo(avg));
-            }
-        }
+    public void testWithoutStats() {
         try (EsqlQueryResponse resp = run("TS hosts | SORT @timestamp DESC, host | KEEP @timestamp, host, cpu | LIMIT 5")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             List<Doc> topDocs = docs.stream()
@@ -189,6 +174,34 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 assertThat(topDocs.get(i).timestamp, equalTo(timestamp));
                 assertThat(topDocs.get(i).host, equalTo(pod));
                 assertThat(topDocs.get(i).cpu, equalTo(cpu));
+            }
+        }
+    }
+
+    public void testImplicitAggregate() {
+        List<String> sortedGroups = docs.stream().map(d -> d.host).distinct().sorted().toList();
+        client().admin().indices().prepareRefresh("hosts").get();
+        try (EsqlQueryResponse resp = run("TS hosts | STATS load=avg(cpu) BY host | SORT host")) {
+            List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
+            assertThat(rows, hasSize(sortedGroups.size()));
+            for (int i = 0; i < rows.size(); i++) {
+                List<Object> r = rows.get(i);
+                String pod = (String) r.get(1);
+                assertThat(pod, equalTo(sortedGroups.get(i)));
+                Map<String, Doc> selected = new HashMap<>();
+                for (Doc doc : docs) {
+                    if (doc.host.equals(pod) == false) {
+                        continue;
+                    }
+                    selected.compute(doc.cluster, (k, v) -> v == null || doc.timestamp > v.timestamp ? doc : v);
+                }
+                double sum = selected.values().stream().mapToDouble(d -> d.cpu).sum();
+                double avg = sum / selected.size();
+                assertThat((double) r.get(0), equalTo(avg));
+            }
+            try (EsqlQueryResponse resp2 = run("TS hosts | STATS load=avg(last_over_time(cpu)) BY host | SORT host")) {
+                List<List<Object>> rows2 = EsqlTestUtils.getValuesList(resp2);
+                assertThat(rows2, equalTo(rows));
             }
         }
     }
@@ -249,27 +262,21 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             final double avg = rates.isEmpty() ? 0.0 : rates.stream().mapToDouble(d -> d).sum() / rates.size();
             assertThat((double) values.get(0).get(1), closeTo(avg, 0.1));
         }
-        try (var resp = run("TS hosts | STATS max(rate(request_count)), min(rate(request_count)), min(cpu), max(cpu)")) {
+        try (var resp = run("TS hosts | STATS max(rate(request_count)), min(rate(request_count))")) {
             assertThat(
                 resp.columns(),
                 equalTo(
                     List.of(
                         new ColumnInfoImpl("max(rate(request_count))", "double", null),
-                        new ColumnInfoImpl("min(rate(request_count))", "double", null),
-                        new ColumnInfoImpl("min(cpu)", "double", null),
-                        new ColumnInfoImpl("max(cpu)", "double", null)
+                        new ColumnInfoImpl("min(rate(request_count))", "double", null)
                     )
                 )
             );
             List<List<Object>> values = EsqlTestUtils.getValuesList(resp);
             assertThat(values, hasSize(1));
-            assertThat(values.get(0), hasSize(4));
+            assertThat(values.get(0), hasSize(2));
             assertThat((double) values.get(0).get(0), closeTo(rates.stream().mapToDouble(d -> d).max().orElse(0.0), 0.1));
             assertThat((double) values.get(0).get(1), closeTo(rates.stream().mapToDouble(d -> d).min().orElse(0.0), 0.1));
-            double minCpu = docs.stream().mapToDouble(d -> d.cpu).min().orElse(Long.MAX_VALUE);
-            double maxCpu = docs.stream().mapToDouble(d -> d.cpu).max().orElse(Long.MIN_VALUE);
-            assertThat((double) values.get(0).get(2), closeTo(minCpu, 0.1));
-            assertThat((double) values.get(0).get(3), closeTo(maxCpu, 0.1));
         }
     }
 
@@ -546,32 +553,17 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
             request.profile(true);
             request.pragmas(pragmas);
             request.acceptedPragmaRisks(true);
-            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster, bucket(@timestamp, 1minute) | SORT cluster");
+            request.query("TS my-hosts | STATS sum(rate(request_count)) BY cluster | SORT cluster");
             try (var resp = run(request)) {
                 EsqlQueryResponse.Profile profile = resp.profile();
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 for (DriverProfile p : dataProfiles) {
-                    if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesSourceOperator.Status)) {
-                        assertThat(p.operators(), hasSize(2));
-                        TimeSeriesSourceOperator.Status status = (TimeSeriesSourceOperator.Status) p.operators().get(0).status();
-                        // If the target shard is empty or does not match the query, processedShards will be empty.
-                        // TODO: Update ComputeService to avoid creating pipelines for non-matching or empty shards.
-                        assertThat(status.processedShards(), either(hasSize(1)).or(empty()));
-                        assertThat(p.operators().get(1).operator(), equalTo("ExchangeSinkOperator"));
-                    } else if (p.operators().stream().anyMatch(s -> s.status() instanceof TimeSeriesAggregationOperator.Status)) {
-                        assertThat(p.operators(), hasSize(3));
-                        assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                        assertThat(p.operators().get(1).operator(), containsString("TimeSeriesAggregationOperator"));
-                        assertThat(p.operators().get(2).operator(), equalTo("ExchangeSinkOperator"));
-                    } else {
-                        assertThat(p.operators(), hasSize(4));
-                        assertThat(p.operators().get(0).operator(), equalTo("ExchangeSourceOperator"));
-                        assertThat(p.operators().get(1).operator(), containsString("TimeSeriesExtractFieldOperator"));
-                        assertThat(p.operators().get(2).operator(), containsString("EvalOperator"));
-                        assertThat(p.operators().get(3).operator(), equalTo("ExchangeSinkOperator"));
+                    assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
+                    LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
+                    for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
+                        assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));
                     }
                 }
-                assertThat(dataProfiles, hasSize(9));
             }
         }
         // non-rate aggregation is executed with multiple shards at a time

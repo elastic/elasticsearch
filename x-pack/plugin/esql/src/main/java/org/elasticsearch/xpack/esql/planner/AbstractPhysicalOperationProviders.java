@@ -83,6 +83,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             // create the agg factories
             aggregatesToFactory(
+                aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
@@ -158,6 +159,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
 
             // create the agg factories
             aggregatesToFactory(
+                aggregateExec,
                 aggregates,
                 aggregatorMode,
                 sourceLayout,
@@ -247,7 +249,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
-
+        AggregateExec aggregateExec,
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
@@ -279,7 +281,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             }
                         } else {
                             // extra dependencies like TS ones (that require a timestamp)
-                            for (Expression input : aggregateFunction.references()) {
+                            for (Expression input : aggregateFunction.aggregateInputReferences(aggregateExec.child()::output)) {
                                 Attribute attr = Expressions.attribute(input);
                                 if (attr == null) {
                                     throw new EsqlIllegalArgumentException(

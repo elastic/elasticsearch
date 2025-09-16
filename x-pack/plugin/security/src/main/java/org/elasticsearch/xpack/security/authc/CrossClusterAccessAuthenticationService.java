@@ -34,7 +34,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VE
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 
-public class CrossClusterAccessAuthenticationService {
+public class CrossClusterAccessAuthenticationService implements RemoteClusterAuthenticationService {
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
@@ -52,6 +52,7 @@ public class CrossClusterAccessAuthenticationService {
         this.authenticationService = authenticationService;
     }
 
+    @Override
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
         final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
@@ -117,7 +118,8 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    public void tryAuthenticate(Map<String, String> headers, ActionListener<Void> listener) {
+    @Override
+    public void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener) {
         final ApiKeyService.ApiKeyCredentials credentials;
         try {
             credentials = extractApiKeyCredentialsFromHeaders(headers);
@@ -128,7 +130,8 @@ public class CrossClusterAccessAuthenticationService {
         tryAuthenticate(credentials, listener);
     }
 
-    public void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
+    // package-private for testing
+    void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
         Objects.requireNonNull(credentials);
         apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {

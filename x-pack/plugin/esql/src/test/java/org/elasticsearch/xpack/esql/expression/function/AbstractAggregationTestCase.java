@@ -181,6 +181,29 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }, this::evaluate);
     }
 
+    public void testSurrogateHasFilter() {
+        Expression expression = randomFrom(
+            buildLiteralExpression(testCase),
+            buildDeepCopyOfFieldExpression(testCase),
+            buildFieldExpression(testCase)
+        );
+
+        assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
+
+        if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
+            var filter = ((AggregateFunction) expression).filter();
+
+            var surrogate = ((SurrogateExpression) expression).surrogate();
+
+            if (surrogate != null) {
+                surrogate.forEachDown(AggregateFunction.class, child -> {
+                    var surrogateFilter = child.filter();
+                    assertEquals(filter, surrogateFilter);
+                });
+            }
+        }
+    }
+
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {
@@ -506,41 +529,46 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private void assertAggregatorToString(Object aggregator) {
-        if (optIntoToAggregatorToStringChecks() == false) {
-            return;
-        }
         String expectedStart = switch (aggregator) {
             case Aggregator a -> "Aggregator[aggregatorFunction=";
             case GroupingAggregator a -> "GroupingAggregator[aggregatorFunction=";
             default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
         };
+        String channels = initialInputChannels().stream().map(Object::toString).collect(Collectors.joining(", "));
         String expectedEnd = switch (aggregator) {
-            case Aggregator a -> "AggregatorFunction[channels=[0]], mode=SINGLE]";
-            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=[0]], mode=SINGLE]";
+            case Aggregator a -> "AggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
+            case GroupingAggregator a -> "GroupingAggregatorFunction[channels=[" + channels + "]], mode=SINGLE]";
             default -> throw new UnsupportedOperationException("can't check toString for [" + aggregator.getClass() + "]");
         };
 
         String toString = aggregator.toString();
         assertThat(toString, startsWith(expectedStart));
-        assertThat(toString.substring(expectedStart.length(), toString.length() - expectedEnd.length()), testCase.evaluatorToString());
         assertThat(toString, endsWith(expectedEnd));
-    }
-
-    protected boolean optIntoToAggregatorToStringChecks() {
-        // TODO remove this when everyone has opted in
-        return false;
+        assertThat(toString.substring(expectedStart.length(), toString.length() - expectedEnd.length()), testCase.evaluatorToString());
     }
 
     protected static String standardAggregatorName(String prefix, DataType type) {
         String typeName = switch (type) {
             case BOOLEAN -> "Boolean";
+            case CARTESIAN_POINT -> "CartesianPoint";
+            case CARTESIAN_SHAPE -> "CartesianShape";
+            case GEO_POINT -> "GeoPoint";
+            case GEO_SHAPE -> "GeoShape";
             case KEYWORD, TEXT, VERSION -> "BytesRef";
-            case DOUBLE -> "Double";
-            case INTEGER -> "Int";
+            case DOUBLE, COUNTER_DOUBLE -> "Double";
+            case INTEGER, COUNTER_INTEGER -> "Int";
             case IP -> "Ip";
-            case DATETIME, DATE_NANOS, LONG, UNSIGNED_LONG -> "Long";
+            case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
+            case NULL -> "Null";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;
+    }
+
+    protected static String standardAggregatorNameAllBytesTheSame(String prefix, DataType type) {
+        return standardAggregatorName(prefix, switch (type) {
+            case CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE, IP -> DataType.KEYWORD;
+            default -> type;
+        });
     }
 }

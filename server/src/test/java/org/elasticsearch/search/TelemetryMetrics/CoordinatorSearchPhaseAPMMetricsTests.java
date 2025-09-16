@@ -25,14 +25,33 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     private static final String indexName = "test_coordinator_search_phase_metrics";
     private final int num_primaries = randomIntBetween(128, 133);
+
+    private final Set<String> expectedMetrics = Set.of(
+        "es.search.coordinator.phases.fetch_lookup_fields.duration.histogram",
+        "es.search.coordinator.phases.fetch.duration.histogram",
+        "es.search.coordinator.phases.expand.duration.histogram",
+        "es.search.coordinator.phases.query.duration.histogram"
+    );
+
+    private final Set<String> expectedMetricsWithDfs = Set.of(
+        "es.search.coordinator.phases.fetch_lookup_fields.duration.histogram",
+        "es.search.coordinator.phases.fetch.duration.histogram",
+        "es.search.coordinator.phases.expand.duration.histogram",
+        "es.search.coordinator.phases.dfs_query.duration.histogram",
+        "es.search.coordinator.phases.dfs.duration.histogram"
+    );
 
     @Override
     protected boolean resetNodeAfterTest() {
@@ -68,53 +87,35 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
     }
 
     public void testMetricsDfsQueryThenFetch() throws InterruptedException {
-        checkMetricsDfsQueryThenFetch(indexName, false);
+        checkMetricsDfsQueryThenFetch(indexName);
     }
 
-    public void testMetricsDfsQueryThenFetchSystem() throws InterruptedException {
-        checkMetricsDfsQueryThenFetch(ShardSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME, true);
-    }
-
-    private void checkMetricsDfsQueryThenFetch(String indexName, boolean isSystemIndex) throws InterruptedException {
+    private void checkMetricsDfsQueryThenFetch(String indexName) throws InterruptedException {
         assertSearchHitsWithoutFailures(
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
 
-        /*
-        if (isSystemIndex) {
-            assertEquals(0, getNumberOfMeasurementsForPhase(DFS_SEARCH_PHASE_METRIC));
-        } else {
-            checkNumberOfMeasurementsForPhase(DFS_SEARCH_PHASE_METRIC, false);
-        }
-
-        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-        checkMetricsAttributes(isSystemIndex);
-         */
-        var registeredMetrics = getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM);
+        var coordinatorMetrics = filterForCoordinatorMetrics(
+            getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
+        assertThat(coordinatorMetrics, hasSize(5));
+        assertThat(coordinatorMetrics, equalTo(expectedMetricsWithDfs));
     }
 
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
-        checkSearchTransportMetricsQueryThenFetch(indexName, false);
+        checkSearchTransportMetricsQueryThenFetch(indexName);
     }
 
-    public void testSearchTransportMetricsQueryThenFetchSystem() throws InterruptedException {
-        checkSearchTransportMetricsQueryThenFetch(ShardSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME, true);
-    }
-
-    private void checkSearchTransportMetricsQueryThenFetch(String indexName, boolean isSystemIndex) throws InterruptedException {
+    private void checkSearchTransportMetricsQueryThenFetch(String indexName) throws InterruptedException {
         assertSearchHitsWithoutFailures(
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        /*
-        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-        checkMetricsAttributes(isSystemIndex);
 
-         */
-        var registeredMetrics = getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM);
+        var coordinatorMetrics = filterForCoordinatorMetrics(
+            getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
+        assertThat(coordinatorMetrics, hasSize(4));
+        assertThat(coordinatorMetrics, equalTo(expectedMetrics));
     }
 
 
@@ -124,6 +125,12 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
 
     private TestTelemetryPlugin getTestTelemetryPlugin() {
         return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
+    }
+
+    private Set<String> filterForCoordinatorMetrics(List<String> registeredMetrics) {
+        return registeredMetrics.stream()
+            .filter(m -> m.startsWith("es.search.coordinator"))
+            .collect(Collectors.toSet());
     }
 
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {

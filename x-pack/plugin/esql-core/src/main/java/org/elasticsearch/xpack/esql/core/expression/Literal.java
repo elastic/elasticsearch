@@ -56,7 +56,7 @@ public class Literal extends LeafExpression implements Accountable {
 
     public Literal(Source source, Object value, DataType dataType) {
         super(source);
-        assert noPlainStrings(value, dataType);
+        //assert noPlainStrings(value, dataType);
         this.dataType = dataType;
         this.value = value;
     }

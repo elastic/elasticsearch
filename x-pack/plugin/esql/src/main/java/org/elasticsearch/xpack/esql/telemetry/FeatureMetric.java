@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 
 import java.util.BitSet;
@@ -75,7 +76,8 @@ public enum FeatureMetric {
     FORK(Fork.class::isInstance),
     FUSE(Fuse.class::isInstance),
     COMPLETION(Completion.class::isInstance),
-    SAMPLE(Sample.class::isInstance);
+    SAMPLE(Sample.class::isInstance),
+    PROMQL(PromqlCommand.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

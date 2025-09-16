@@ -1460,6 +1460,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) { }
 
   /**
    * {@inheritDoc}

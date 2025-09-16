@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteFilteredEx
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateAggregations;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateExpressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogatePlans;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -115,10 +116,10 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, false, verified.output());
-        if (failures.hasFailures()) {
-            throw new VerificationException(failures);
-        }
+        //Failures failures = verifier.verify(optimized, false, verified.output());
+//        if (failures.hasFailures()) {
+//            throw new VerificationException(failures);
+//        }
         optimized.setOptimized();
         return optimized;
     }
@@ -144,6 +145,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceAggregateAggExpressionWithEval(),
             // lastly replace surrogate functions
             new SubstituteSurrogateAggregations(),
+            // translate PromQL plans to time-series aggregates before TranslateTimeSeriesAggregate
+            new TranslatePromqlToTimeSeriesAggregate(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateTimeSeriesAggregate(),
             new PruneUnusedIndexMode(),

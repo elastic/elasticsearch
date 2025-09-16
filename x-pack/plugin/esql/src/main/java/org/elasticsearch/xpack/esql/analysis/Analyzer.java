@@ -134,6 +134,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -546,6 +547,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof Rerank r) {
                 return resolveRerank(r, childrenOutput);
+            }
+
+            if (plan instanceof PromqlCommand p) {
+                LogicalPlan nested = p.promqlPlan();
+                return p.withPromqlPlan(
+                    nested.transformExpressionsDown(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput))
+                );
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));

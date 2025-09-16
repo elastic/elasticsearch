@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -80,6 +82,8 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.joni.exception.SyntaxException;
 
@@ -93,7 +97,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION;
@@ -109,8 +112,6 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  * which change the grammar will need to make changes here as well.
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
-
-    interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}
 
     /**
      * Maximum number of commands allowed per query
@@ -1057,6 +1058,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return completion;
     }
 
+
     private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(
         InferencePlanType inferencePlan,
         Expression inferenceId
@@ -1084,5 +1086,50 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 "invalid value for SAMPLE probability [" + BytesRefs.toString(val) + "], expecting a number between 0 and 1, exclusive"
             );
         }
+    }
+
+    @Override
+    public PlanFactory visitPromqlCommand(EsqlBaseParser.PromqlCommandContext ctx) {
+        Source source = source(ctx);
+
+        TerminalNode terminalNode = ctx.PROMQL_TEXT();
+        String query = terminalNode != null ? terminalNode.getText().trim() : StringUtils.EMPTY;
+
+        if (query.isEmpty()) {
+            throw new ParsingException(source, "PromQL expression cannot be empty");
+        }
+
+        int promqlStartLine = source.source().getLineNumber();
+        int promqlStartColumn = terminalNode != null
+            ? terminalNode.getSymbol().getCharPositionInLine()
+            : source.source().getColumnNumber();
+
+        PromqlParser promqlParser = new PromqlParser();
+        LogicalPlan promqlPlan;
+        try {
+            // TODO: Consider passing timestamps from query context if needed
+            promqlPlan = promqlParser.createStatement(query);
+        } catch (ParsingException pe) {
+            ParsingException adjusted = getParsingException(pe, promqlStartLine, promqlStartColumn);
+            throw adjusted;
+        }
+
+        return plan -> new PromqlCommand(source, plan, promqlPlan);
+    }
+
+    private static ParsingException getParsingException(ParsingException pe, int promqlStartLine, int promqlStartColumn) {
+        int adjustedLine = promqlStartLine + (pe.getLineNumber() - 1);
+        int adjustedColumn = (pe.getLineNumber() == 1
+            ? promqlStartColumn + pe.getColumnNumber()
+            : pe.getColumnNumber()) - 1;
+
+        ParsingException adjusted = new ParsingException(
+            pe.getErrorMessage(),
+            pe.getCause() instanceof Exception ? (Exception) pe.getCause() : null,
+            adjustedLine,
+            adjustedColumn
+        );
+        adjusted.setStackTrace(pe.getStackTrace());
+        return adjusted;
     }
 }

@@ -419,7 +419,6 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
-import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.extension.CrossClusterAccessSecurityExtension;
@@ -638,6 +637,7 @@ public class Security extends Plugin
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
     private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
+    private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
@@ -1189,9 +1189,8 @@ public class Security extends Plugin
             threadPool,
             settings
         );
-        RemoteClusterSecurityExtension rcsExtension = this.getRemoteClusterSecurityExtension(rcsComponents);
-        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = rcsExtension.getTransportInterceptor();
-        remoteClusterAuthenticationService.set(rcsExtension.getAuthenticationService());
+        this.remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
+        remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
 
         securityInterceptor.set(
@@ -1201,7 +1200,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteClusterTransportInterceptor
+                remoteClusterSecurityExtension.get().getTransportInterceptor()
             )
         );
 
@@ -1244,7 +1243,7 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
-        reloadableComponents.addAll(rcsExtension.getReloadableComponents());
+        reloadableComponents.addAll(remoteClusterSecurityExtension.get().getReloadableComponents());
         final List<Closeable> closableComponents = new ArrayList<>();
         for (Object component : components) {
             final Object unwrapped;

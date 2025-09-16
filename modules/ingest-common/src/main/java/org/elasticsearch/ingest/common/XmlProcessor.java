@@ -217,7 +217,7 @@ public final class XmlProcessor extends AbstractProcessor {
      * @param value the value to check
      * @return true if the value should be considered empty
      */
-    private boolean isEmptyValue(Object value) {
+    private static boolean isEmptyValue(Object value) {
         if (value == null) {
             return true;
         }

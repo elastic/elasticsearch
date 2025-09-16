@@ -162,12 +162,12 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
             err = error("""
                 FROM test
                 | EVAL language_code = languages
-                | INLINESTATS count(*) BY language_code
+                | INLINE STATS count(*) BY language_code
                 | ENRICH _remote:languages ON language_code
                 """, analyzer);
             assertThat(
                 err,
-                containsString("4:3: ENRICH with remote policy can't be executed after [INLINESTATS count(*) BY language_code]@3:3")
+                containsString("4:3: ENRICH with remote policy can't be executed after [INLINE STATS count(*) BY language_code]@3:3")
             );
         }
 

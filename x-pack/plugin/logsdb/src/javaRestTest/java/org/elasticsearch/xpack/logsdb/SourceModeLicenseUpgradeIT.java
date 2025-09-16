@@ -12,15 +12,13 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import java.io.IOException;
 import java.util.List;
 
-public class DataStreamLicenceDowngradeIT extends DataStreamLicenseChangeIT {
+public class SourceModeLicenseUpgradeIT extends SourceModeLicenseChangeTestCase {
     @Override
-    protected void applyInitialLicense() throws IOException {
-        startTrial();
-    }
+    protected void applyInitialLicense() {}
 
     @Override
     protected void licenseChange() throws IOException {
-        startBasic();
+        startTrial();
     }
 
     @Override
@@ -48,12 +46,12 @@ public class DataStreamLicenceDowngradeIT extends DataStreamLicenseChangeIT {
 
             @Override
             public SourceFieldMapper.Mode initialMode() {
-                return SourceFieldMapper.Mode.SYNTHETIC;
+                return SourceFieldMapper.Mode.STORED;
             }
 
             @Override
             public SourceFieldMapper.Mode finalMode() {
-                return SourceFieldMapper.Mode.STORED;
+                return SourceFieldMapper.Mode.SYNTHETIC;
             }
         }, new TestCase() {
             private static final String sourceModeOverride = """
@@ -93,12 +91,12 @@ public class DataStreamLicenceDowngradeIT extends DataStreamLicenseChangeIT {
 
             @Override
             public SourceFieldMapper.Mode initialMode() {
-                return SourceFieldMapper.Mode.SYNTHETIC;
+                return SourceFieldMapper.Mode.STORED;
             }
 
             @Override
             public SourceFieldMapper.Mode finalMode() {
-                return SourceFieldMapper.Mode.STORED;
+                return SourceFieldMapper.Mode.SYNTHETIC;
             }
         }, new TestCase() {
             private static final String sourceModeOverride = """
@@ -200,12 +198,12 @@ public class DataStreamLicenceDowngradeIT extends DataStreamLicenseChangeIT {
 
             @Override
             public SourceFieldMapper.Mode initialMode() {
-                return SourceFieldMapper.Mode.SYNTHETIC;
+                return SourceFieldMapper.Mode.STORED;
             }
 
             @Override
             public SourceFieldMapper.Mode finalMode() {
-                return SourceFieldMapper.Mode.STORED;
+                return SourceFieldMapper.Mode.SYNTHETIC;
             }
         }, new TestCase() {
             @Override
@@ -263,12 +261,12 @@ public class DataStreamLicenceDowngradeIT extends DataStreamLicenseChangeIT {
 
             @Override
             public SourceFieldMapper.Mode initialMode() {
-                return SourceFieldMapper.Mode.SYNTHETIC;
+                return SourceFieldMapper.Mode.STORED;
             }
 
             @Override
             public SourceFieldMapper.Mode finalMode() {
-                return SourceFieldMapper.Mode.STORED;
+                return SourceFieldMapper.Mode.SYNTHETIC;
             }
         }, new TestCase() {
             @Override
@@ -422,12 +420,12 @@ public class DataStreamLicenceDowngradeIT extends DataStreamLicenseChangeIT {
 
                 @Override
                 public SourceFieldMapper.Mode initialMode() {
-                    return SourceFieldMapper.Mode.SYNTHETIC;
+                    return SourceFieldMapper.Mode.STORED;
                 }
 
                 @Override
                 public SourceFieldMapper.Mode finalMode() {
-                    return SourceFieldMapper.Mode.STORED;
+                    return SourceFieldMapper.Mode.SYNTHETIC;
                 }
             },
             new TestCase() {

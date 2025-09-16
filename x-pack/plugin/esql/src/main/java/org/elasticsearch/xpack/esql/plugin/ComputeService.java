@@ -385,7 +385,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINE STATS improvements
+                    execInfo.markEndQuery();
                     l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
@@ -402,7 +402,7 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.tookSoFar();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                                    if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
                                         // Set the local cluster status (including the final driver) to partial if the query was stopped
                                         // or encountered resolution or execution failures.
@@ -534,8 +534,8 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINE STATS improvements
-        if (execInfo.isCrossClusterSearch()) {
+        execInfo.markEndQuery();
+        if (execInfo.isCrossClusterSearch() && execInfo.isMainPlan()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {

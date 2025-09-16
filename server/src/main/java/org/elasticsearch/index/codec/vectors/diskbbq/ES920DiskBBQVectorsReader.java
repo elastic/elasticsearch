@@ -55,11 +55,7 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHe
                 if (formatName == null) {
                     throw new IllegalArgumentException("Field does not have " + RAW_VECTOR_FORMAT);
                 }
-                readers.put(
-                    fi.name,
-                    (FlatVectorsReader) KnnVectorsFormat.forName(formatName)
-                        .fieldsReader(state)
-                );
+                readers.put(fi.name, (FlatVectorsReader) KnnVectorsFormat.forName(formatName).fieldsReader(state));
             }
         }
 

@@ -86,16 +86,21 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 
 Standard (non-time-series) aggregation functions, such as `SUM()`, `AVG()`,
 can be used as outer aggregation functions. Using a time-series aggregation as
-the outer function, in combination with an inner function, leads to an error.
+the outer function, in combination with an inner function, leads to an error. For
+instance, the following query is invalid:
+
+```esql
+TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
+```
 
 ::::{note}
 If the outer aggregation function is missing, results are grouped by time-series
 and implicitly expanded to include all dimensions. For instance, the output for
 the following query will include all dimension fields in `metrics` - as opposed
-to just `hourly` for an equivalent query using `FROM` source command:
+to just `TBUCKET` for an equivalent query using `FROM` source command:
 
 ```esql
-TS metrics | STATS RATE(search_requests) BY hourly=TBUCKET(1 hour)
+TS metrics | STATS RATE(search_requests) BY TBUCKET(1 hour)
 ```
 
 Including fields except from time as grouping attributes is not allowed as it'd

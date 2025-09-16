@@ -12,6 +12,8 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -42,17 +45,37 @@ public final class SearchRequestAttributesExtractor {
 
     /**
      * Introspects the provided search request and extracts metadata from it about some of its characteristics.
-     *
      */
     public static Map<String, Object> extractAttributes(SearchRequest searchRequest, String[] localIndices) {
+        return extractAttributes(searchRequest.source(), searchRequest.scroll(), localIndices);
+    }
+
+    /**
+     * Introspects the provided shard search request and extracts metadata from it about some of its characteristics.
+     */
+    public static Map<String, Object> extractAttributes(ShardSearchRequest shardSearchRequest) {
+        Map<String, Object> attributes = extractAttributes(
+            shardSearchRequest.source(),
+            shardSearchRequest.scroll(),
+            shardSearchRequest.shardId().getIndexName()
+        );
+        boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
+        attributes.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
+        return attributes;
+    }
+
+    private static Map<String, Object> extractAttributes(
+        SearchSourceBuilder searchSourceBuilder,
+        TimeValue scroll,
+        String... localIndices
+    ) {
         String target = extractIndices(localIndices);
 
         String pitOrScroll = null;
-        if (searchRequest.scroll() != null) {
+        if (scroll != null) {
             pitOrScroll = SCROLL;
         }
 
-        SearchSourceBuilder searchSourceBuilder = searchRequest.source();
         if (searchSourceBuilder == null) {
             return buildAttributesMap(target, ScoreSortBuilder.NAME, HITS_ONLY, false, false, false, pitOrScroll);
         }
@@ -144,7 +167,7 @@ public final class SearchRequestAttributesExtractor {
     private static final String TARGET_USER = "user";
     private static final String ERROR = "error";
 
-    static String extractIndices(String[] indices) {
+    static String extractIndices(String... indices) {
         try {
             // Note that indices are expected to be resolved, meaning wildcards are not handled on purpose
             // If indices resolve to data streams, the name of the data stream is returned as opposed to its backing indices
@@ -213,6 +236,7 @@ public final class SearchRequestAttributesExtractor {
     private static final String PIT = "pit";
     private static final String SCROLL = "scroll";
 
+    public static final String SYSTEM_THREAD_ATTRIBUTE_NAME = "system_thread";
     public static final Map<String, Object> SEARCH_SCROLL_ATTRIBUTES = Map.of(QUERY_TYPE_ATTRIBUTE, SCROLL);
 
     static String extractQueryType(SearchSourceBuilder searchSourceBuilder) {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.TelemetryMetrics;
 
+import org.elasticsearch.action.search.SearchRequestAttributesExtractor;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -21,18 +22,18 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.FETCH_SEARCH_PHASE_METRIC;
 import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.QUERY_SEARCH_PHASE_METRIC;
-import static org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics.SYSTEM_THREAD_ATTRIBUTE_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 
@@ -47,7 +48,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     }
 
     @Before
-    private void setUpIndex() throws Exception {
+    public void setUpIndex() {
         createIndex(
             indexName,
             Settings.builder()
@@ -65,7 +66,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
     }
 
     @After
-    private void afterTest() {
+    public void afterTest() {
         resetMeter();
     }
 
@@ -74,72 +75,162 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         return pluginList(TestTelemetryPlugin.class, TestSystemIndexPlugin.class);
     }
 
-    public void testMetricsDfsQueryThenFetch() throws InterruptedException {
-        checkMetricsDfsQueryThenFetch(indexName, false);
-    }
-
-    public void testMetricsDfsQueryThenFetchSystem() throws InterruptedException {
-        checkMetricsDfsQueryThenFetch(TestSystemIndexPlugin.INDEX_NAME, true);
-    }
-
-    private void checkMetricsDfsQueryThenFetch(String indexName, boolean isSystemIndex) throws InterruptedException {
+    public void testMetricsDfsQueryThenFetch() {
         assertSearchHitsWithoutFailures(
             client().prepareSearch(indexName).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-        checkMetricsAttributes(isSystemIndex);
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertEquals(num_primaries, queryMeasurements.size());
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        assertEquals(1, fetchMeasurements.size());
+        assertAttributes(fetchMeasurements, false, false);
     }
 
-    public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {
-        checkSearchTransportMetricsQueryThenFetch(indexName, false);
+    public void testMetricsDfsQueryThenFetchSystem() {
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch(TestSystemIndexPlugin.INDEX_NAME)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(simpleQueryStringQuery("doc1")),
+            "1"
+        );
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertEquals(1, queryMeasurements.size());
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        assertEquals(1, fetchMeasurements.size());
+        assertAttributes(fetchMeasurements, true, false);
     }
 
-    public void testSearchTransportMetricsQueryThenFetchSystem() throws InterruptedException {
-        checkSearchTransportMetricsQueryThenFetch(TestSystemIndexPlugin.INDEX_NAME, true);
-    }
-
-    private void checkSearchTransportMetricsQueryThenFetch(String indexName, boolean isSystemIndex) throws InterruptedException {
+    public void testSearchTransportMetricsQueryThenFetch() {
         assertSearchHitsWithoutFailures(
             client().prepareSearch(indexName).setSearchType(SearchType.QUERY_THEN_FETCH).setQuery(simpleQueryStringQuery("doc1")),
             "1"
         );
-        checkNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC, isSystemIndex);
-        assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
-        checkMetricsAttributes(isSystemIndex);
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertEquals(num_primaries, queryMeasurements.size());
+        assertAttributes(queryMeasurements, false, false);
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        assertEquals(1, fetchMeasurements.size());
+        assertAttributes(fetchMeasurements, false, false);
     }
 
-    public void testSearchTransportMetricsScroll() throws InterruptedException {
-        checkSearchTransportMetricsScroll(indexName, false);
+    public void testSearchTransportMetricsQueryThenFetchSystem() {
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch(TestSystemIndexPlugin.INDEX_NAME)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(simpleQueryStringQuery("doc1")),
+            "1"
+        );
+        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+        assertEquals(1, queryMeasurements.size());
+        assertAttributes(queryMeasurements, true, false);
+        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+        assertEquals(1, fetchMeasurements.size());
+        assertAttributes(fetchMeasurements, true, false);
     }
 
-    public void testSearchTransportMetricsScrollSystem() throws InterruptedException {
-        checkSearchTransportMetricsScroll(TestSystemIndexPlugin.INDEX_NAME, true);
+    public void testSearchMultipleIndices() {
+        assertSearchHitsWithoutFailures(
+            client().prepareSearch(indexName, TestSystemIndexPlugin.INDEX_NAME)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(simpleQueryStringQuery("doc1")),
+            "1",
+            "1"
+        );
+        {
+            final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+            assertEquals(num_primaries + 1, queryMeasurements.size());
+            int userTarget = 0;
+            int systemTarget = 0;
+            for (Measurement measurement : queryMeasurements) {
+                Map<String, Object> attributes = measurement.attributes();
+                assertEquals(4, attributes.size());
+
+                String target = attributes.get("target").toString();
+                if (target.equals("user")) {
+                    userTarget++;
+                } else {
+                    systemTarget++;
+                    assertEquals(".others", target);
+                    assertEquals(true, measurement.attributes().get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+                }
+                assertEquals("hits_only", attributes.get("query_type"));
+                assertEquals("_score", attributes.get("sort"));
+            }
+            assertEquals(num_primaries, userTarget);
+            assertEquals(1, systemTarget);
+        }
+        {
+            final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+            assertEquals(2, fetchMeasurements.size());
+            int userTarget = 0;
+            int systemTarget = 0;
+            for (Measurement measurement : fetchMeasurements) {
+                Map<String, Object> attributes = measurement.attributes();
+                assertEquals(4, attributes.size());
+
+                String target = attributes.get("target").toString();
+                if (target.equals("user")) {
+                    userTarget++;
+                } else {
+                    systemTarget++;
+                    assertEquals(".others", target);
+                    assertEquals(true, measurement.attributes().get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+                }
+                assertEquals("hits_only", attributes.get("query_type"));
+                assertEquals("_score", attributes.get("sort"));
+            }
+            assertEquals(1, userTarget);
+            assertEquals(1, systemTarget);
+        }
     }
 
-    private void checkSearchTransportMetricsScroll(String indexName, boolean isSystemIndex) throws InterruptedException {
+    public void testSearchTransportMetricsScroll() {
         assertScrollResponsesAndHitCount(
             client(),
             TimeValue.timeValueSeconds(60),
-            client().prepareSearch(indexName)
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setSize(1)
-                .setQuery(simpleQueryStringQuery("doc1 doc2")),
+            client().prepareSearch(indexName).setSize(1).setQuery(simpleQueryStringQuery("doc1 doc2")),
             2,
             (respNum, response) -> {
+                final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+                assertEquals(num_primaries, queryMeasurements.size());
+                assertAttributes(queryMeasurements, false, true);
                 // No hits, no fetching done
-                assertEquals(isSystemIndex ? 1 : num_primaries, getNumberOfMeasurementsForPhase(QUERY_SEARCH_PHASE_METRIC));
                 if (response.getHits().getHits().length > 0) {
-                    assertNotEquals(0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
+                    final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                        FETCH_SEARCH_PHASE_METRIC
+                    );
+                    assertThat(fetchMeasurements.size(), Matchers.greaterThan(0));
+                    int numFetchShards = Math.min(2, num_primaries);
+                    assertThat(fetchMeasurements.size(), Matchers.lessThanOrEqualTo(numFetchShards));
+                    assertAttributes(fetchMeasurements, false, true);
                 } else {
-                    assertEquals(isSystemIndex ? 1 : 0, getNumberOfMeasurementsForPhase(FETCH_SEARCH_PHASE_METRIC));
+                    final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(
+                        FETCH_SEARCH_PHASE_METRIC
+                    );
+                    assertEquals(0, fetchMeasurements.size());
                 }
-                checkMetricsAttributes(isSystemIndex);
                 resetMeter();
             }
         );
+    }
 
+    public void testSearchTransportMetricsScrollSystem() {
+        assertScrollResponsesAndHitCount(
+            client(),
+            TimeValue.timeValueSeconds(60),
+            client().prepareSearch(TestSystemIndexPlugin.INDEX_NAME).setSize(1).setQuery(simpleQueryStringQuery("doc1 doc2")),
+            2,
+            (respNum, response) -> {
+                final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
+                assertEquals(1, queryMeasurements.size());
+                assertAttributes(queryMeasurements, true, true);
+                final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(FETCH_SEARCH_PHASE_METRIC);
+                assertEquals(1, fetchMeasurements.size());
+                assertAttributes(fetchMeasurements, true, true);
+                resetMeter();
+            }
+        );
     }
 
     private void resetMeter() {
@@ -150,26 +241,22 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         return getInstanceFromNode(PluginsService.class).filterPlugins(TestTelemetryPlugin.class).toList().get(0);
     }
 
-    private void checkNumberOfMeasurementsForPhase(String phase, boolean isSystemIndex) {
-        int numMeasurements = getNumberOfMeasurementsForPhase(phase);
-        assertEquals(isSystemIndex ? 1 : num_primaries, numMeasurements);
-    }
-
-    private int getNumberOfMeasurementsForPhase(String phase) {
-        final List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(phase);
-        return measurements.size();
-    }
-
-    private void checkMetricsAttributes(boolean isSystem) {
-        final List<Measurement> queryMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
-        final List<Measurement> fetchMeasurements = getTestTelemetryPlugin().getLongHistogramMeasurement(QUERY_SEARCH_PHASE_METRIC);
-        assertTrue(
-            Stream.concat(queryMeasurements.stream(), fetchMeasurements.stream()).allMatch(m -> checkMeasurementAttributes(m, isSystem))
-        );
-    }
-
-    private boolean checkMeasurementAttributes(Measurement m, boolean isSystem) {
-        return ((boolean) m.attributes().get(SYSTEM_THREAD_ATTRIBUTE_NAME)) == isSystem;
+    private static void assertAttributes(List<Measurement> measurements, boolean isSystem, boolean isScroll) {
+        for (Measurement measurement : measurements) {
+            Map<String, Object> attributes = measurement.attributes();
+            assertEquals(isScroll ? 5 : 4, attributes.size());
+            if (isSystem) {
+                assertEquals(".others", attributes.get("target"));
+            } else {
+                assertEquals("user", attributes.get("target"));
+            }
+            assertEquals("hits_only", attributes.get("query_type"));
+            assertEquals("_score", attributes.get("sort"));
+            if (isScroll) {
+                assertEquals("scroll", attributes.get("pit_scroll"));
+            }
+            assertEquals(isSystem, measurement.attributes().get(SearchRequestAttributesExtractor.SYSTEM_THREAD_ATTRIBUTE_NAME));
+        }
     }
 
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {

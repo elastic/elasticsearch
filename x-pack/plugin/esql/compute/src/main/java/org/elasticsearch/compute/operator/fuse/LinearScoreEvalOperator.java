@@ -165,9 +165,9 @@ public class LinearScoreEvalOperator implements Operator {
     }
 
     private interface Normalizer {
-        public abstract double normalize(double score, String discriminator);
+        double normalize(double score, String discriminator);
 
-        public abstract void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition);
+        void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition);
     }
 
     private class NoneNormalizer implements Normalizer {

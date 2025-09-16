@@ -146,7 +146,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         }
         return factory.newInstance(
             condition.getParams(),
-            new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS))
+            wrapUnmodifiableMap(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS))
         ).execute();
     }
 
@@ -171,8 +171,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static Object wrapUnmodifiable(Object raw) {
         // Wraps all mutable types that the JSON parser can create by immutable wrappers.
         // Any inputs not wrapped are assumed to be immutable
-        if (raw instanceof Map) {
-            return new UnmodifiableIngestData((Map<String, Object>) raw);
+        if (raw instanceof Map<?, ?> rawMap) {
+            return wrapUnmodifiableMap((Map<String, Object>) rawMap);
         } else if (raw instanceof List) {
             return new UnmodifiableIngestList((List<Object>) raw);
         } else if (raw instanceof byte[] bytes) {
@@ -183,6 +183,17 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
     private static UnsupportedOperationException unmodifiableException() {
         return new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+    }
+
+    /**
+     * This wraps the input map, returning an unmodifiable version of it. Any attempts to modify the returned map will throw an
+     * UnsupportedOperationException. This includes attempts to modify objects nested within the map. This map is assumed to be safe to
+     * execute painless scripts against, knowing that the script cannot accidentally change underlying data
+     * @param map The map to be wrapped
+     * @return An unmodifiable map with the same values as the input map
+     */
+    static Map<String, Object> wrapUnmodifiableMap(Map<String, Object> map) {
+        return new UnmodifiableIngestData(map);
     }
 
     private static final class UnmodifiableIngestData implements Map<String, Object> {

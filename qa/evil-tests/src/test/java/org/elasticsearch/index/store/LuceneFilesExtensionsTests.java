@@ -14,6 +14,8 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.containsString;
 
 public class LuceneFilesExtensionsTests extends ESTestCase {
@@ -52,7 +54,7 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
             + LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length) - 1].getExtension();
         String extension = IndexFileNames.getExtension(randomStringWithLuceneExtension);
         assertTrue(extension + " should be considered a Lucene extension", LuceneFilesExtensions.isLuceneExtension(extension));
-        String upperCaseExtension = extension.toUpperCase();
+        String upperCaseExtension = extension.toUpperCase(Locale.ROOT);
         assertFalse(
             upperCaseExtension + " (uppercase) should not be considered a Lucene extension",
             LuceneFilesExtensions.isLuceneExtension(upperCaseExtension)

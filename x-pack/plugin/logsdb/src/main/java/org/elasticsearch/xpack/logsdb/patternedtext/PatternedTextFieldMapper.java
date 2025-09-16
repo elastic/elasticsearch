@@ -151,7 +151,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         /**
-         * A parameter that indicates the patterned_text mapper should disable tempating, usually
+         * A parameter that indicates the patterned_text mapper should disable templating, usually
          * because there is no valid enterprise license.
          * <p>
          * The parameter should only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the

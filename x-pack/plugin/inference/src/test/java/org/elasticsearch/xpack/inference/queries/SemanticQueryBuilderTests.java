@@ -371,6 +371,36 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         }
     }
 
+    public void testSerializationRemoteClusterInferenceResults() throws IOException {
+        InferenceResults inferenceResults1 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("foo", 1.0f)),
+            false
+        );
+        InferenceResults inferenceResults2 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("bar", 2.0f)),
+            false
+        );
+
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = Map.of(
+            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults1,
+            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults2
+        );
+
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(
+            randomAlphaOfLength(5),
+            randomAlphaOfLength(5),
+            null,
+            inferenceResultsMap
+        );
+
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+    }
+
     public void testSerializationBwc() throws IOException {
         InferenceResults inferenceResults1 = new TextExpansionResults(
             DEFAULT_RESULTS_FIELD,

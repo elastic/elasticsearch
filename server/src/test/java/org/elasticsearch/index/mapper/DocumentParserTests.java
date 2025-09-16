@@ -1182,7 +1182,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
                             b.field("type", "keyword");
                             b.startObject("meta");
                             {
-                                b.field("unit", "{unit:default}");
+                                b.field("unit", "{{unit}}");
                             }
                             b.endObject();
                         }
@@ -1198,7 +1198,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template")));
         Mapper fieldMapper = doc.dynamicMappingsUpdate().getRoot().getMapper("foo");
         assertThat(fieldMapper, instanceOf(KeywordFieldMapper.class));
-        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo("default"));
+        assertThat(((KeywordFieldMapper) fieldMapper).fieldType().meta().get("unit"), equalTo(""));
 
         doc = mapper.parse(
             source("1", b -> b.field("foo", "bar"), null, Map.of("foo", "my_dynamic_template"), Map.of("foo", Map.of("unit", "By")))

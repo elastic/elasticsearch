@@ -34,8 +34,8 @@ import java.util.stream.Stream;
 
 public class DynamicTemplate implements ToXContentObject {
 
-    // Pattern to match {param} or {param:default} in dynamic template mappings
-    private static final Pattern DYNAMIC_TEMPLATE_PARAM = Pattern.compile("\\{(.+?)(:(.*?))?}");
+    // Pattern to match {{param}} in dynamic template mappings
+    private static final Pattern DYNAMIC_TEMPLATE_PARAM = Pattern.compile("\\{\\{(.*?)}}");
 
     public enum MatchType {
         /**
@@ -489,7 +489,9 @@ public class DynamicTemplate implements ToXContentObject {
         String type;
         if (mapping.containsKey("type")) {
             type = mapping.get("type").toString();
+            type = type.replace("{{dynamic_type}}", dynamicType);
             type = type.replace("{dynamic_type}", dynamicType);
+            type = type.replace("{{dynamicType}}", dynamicType);
             type = type.replace("{dynamicType}", dynamicType);
         } else {
             type = dynamicType;
@@ -554,21 +556,23 @@ public class DynamicTemplate implements ToXContentObject {
     }
 
     private static String processString(String s, String name, String dynamicType, Map<String, String> params) {
-        s = s.replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+        s = s.replace("{{name}}", name)
+            .replace("{name}", name)
+            .replace("{{dynamic_type}}", dynamicType)
+            .replace("{dynamic_type}", dynamicType)
+            .replace("{{dynamicType}}", dynamicType)
+            .replace("{dynamicType}", dynamicType);
 
-        if (s.contains("{") == false) {
+        if (s.contains("{{") == false) {
             return s;
         }
 
-        // Handle {param:default} replacements
+        // Handle {{param}} replacements
         Matcher matcher = DYNAMIC_TEMPLATE_PARAM.matcher(s);
         StringBuilder sb = new StringBuilder();
         while (matcher.find()) {
             String key = matcher.group(1);
-            boolean hasDefault = matcher.group(2) != null;
-            // leave unreplaced if no default value is declared and param not found
-            String defaultValue = hasDefault ? matcher.group(3) : matcher.group();
-            String replacement = params.getOrDefault(key, defaultValue);
+            String replacement = params.getOrDefault(key, "");
             matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
         }
         matcher.appendTail(sb);

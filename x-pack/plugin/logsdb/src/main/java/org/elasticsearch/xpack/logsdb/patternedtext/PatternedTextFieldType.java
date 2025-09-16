@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -81,10 +80,10 @@ public class PatternedTextFieldType extends StringFieldType {
             new TextSearchInfo(
                 hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
                 null,
-                Lucene.STANDARD_ANALYZER,
-                Lucene.STANDARD_ANALYZER
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
             ),
-            Lucene.STANDARD_ANALYZER,
+            DelimiterAnalyzer.INSTANCE,
             syntheticSource,
             Collections.emptyMap()
         );

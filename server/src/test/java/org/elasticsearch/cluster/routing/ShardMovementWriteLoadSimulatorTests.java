@@ -240,7 +240,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
             clusterInfo,
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
-        ).mutableCloneForSimulation();
+        ).mutableCloneForSimulation(Integer.MAX_VALUE);
     }
 
     private ClusterState createClusterState() {

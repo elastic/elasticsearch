@@ -128,7 +128,8 @@ public class DesiredBalanceComputer {
             logger.debug("Recomputing desired balance for [{}]", desiredBalanceInput.index());
         }
 
-        final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation();
+        // TODO: Maybe make this a setting?
+        final var routingAllocation = desiredBalanceInput.routingAllocation().mutableCloneForSimulation(1);
         final var routingNodes = routingAllocation.routingNodes();
         final var knownNodeIds = routingNodes.getAllNodeIds();
         final var changes = routingAllocation.changes();

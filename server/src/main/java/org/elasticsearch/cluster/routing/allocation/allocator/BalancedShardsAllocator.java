@@ -154,7 +154,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         final BalancingWeights balancingWeights = balancingWeightsFactory.create();
         final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), balancingWeights);
         balancer.allocateUnassigned();
-        balancer.moveShards();
+
+        // TODO: if (balancer.moveNonPreferred()) return;
+        if (balancer.moveShards()) {
+            return;
+        }
         balancer.balance();
 
         // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
@@ -630,6 +634,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             sorter.sort(0, relevantNodes);
                             lowIdx = 0;
                             highIdx = relevantNodes - 1;
+                            if (allocation.hasTargetRelocatingShards()) {
+                                // The shard may have been relocated on the ModelNode, but not on the cluster (RoutingNodes) if
+                                // it is throttled. The `hasTargetRelocatingShards` check does not account for this case.
+                                // This might be a non-issue since our intention is to have no Throttle with early returns.
+                                return;
+                            }
                             continue;
                         }
                     }
@@ -721,7 +731,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * shard is created with an incremented version in the state
          * {@link ShardRoutingState#INITIALIZING}.
          */
-        public void moveShards() {
+        public boolean moveShards() {
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
@@ -745,10 +755,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (logger.isTraceEnabled()) {
                         logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
                     }
+                    if (allocation.hasTargetRelocatingShards()) {
+                        return true;
+                    }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
+            return allocation.hasTargetRelocatingShards();
         }
 
         /**

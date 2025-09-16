@@ -52,7 +52,7 @@ public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
             randomNonNegativeLong()
-        ).mutableCloneForSimulation();
+        ).mutableCloneForSimulation(Integer.MAX_VALUE);
         routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
 
         final var decision = decider.canAllocate(

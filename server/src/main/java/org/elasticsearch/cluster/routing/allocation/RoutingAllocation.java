@@ -68,6 +68,7 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
     private final boolean isSimulating;
+    private final int targetRelocatingShardsDuringSimulation;
     private boolean isReconciling;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
@@ -112,7 +113,7 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, Integer.MAX_VALUE);
     }
 
     /**
@@ -130,7 +131,8 @@ public class RoutingAllocation {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        boolean isSimulating
+        boolean isSimulating,
+        int targetRelocatingShardsDuringSimulation
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -139,6 +141,7 @@ public class RoutingAllocation {
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
         this.isSimulating = isSimulating;
+        this.targetRelocatingShardsDuringSimulation = targetRelocatingShardsDuringSimulation;
         this.nodeReplacementTargets = nodeReplacementTargets(clusterState);
         this.desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         this.unaccountedSearchableSnapshotSizes = unaccountedSearchableSnapshotSizes(clusterState, clusterInfo);
@@ -451,7 +454,7 @@ public class RoutingAllocation {
         );
     }
 
-    public RoutingAllocation mutableCloneForSimulation() {
+    public RoutingAllocation mutableCloneForSimulation(int targetRelocatingShardsDuringSimulation) {
         return new RoutingAllocation(
             deciders,
             clusterState.mutableRoutingNodes(),
@@ -459,8 +462,14 @@ public class RoutingAllocation {
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            true
+            true,
+            targetRelocatingShardsDuringSimulation
         );
+    }
+
+    public boolean hasTargetRelocatingShards() {
+        assert isSimulating : "should only be called while simulating";
+        return isSimulating && routingNodes().getRelocatingShardCount() >= targetRelocatingShardsDuringSimulation;
     }
 
     public enum DebugMode {

@@ -1,0 +1,5 @@
+pr: 134811
+summary: Add redirect support for inference API
+area: Machine Learning
+type: enhancement
+issues: []

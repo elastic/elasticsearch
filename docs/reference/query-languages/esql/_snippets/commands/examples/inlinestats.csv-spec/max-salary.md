@@ -3,7 +3,7 @@
 ```esql
 FROM employees
 | KEEP emp_no, languages, salary
-| INLINESTATS max_salary = MAX(salary) BY languages
+| INLINE STATS max_salary = MAX(salary) BY languages
 ```
 
 | emp_no:integer | salary:integer | max_salary:integer | languages:integer |

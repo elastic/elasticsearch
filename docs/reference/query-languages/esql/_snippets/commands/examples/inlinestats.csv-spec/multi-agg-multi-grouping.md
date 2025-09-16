@@ -6,7 +6,7 @@ FROM employees
 | KEEP emp_no, languages, salary, hire_date
 | EVAL tenure = DATE_DIFF("year", hire_date, now())
 | DROP hire_date
-| INLINESTATS avg_salary = AVG(salary), count = count(*) BY languages, tenure
+| INLINE STATS avg_salary = AVG(salary), count = count(*) BY languages, tenure
 ```
 
 | emp_no:integer | salary:integer | avg_salary:double | count:long | languages:integer | tenure:integer |

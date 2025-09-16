@@ -32,7 +32,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlinestats;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -396,7 +396,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             FROM test
             | INLINESTATS sum(salary) where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -439,7 +439,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             FROM test
             | INLINESTATS sum(salary) + 1 where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -488,7 +488,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
                     sum(salary) + 2
               BY emp_no
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -544,7 +544,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
                     sum(salary) + 2 where null,
                     sum(salary) + 4 where not true
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -595,7 +595,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             | KEEP emp_no, salary
             | INLINESTATS count(salary) where not true
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -627,7 +627,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             | KEEP emp_no, salary, gender
             | INLINESTATS m1 = count(salary) WHERE not false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -660,7 +660,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             | KEEP salary
             | INLINESTATS count(salary) where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -690,7 +690,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
             | KEEP salary
             | INLINESTATS count_distinct(salary + 2) + 3 where false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -727,7 +727,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
                     min_a = min(salary) WHERE to_string(null) == "abc"
               BY emp_no
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);
@@ -778,7 +778,7 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
                 | INLINESTATS count = count(*) WHERE false
                 | INLINESTATS cc = count_distinct(emp_no) WHERE false
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = plan(query);

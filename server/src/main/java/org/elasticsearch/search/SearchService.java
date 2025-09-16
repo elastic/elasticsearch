@@ -544,6 +544,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchContextId id = context.id();
         final ReaderContext previous = activeReaders.put(id, context);
         assert previous == null;
+        if (context.singleSession() == false) {
+            logger.info("---> added multi-session reader context id [{}] to active readers.", id);
+        }
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
@@ -554,8 +557,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected ReaderContext removeReaderContext(ShardSearchContextId id) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("removing reader context [{}]", id);
+        if (logger.isInfoEnabled()) {
+            logger.info("removing reader context [{}]", id);
+        }
+        if (activeReaders.containsKey(id) == false) {
+            logger.warn("trying to remove reader context [{}] which does not exist", id);
         }
         return activeReaders.remove(id);
     }
@@ -681,7 +687,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     opsListener.onFailedDfsPhase(context);
                 }
             }
-            return context.dfsResult();
+            DfsSearchResult dfsSearchResult = context.dfsResult();
+            return dfsSearchResult;
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(readerContext, e);
@@ -1265,8 +1272,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardSearchContextId contextId = request.readerId();
         if (contextId != null) {
             try {
+                logger.info("---> attempting tofind context id [{}] in [{}]", contextId, activeReaders.keySet());
                 return findReaderContext(contextId, request);
             } catch (SearchContextMissingException e) {
+                logger.info("---> unable to find context id [{}] in [{}]", contextId, activeReaders.keySet());
                 final String searcherId = contextId.getSearcherId();
                 if (searcherId == null) {
                     throw e;
@@ -1282,7 +1291,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     throw e;
                 }
                 // we are in a PIT context, so we set singleSession to false so that the context isn't cleared after the search finishes
-                return createAndPutReaderContext(contextId, request, indexService, shard, searcherSupplier, false, defaultKeepAlive);
+                ReaderContext readerContext = createAndPutReaderContext(
+                    contextId,
+                    request,
+                    indexService,
+                    shard,
+                    searcherSupplier,
+                    false,
+                    defaultKeepAlive
+                );
+                logger.info("---> re-created reader context [{}]", readerContext.id());
+                return readerContext;
             }
         }
         final long keepAliveInMillis = getKeepAlive(request);
@@ -1315,6 +1334,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable decreaseScrollContexts = null;
         try {
             if (request.scroll() != null) {
+                assert false; // don't go here in this case
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
@@ -1491,6 +1511,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         logger.trace("freeing reader context [{}]", contextId);
         try (ReaderContext context = removeReaderContext(contextId)) {
             return context != null;
+        } catch (Exception e) {
+            logger.warn("freeing reader context [{}] threw", e);
+            return false;
         }
     }
 

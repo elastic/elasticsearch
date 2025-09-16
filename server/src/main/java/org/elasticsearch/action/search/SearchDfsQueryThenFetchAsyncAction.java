@@ -9,19 +9,26 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
@@ -30,6 +37,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
     private final SearchProgressListener progressListener;
     private final Client client;
+    private final TransportVersion minTransportVersion;
 
     SearchDfsQueryThenFetchAsyncAction(
         Logger logger,
@@ -76,6 +84,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             notifyListShards(progressListener, clusters, request, shardsIts);
         }
         this.client = client;
+        this.minTransportVersion = clusterState.getMinTransportVersion();
     }
 
     @Override
@@ -95,5 +104,57 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     @Override
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
         progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
+    }
+
+    private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
+
+    // TODO share this with change in SearchQueryThenFetchAsyncAction
+    protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
+        SearchSourceBuilder source = request.source();
+        // only (re-)build a search context id if we have a point in time
+        if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
+            boolean idChanged = false;
+            BytesReference currentId = source.pointInTimeBuilder().getEncodedId();
+            // we want to change node ids in the PIT id if any shards and its PIT context have moved
+            SearchContextId originalSearchContextId = source.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
+            Map<ShardId, SearchContextIdForNode> shardMapCopy = new HashMap<>(originalSearchContextId.shards());
+            for (SearchPhaseResult result : results.getAtomicArray().asList()) {
+                SearchShardTarget searchShardTarget = result.getSearchShardTarget();
+                ShardId shardId = searchShardTarget.getShardId();
+                SearchContextIdForNode original = shardMapCopy.get(shardId);
+                if (original != null
+                        && Objects.equals(original.getClusterAlias(), searchShardTarget.getClusterAlias())
+                        && Objects.equals(original.getSearchContextId(), result.getContextId())) {
+                    // result shard and context id match the original one, check if the node is different and replace if so
+                    String originalNode = original.getNode();
+                    if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
+                        shardMapCopy.put(
+                                shardId,
+                                new SearchContextIdForNode(
+                                        original.getClusterAlias(),
+                                        searchShardTarget.getNodeId(),
+                                        original.getSearchContextId()
+                                )
+                        );
+                        idChanged = true;
+                    }
+                }
+            }
+            if (idChanged) {
+                BytesReference newId = SearchContextId.encode(
+                        shardMapCopy,
+                        originalSearchContextId.aliasFilter(),
+                        minTransportVersion,
+                        failures
+                );
+                logger.debug("Changing PIT id to [{}]", newId);
+                return newId;
+            } else {
+                logger.debug("Keeping original PIT id");
+                return currentId;
+            }
+        } else {
+            return super.buildSearchContextId(failures);
+        }
     }
 }

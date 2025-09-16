@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.OnlinePrewarmingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
@@ -40,6 +42,8 @@ public class MockSearchService extends SearchService {
      * Marker plugin used by {@link MockNode} to enable {@link MockSearchService}.
      */
     public static class TestPlugin extends Plugin {}
+
+    private static final Logger logger = LogManager.getLogger(MockSearchService.class);
 
     private static final Map<ShardSearchContextId, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
@@ -116,6 +120,9 @@ public class MockSearchService extends SearchService {
         if (removed != null) {
             onRemoveContext.accept(removed);
             removeActiveContext(removed.id());
+        } else {
+            boolean thisIsFishy = ACTIVE_SEARCH_CONTEXTS.containsKey(id);
+            logger.info("---> " + (thisIsFishy ? "fishy:" : "") + " trying to cleanup id: " + id);
         }
         return removed;
     }

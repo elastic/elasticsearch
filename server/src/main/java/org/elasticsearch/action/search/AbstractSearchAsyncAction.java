@@ -65,7 +65,7 @@ import static org.elasticsearch.core.Strings.format;
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
     protected static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    protected final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
@@ -402,7 +402,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
+        logger.info(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
         if (lastShard) {
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
@@ -416,6 +416,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             onShardGroupFailure(shardIndex, shard, e);
         }
         if (lastShard == false) {
+            logger.info("---> retrying [{}] on [{}]", shard.getShardId(), nextShard);
             performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
             // count down outstanding shards, we're done with this shard as there's no more copies to try

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
@@ -121,9 +123,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
 
     public void testRetryPointInTime() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numberOfShards = between(1, 5);
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build())
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build())
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
         );
@@ -158,6 +161,11 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+        assertEquals(numberOfShards, SearchContextId.decode(writableRegistry(), pitId).shards().size());
+        logger.info(
+            "---> PIT id: " + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
+        );
+        SetOnce<BytesReference> updatedPit = new SetOnce<>();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
@@ -169,14 +177,19 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 ensureGreen(indexName);
             }
             ensureGreen(indexName);
+
             assertNoFailuresAndResponse(
-                prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setPreFilterShardSize(between(1, 10))
+                prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                    // // set preFilterShardSize high enough, we want to hit each shard in this first run to re-create all contexts
+                    // .setPreFilterShardSize(128)
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
                     .setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> { assertHitCount(resp, docCount); }
+                resp -> {
+                    assertHitCount(resp, docCount);
+                    updatedPit.set(resp.pointInTimeId());
+                }
             );
+            logger.info("--> ran first search after node restart");
 
             // at this point we should have re-created all contexts, so no need to create them again
             // running the search a second time should not re-trigger creation of new contexts
@@ -191,12 +204,19 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreFilterShardSize(between(1, 10))
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
-                    .setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> { assertHitCount(resp, docCount); }
+                    .setPointInTime(new PointInTimeBuilder(updatedPit.get())),
+                resp -> {
+                    assertEquals(numberOfShards, resp.getSuccessfulShards());
+                    assertHitCount(resp, docCount);
+                }
             );
+            logger.info("--> ran second search after node restart");
             assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
+        } catch (Exception e) {
+            logger.error("---> unexpected exception", e);
+            throw e;
         } finally {
-            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(updatedPit.get())).actionGet();
         }
     }
 }

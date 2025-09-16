@@ -1943,9 +1943,23 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // be thrown when a search phase attempts to access it.
                     try {
                         final ShardIterator shards = OperationRouting.getShards(projectState.routingTable(), shardId);
+                        Set<String> nodesWithShard = shards.getShardRoutings()
+                            .stream()
+                            .map(ShardRouting::currentNodeId)
+                            .collect(Collectors.toSet());
+                        if (nodesWithShard.contains(perNode.getNode()) == false) {
+                            logger.error("No shard on original node [{}], shards are on nodes: [{}]", perNode.getNode(), nodesWithShard);
+                        }
+
                         // Prefer executing shard requests on nodes that are part of PIT first.
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
+                        } else {
+                            logger.info(
+                                "Node [{}] from PIT context [{}] no longer exists.",
+                                perNode.getNode(),
+                                perNode.getSearchContextId()
+                            );
                         }
                         if (perNode.getSearchContextId().getSearcherId() != null) {
                             for (ShardRouting shard : shards) {

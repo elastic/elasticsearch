@@ -253,7 +253,7 @@ public final class XmlProcessor extends AbstractProcessor {
     private Object applyForceArray(String ignoredElementName, Object content) {
         if (forceArray && (content instanceof List) == false) {
             List<Object> arrayContent = new ArrayList<>();
-            arrayContent.add(content);  // Add content even if it's null (for empty elements)
+            arrayContent.add(content); // Add content even if it's null (for empty elements)
             return arrayContent;
         }
         return content;
@@ -841,7 +841,7 @@ public final class XmlProcessor extends AbstractProcessor {
     private static DocumentBuilderFactory createSecureDocumentBuilderFactory() {
         try {
             DocumentBuilderFactory factory = XmlUtils.getHardenedBuilderFactory();
-            factory.setValidating(false);  // Override validation for DOM creation
+            factory.setValidating(false); // Override validation for DOM creation
             return factory;
         } catch (Exception e) {
             logger.warn("Cannot configure secure DOM builder factory - XML processor may not work correctly", e);

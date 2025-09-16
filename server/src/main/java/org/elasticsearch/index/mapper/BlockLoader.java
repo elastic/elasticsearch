@@ -78,7 +78,8 @@ public interface BlockLoader {
             int offset,
             boolean nullsFiltered,
             BlockDocValuesReader.ToDouble toDouble,
-            boolean toInt) throws IOException;
+            boolean toInt
+        ) throws IOException;
     }
 
     interface RowStrideReader extends Reader {

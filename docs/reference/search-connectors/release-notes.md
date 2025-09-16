@@ -32,6 +32,11 @@ Permissions granted to the `Everyone Except External Users` group were previousl
 ## 9.1.0 [connectors-9.1.0-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 
+## 9.0.7 [connectors-9.0.7-release-notes]
+
+### Features and enhancements [connectors-9.0.7-features-enhancements]
+* Reduced API calls during field validation with caching, improving sync performance in Salesforce connector. [#3668](https://github.com/elastic/connectors/pull/3668).
+
 ## 9.0.6 [connectors-9.0.6-release-notes]
 No changes since 9.0.5
 

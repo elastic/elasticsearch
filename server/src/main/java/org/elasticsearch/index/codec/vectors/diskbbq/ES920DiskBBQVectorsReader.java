@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
@@ -28,6 +28,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.apache.lucene.codecs.lucene102.Lucene102BinaryQuantizedVectorsFormat.QUERY_BITS;
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
@@ -43,19 +44,20 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state) throws IOException {
-        super(state, loadReaders(state));
+    public ES920DiskBBQVectorsReader(SegmentReadState state, Function<String, FlatVectorsFormat> formatLookup) throws IOException {
+        super(state, loadReaders(state, formatLookup));
     }
 
-    private static Map<String, FlatVectorsReader> loadReaders(SegmentReadState state) throws IOException {
+    private static Map<String, FlatVectorsReader> loadReaders(SegmentReadState state, Function<String, FlatVectorsFormat> formatLookup)
+        throws IOException {
         Map<String, FlatVectorsReader> readers = new HashMap<>();
         for (FieldInfo fi : state.fieldInfos) {
             if (fi.hasVectorValues()) {
                 String formatName = fi.getAttribute(RAW_VECTOR_FORMAT);
                 if (formatName == null) {
-                    throw new IllegalArgumentException("Field does not have " + RAW_VECTOR_FORMAT);
+                    throw new IllegalArgumentException("Field does not have attribute " + RAW_VECTOR_FORMAT);
                 }
-                readers.put(fi.name, (FlatVectorsReader) KnnVectorsFormat.forName(formatName).fieldsReader(state));
+                readers.put(fi.name, formatLookup.apply(formatName).fieldsReader(state));
             }
         }
 

@@ -567,6 +567,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<0 longs>}
   issue: https://github.com/elastic/elasticsearch/issues/134844
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<0 ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/134845
 
 # Examples:
 #

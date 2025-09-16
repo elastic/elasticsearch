@@ -10,6 +10,17 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-18-7]]
+=== 8.18.7
+
+[discrete]
+[[es-connectors-release-notes-8-18-7-enhancements]]
+==== Enhancements
+
+* Salesforce connector: Reduced API calls during field validation with caching, improving sync performance.
+See https://github.com/elastic/connectors/pull/3668[*PR 3668*].
+
+[discrete]
 [[es-connectors-release-notes-8-18-6]]
 === 8.18.6
 

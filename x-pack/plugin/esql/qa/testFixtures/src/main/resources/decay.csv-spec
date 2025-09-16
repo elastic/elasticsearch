@@ -199,7 +199,7 @@ unsignedLongLinear
 required_capability: decay_function
 
 ROW value = 15::unsigned_long
-| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
 | KEEP decay_result;
 
 decay_result:double

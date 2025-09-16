@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.GrokGenerato
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.LookupJoinGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.StatsGenerator;
+import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.TimeSeriesGenerator;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.command.source.TimeSeries
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -79,24 +80,10 @@ public class EsqlQueryGenerator {
         WhereGenerator.INSTANCE
     );
 
-    static List<CommandGenerator> TIME_SERIES_PIPE_COMMANDS = List.of(
-        ChangePointGenerator.INSTANCE,
-        DissectGenerator.INSTANCE,
-        DropGenerator.INSTANCE,
-        EnrichGenerator.INSTANCE,
-        EvalGenerator.INSTANCE,
-        ForkGenerator.INSTANCE,
-        GrokGenerator.INSTANCE,
-        KeepGenerator.INSTANCE,
-        LimitGenerator.INSTANCE,
-        LookupJoinGenerator.INSTANCE,
-        TimeSeriesStatsGenerator.INSTANCE,
-        MvExpandGenerator.INSTANCE,
-        RenameGenerator.INSTANCE,
-        SortGenerator.INSTANCE,
-        StatsGenerator.INSTANCE,
-        WhereGenerator.INSTANCE
-    );
+    static List<CommandGenerator> TIME_SERIES_PIPE_COMMANDS = Stream.concat(
+        PIPE_COMMANDS.stream(),
+        Stream.of(TimeSeriesStatsGenerator.INSTANCE)
+    ).toList();
 
     public static CommandGenerator sourceCommand() {
         return randomFrom(SOURCE_COMMANDS);
@@ -111,7 +98,6 @@ public class EsqlQueryGenerator {
     }
 
     public static CommandGenerator randomMetricsPipeCommandGenerator() {
-        // todo better way
         return randomFrom(TIME_SERIES_PIPE_COMMANDS);
     }
 
@@ -143,7 +129,7 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            commandGenerator = isTimeSeries ? randomMetricsPipeCommandGenerator() : EsqlQueryGenerator.randomPipeCommandGenerator();
+            commandGenerator = isTimeSeries ? randomMetricsPipeCommandGenerator() : randomPipeCommandGenerator();
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;
@@ -266,7 +252,12 @@ public class EsqlQueryGenerator {
                     case 0 -> "max_over_time(" + numericPlusAggMetricFieldName + ")";
                     case 1 -> "min_over_time(" + numericPlusAggMetricFieldName + ")";
                     case 2 -> "sum_over_time(" + numericPlusAggMetricFieldName + ")";
-                    case 3 -> "present_over_time(" + numericPlusAggMetricFieldName + ")";
+                    case 3 -> {
+                        if (outerCommand.equals("sum") || outerCommand.equals("avg")) {
+                            yield null;
+                        }
+                        yield "present_over_time(" + numericPlusAggMetricFieldName + ")";
+                    }
                     case 4 -> "count_over_time(" + numericPlusAggMetricFieldName + ")";
                     default -> "avg_over_time(" + numericPlusAggMetricFieldName + ")";
                 };
@@ -285,6 +276,13 @@ public class EsqlQueryGenerator {
                 // TODO: add to case 1 when support for counters is added
                 String numericFieldName = randomNumericField(previousOutput);
                 if (numericFieldName == null) {
+                    yield null;
+                }
+                if (previousOutput.stream()
+                    .noneMatch(
+                        column -> column.name.equals("@timestamp") && (column.type.equals("date_nanos") || column.type.equals("datetime"))
+                    )) {
+                    // first_over_time and last_over_time require @timestamp to be available and be either datetime or date_nanos
                     yield null;
                 }
                 yield (randomBoolean() ? "first_over_time(" : "last_over_time(") + numericFieldName + ")";

@@ -81,12 +81,9 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
             }
         }
         // TODO: add alternative time buckets
-        cmd.append(
-            (randomBoolean() ? EsqlQueryGenerator.randomIdentifier() : EsqlQueryGenerator.randomName(previousOutput))
-                + " = bucket("
-                + timestamp
-                + ",1hour)"
-        );
+        // TODO: replace name of bucket with half chance of being EsqlQueryGenerator.randomName(previousOutput) if
+        // is fixed https://github.com/elastic/elasticsearch/issues/134796
+        cmd.append(EsqlQueryGenerator.randomIdentifier() + " = bucket(" + timestamp + ",1hour)");
         return new CommandDescription(STATS, this, cmd.toString(), Map.of());
     }
 

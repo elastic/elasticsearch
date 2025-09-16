@@ -62,7 +62,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
 
         // Awaiting fixes for correctness
-        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
+
+        // TS-command tests
+        "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
+        "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block", // https://github.com/elastic/elasticsearch/issues/134793
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

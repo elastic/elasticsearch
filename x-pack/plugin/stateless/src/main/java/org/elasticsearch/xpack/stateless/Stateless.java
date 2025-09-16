@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUse
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.allocation.EstimatedHeapUsageAllocationDecider;
+import co.elastic.elasticsearch.stateless.allocation.EstimatedHeapUsageMonitor;
 import co.elastic.elasticsearch.stateless.allocation.StatelessAllocationDecider;
 import co.elastic.elasticsearch.stateless.allocation.StatelessBalancingWeightsFactory;
 import co.elastic.elasticsearch.stateless.allocation.StatelessExistingShardsAllocator;
@@ -660,6 +661,12 @@ public class Stateless extends Plugin
 
         clusterService.addListener(memoryMetricsService.get());
         components.add(memoryMetricsService.get());
+
+        services.allocationService()
+            .getClusterInfoService()
+            .addListener(
+                new EstimatedHeapUsageMonitor(clusterService.getClusterSettings(), clusterService::state, rerouteService)::onNewInfo
+            );
 
         if (hasIndexRole) {
             var ingestLoadPublisher = new IngestLoadPublisher(client, threadPool);

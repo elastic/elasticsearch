@@ -23,9 +23,9 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.PublishHeapMemoryMe
 import co.elastic.elasticsearch.stateless.autoscaling.memory.ShardMappingSize;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
@@ -42,6 +42,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Collection;
@@ -79,6 +81,7 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
             .put(EstimatedHeapUsageAllocationDecider.MINIMUM_HEAP_SIZE_FOR_ENABLEMENT.getKey(), "100mb");
     }
 
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.allocation.EstimatedHeapUsageMonitor:DEBUG", reason = "debug log for test")
     public void testEstimatedHeapAllocationDecider() {
         final var masterNodeName = startMasterOnlyNode();
         final var nodeNameA = startIndexNode();
@@ -218,25 +221,37 @@ public class EstimatedHeapUsageAllocationDeciderIT extends AbstractStatelessInte
 
         // Stop faking large heap memory usages and unblock allocation
         final String nodeIdToUnblock = getNodeId(randomFrom(nodeNameA, nodeNameB));
-        // Remove the node from the injection set before wait for new publication. This is important to ensure the order of
-        // node-removed-from-injection -> set-new-publication-latch -> handle-new-publication.
-        nodesToInjectEstimatedHeapUsage.remove(nodeIdToUnblock);
-        waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
 
-        final ClusterInfo clusterInfo2 = ClusterInfoServiceUtils.refresh(infoService);
-        assertTrue(
-            "unexpected estimated heap usages " + clusterInfo2.getEstimatedHeapUsages(),
-            clusterInfo2.getEstimatedHeapUsages().entrySet().stream().allMatch(entry -> {
-                if (entry.getKey().equals(nodeIdToUnblock)) {
-                    return entry.getValue().estimatedUsageAsPercentage() < 100.0;
-                } else {
-                    return entry.getValue().estimatedUsageAsPercentage() > 100.0;
-                }
-            })
-        );
+        try (MockLog mockLog = MockLog.capture(EstimatedHeapUsageMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "reroute due to heap usages dropped below low watermark",
+                    EstimatedHeapUsageMonitor.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "estimated heap usages dropped below the low watermark * triggering reroute"
+                )
+            );
 
-        ClusterRerouteUtils.rerouteRetryFailed(client());
-        ensureGreen(indexName);
+            // Remove the node from the injection set before wait for new publication. This is important to ensure the order of
+            // node-removed-from-injection -> set-new-publication-latch -> handle-new-publication.
+            nodesToInjectEstimatedHeapUsage.remove(nodeIdToUnblock);
+            waitForRefreshedHeapMemoryUsagePublication(nodeIdToPublicationLatch);
+
+            final ClusterInfo clusterInfo2 = ClusterInfoServiceUtils.refresh(infoService);
+            assertTrue(
+                "unexpected estimated heap usages " + clusterInfo2.getEstimatedHeapUsages(),
+                clusterInfo2.getEstimatedHeapUsages().entrySet().stream().allMatch(entry -> {
+                    if (entry.getKey().equals(nodeIdToUnblock)) {
+                        return entry.getValue().estimatedUsageAsPercentage() < 100.0;
+                    } else {
+                        return entry.getValue().estimatedUsageAsPercentage() > 100.0;
+                    }
+                })
+            );
+
+            ensureGreen(indexName);
+            mockLog.assertAllExpectationsMatched();
+        }
 
         final IndexShard indexShard = findIndexShard(indexName);
         assertThat(indexShard.routingEntry().currentNodeId(), equalTo(nodeIdToUnblock));

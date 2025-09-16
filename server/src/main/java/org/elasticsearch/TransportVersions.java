@@ -321,12 +321,10 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
-    public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
-    public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
-    public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
-    public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
-    public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
-    public static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = def(9_157_0_00);
+    public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
+    public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
+    public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
+    public static final TransportVersion INFERENCE_API_OPENAI_HEADERS = def(9_161_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

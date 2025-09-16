@@ -11,9 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-
 import java.util.Locale;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexReshardingMetadataTests extends ESTestCase {

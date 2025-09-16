@@ -274,8 +274,6 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
     public void testStopQueryInlinestats() throws Exception {
         assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
-        int remote1NumShards = (Integer) testClusterInfo.get("remote1.num_shards");
         // Create large index so we could be sure we're stopping before the end
         populateRuntimeIndex(REMOTE_CLUSTER_2, "pause_count", INDEX_WITH_BLOCKING_MAPPING);
 
@@ -312,11 +310,11 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
             // We're not getting any proper result here since we stopped the query before it could complete
             try (EsqlQueryResponse asyncResponse = stopAction.actionGet(30, TimeUnit.SECONDS)) {
-                // We will have all rows here but total will be null since we stopped the inline stats before it could complete
                 assertThat(asyncResponse.isRunning(), is(false));
                 assertThat(asyncResponse.columns().size(), equalTo(2));
                 AtomicInteger i = new AtomicInteger(0);
                 asyncResponse.values().forEachRemaining(row -> {
+                    // We will have all rows here but total will be null since we stopped the inline stats before it could complete
                     assertThat(row.next(), equalTo(null));
                     var v = row.next();
                     if (v != null) {
@@ -325,6 +323,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                     assertFalse(row.hasNext());
                     i.getAndIncrement();
                 });
+                // 20 is 10 rows from local and 10 rows from remote-b
                 assertThat(i.get(), equalTo(20));
 
                 EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();

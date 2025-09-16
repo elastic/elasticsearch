@@ -73,14 +73,14 @@ public class EsqlMediaTypeParser {
         }
     }
 
-    private static void validateIncludeCCSMetadata(boolean includeCCSMetadata, MediaType fromMediaType) {
-        if (includeCCSMetadata && fromMediaType instanceof TextFormat) {
+    private static void validateIncludeCCSMetadata(Boolean includeCCSMetadata, MediaType fromMediaType) {
+        if (Boolean.TRUE.equals(includeCCSMetadata) && fromMediaType instanceof TextFormat) {
             throw invalid("include_ccs_metadata");
         }
     }
 
     private static void validateIncludeCPSMetadata(Boolean includeCPSMetadata, MediaType fromMediaType) {
-        if (includeCPSMetadata != null && includeCPSMetadata && fromMediaType instanceof TextFormat) {
+        if (Boolean.TRUE.equals(includeCPSMetadata) && fromMediaType instanceof TextFormat) {
             throw invalid("include_cps_metadata");
         }
     }

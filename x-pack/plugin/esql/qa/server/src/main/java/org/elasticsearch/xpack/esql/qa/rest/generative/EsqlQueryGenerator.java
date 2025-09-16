@@ -248,7 +248,7 @@ public class EsqlQueryGenerator {
                 if (numericPlusAggMetricFieldName == null) {
                     yield null;
                 }
-                yield switch ((randomIntBetween(0, 5))) {
+                yield switch ((randomIntBetween(0, 6))) {
                     case 0 -> "max_over_time(" + numericPlusAggMetricFieldName + ")";
                     case 1 -> "min_over_time(" + numericPlusAggMetricFieldName + ")";
                     case 2 -> "sum_over_time(" + numericPlusAggMetricFieldName + ")";
@@ -258,7 +258,13 @@ public class EsqlQueryGenerator {
                         }
                         yield "present_over_time(" + numericPlusAggMetricFieldName + ")";
                     }
-                    case 4 -> "count_over_time(" + numericPlusAggMetricFieldName + ")";
+                    case 4 -> {
+                        if (outerCommand.equals("sum") || outerCommand.equals("avg")) {
+                            yield null;
+                        }
+                        yield "absent_over_time(" + numericPlusAggMetricFieldName + ")";
+                    }
+                    case 5 -> "count_over_time(" + numericPlusAggMetricFieldName + ")";
                     default -> "avg_over_time(" + numericPlusAggMetricFieldName + ")";
                 };
             }

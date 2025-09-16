@@ -172,7 +172,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        // assert does not contain stored field
+        // assert only contains stored field if templating is disabled
         try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
             try (var indexReader = searcher.getIndexReader()) {
                 var document = indexReader.storedFields().document(0);

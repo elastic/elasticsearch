@@ -15,6 +15,9 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -65,6 +68,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import org.elasticsearch.xpack.esql.session.Result;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -760,11 +764,46 @@ public class ComputeService {
         return plan.replaceChild(newPlan);
     }
 
-    enum ReductionPlanFeatures {
-        DIFFERENT_NODE,
-        SAME_NODE,
-        DISABLED,
-        REMOTE_CLUSTER,
+    enum ReductionPlanFeatures implements Writeable {
+        DIFFERENT_NODE(0),
+        SAME_NODE(1),
+        DISABLED(2),
+        REMOTE_CLUSTER(3);
+
+        private final int index;
+
+        ReductionPlanFeatures(int index) {
+            this.index = index;
+        }
+
+        static ReductionPlanFeatures read(StreamInput in) throws IOException {
+            int index = in.readByte();
+            return switch (index) {
+                case 0 -> DIFFERENT_NODE;
+                case 1 -> SAME_NODE;
+                case 2 -> DISABLED;
+                case 3 -> REMOTE_CLUSTER;
+                default -> throw new IllegalArgumentException("Unknown ReductionPlanFeatures index: " + index);
+            };
+        }
+
+        /** For backward compatibility with the old transport version. */
+        public static ReductionPlanFeatures fromEnableNodeLevelReduction(boolean b) {
+            return b ? DIFFERENT_NODE : DISABLED;
+        }
+
+        /** For backward compatibility with the old transport version. */
+        public boolean toEnableNodeLevelReduction() {
+            return switch (this) {
+                case SAME_NODE, REMOTE_CLUSTER -> true;
+                case DISABLED, DIFFERENT_NODE -> false;
+            };
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte((byte) index);
+        }
     }
 
     String newChildSession(String session) {

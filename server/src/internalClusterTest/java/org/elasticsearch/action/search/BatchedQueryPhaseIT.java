@@ -89,17 +89,15 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
             prepareSearch("test-idx").setBatchedReduceSize(2).addAggregation(terms("terms").field("title")).setSearchType(QUERY_THEN_FETCH),
             response -> {
                 final int totalShards = response.getTotalShards();
-                final List<Integer> shardsPerDataNode = batchedQueryRequests.stream()
-                    .map(nodeQueryRequest -> nodeQueryRequest.shards().size())
-                    .toList();
-                final int coordNodeShards = totalShards - shardsPerDataNode.stream().mapToInt(Integer::intValue).sum();
+                final int numShardsBatched = batchedQueryRequests.stream()
+                    .map(NodeQueryRequest::numShards)
+                    .mapToInt(Integer::intValue)
+                    .sum();
+                final int coordNodeShards = totalShards - numShardsBatched;
 
                 // Because batched_reduce_size = 2, whenever two or more shard results exist on the coordinating node, they will be
-                // partially reduced. This reduction happens when either:
-                // - The search fans out directly to shards on the coordinating node
-                // - A batched result comes back
-                // Hence the formula: (# of shards on the coordinating node) + (# of batched requests) - 1
-                final int expectedNumReducePhases = Math.max(1, coordNodeShards + shardsPerDataNode.size() - 1);
+                // partially reduced (batched queries do not count). Hence, the formula: (# of shards on the coordinating node) - 1.
+                final int expectedNumReducePhases = Math.max(1, coordNodeShards - 1);
                 assertThat(response.getNumReducePhases(), equalTo(expectedNumReducePhases));
             }
         );

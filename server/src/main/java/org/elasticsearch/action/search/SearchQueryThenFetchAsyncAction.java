@@ -351,8 +351,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             return searchRequest.indicesOptions();
         }
 
-        public List<ShardToQuery> shards() {
-            return shards;
+        int numShards() {
+            return shards.size();
         }
     }
 

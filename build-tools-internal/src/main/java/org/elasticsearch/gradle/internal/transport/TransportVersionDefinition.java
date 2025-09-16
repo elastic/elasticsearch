@@ -20,8 +20,19 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids, boo
         String name = filename.substring(0, filename.length() - 4);
         List<TransportVersionId> ids = new ArrayList<>();
 
+        String idsLine = null;
         if (contents.isEmpty() == false) {
-            for (String rawId : contents.split(",")) {
+            String[] lines = contents.split(System.lineSeparator());
+            for (String line : lines) {
+                line = line.replaceAll("\\s+", "");
+                if (line.startsWith("#") == false) {
+                    idsLine = line;
+                    break;
+                }
+            }
+        }
+        if (idsLine != null) {
+            for (String rawId : idsLine.split(",")) {
                 try {
                     ids.add(TransportVersionId.fromString(rawId));
                 } catch (NumberFormatException e) {

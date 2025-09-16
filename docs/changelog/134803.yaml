@@ -1,0 +1,5 @@
+pr: 134803
+summary: "[DRAFT] Adding asynchronous fetching for DirectIO directory"
+area: "Vector Search, Search"
+type: enhancement
+issues: []

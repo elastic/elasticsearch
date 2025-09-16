@@ -1578,6 +1578,8 @@ public final class IngestDocument {
             return new UnmodifiableIngestData((Map<String, Object>) rawMap);
         } else if (raw instanceof List) {
             return new UnmodifiableIngestList((List<Object>) raw);
+        } else if (raw instanceof Set<?> rawSet) {
+            return new UnmodifiableIngestSet((Set<Object>) rawSet);
         } else if (raw instanceof byte[] bytes) {
             return bytes.clone();
         }
@@ -1707,23 +1709,7 @@ public final class IngestDocument {
 
         @Override
         public Iterator<Object> iterator() {
-            Iterator<Object> wrapped = data.iterator();
-            return new Iterator<Object>() {
-                @Override
-                public boolean hasNext() {
-                    return wrapped.hasNext();
-                }
-
-                @Override
-                public Object next() {
-                    return wrapped.next();
-                }
-
-                @Override
-                public void remove() {
-                    throw unmodifiableException();
-                }
-            };
+            return new UnmodifiableIterator(data.iterator());
         }
 
         @Override
@@ -1883,6 +1869,102 @@ public final class IngestDocument {
             public void add(final Object o) {
                 throw unmodifiableException();
             }
+        }
+    }
+
+    private static final class UnmodifiableIngestSet implements Set<Object> {
+        private final Set<Object> data;
+
+        UnmodifiableIngestSet(Set<Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return data.contains(o);
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+            return new UnmodifiableIterator(data.iterator());
+        }
+
+        @Override
+        public Object[] toArray() {
+            return data.toArray();
+        }
+
+        @Override
+        public <T> T[] toArray(T[] a) {
+            return data.toArray(a);
+        }
+
+        @Override
+        public boolean add(Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            return data.containsAll(c);
+        }
+
+        @Override
+        public boolean addAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+    }
+
+    private static final class UnmodifiableIterator implements Iterator<Object> {
+        private final Iterator<Object> it;
+
+        UnmodifiableIterator(Iterator<Object> it) {
+            this.it = it;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return it.hasNext();
+        }
+
+        @Override
+        public Object next() {
+            return wrapUnmodifiable(it.next());
+        }
+
+        @Override
+        public void remove() {
+            throw unmodifiableException();
         }
     }
 }

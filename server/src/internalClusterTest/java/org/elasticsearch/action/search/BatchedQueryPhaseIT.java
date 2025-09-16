@@ -50,7 +50,6 @@ public class BatchedQueryPhaseIT extends ESIntegTestCase {
                 .setSearchType(QUERY_THEN_FETCH),
             response -> {
                 Map<String, Integer> shardsPerNode = getNodeToShardCountMap(indexName);
-                System.out.println("testing123 " + shardsPerNode);
                 // Shards are not batched if they are already on the coordinating node or if there is only one per data node.
                 final int coordinatorShards = shardsPerNode.getOrDefault(coordinatorNodeId, 0);
                 final long otherSingleShardNodes = shardsPerNode.entrySet()

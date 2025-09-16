@@ -418,9 +418,7 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -1196,17 +1194,6 @@ public class Security extends Plugin
         remoteClusterAuthenticationService.set(rcsExtension.getAuthenticationService());
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
 
-        var crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
-            environment,
-            resourceWatcherService,
-            clusterService.getClusterSettings()
-        );
-        components.add(crossClusterApiKeySignerReloader);
-
-        var crossClusterApiKeySigner = new CrossClusterApiKeySigner(environment);
-        crossClusterApiKeySignerReloader.setApiKeySigner(crossClusterApiKeySigner);
-        components.add(crossClusterApiKeySigner);
-
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1257,6 +1244,7 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
+        reloadableComponents.addAll(rcsExtension.getReloadableComponents());
         final List<Closeable> closableComponents = new ArrayList<>();
         for (Object component : components) {
             final Object unwrapped;

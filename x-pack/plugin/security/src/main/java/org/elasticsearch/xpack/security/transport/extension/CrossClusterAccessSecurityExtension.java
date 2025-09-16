@@ -9,7 +9,12 @@ package org.elasticsearch.xpack.security.transport.extension;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
+
+import java.util.List;
 
 /**
  * Remote cluster security extension point which is based on cross-cluster API keys.
@@ -19,7 +24,18 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
     private final CrossClusterAccessAuthenticationService authenticationService;
     private final CrossClusterAccessTransportInterceptor transportInterceptor;
 
+    private final CrossClusterApiKeySigningConfigReloader crossClusterApiKeySignerReloader;
+    private final CrossClusterApiKeySigner crossClusterApiKeySigner;
+
     private CrossClusterAccessSecurityExtension(Components components) {
+        this.crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
+            components.environment(),
+            components.resourceWatcherService(),
+            components.clusterService().getClusterSettings()
+        );
+        this.crossClusterApiKeySigner = new CrossClusterApiKeySigner(components.environment());
+        crossClusterApiKeySignerReloader.setApiKeySigner(crossClusterApiKeySigner);
+
         this.authenticationService = new CrossClusterAccessAuthenticationService(
             components.clusterService(),
             components.apiKeyService(),
@@ -46,6 +62,11 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
         return authenticationService;
     }
 
+    @Override
+    public List<ReloadableSecurityComponent> getReloadableComponents() {
+        return List.of(this.crossClusterApiKeySignerReloader);
+    }
+
     public static class Provider implements RemoteClusterSecurityExtension.Provider {
 
         private final SetOnce<CrossClusterAccessSecurityExtension> extension = new SetOnce<>();
@@ -57,6 +78,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             }
             return extension.get();
         }
+
     }
 
 }

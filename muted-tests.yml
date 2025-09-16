@@ -567,6 +567,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
   method: testSmallValueNotStored
   issue: https://github.com/elastic/elasticsearch/issues/134763
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/134407
 
 # Examples:
 #

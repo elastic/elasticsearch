@@ -12,10 +12,10 @@ eth0           |epsilon gw instance|epsilon        |[fe80::cae2:65ff:fece:feb9, 
 ;
 
 allFieldsReturnedNoIndex
-required_capability: inlinestats_v11
+required_capability: inline_stats
 
 FROM hosts
-| INLINESTATS c = COUNT(*) BY host_group
+| INLINE STATS c = COUNT(*) BY host_group
 | SORT c
 | LIMIT 1
 ;
@@ -1282,11 +1282,11 @@ beta k8s server |beta           |127.0.0.1      |hosts           |127.0.0.2|2   
 ;
 
 inlineStatsOverrideEVALed_FieldWithSameNameNoIndex
-required_capability: inlinestats_v11
+required_capability: inline_stats
 
 FROM hosts
 | EVAL x = ip1
-| INLINESTATS ip1 = COUNT(*) BY host_group, card
+| INLINE STATS ip1 = COUNT(*) BY host_group, card
 | SORT ip1 DESC, x
 | LIMIT 1
 ;

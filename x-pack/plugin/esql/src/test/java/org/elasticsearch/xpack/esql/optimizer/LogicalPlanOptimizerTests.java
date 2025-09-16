@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
@@ -5748,10 +5749,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    public static boolean releaseBuildForInlineStats(String query) {
-        if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+    // if non-null, the `query` must have "INLINE STATS" capitalized
+    public static boolean releaseBuildForInlineStats(@Nullable String query) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
+            if (query != null) {
+                var e = expectThrows(ParsingException.class, () -> analyze(query));
+                assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+            }
             return true;
         }
         return false;

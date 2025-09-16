@@ -99,6 +99,7 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -395,8 +396,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        var query = "inline stats b = min(a) by c, d.e";
-        if (inlineStatsNotReleased(query)) {
+        var query = "INLINE STATS b = MIN(a) BY c, d.e";
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         assertEquals(
@@ -417,23 +418,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    private boolean inlineStatsNotReleased(String query) {
-        if (Build.current().isSnapshot() == false) {
-            if (query != null) {
-                expectThrows(
-                    ParsingException.class,
-                    containsString("line 1:13: mismatched input 'inline' expecting {"),
-                    () -> processingCommand(query)
-                );
-            }
-            return true;
-        }
-        return false;
-    }
-
     public void testInlineStatsWithoutGroups() {
-        var query = "inline stats min(a), c = 1";
-        if (inlineStatsNotReleased(query)) {
+        var query = "INLINE STATS MIN(a), c = 1";
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         assertEquals(
@@ -454,7 +441,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsParsing() {
-        if (inlineStatsNotReleased(null)) {
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
         expectThrows(
@@ -484,7 +471,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
      *       \_UnresolvedRelation[foo*]
      */
     public void testInlineStatsWithinFork() {
-        if (inlineStatsNotReleased(null)) {
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
         var query = """

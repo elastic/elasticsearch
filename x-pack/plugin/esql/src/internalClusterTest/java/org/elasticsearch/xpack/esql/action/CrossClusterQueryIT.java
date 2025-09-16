@@ -795,7 +795,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");
         // This will fail in the main plan
-        String q = Strings.format("FROM %s,cluster-a:%s* | INLINESTATS SUM(v) | SORT v", localIndex, remote1Index);
+        String q = Strings.format("FROM %s,cluster-a:%s* | INLINE STATS SUM(v) | SORT v", localIndex, remote1Index);
 
         try (EsqlQueryResponse resp = runQuery(q, randomBoolean())) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -809,7 +809,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
         }
         // This will fail in the INLINESTATS subplan, skipping should still work the same
-        q = Strings.format("FROM cluster-a:%s* | INLINESTATS SUM(fail_me) | SORT fail_me", remote1Index);
+        q = Strings.format("FROM cluster-a:%s* | INLINE STATS SUM(fail_me) | SORT fail_me", remote1Index);
 
         try (EsqlQueryResponse resp = runQuery(q, randomBoolean())) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

@@ -271,7 +271,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
     // What happens here is when we run stop on subquery, the main query will still finish.
     // TODO: should we have a way to stop the main query as well?
-    public void testStopQueryInlinestats() throws Exception {
+    public void testStopQueryInlineStats() throws Exception {
         assumeTrue("Pragma does not work in release builds", Build.current().isSnapshot());
         Map<String, Object> testClusterInfo = setupClusters(3);
         // Create large index so we could be sure we're stopping before the end
@@ -282,7 +282,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
 
         final String asyncExecutionId = startAsyncQueryWithPragmas(
             client(),
-            "FROM logs-*,remote-b:blocking | INLINESTATS total=sum(coalesce(const,v)) | KEEP total,foo | LIMIT 100",
+            "FROM logs-*,remote-b:blocking | INLINE STATS total=sum(coalesce(const,v)) | KEEP total,foo | LIMIT 100",
             includeCCSMetadata.v1(),
             Map.of("page_size", 1, "data_partitioning", "shard", "task_concurrency", 1)
         );

@@ -7,7 +7,7 @@ mapped_pages:
 # {{esql}} aggregation functions [esql-aggregation-functions]
 
 
-The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supports these aggregate functions:
+The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) commands support these aggregate functions:
 
 :::{include} ../_snippets/lists/aggregation-functions.md
 :::
@@ -58,4 +58,10 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supp
 :::
 
 :::{include} ../_snippets/functions/layout/weighted_avg.md
+:::
+
+:::{include} ../_snippets/functions/layout/present.md
+:::
+
+:::{include} ../_snippets/functions/layout/absent.md
 :::

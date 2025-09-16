@@ -464,6 +464,13 @@ public abstract class FieldMapper extends Mapper {
         return null;
     }
 
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker) {
+        if (checker.check(this)) {
+            return syntheticVectorsLoader();
+        }
+        return null;
+    }
+
     /**
      * <p>
      * Specifies the mode of synthetic source support by the mapper.

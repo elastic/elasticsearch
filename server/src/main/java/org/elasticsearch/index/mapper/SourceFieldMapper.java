@@ -615,4 +615,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 destination.copyCurrentEvent(parser);
         }
     }
+
+    public String[] getExcludes() {
+        return sourceFilter == null ? Strings.EMPTY_ARRAY : sourceFilter.getExcludes();
+    }
 }

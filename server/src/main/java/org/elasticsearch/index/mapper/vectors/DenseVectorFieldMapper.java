@@ -2873,9 +2873,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
-            var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
+        var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
+        return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
+    }
+
+    @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker) {
+        if (isExcludeSourceVectors || checker.check(this)) {
+            return syntheticVectorsLoader();
         }
         return null;
     }

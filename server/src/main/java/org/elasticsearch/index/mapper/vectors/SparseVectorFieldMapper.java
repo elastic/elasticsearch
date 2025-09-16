@@ -332,9 +332,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
-        if (isExcludeSourceVectors) {
-            var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
+        var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
+        return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
+    }
+
+    @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceLoader.SyntheticVectorsLoader.AutoHybridChecker checker) {
+        if (isExcludeSourceVectors || checker.check(this)) {
+            return syntheticVectorsLoader();
         }
         return null;
     }

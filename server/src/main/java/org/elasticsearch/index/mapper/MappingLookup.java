@@ -194,7 +194,7 @@ public final class MappingLookup {
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 inferenceFields.put(mapper.fullPath(), inferenceFieldMapper.getMetadata(fieldTypeLookup.sourcePaths(mapper.fullPath())));
             }
-            if (mapper.syntheticVectorsLoader() != null) {
+            if (mapper.syntheticVectorsLoader(this.isFieldMapperAutoHybrid()) != null) {
                 syntheticVectorFields.add(mapper.fullPath());
             }
         }
@@ -490,13 +490,30 @@ public final class MappingLookup {
     }
 
     /**
+     * Auto use partial synthetic source combine with stored source
+     */
+    public SourceLoader.SyntheticVectorsLoader.AutoHybridChecker isFieldMapperAutoHybrid() {
+        SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
+        return fieldMapper -> {
+            if (sfm != null && sfm.isStored()) {
+                for (String exclude : sfm.getExcludes()) {
+                    if (exclude.equals(fieldMapper.fullPath())) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+    }
+
+    /**
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
         if (isSourceSynthetic()) {
             return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
         }
-        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
+        var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter, this.isFieldMapperAutoHybrid());
         if (syntheticVectorsLoader != null) {
             return new SourceLoader.SyntheticVectors(removeExcludedSyntheticVectorFields(filter), syntheticVectorsLoader);
         }

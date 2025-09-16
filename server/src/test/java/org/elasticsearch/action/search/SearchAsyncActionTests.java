@@ -25,6 +25,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -111,7 +112,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            TelemetryProvider.NOOP
         ) {
 
             @Override
@@ -218,7 +220,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -334,7 +337,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -464,7 +468,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -572,7 +577,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 null,
                 results,
                 request.getMaxConcurrentShardRequests(),
-                SearchResponse.Clusters.EMPTY
+                SearchResponse.Clusters.EMPTY,
+                TelemetryProvider.NOOP
             ) {
 
                 @Override
@@ -670,7 +676,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             null,
             new ArraySearchPhaseResults<>(searchShardIterators.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            TelemetryProvider.NOOP
         ) {
 
             @Override

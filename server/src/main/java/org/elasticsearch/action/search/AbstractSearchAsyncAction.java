@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -93,6 +95,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
+    private final CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseMetrics;
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -114,7 +117,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        TelemetryProvider telemetryProvider
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -155,6 +159,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
+        this.coordinatorSearchPhaseMetrics = new CoordinatorSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry(), timeProvider);
     }
 
     protected void notifyListShards(
@@ -374,6 +379,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void executePhase(SearchPhase phase) {
         try {
+            coordinatorSearchPhaseMetrics.onCoordinatorPhaseStart(phase.getName());
             phase.run();
         } catch (RuntimeException e) {
             if (logger.isDebugEnabled()) {
@@ -621,6 +627,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param cause the cause of the phase failure
      */
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
+        coordinatorSearchPhaseMetrics.onCoordinatorPhaseDone(phase);
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures()));
     }
 
@@ -666,6 +673,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        coordinatorSearchPhaseMetrics.onCoordinatorPhaseDone(getName());
         executeNextPhase(getName(), this::getNextPhase);
     }
 

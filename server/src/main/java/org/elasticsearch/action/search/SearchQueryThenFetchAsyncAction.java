@@ -49,6 +49,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.BytesTransportResponse;
@@ -108,7 +109,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
-        boolean batchQueryPhase
+        boolean batchQueryPhase,
+        TelemetryProvider telemetryProvider
     ) {
         super(
             "query",
@@ -127,7 +129,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            telemetryProvider
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

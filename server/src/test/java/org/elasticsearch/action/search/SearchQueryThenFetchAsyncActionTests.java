@@ -38,6 +38,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.transport.Transport;
@@ -211,7 +212,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
-                false
+                false,
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {
@@ -407,7 +409,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
-                false
+                false,
+                TelemetryProvider.NOOP
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {

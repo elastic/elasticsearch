@@ -9,28 +9,52 @@
 
 package org.elasticsearch.index.search.stats;
 
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Map;
+
+import static org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+
+/**
+ * Coordinator level APM metrics for search phases.
+ * Records phase execution times as histograms.
+ */
 public class CoordinatorSearchPhaseAPMMetrics extends SearchPhaseAPMMetrics {
 
-    private final LongHistogram coordinatorPhaseMetric;
-    private final String metricName;
+    private static final String metricNameFormat = "es.search.coordinator.phases.%s.duration.histogram";
+    private final Map<String, LongHistogram> histogramsCache = ConcurrentCollections.newConcurrentMap();
+    private final MeterRegistry meterRegistry;
+    private final SearchTimeProvider timeProvider;
 
-    public CoordinatorSearchPhaseAPMMetrics(MeterRegistry meterRegistry, String phaseName) {
-        this.metricName = String.format("es.search.coordinator.phases.%s.duration.histogram", phaseName);
-        this.coordinatorPhaseMetric = meterRegistry.registerLongHistogram(
-            metricName,
-            String.format("Coordinator %s phase execution times at the shard level, expressed as a histogram", phaseName),
+    private long phaseStartTimeNanos;
+
+    public CoordinatorSearchPhaseAPMMetrics(MeterRegistry meterRegistry, SearchTimeProvider timeProvider) {
+        this.meterRegistry = meterRegistry;
+        this.timeProvider = timeProvider;
+    }
+
+    public void onCoordinatorPhaseStart(String phaseName) {
+        this.phaseStartTimeNanos = timeProvider.relativeCurrentNanosProvider().getAsLong();
+        histogramsCache.computeIfAbsent(phaseName, this::createHistogram);
+    }
+
+    private LongHistogram createHistogram(String phaseName) {
+        return meterRegistry.registerLongHistogram(
+            String.format(metricNameFormat, phaseName),
+            String.format("%s phase execution times at the coordinator level, expressed as a histogram", phaseName.toUpperCase()),
             "ms"
         );
     }
 
-    public void onCoordinatorPhase(long tookInNanos) {
-        recordPhaseLatency(coordinatorPhaseMetric, tookInNanos);
-    }
-
-    public String getMetricName() {
-        return metricName;
+    public void onCoordinatorPhaseDone(String phaseName) {
+        long tookInNanos = timeProvider.relativeCurrentNanosProvider().getAsLong() - phaseStartTimeNanos;
+        LongHistogram histogram = histogramsCache.get(phaseName);
+        if (histogram != null) {
+            recordPhaseLatency(histogram, tookInNanos);
+        } else {
+            throw new IllegalStateException("phase [" + phaseName + "] not found");
+        }
     }
 }

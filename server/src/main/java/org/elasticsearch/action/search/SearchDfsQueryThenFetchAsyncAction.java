@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -47,7 +48,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         ClusterState clusterState,
         SearchTask task,
         SearchResponse.Clusters clusters,
-        Client client
+        Client client,
+        TelemetryProvider telemetryProvider
     ) {
         super(
             "dfs",
@@ -66,7 +68,8 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            telemetryProvider
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         addReleasable(queryPhaseResultConsumer);

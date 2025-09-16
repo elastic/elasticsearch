@@ -64,7 +64,7 @@ public abstract class LuceneOperator extends SourceOperator {
     final Set<Query> processedQueries = new HashSet<>();
     final Set<String> processedShards = new HashSet<>();
 
-    private LuceneSlice currentSlice;
+    protected LuceneSlice currentSlice;
     private int sliceIndex;
 
     private LuceneScorer currentScorer;

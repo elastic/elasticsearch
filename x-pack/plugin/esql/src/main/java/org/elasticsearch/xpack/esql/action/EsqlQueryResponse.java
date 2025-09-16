@@ -179,6 +179,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return ResponseValueUtils.valuesForColumn(columnIndex, columns.get(columnIndex).type(), pages);
     }
 
+    /**
+     * @return the number of "documents" we got back from lucene, as input into the compute engine. Note that in this context, we think
+     * of things like the result of LuceneMaxOperator as single documents.
+     */
     public long documentsFound() {
         return documentsFound;
     }

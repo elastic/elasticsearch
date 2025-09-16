@@ -424,8 +424,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
             final ActionListener<SearchResponse> searchResponseActionListener;
             if (collectSearchTelemetry) {
+                Map<String, Object> searchRequestAttributes = SearchRequestAttributesExtractor.extractAttributes(
+                    original,
+                    Arrays.stream(resolvedIndices.getConcreteLocalIndices()).map(Index::getName).toArray(String[]::new)
+                );
                 if (collectCCSTelemetry == false || resolvedIndices.getRemoteClusterIndices().isEmpty()) {
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics);
+                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, searchRequestAttributes);
                 } else {
                     CCSUsage.Builder usageBuilder = new CCSUsage.Builder();
                     usageBuilder.setRemotesCount(resolvedIndices.getRemoteClusterIndices().size());
@@ -450,7 +454,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     if (shouldMinimizeRoundtrips(rewritten)) {
                         usageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
                     }
-                    searchResponseActionListener = new SearchTelemetryListener(delegate, searchResponseMetrics, usageService, usageBuilder);
+                    searchResponseActionListener = new SearchTelemetryListener(
+                        delegate,
+                        searchResponseMetrics,
+                        searchRequestAttributes,
+                        usageService,
+                        usageBuilder
+                    );
                 }
             } else {
                 searchResponseActionListener = delegate;
@@ -2035,23 +2045,31 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         private final SearchResponseMetrics searchResponseMetrics;
         private final UsageService usageService;
         private final boolean collectCCSTelemetry;
+        private final Map<String, Object> searchRequestAttributes;
 
         SearchTelemetryListener(
             ActionListener<SearchResponse> listener,
             SearchResponseMetrics searchResponseMetrics,
+            Map<String, Object> searchRequestAttributes,
             UsageService usageService,
             CCSUsage.Builder usageBuilder
         ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
+            this.searchRequestAttributes = searchRequestAttributes;
             this.collectCCSTelemetry = true;
             this.usageService = usageService;
             this.usageBuilder = usageBuilder;
         }
 
-        SearchTelemetryListener(ActionListener<SearchResponse> listener, SearchResponseMetrics searchResponseMetrics) {
+        SearchTelemetryListener(
+            ActionListener<SearchResponse> listener,
+            SearchResponseMetrics searchResponseMetrics,
+            Map<String, Object> searchRequestAttributes
+        ) {
             super(listener);
             this.searchResponseMetrics = searchResponseMetrics;
+            this.searchRequestAttributes = searchRequestAttributes;
             this.collectCCSTelemetry = false;
             this.usageService = null;
             this.usageBuilder = null;
@@ -2060,7 +2078,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         @Override
         public void onResponse(SearchResponse searchResponse) {
             try {
-                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis());
+                searchResponseMetrics.recordTookTime(searchResponse.getTookInMillis(), searchRequestAttributes);
                 SearchResponseMetrics.ResponseCountTotalStatus responseCountTotalStatus =
                     SearchResponseMetrics.ResponseCountTotalStatus.SUCCESS;
                 if (searchResponse.getShardFailures() != null && searchResponse.getShardFailures().length > 0) {

@@ -126,6 +126,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
+        assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
+
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {

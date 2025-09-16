@@ -65,6 +65,10 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             var text = parser.getValueAsText();
             assertThat(text, Matchers.notNullValue());
             assertTextRef(text.bytes(), "bar\"baz\"");
+            // Retrieve the value for a second time to ensure the last value is available
+            text = parser.getValueAsText();
+            assertThat(text, Matchers.notNullValue());
+            assertTextRef(text.bytes(), "bar\"baz\"");
         });
 
         testParseJson("{\"foo\": \"b\\u00e5r\"}", parser -> {

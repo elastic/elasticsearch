@@ -101,7 +101,7 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             this.indices = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
             this.indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENABLE_NODE_LEVEL_REDUCTION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DATA_NODE_REQUEST_REDUCTION_FEATURES)) {
             this.reductionPlanFeatures = in.readEnum(ReductionPlanFeatures.class);
         } else {
             this.reductionPlanFeatures = ReductionPlanFeatures.DISABLED;

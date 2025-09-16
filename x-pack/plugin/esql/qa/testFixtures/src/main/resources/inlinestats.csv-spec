@@ -138,7 +138,7 @@ emp_no:integer | languages:integer | max_lang:integer | gender:keyword
          10014 |                 5 | 5                | null
 ;
 
-// check that the `LIMIT 1` isn't pushed into the INLINESTATS's source
+// check that the `LIMIT 1` isn't pushed into the INLINE STATS's source
 maxOfIntByKeywordLimit1Aggd
 required_capability: inline_stats
 
@@ -358,7 +358,7 @@ emp_no:integer |avg_worked_seconds:long|avg_avg_worked_seconds:double|languages:
 10023          |330870342              |3.181719481E8                |null             |5                    |3                     |5                     |F
 ;
 
-// TODO: INLINESTATS unit test needed for this one
+// TODO: INLINE STATS unit test needed for this one
 // https://github.com/elastic/elasticsearch/issues/113727
 pushDownSort_To_LeftSideOnly-Ignore
 required_capability: inline_stats

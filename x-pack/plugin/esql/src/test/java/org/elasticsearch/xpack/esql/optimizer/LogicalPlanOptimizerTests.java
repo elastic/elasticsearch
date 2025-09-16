@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -9169,37 +9170,19 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(join.right(), EsRelation.class);
     }
 
-    public void testLookupJoinExpressionAmbigiousRight() {
-        String query = """
-            from test
-            | rename languages as language_code
-            | lookup join languages_lookup ON salary == language_code
-            """;
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("Reference [language_code] is ambiguous; matches any of "));
-    }
-
-    public void testLookupJoinExpressionAmbigiousLeft() {
-        String query = """
-            from test
-            | rename languages as language_name
-            | lookup join languages_lookup ON language_name == language_code
-            """;
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("Reference [language_name] is ambiguous; matches any of "));
-    }
-
-    public void testLookupJoinExpressionAmbigiousBoth() {
-        String query = """
-            from test
-            | rename languages as language_code
-            | lookup join languages_lookup ON language_code != language_code
-            """;
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("Reference [language_code] is ambiguous; matches any of "));
-    }
-
-    public void testLookupJoinExpressionAnd() {
+    /**
+     *
+     * Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
+     * nguages{f}#12 AS language_code_left#4, last_name{f}#13, long_noidx{f}#19, salary{f}#14, language_code{f}#20, language_name{f}#21]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#12, languages{f}#12],[language_code{f}#20, language_code{f}#20],languages{f}#12 != language_co
+     * de{f}#20 AND languages{f}#12 > language_code{f}#20]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     *
+     */
+    public void testLookupJoinExpressionSameAttrsDifferentConditions() {
         String query = """
             from test
             | rename languages as language_code_left
@@ -9208,5 +9191,33 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
         LogicalPlan plan = optimizedPlan(query);
         var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var join = as(limit.child(), Join.class);
+
+        // Verify the join conditions contain both != and > operators
+        var joinConditions = join.config().joinOnConditions();
+        assertThat(joinConditions, instanceOf(And.class));
+        var and = as(joinConditions, And.class);
+
+        // Check the left condition (should be !=)
+        var notEquals = as(and.left(), NotEquals.class);
+        var leftAttr = as(notEquals.left(), Attribute.class);
+        var rightAttr = as(notEquals.right(), Attribute.class);
+        assertEquals("languages", leftAttr.name());
+        assertEquals("language_code", rightAttr.name());
+
+        // Check the right condition (should be >)
+        var greaterThan = as(and.right(), GreaterThan.class);
+        var leftAttrGT = as(greaterThan.left(), Attribute.class);
+        var rightAttrGT = as(greaterThan.right(), Attribute.class);
+        assertEquals("languages", leftAttrGT.name());
+        assertEquals("language_code", rightAttrGT.name());
+
+        // Verify the left side of join has Limit then EsRelation
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+
+        // Verify the right side of join is EsRelation with LOOKUP
+        as(join.right(), EsRelation.class);
     }
 }

@@ -33,8 +33,8 @@ import java.util.function.IntFunction;
  * This class is used in the context of an expression based lookup join,
  * where we need to generate a query for each row of the left dataset.
  * The query is then used to fetch the matching rows from the right dataset.
- * The query is a binary comparison between a field from the right dataset and a value from the left dataset.
- * The field is on the left side of the comparison and the value is on the right side.
+ * The query is a binary comparison between a field from the right dataset
+ * and a single value from the left dataset. e.g right_id > 5
  * The value is extracted from a block at a given position.
  * The comparison is then translated to a Lucene query.
  * If the comparison cannot be translated, an exception is thrown.

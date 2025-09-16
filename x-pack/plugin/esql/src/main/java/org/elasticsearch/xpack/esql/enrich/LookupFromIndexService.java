@@ -337,7 +337,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 planOut.writeOptionalNamedWriteable(joinOnConditions);
             } else {
                 if (joinOnConditions != null) {
-                    throw new EsqlIllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
+                    throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
                 }
             }
         }

@@ -2218,6 +2218,48 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoinExpressionAmbiguousRight() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        String queryString = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON salary == language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousLeft() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        String queryString = """
+             from test
+            | rename languages as language_name
+            | lookup join languages_lookup ON language_name == language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousBoth() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        String queryString = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON language_code != language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
+            error(queryString)
+        );
+    }
+
     public void testFullTextFunctionOptions() {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");

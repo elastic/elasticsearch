@@ -733,7 +733,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             } else {
                 throw new ParsingException(
                     f.source(),
-                    "JOIN ON clause must be a comma separated list of fields or a single expression found [{}]",
+                    "JOIN ON clause must be a comma separated list of fields or a single expression, found [{}]",
                     f.sourceText()
                 );
             }

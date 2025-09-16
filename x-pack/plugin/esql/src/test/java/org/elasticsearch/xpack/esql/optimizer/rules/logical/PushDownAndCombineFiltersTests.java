@@ -850,7 +850,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         EsRelation left = relation(List.of(a, b1));
         EsRelation right = relation(List.of(c, b2));
         Expression joinOnCondition = new GreaterThanOrEqual(Source.EMPTY, b1, b2);
-        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(a, b1, b2), List.of(b2, c), joinOnCondition);
+        JoinConfig joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(b1), List.of(b2), joinOnCondition);
         return new Join(EMPTY, left, right, joinConfig);
     }
 
@@ -870,6 +870,33 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         assertEquals(left, optimizedJoin.left());
         Filter rightFilter = as(optimizedJoin.right(), Filter.class);
         assertEquals(pushableCondition, rightFilter.condition());
+    }
+
+    public void testLeftJoinOnExpressionPushableLeftAndRight() {
+        Join join = createLeftJoinOnExpression();
+        FieldAttribute a = (FieldAttribute) join.left().output().get(0);
+        FieldAttribute c = (FieldAttribute) join.right().output().get(0);
+
+        // Pushable filters on both left and right
+        Expression leftPushableCondition = greaterThanOf(a, ONE);
+        Expression rightPushableCondition = greaterThanOf(c, TWO);
+        Expression combinedCondition = Predicates.combineAnd(List.of(leftPushableCondition, rightPushableCondition));
+        Filter filter = new Filter(EMPTY, join, combinedCondition);
+        LogicalPlan optimized = new PushDownAndCombineFilters().apply(filter, optimizerContext);
+
+        // The top filter should only contain the right pushable condition
+        // because left pushable conditions are completely pushed down and removed from the top
+        Filter topFilter = as(optimized, Filter.class);
+        assertEquals(rightPushableCondition, topFilter.condition());
+        Join optimizedJoin = as(topFilter.child(), Join.class);
+
+        // Check that the left side has the left pushable filter
+        Filter leftFilter = as(optimizedJoin.left(), Filter.class);
+        assertEquals(leftPushableCondition, leftFilter.condition());
+
+        // Check that the right side has the right pushable filter
+        Filter rightFilter = as(optimizedJoin.right(), Filter.class);
+        assertEquals(rightPushableCondition, rightFilter.condition());
     }
 
     public void testPushDownFilterPastLeftJoinExpressionWithPartiallyPushableAnd() {

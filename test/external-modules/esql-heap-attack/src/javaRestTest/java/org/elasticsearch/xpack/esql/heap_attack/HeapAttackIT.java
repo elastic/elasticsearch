@@ -776,7 +776,6 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosionManyMatchesExpression() throws IOException {
-        // 1500, 10000 is enough locally, but some CI machines need more.
         int lookupEntries = 10000;
         assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 1, lookupEntries, true));
     }

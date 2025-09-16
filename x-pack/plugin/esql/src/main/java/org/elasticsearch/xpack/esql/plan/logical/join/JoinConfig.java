@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -61,7 +60,7 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
             out.writeOptionalNamedWriteable(joinOnConditions);
         } else if (joinOnConditions != null) {
-            throw new EsqlIllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
+            throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
         }
     }
 

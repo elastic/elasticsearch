@@ -3396,7 +3396,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidLookupJoinOnClause() {
         expectError(
             "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " , " + singleExpressionJoinClause(),
-            "JOIN ON clause must be a comma separated list of fields or a single expression found"
+            "JOIN ON clause must be a comma separated list of fields or a single expression, found"
         );
 
         expectError(

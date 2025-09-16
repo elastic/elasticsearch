@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_
  * The query is then used to fetch the matching rows from the right dataset.
  * The class supports two types of joins:
  * 1. Field-based join: The join conditions are based on the equality of fields from the left and right datasets.
+ * It is used for field-based join when the join is on more than one field or there is a preJoinFilter
  * 2. Expression-based join: The join conditions are based on a complex expression that can involve multiple fields and operators.
  */
 public class ExpressionQueryList implements LookupEnrichQueryGenerator {
@@ -76,13 +77,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * For example | LOOKUP JOIN on field1, field2, field3
      * The query lists are generated from the join conditions.
      * The pre-join filter is an optional filter that is applied to the right dataset before the join.
-     * @param queryLists The list of query lists that will be combined.
-     * @param context The search execution context.
-     * @param rightPreJoinPlan The physical plan for the right side of the join.
-     * @param clusterService The cluster service.
-     * @param aliasFilter The alias filter.
-     * @return A new {@link ExpressionQueryList} for a field-based join.
-     * @throws IllegalArgumentException if the number of query lists is less than 2 and there is no pre-join filter.
      */
     public static ExpressionQueryList fieldBasedJoin(
         List<QueryList> queryLists,
@@ -104,14 +98,6 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      * Example | LOOKUP JOIN on left_field > right_field AND left_field2 == right_field2
      * The query lists are generated from the join conditions.
      * The pre-join filter is an optional filter that is applied to the right dataset before the join.
-     * @param context The search execution context.
-     * @param rightPreJoinPlan The physical plan for the right side of the join.
-     * @param clusterService The cluster service.
-     * @param request The transport request.
-     * @param aliasFilter The alias filter.
-     * @param warnings The warnings.
-     * @return A new {@link ExpressionQueryList} for an expression-based join.
-     * @throws IllegalStateException if the join conditions are null.
      */
     public static ExpressionQueryList expressionBasedJoin(
         SearchExecutionContext context,

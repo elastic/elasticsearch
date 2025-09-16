@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -80,7 +79,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
             out.writeOptionalNamedWriteable(joinOnConditions);
         } else if (joinOnConditions != null) {
-            throw new EsqlIllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
+            throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
         }
     }
 

@@ -218,7 +218,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         // Collect time series specific grouping fields from the leaf relation
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
-        Set<Attribute> dimensions = new HashSet<>();
         aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
                 if (attr.name().equals(MetadataAttribute.TSID_FIELD)) {
@@ -226,9 +225,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 }
                 if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
                     timestamp.set(attr);
-                }
-                if (attr.isDimension()) {
-                    dimensions.add(attr);
                 }
             }
         });
@@ -265,37 +261,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         NamedExpression timeBucket = timeBucketRef.get();
 
         // Construct the groupings for the new aggregations
-        if (hasTopLevelOverTimeAggs) {
-            // Group by all dimensions case. In this path, there is only one tier, and it should have either a single tbucket
-            // or no groupings at all.
-            if (aggregate.groupings().size() > 1) {
-                throw new EsqlIllegalArgumentException(
-                    "expected at most one time bucket grouping for top level time series aggregation; "
-                        + "got ["
-                        + aggregate.groupings()
-                        + "]"
-                );
-            }
-            if (aggregate.groupings().size() == 1) {
-                // extract the tbucket, same as we would for the two tiered case
-                if (timeBucket != null && aggregate.groupings().get(0) instanceof Attribute attr && attr.id().equals(timeBucket.id())) {
-                    firstPassGroupings.add(timeBucket.toAttribute());
-                } else {
-                    throw new EsqlIllegalArgumentException(
-                        "expected at most one time bucket grouping for top level time series aggregation; "
-                            + "got ["
-                            + aggregate.groupings()
-                            + "]"
-                    );
-                }
-                for (Attribute dimension : dimensions) {
-                    // We add the dimensions as Values aggs here as an optimization. Grouping by the _tsid should already ensure
-                    // one row per unique combination of dimensions, and collecting those values in a Values aggregation is less
-                    // computation than hashing them for a grouping operation.
-                    firstPassAggs.add(new Alias(dimension.source(), dimension.name(), new Values(dimension.source(), dimension)));
-                }
-            }
-        } else {
+        if (hasTopLevelOverTimeAggs == false) {
             // Two tiered case; we want to group both tiers by the tbucket, collect the groupings for the second aggregation
             // as values on the first, and finally group the second agg by those values
             for (Expression group : aggregate.groupings()) {

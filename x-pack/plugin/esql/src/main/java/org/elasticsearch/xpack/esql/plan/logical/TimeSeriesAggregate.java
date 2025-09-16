@@ -32,6 +32,7 @@ public class TimeSeriesAggregate extends Aggregate {
     );
 
     private final Bucket timeBucket;
+    private final boolean hasTopLevelOverTimeFunctions;
 
     public TimeSeriesAggregate(
         Source source,
@@ -40,8 +41,20 @@ public class TimeSeriesAggregate extends Aggregate {
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket
     ) {
+        this(source, child, groupings, aggregates, timeBucket, false);
+    }
+
+    public TimeSeriesAggregate(
+        Source source,
+        LogicalPlan child,
+        List<Expression> groupings,
+        List<? extends NamedExpression> aggregates,
+        Bucket timeBucket,
+        boolean hasTopLevelOverTimeFunctions
+    ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
+        this.hasTopLevelOverTimeFunctions = hasTopLevelOverTimeFunctions;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {

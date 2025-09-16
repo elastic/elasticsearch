@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -16,6 +17,7 @@ import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -99,8 +101,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         assertThat(coordinatorIntercepted.originalQuery, equalTo(matchQuery));
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(2));
-        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(DENSE_INFERENCE_ID));
-        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(SPARSE_INFERENCE_ID));
+        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)));
+        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)));
 
         final SemanticQueryBuilder expectedSemanticQuery = new SemanticQueryBuilder(
             field,

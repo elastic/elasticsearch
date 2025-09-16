@@ -11,6 +11,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -30,6 +31,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -134,7 +136,9 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
 
-        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(SPARSE_INFERENCE_ID);
+        InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
+            Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
+        );
         assertThat(inferenceResults, notNullValue());
         assertThat(inferenceResults, instanceOf(TextExpansionResults.class));
         TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;

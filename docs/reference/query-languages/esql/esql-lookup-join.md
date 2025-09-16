@@ -53,6 +53,10 @@ If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means th
 
 {applies_to}`stack: ga 9.2.0` Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md). The lookup index must exist on _all_ remote clusters being queried, because each cluster uses its local lookup index data. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
 
+```esql
+FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
+```
+
 ## Example
 
 You can run this example for yourself if you'd like to see how it works, by setting up the indices and adding sample data.
@@ -211,3 +215,4 @@ The following are the current limitations with `LOOKUP JOIN`:
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.
+* Cross-cluster `LOOKUP JOIN` can not be used after aggregations (`STATS`), `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands.

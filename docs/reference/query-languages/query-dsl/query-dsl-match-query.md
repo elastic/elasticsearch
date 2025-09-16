@@ -4,6 +4,10 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-query.html
 ---
 
+See also the {ref}/indices/analyze.html[Analyze API] and
+{ref}/analysis.html[Text analysis concepts].
+
+
 # Match query [query-dsl-match-query]
 
 

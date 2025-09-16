@@ -12,6 +12,4 @@ description = 'Fixture for URL external service'
 dependencies {
   implementation project(':server')
   implementation project(':test:framework')
-  implementation "org.apache.ftpserver:ftpserver-core:1.2.1"
-  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
 }

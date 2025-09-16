@@ -675,10 +675,14 @@ public final class XmlProcessor extends AbstractProcessor {
             }
 
             // Process text content and determine final element structure
-            String textContentString = textContent.toString();
-            String trimmedText = textContentString.trim();
-            boolean hasText = textContentString.isBlank() == false;
-            boolean hasChildren = element.isEmpty() == false;
+            final boolean hasText;
+            final String trimmedText;
+            {
+                String textContentString = textContent.toString();
+                hasText = textContentString.isBlank() == false;
+                trimmedText = hasText ? textContentString.trim() : null; // only trim the text if it's not blank
+            }
+            final boolean hasChildren = element.isEmpty() == false;
 
             Object elementValue;
             if (hasChildren) {

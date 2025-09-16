@@ -1368,7 +1368,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             });
         } catch (Exception e) {
-            attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
+            if (haveAttemptedSampling.get() == false) {
+                // It is possible that an exception happened after we sampled. We do not want to sample the same document twice.
+                attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
+            }
             logger.debug(
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e

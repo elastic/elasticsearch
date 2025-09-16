@@ -44,8 +44,7 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
     private int pageIndex = -1;
     private int currentCapacity = 0;
 
-    protected int bytesRefOffset;
-    protected byte[] bytesRefBytes;
+    protected BytesRef currentBytesRef;
     protected int currentPageOffset;
 
     public NewRecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
@@ -64,12 +63,15 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
 
     @Override
     public void writeByte(byte b) {
-        if (currentPageOffset == pageSize) {
+        int currentPageOffset = this.currentPageOffset;
+        if (1 > (pageSize - currentPageOffset)) {
             ensureCapacity(1);
             nextPage();
         }
-        bytesRefBytes[bytesRefOffset + currentPageOffset] = b;
-        ++currentPageOffset;
+
+        BytesRef currentPage = currentBytesRef;
+        currentPage.bytes[currentPage.offset + currentPageOffset] = b;
+        this.currentPageOffset = currentPageOffset + 1;
     }
 
     @Override
@@ -93,7 +95,8 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
 
         int toCopy = Math.min(length, pageSize - currentPageOffset);
         if (toCopy != 0) {
-            System.arraycopy(b, offset, bytesRefBytes, bytesRefOffset + currentPageOffset, toCopy);
+            BytesRef currentPage = currentBytesRef;
+            System.arraycopy(b, offset, currentPage.bytes, currentPage.offset + currentPageOffset, toCopy);
             currentPageOffset += toCopy;
             if (toCopy == length) {
                 return;
@@ -115,7 +118,8 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
             }
 
             int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
-            System.arraycopy(b, srcOffset, bytesRefBytes, bytesRefOffset + currentPageOffset, toCopyThisLoop);
+            BytesRef currentPage = currentBytesRef;
+            System.arraycopy(b, srcOffset, currentPage.bytes, currentPage.offset + currentPageOffset, toCopyThisLoop);
 
             srcOffset += toCopyThisLoop;
             bytesToCopy -= toCopyThisLoop;
@@ -148,11 +152,12 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
     }
 
     private void putVInt(int i, int bytesNeeded) {
+        BytesRef currentPage = currentBytesRef;
         if (bytesNeeded == 1) {
-            bytesRefBytes[bytesRefOffset + currentPageOffset] = (byte) i;
+            currentPage.bytes[currentPage.offset + currentPageOffset] = (byte) i;
             currentPageOffset += 1;
         } else {
-            currentPageOffset += putMultiByteVInt(bytesRefBytes, i, bytesRefOffset + currentPageOffset);
+            currentPageOffset += putMultiByteVInt(currentPage.bytes, i, currentPage.offset + currentPageOffset);
         }
     }
 
@@ -162,18 +167,21 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
         if (4 > (pageSize - currentPageOffset)) {
             super.writeInt(i);
         } else {
-            VH_BE_INT.set(bytesRefBytes, bytesRefOffset + currentPageOffset, i);
+            BytesRef currentPage = currentBytesRef;
+            VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
             this.currentPageOffset = currentPageOffset + 4;
         }
     }
 
     @Override
     public void writeIntLE(int i) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
         if (4 > (pageSize - currentPageOffset)) {
             super.writeIntLE(i);
         } else {
-            VH_LE_INT.set(bytesRefBytes, bytesRefOffset + currentPageOffset, i);
-            currentPageOffset += 4;
+            BytesRef currentPage = currentBytesRef;
+            VH_LE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            this.currentPageOffset = currentPageOffset + 4;
         }
     }
 
@@ -183,18 +191,21 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
         if (8 > (pageSize - currentPageOffset)) {
             super.writeLong(i);
         } else {
-            VH_BE_LONG.set(bytesRefBytes, bytesRefOffset + currentPageOffset, i);
+            BytesRef currentPage = currentBytesRef;
+            VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
             this.currentPageOffset = currentPageOffset + 8;
         }
     }
 
     @Override
     public void writeLongLE(long i) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
         if (8 > (pageSize - currentPageOffset)) {
             super.writeLongLE(i);
         } else {
-            VH_LE_LONG.set(bytesRefBytes, bytesRefOffset + currentPageOffset, i);
-            currentPageOffset += 8;
+            BytesRef currentPage = currentBytesRef;
+            VH_LE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            this.currentPageOffset = currentPageOffset + 8;
         }
     }
 
@@ -233,8 +244,9 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
             return;
         }
 
-        int offset = bytesRefOffset + currentPageOffset;
-        byte[] buffer = bytesRefBytes;
+        BytesRef currentPage = currentBytesRef;
+        int offset = currentPage.offset + currentPageOffset;
+        byte[] buffer = currentPage.bytes;
 
         offset += putVInt(buffer, charCount, offset);
         int charOff = 0;
@@ -250,7 +262,7 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
         if (charOff < charCount) {
             offset += writeNonAscii(str, charOff, charCount, buffer, offset);
         }
-        this.currentPageOffset = offset - bytesRefOffset;
+        this.currentPageOffset = offset - currentPage.offset;
     }
 
     private int writeNonAscii(String str, int charOffset, int charCount, byte[] buffer, int offset) {
@@ -293,12 +305,9 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
             this.currentPageOffset = offsetInPage;
         }
         if (position != 0) {
-            BytesRef page = pages.get(this.pageIndex).v();
-            this.bytesRefBytes = page.bytes;
-            this.bytesRefOffset = page.offset;
+            this.currentBytesRef = pages.get(this.pageIndex).v();
         } else {
-            this.bytesRefBytes = null;
-            this.bytesRefOffset = 0;
+            nextPage();
         }
     }
 
@@ -312,7 +321,7 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
         if (pages != null) {
             this.pages = null;
 
-            this.bytesRefBytes = null;
+            this.currentBytesRef = null;
             Releasables.close(pages);
         }
     }
@@ -327,7 +336,7 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
         var bytes = bytes();
         var pages = this.pages;
         this.pages = null;
-        this.bytesRefBytes = null;
+        this.currentBytesRef = null;
 
         return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
     }
@@ -411,9 +420,6 @@ public class NewRecyclerBytesStreamOutput extends BytesStream implements Releasa
     private void nextPage() {
         pageIndex++;
         currentPageOffset = 0;
-
-        BytesRef page = pages.get(pageIndex).v();
-        bytesRefBytes = page.bytes;
-        bytesRefOffset = page.offset;
+        currentBytesRef = pages.get(pageIndex).v();
     }
 }

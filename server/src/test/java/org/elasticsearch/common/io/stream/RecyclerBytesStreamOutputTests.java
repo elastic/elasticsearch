@@ -72,6 +72,14 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         out.close();
     }
 
+    public void testThing() throws IOException {
+        RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+        out.write((byte) 1);
+        out.seek(0);
+        out.write((byte) 1);
+        out.close();
+    }
+
     public void testSingleByte() throws Exception {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
         assertEquals(0, out.size());

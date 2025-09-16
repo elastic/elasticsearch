@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -39,11 +38,6 @@ import static org.hamcrest.Matchers.not;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
-
-    @Before
-    public void checkEnabled() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-    }
 
     public void testLookupJoinAcrossClusters() throws IOException {
         setupClustersAndLookups();

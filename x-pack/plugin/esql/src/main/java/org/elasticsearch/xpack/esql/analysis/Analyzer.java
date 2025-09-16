@@ -55,6 +55,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
@@ -64,6 +66,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
@@ -79,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Foldables
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -101,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -109,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -157,6 +164,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -172,6 +180,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.STATS;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
 /**
@@ -949,10 +958,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             // some attributes were unresolved - we return Fuse here so that the Verifier can raise an error message
             if (score instanceof UnresolvedAttribute || discriminator instanceof UnresolvedAttribute) {
-                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType());
+                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
             }
 
-            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator);
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
@@ -1365,15 +1374,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
+            // the default limit for TS queries or for non-TS queries.
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate)
+                .stream()
+                .toList()
+                .isEmpty() == false;
             int limit;
             if (limits.isEmpty()) {
-                HeaderWarning.addWarning(
-                    "No limit defined, adding default limit of [{}]",
-                    context.configuration().resultTruncationDefaultSize()
-                );
-                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+                limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
+                // default
+                if (isTsAggregate == false) {
+                    HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
+                }
             } else {
-                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+                limit = context.configuration().resultTruncationMaxSize(isTsAggregate); // user provided a limit: cap result
+                                                                                        // entries to the max
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
@@ -1401,6 +1417,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
         if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
             b.set(LIMIT.ordinal());
+        }
+
+        // count only the Aggregate (STATS command) that is "standalone" not also the one that is part of an INLINESTATS command
+        if (plan instanceof Aggregate) {
+            b.set(STATS.ordinal());
+        } else {
+            plan.forEachDownMayReturnEarly((p, breakEarly) -> {
+                if (p instanceof InlineStats) {
+                    return;
+                }
+                for (var c : p.children()) {
+                    if (c instanceof Aggregate) {
+                        b.set(STATS.ordinal());
+                        breakEarly.set(true);
+                        return;
+                    }
+                }
+            });
         }
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         return b;
@@ -1443,7 +1477,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return processIn(in);
             }
             if (f instanceof VectorFunction) {
-                return processVectorFunction(f);
+                return processVectorFunction(f, registry);
             }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry);
@@ -1656,22 +1690,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         @SuppressWarnings("unchecked")
-        private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
+        private static Expression processVectorFunction(
+            org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
+            EsqlFunctionRegistry registry
+        ) {
+            // Perform implicit casting for dense_vector from numeric and keyword values
             List<Expression> args = vectorFunction.arguments();
+            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
             List<Expression> newArgs = new ArrayList<>();
-            for (Expression arg : args) {
-                if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
-                    Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
-                    if (folded instanceof List) {
-                        // Convert to floats so blocks are created accordingly
-                        List<Float> floatVector;
-                        if (arg.dataType() == FLOAT) {
-                            floatVector = (List<Float>) folded;
-                        } else {
-                            floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+            for (int i = 0; i < args.size(); i++) {
+                Expression arg = args.get(i);
+                if (targetDataTypes.get(i) == DENSE_VECTOR && arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable()) {
+                            Expression exp = castStringLiteral(arg, DENSE_VECTOR);
+                            if (exp != arg) {
+                                newArgs.add(exp);
+                                continue;
+                            }
                         }
-                        Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
-                        newArgs.add(denseVector);
+                    } else if (dataType.isNumeric()) {
+                        newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
                         continue;
                     }
                 }
@@ -1680,7 +1720,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             return vectorFunction.replaceChildren(newArgs);
         }
-
     }
 
     /**
@@ -2101,6 +2140,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
             if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            if (aggFunc instanceof Present || aggFunc instanceof PresentOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            if (aggFunc instanceof Absent || aggFunc instanceof AbsentOverTime) {
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
             return null;

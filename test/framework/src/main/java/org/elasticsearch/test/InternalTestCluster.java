@@ -176,6 +176,20 @@ import static org.junit.Assert.fail;
  * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
  * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
  * </p>
+ * <h2>{@link NodeConfigurationSource#nodeSettings} ordinals</h2>
+ * The supplied node ordinal for this node settings getter is generated as follows:
+ * <ol>
+ *     <li>
+ *         The first indices correspond to the dedicated master nodes, enabled with the {@code randomlyAddDedicatedMasters} setting.
+ *         Its amount can't currently be configured.
+ *     </li>
+ *     <li>
+ *         Then, the data nodes, controlled by the @{code minNumDataNodes} and @{code maxNumDataNodes} settings.
+ *     </li>
+ *     <li>
+ *         Finally, the coordinating-only, configured with the {@code numClientNodes} setting.
+ *     </li>
+ * </ol>
  */
 public final class InternalTestCluster extends TestCluster {
 
@@ -2065,7 +2079,14 @@ public final class InternalTestCluster extends TestCluster {
         }
         try {
             ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
-            final ClusterState state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            final ClusterState state = client(viaNode).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setBlocks(true)
+                .setNodes(true)
+                .get()
+                .getState();
             final DiscoveryNode masterNode = state.nodes().getMasterNode();
             if (masterNode == null) {
                 throw new AssertionError("Master is not stable but the method expects a stable master node");

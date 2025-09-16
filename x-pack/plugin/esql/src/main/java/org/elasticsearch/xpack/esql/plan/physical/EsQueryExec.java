@@ -40,6 +40,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         EsField.TimeSeriesFieldType.NONE
     );
 
+    public static final List<EsField> TIME_SERIES_SOURCE_FIELDS = List.of(
+        new EsField("_ts_slice_index", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+        new EsField("_ts_future_max_timestamp", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+    );
+
     private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
@@ -324,8 +329,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
-        // TimeSeriesSourceOperator and LuceneTopNSourceOperator do not support QueryAndTags
-        return indexMode != IndexMode.TIME_SERIES && (sorts == null || sorts.isEmpty());
+        // LuceneTopNSourceOperator doesn't support QueryAndTags
+        return sorts == null || sorts.isEmpty();
     }
 
     /**

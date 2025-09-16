@@ -207,7 +207,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             Buffer buffer = null;
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition) == false) {
+                if (valueBlock.isNull(valuePosition)) {
                     continue;
                 }
                 assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;

@@ -44,7 +44,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.POLICY_ID_METADATA_FI
  * cluster state as custom metadata. When a snapshot is started by SLM, it is added to this set. Upon completion,
  * is it removed. If a snapshot does not record its failure in SnapshotLifecycleStats, likely due to a master shutdown,
  * it will not be removed from the registered set. A subsequent snapshot will then find that a registered snapshot
- * is no longer running and will infer that it failed, updating SnapshotLifecycleStats accordingly.
+ * is no longer running and update SnapshotLifecycleStats based on the status of the snapshot.
  */
 public class RegisteredPolicySnapshots implements Metadata.ProjectCustom {
 

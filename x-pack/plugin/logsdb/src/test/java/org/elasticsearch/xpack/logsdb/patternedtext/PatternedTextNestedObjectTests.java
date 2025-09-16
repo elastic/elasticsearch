@@ -56,7 +56,9 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
     private static final String SHORT_MESSAGE = "some message 123 ";
     private static final String LONG_MESSAGE = SHORT_MESSAGE.repeat(((32 * 1024) / SHORT_MESSAGE.length()) + 1);
 
-    private static final Settings SYNTHETIC_SETTING = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic").build();
+    private static final Settings SYNTHETIC_SETTING = Settings.builder()
+        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+        .build();
 
     @Before
     public void setup() {
@@ -70,19 +72,19 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
 
     public void testInObject() {
         String mapping = """
-            {
-              "properties": {
-                "obj": {
-                  "type": "object",
+                {
                   "properties": {
-                    "field_patterned_text": {
-                      "type": "patterned_text"
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "field_patterned_text": {
+                          "type": "patterned_text"
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
-        """;
+            """;
 
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(SYNTHETIC_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
@@ -109,24 +111,24 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
 
     public void testInObjectInObject() {
         String mapping = """
-            {
-              "properties": {
-                "obj": {
-                  "type": "object",
+                {
                   "properties": {
-                    "inner": {
-                        "type": "object",
-                        "properties": {
-                            "field_patterned_text": {
-                              "type": "patterned_text"
+                    "obj": {
+                      "type": "object",
+                      "properties": {
+                        "inner": {
+                            "type": "object",
+                            "properties": {
+                                "field_patterned_text": {
+                                  "type": "patterned_text"
+                                }
                             }
                         }
+                      }
                     }
                   }
                 }
-              }
-            }
-        """;
+            """;
 
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(SYNTHETIC_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
@@ -139,7 +141,10 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
             """.replace("%", message));
 
         var actualMappings = getMapping();
-        assertEquals("patterned_text", ObjectPath.eval("properties.obj.properties.inner.properties.field_patterned_text.type", actualMappings));
+        assertEquals(
+            "patterned_text",
+            ObjectPath.eval("properties.obj.properties.inner.properties.field_patterned_text.type", actualMappings)
+        );
 
         var query = randomBoolean()
             ? QueryBuilders.matchQuery("obj.inner.field_patterned_text", SHORT_MESSAGE)
@@ -151,22 +156,22 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/134830")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/134830")
     public void testInNested() {
         String mapping = """
-            {
-              "properties": {
-                "obj": {
-                  "type": "nested",
+                {
                   "properties": {
-                    "field_patterned_text": {
-                      "type": "patterned_text"
+                    "obj": {
+                      "type": "nested",
+                      "properties": {
+                        "field_patterned_text": {
+                          "type": "patterned_text"
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
-        """;
+            """;
 
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(SYNTHETIC_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
@@ -192,23 +197,22 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
         });
     }
 
-
     public void testInPassthrough() {
         String mapping = """
-            {
-              "properties": {
-                "obj": {
-                  "type": "passthrough",
-                  "priority": 1,
+                {
                   "properties": {
-                    "field_patterned_text": {
-                      "type": "patterned_text"
+                    "obj": {
+                      "type": "passthrough",
+                      "priority": 1,
+                      "properties": {
+                        "field_patterned_text": {
+                          "type": "patterned_text"
+                        }
+                      }
                     }
                   }
                 }
-              }
-            }
-        """;
+            """;
 
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(SYNTHETIC_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
@@ -245,11 +249,7 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
     }
 
     Map<String, Object> getMapping() {
-        return indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX)
-            .get()
-            .mappings()
-            .get(INDEX)
-            .sourceAsMap();
+        return indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, INDEX).get().mappings().get(INDEX).sourceAsMap();
     }
 
     private void indexDoc(String doc) {

@@ -9,23 +9,19 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction.NodeQueryRequest;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.plugins.NetworkPlugin;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.junit.Before;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -34,72 +30,64 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class BatchedQueryPhaseIT extends ESIntegTestCase {
 
-    // All the batched query requests that were made in each test
-    private static final List<NodeQueryRequest> batchedQueryRequests = new CopyOnWriteArrayList<>();
-
-    @Before
-    public void clear() {
-        batchedQueryRequests.clear();
-    }
-
-    public static class BatchedQueryCapturePlugin extends Plugin implements NetworkPlugin {
-        @Override
-        public List<TransportInterceptor> getTransportInterceptors(
-            NamedWriteableRegistry namedWriteableRegistry,
-            ThreadContext threadContext
-        ) {
-            return List.of(new TransportInterceptor() {
-                @Override
-                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
-                    String action,
-                    Executor executor,
-                    boolean forceExecution,
-                    TransportRequestHandler<T> actualHandler
-                ) {
-                    if (NODE_SEARCH_ACTION_NAME.equals(action)) {
-                        return (request, channel, task) -> {
-                            batchedQueryRequests.add((NodeQueryRequest) request);
-                            actualHandler.messageReceived(request, channel, task);
-                        };
-                    }
-                    return actualHandler;
-                }
-            });
-        }
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(BatchedQueryCapturePlugin.class);
-    }
-
-    /**
-     * num_reduce_phases tracks the number of times a partial reduction occurs on the coordinating node.
-     * This test must be aware of how batched queries are executed because reductions on the data nodes are
-     * not counted.
-     */
     public void testNumReducePhases() {
-        assertAcked(prepareCreate("test-idx").setMapping("title", "type=keyword"));
+        String indexName = "test-idx";
+        assertAcked(
+            prepareCreate(indexName).setMapping("title", "type=keyword")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+        );
         for (int i = 0; i < 100; i++) {
-            prepareIndex("test-idx").setId(Integer.toString(i)).setSource("title", "testing" + i).get();
+            prepareIndex(indexName).setId(Integer.toString(i)).setSource("title", "testing" + i).get();
         }
         refresh();
 
+        final String coordinatorNode = internalCluster().getRandomNodeName();
+        final String coordinatorNodeId = getNodeId(coordinatorNode);
         assertNoFailuresAndResponse(
-            prepareSearch("test-idx").setBatchedReduceSize(2).addAggregation(terms("terms").field("title")).setSearchType(QUERY_THEN_FETCH),
+            client(coordinatorNode).prepareSearch(indexName)
+                .setBatchedReduceSize(2)
+                .addAggregation(terms("terms").field("title"))
+                .setSearchType(QUERY_THEN_FETCH),
             response -> {
-                final int totalShards = response.getTotalShards();
-                final int numShardsBatched = batchedQueryRequests.stream()
-                    .map(NodeQueryRequest::numShards)
-                    .mapToInt(Integer::intValue)
-                    .sum();
-                final int coordNodeShards = totalShards - numShardsBatched;
+                Map<String, Integer> shardsPerNode = getNodeToShardCountMap(indexName);
+                System.out.println("testing123 " + shardsPerNode);
+                // Shards are not batched if they are already on the coordinating node or if there is only one per data node.
+                final int coordinatorShards = shardsPerNode.getOrDefault(coordinatorNodeId, 0);
+                final long otherSingleShardNodes = shardsPerNode.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().equals(coordinatorNodeId) == false)
+                    .filter(entry -> entry.getValue() == 1)
+                    .count();
+                final int numNotBatchedShards = coordinatorShards + (int) otherSingleShardNodes;
 
                 // Because batched_reduce_size = 2, whenever two or more shard results exist on the coordinating node, they will be
-                // partially reduced (batched queries do not count). Hence, the formula: (# of shards on the coordinating node) - 1.
-                final int expectedNumReducePhases = Math.max(1, coordNodeShards - 1);
+                // partially reduced (batched queries do not count towards num_reduce_phases).
+                // Hence, the formula: (# of NOT batched shards) - 1.
+                final int expectedNumReducePhases = Math.max(1, numNotBatchedShards - 1);
                 assertThat(response.getNumReducePhases(), equalTo(expectedNumReducePhases));
             }
         );
+    }
+
+    private Map<String, Integer> getNodeToShardCountMap(String indexName) {
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable(ProjectId.DEFAULT).index(indexName);
+        if (indexRoutingTable == null) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, Integer> nodeToShardCount = new HashMap<>();
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
+                String nodeId = shardRouting.currentNodeId();
+                if (nodeId != null) {
+                    nodeToShardCount.merge(nodeId, 1, Integer::sum);
+                }
+            }
+        }
+
+        return nodeToShardCount;
     }
 }

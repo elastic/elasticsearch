@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -102,7 +103,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             return null;
         }
 
-        try (OutputBuilder outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
+        try (OutputBuilder<Page> outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
             for (InferenceAction.Response response : ongoingInferenceResult.responses) {
                 outputBuilder.addInferenceResponse(response);
             }
@@ -125,12 +126,12 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      *
      * @param input The corresponding input page used to generate the inference requests.
      */
-    protected abstract OutputBuilder outputBuilder(Page input);
+    protected abstract OutputBuilder<Page> outputBuilder(Page input);
 
     /**
-     * An interface for accumulating inference responses and constructing a result {@link Page}.
+     * An interface for accumulating inference responses and constructing a result (can be a {@link  Page} or a {@link Block}).
      */
-    public interface OutputBuilder extends Releasable {
+    public interface OutputBuilder<T> extends Releasable {
 
         /**
          * Adds an inference response to the output.
@@ -144,11 +145,11 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         void addInferenceResponse(InferenceAction.Response inferenceResponse);
 
         /**
-         * Builds the final output page from accumulated inference responses.
+         * Builds the final output from accumulated inference responses.
          *
-         * @return The constructed output page.
+         * @return The constructed output block.
          */
-        Page buildOutput();
+        T buildOutput();
 
         static <IR extends InferenceServiceResults> IR inferenceResults(InferenceAction.Response inferenceResponse, Class<IR> clazz) {
             InferenceServiceResults results = inferenceResponse.getResults();

@@ -50,7 +50,7 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
                         List.of(inputTextDataType, inferenceIdDataType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
-                                new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), inputTextDataType, "inputText"),
+                                new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), inputTextDataType, "text"),
                                 new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), inferenceIdDataType, "inference_id")
                             ),
                             Matchers.blankOrNullString(),

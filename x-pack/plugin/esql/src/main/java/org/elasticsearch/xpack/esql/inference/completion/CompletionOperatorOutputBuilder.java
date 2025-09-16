@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
  * {@link CompletionOperatorOutputBuilder} builds the output page for {@link CompletionOperator} by converting {@link ChatCompletionResults}
  * into a {@link BytesRefBlock}.
  */
-public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
+public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder<Page> {
     private final Page inputPage;
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();

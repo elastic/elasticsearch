@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
  * {@link TextEmbeddingOperatorOutputBuilder} builds the output page for text embedding by converting
  * {@link TextEmbeddingResults} into a {@link FloatBlock} containing dense vector embeddings.
  */
-public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
+public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuilder<Page> {
     private final Page inputPage;
     private final FloatBlock.Builder outputBlockBuilder;
 

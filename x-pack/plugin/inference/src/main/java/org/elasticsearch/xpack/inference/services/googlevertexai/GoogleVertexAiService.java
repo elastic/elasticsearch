@@ -278,7 +278,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                     UnifiedChatInput.class
                 );
                 break;
-            default:
+            case null, default:
                 manager = new GenericRequestManager<>(
                     getServiceComponents().threadPool(),
                     updatedChatCompletionModel,

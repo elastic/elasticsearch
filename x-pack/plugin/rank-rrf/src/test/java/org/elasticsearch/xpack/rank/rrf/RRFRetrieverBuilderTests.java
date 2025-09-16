@@ -449,6 +449,31 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
+        // Glob matching on inference and non-inference fields
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*", "field_1", "*_field_1", "semantic_*"),
+            "baz2",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("field_*", 1.0f, "field_1", 1.0f, "*_field_1", 1.0f, "semantic_*", 1.0f), List.of()),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of()),
+                1.0f,
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
+                1.0f
+            ),
+            "baz2",
+            null
+        );
+
         // All-fields wildcard
         retriever = new RRFRetrieverBuilder(
             null,

@@ -142,6 +142,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     private Map<String, String> dynamicTemplates = Map.of();
+    private Map<String, Map<String, String>> dynamicTemplatesParams = Map.of();
 
     /**
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
@@ -224,6 +225,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
         } // else default value is true
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)) {
+            dynamicTemplatesParams = in.readMap(StreamInput::readString, i -> i.readMap(StreamInput::readString));
+        }
     }
 
     public IndexRequest() {
@@ -794,6 +799,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             out.writeBoolean(includeSourceOnError);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)) {
+            out.writeMap(dynamicTemplatesParams, StreamOutput::writeString, (o, v) -> o.writeMap(v, StreamOutput::writeString));
+        }
     }
 
     @Override
@@ -946,6 +954,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public Map<String, String> getDynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public IndexRequest setDynamicTemplatesParams(Map<String, Map<String, String>> dynamicTemplatesParams) {
+        this.dynamicTemplatesParams = dynamicTemplatesParams;
+        return this;
+    }
+
+    public Map<String, Map<String, String>> getDynamicTemplatesParams() {
+        return dynamicTemplatesParams;
     }
 
     public Object getRawTimestamp() {

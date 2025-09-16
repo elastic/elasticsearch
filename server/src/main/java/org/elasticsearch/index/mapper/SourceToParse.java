@@ -30,6 +30,8 @@ public class SourceToParse {
 
     private final Map<String, String> dynamicTemplates;
 
+    private final Map<String, Map<String, String>> dynamicTemplatesParams;
+
     private final boolean includeSourceOnError;
 
     private final XContentMeteringParserDecorator meteringParserDecorator;
@@ -40,6 +42,7 @@ public class SourceToParse {
         XContentType xContentType,
         @Nullable String routing,
         Map<String, String> dynamicTemplates,
+        Map<String, Map<String, String>> dynamicTemplatesParams,
         boolean includeSourceOnError,
         XContentMeteringParserDecorator meteringParserDecorator
     ) {
@@ -50,16 +53,17 @@ public class SourceToParse {
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
         this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
+        this.dynamicTemplatesParams = dynamicTemplatesParams;
         this.includeSourceOnError = includeSourceOnError;
         this.meteringParserDecorator = meteringParserDecorator;
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType) {
-        this(id, source, xContentType, null, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, null, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(String id, BytesReference source, XContentType xContentType, String routing) {
-        this(id, source, xContentType, routing, Map.of(), true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, Map.of(), Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public SourceToParse(
@@ -69,7 +73,7 @@ public class SourceToParse {
         String routing,
         Map<String, String> dynamicTemplates
     ) {
-        this(id, source, xContentType, routing, dynamicTemplates, true, XContentMeteringParserDecorator.NOOP);
+        this(id, source, xContentType, routing, dynamicTemplates, Map.of(), true, XContentMeteringParserDecorator.NOOP);
     }
 
     public BytesReference source() {
@@ -100,6 +104,10 @@ public class SourceToParse {
      */
     public Map<String, String> dynamicTemplates() {
         return dynamicTemplates;
+    }
+
+    public Map<String, Map<String, String>> dynamicTemplatesParams() {
+        return dynamicTemplatesParams;
     }
 
     public XContentType getXContentType() {

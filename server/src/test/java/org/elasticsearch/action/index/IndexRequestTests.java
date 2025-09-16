@@ -9,6 +9,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
@@ -190,6 +191,8 @@ public class IndexRequestTests extends ESTestCase {
             .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
         indexRequest.source("{}", XContentType.JSON);
         indexRequest.setDynamicTemplates(dynamicTemplates);
+        Map<String, Map<String, String>> dynamicTemplatesParams = createRandomDynamicTemplatesParams(0, 10);
+        indexRequest.setDynamicTemplatesParams(dynamicTemplatesParams);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -201,6 +204,12 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), serialized.source());
         assertEquals(isRequireAlias, serialized.isRequireAlias());
         assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+    }
+
+    private static Map<String, Map<String, String>> createRandomDynamicTemplatesParams(int min, int max) {
+        return IntStream.range(0, randomIntBetween(min, max))
+            .boxed()
+            .collect(Collectors.toMap(n -> "field-" + n, n -> Map.of("key-" + n, "value-" + n)));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -250,6 +259,58 @@ public class IndexRequestTests extends ESTestCase {
             in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+        }
+    }
+
+    public void testSerializeDynamicTemplatesPrarams() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("foo").id("1");
+        indexRequest.source("{}", XContentType.JSON);
+        // Empty dynamic templates
+        {
+            if (randomBoolean()) {
+                indexRequest.setDynamicTemplatesParams(Map.of());
+            }
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplatesParams(), anEmptyMap());
+        }
+        // old version
+        {
+            indexRequest.setDynamicTemplatesParams(createRandomDynamicTemplatesParams(1, 10));
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersion.minimumCompatible(),
+                TransportVersionUtils.getPreviousVersion(TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS)
+            );
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplatesParams(), anEmptyMap());
+        }
+        // new version
+        {
+            Map<String, Map<String, String>> dynamicTemplatesParams = createRandomDynamicTemplatesParams(0, 10);
+            indexRequest.setDynamicTemplatesParams(dynamicTemplatesParams);
+            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.INGEST_REQUEST_DYNAMIC_TEMPLATES_PARAMS,
+                TransportVersion.current()
+            );
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplatesParams(), equalTo(dynamicTemplatesParams));
         }
     }
 

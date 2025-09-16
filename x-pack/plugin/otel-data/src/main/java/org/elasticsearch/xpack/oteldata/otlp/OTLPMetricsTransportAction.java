@@ -47,6 +47,8 @@ import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -126,12 +128,15 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
         DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
         try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
-            var dynamicTemplates = metricDocumentBuilder.buildMetricDocument(xContentBuilder, dataPointGroup);
+            var dynamicTemplates = new HashMap<String, String>();
+            var dynamicTemplatesParams = new HashMap<String, Map<String, String>>();
+            metricDocumentBuilder.buildMetricDocument(xContentBuilder, dataPointGroup, dynamicTemplates, dynamicTemplatesParams);
             bulkRequestBuilder.add(
                 new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
                     .setDynamicTemplates(dynamicTemplates)
+                    .setDynamicTemplatesParams(dynamicTemplatesParams)
             );
         }
     }

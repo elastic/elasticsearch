@@ -414,6 +414,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
+                request.getDynamicTemplatesParams(),
                 request.getIncludeSourceOnError(),
                 meteringParserDecorator
             );

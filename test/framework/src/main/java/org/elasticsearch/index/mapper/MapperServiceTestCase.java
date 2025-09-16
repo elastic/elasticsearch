@@ -61,6 +61,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.TelemetryPlugin;
+import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -391,10 +392,32 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         @Nullable String routing,
         Map<String, String> dynamicTemplates
     ) throws IOException {
+        return source(id, build, routing, dynamicTemplates, Map.of());
+    }
+
+    /**
+     * Build a {@link SourceToParse}.
+     */
+    protected static SourceToParse source(
+        @Nullable String id,
+        CheckedConsumer<XContentBuilder, IOException> build,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates,
+        Map<String, Map<String, String>> dynamicTemplatesParams
+    ) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(
+            id,
+            BytesReference.bytes(builder),
+            XContentType.JSON,
+            routing,
+            dynamicTemplates,
+            dynamicTemplatesParams,
+            true,
+            XContentMeteringParserDecorator.NOOP
+        );
     }
 
     /**

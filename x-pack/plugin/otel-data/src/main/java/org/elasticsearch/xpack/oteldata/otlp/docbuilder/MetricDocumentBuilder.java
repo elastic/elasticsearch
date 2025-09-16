@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,9 +40,12 @@ public class MetricDocumentBuilder {
         this.byteStringAccessor = byteStringAccessor;
     }
 
-    public HashMap<String, String> buildMetricDocument(XContentBuilder builder, DataPointGroupingContext.DataPointGroup dataPointGroup)
-        throws IOException {
-        HashMap<String, String> dynamicTemplates = new HashMap<>();
+    public void buildMetricDocument(
+        XContentBuilder builder,
+        DataPointGroupingContext.DataPointGroup dataPointGroup,
+        Map<String, String> dynamicTemplates,
+        Map<String, Map<String, String>> dynamicTemplatesParams
+    ) throws IOException {
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
         builder.field("@timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getTimestampUnixNano()));
@@ -64,7 +67,12 @@ public class MetricDocumentBuilder {
             dataPoint.buildMetricValue(mappingHints, builder);
             String dynamicTemplate = dataPoint.getDynamicTemplate(mappingHints);
             if (dynamicTemplate != null) {
-                dynamicTemplates.put("metrics." + dataPoint.getMetricName(), dynamicTemplate);
+                String metricFieldPath = "metrics." + dataPoint.getMetricName();
+                dynamicTemplates.put(metricFieldPath, dynamicTemplate);
+                if (dataPointGroup.unit() != null && dataPointGroup.unit().isEmpty() == false) {
+                    // Store the unit of the metric in the dynamic template parameters
+                    dynamicTemplatesParams.put(metricFieldPath, Map.of("unit", dataPointGroup.unit()));
+                }
             }
             if (mappingHints.docCount()) {
                 docCount = dataPoint.getDocCount();
@@ -75,7 +83,6 @@ public class MetricDocumentBuilder {
             builder.field("_doc_count", docCount);
         }
         builder.endObject();
-        return dynamicTemplates;
     }
 
     private void buildResource(Resource resource, ByteString schemaUrl, XContentBuilder builder) throws IOException {

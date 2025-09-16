@@ -77,7 +77,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlActionTaskIT.class);
 
-    private boolean nodeLevelReduction;
+    /** If null, a random value will be assigned in {@link EsqlActionTaskIT#startEsql()}, otherwise the value set will be used. */
+    private Boolean nodeLevelReduction = null;
 
     /**
      * Number of docs released by {@link #startEsql}.
@@ -87,7 +88,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     @Before
     public void setup() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
-        nodeLevelReduction = randomBoolean();
     }
 
     public void testTaskContents() throws Exception {
@@ -267,14 +267,10 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             // Report the status after every action
             .put("status_interval", "0ms");
 
-        if (nodeLevelReduction) {
-            // explicitly set the default (true) or don't
-            if (randomBoolean()) {
-                settingsBuilder.put("node_level_reduction", true);
-            }
-        } else {
-            settingsBuilder.put("node_level_reduction", false);
+        if (nodeLevelReduction == null) {
+            nodeLevelReduction = randomBoolean();
         }
+        settingsBuilder.put("node_level_reduction", nodeLevelReduction);
 
         var pragmas = new QueryPragmas(settingsBuilder.build());
         return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client()).query(query).pragmas(pragmas).execute();

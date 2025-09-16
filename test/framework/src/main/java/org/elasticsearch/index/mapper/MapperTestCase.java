@@ -1561,7 +1561,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, randomBoolean());
                 for (int i = 0; i < block.size(); i++) {
-                    assertThat(block.get(i), equalTo(((Number) expectedSampleValues[i]).longValue()));
+                    assertThat(block.get(i), equalTo(expectedSampleValues[i]));
                 }
             };
             withLuceneIndex(mapperService, builder, test);
@@ -1593,11 +1593,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
-                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null));
-                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null);
+                boolean toInt =  expectedSampleValues[0] instanceof Integer;
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt);
                 assertNotNull(block);
-                assertThat(block.get(0), equalTo(((Number) expectedSampleValues[0]).longValue()));
-                assertThat(block.get(1), equalTo(((Number) expectedSampleValues[2]).longValue()));
+                assertThat(block.get(0), equalTo(expectedSampleValues[0]));
+                assertThat(block.get(1), equalTo(expectedSampleValues[2]));
             };
             withLuceneIndex(mapperService, builder, test);
         }

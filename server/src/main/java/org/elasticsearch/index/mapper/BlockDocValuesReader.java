@@ -137,7 +137,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null);
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
                 if (result != null) {
                     return result;
                 }
@@ -272,7 +272,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null);
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true);
                 if (result != null) {
                     // This returns a long block, but should be handled ok downstream.
                     // tryRead(...) doesn't support creating int blocks yet, but can be supported in the future.
@@ -422,7 +422,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
             if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, toDouble);
+                BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, toDouble, false);
                 if (result != null) {
                     return result;
                 }
@@ -777,7 +777,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
                 return readSingleDoc(factory, docs.get(offset));
             }
             if (ordinals instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null);
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
                 if (block != null) {
                     return block;
                 }

@@ -18,9 +18,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -101,30 +103,6 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
 
         // Long random
         testCaseSuppliers.addAll(longRandomTestCases());
-
-        // Unsigned Long Linear
-        testCaseSuppliers.addAll(unsignedLongTestCase(0L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
-        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 10L, 10000000L, 200L, 0.33, "linear", 1.0));
-        testCaseSuppliers.addAll(unsignedLongTestCase(50000L, 10L, 10000000L, 200L, 0.33, "linear", 0.99666407));
-        testCaseSuppliers.addAll(unsignedLongTestCase(300000L, 10L, 10000000L, 200L, 0.33, "linear", 0.97991407));
-        testCaseSuppliers.addAll(unsignedLongTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "linear", 0.0));
-
-        // Unsigned Long Exponential
-        testCaseSuppliers.addAll(unsignedLongTestCase(0L, 10L, 10000000L, 200L, 0.33, "exp", 1.0));
-        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 10L, 10000000L, 200L, 0.33, "exp", 1.0));
-        testCaseSuppliers.addAll(unsignedLongTestCase(50000L, 10L, 10000000L, 200L, 0.33, "exp", 0.9944951761701727));
-        testCaseSuppliers.addAll(unsignedLongTestCase(300000L, 10L, 10000000L, 200L, 0.33, "exp", 0.9673096701204178));
-        testCaseSuppliers.addAll(unsignedLongTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "exp", 0.0));
-
-        // Unsigned Long Gaussian
-        testCaseSuppliers.addAll(unsignedLongTestCase(0L, 10L, 10000000L, 200L, 0.33, "gauss", 1.0));
-        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 10L, 10000000L, 200L, 0.33, "gauss", 1.0));
-        testCaseSuppliers.addAll(unsignedLongTestCase(50000L, 10L, 10000000L, 200L, 0.33, "gauss", 0.999972516142306));
-        testCaseSuppliers.addAll(unsignedLongTestCase(300000L, 10L, 10000000L, 200L, 0.33, "gauss", 0.9990040963055015));
-        testCaseSuppliers.addAll(unsignedLongTestCase(123456789112123L, 10L, 10000000L, 200L, 0.33, "gauss", 0.0));
-
-        // Unsigned Long defaults
-        testCaseSuppliers.addAll(unsignedLongTestCase(10L, 0L, 10L, null, null, null, 0.5));
 
         // Unsigned Long random
         testCaseSuppliers.addAll(unsignedLongRandomTestCases());
@@ -765,45 +743,33 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         }));
     }
 
-    private static List<TestCaseSupplier> unsignedLongTestCase(
-        long value,
-        long origin,
-        long scale,
-        Long offset,
-        Double decay,
-        String functionType,
-        double expected
-    ) {
-        return List.of(
-            new TestCaseSupplier(
-                List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(value, DataType.UNSIGNED_LONG, "value"),
-                        new TestCaseSupplier.TypedData(origin, DataType.UNSIGNED_LONG, "origin").forceLiteral(),
-                        new TestCaseSupplier.TypedData(scale, DataType.UNSIGNED_LONG, "scale").forceLiteral(),
-                        new TestCaseSupplier.TypedData(createOptionsMap(offset, decay, functionType), DataType.SOURCE, "options")
-                            .forceLiteral()
-                    ),
-                    startsWith("DecayLongEvaluator["),
-                    DataType.DOUBLE,
-                    closeTo(expected, Math.ulp(expected))
-                )
-            )
-        );
+    private static double longDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        return switch (type) {
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
+        };
     }
 
     private static List<TestCaseSupplier> unsignedLongRandomTestCases() {
         return List.of(
             new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG, DataType.SOURCE), () -> {
-                long randomValue = randomLong();
-                long randomOrigin = randomLong();
-                long randomScale = randomLong();
-                long randomOffset = randomLong();
+                BigInteger randomValueBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomOriginBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomScaleBig = randomUnsignedLongBetween(BigInteger.ONE, NumericUtils.UNSIGNED_LONG_MAX);
+                BigInteger randomOffsetBig = randomUnsignedLongBetween(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX);
+
+                // Convert to the signed long representation used internally
+                long randomValue = NumericUtils.asLongUnsigned(randomValueBig);
+                long randomOrigin = NumericUtils.asLongUnsigned(randomOriginBig);
+                long randomScale = NumericUtils.asLongUnsigned(randomScaleBig);
+                long randomOffset = NumericUtils.asLongUnsigned(randomOffsetBig);
+
                 double randomDecay = randomDouble();
                 String randomType = randomFrom("linear", "gauss", "exp");
 
-                double scoreScriptNumericResult = longDecayWithScoreScript(
+                double scoreScriptNumericResult = unsignedLongDecayWithScoreScript(
                     randomValue,
                     randomOrigin,
                     randomScale,
@@ -820,7 +786,7 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(createOptionsMap(randomOffset, randomDecay, randomType), DataType.SOURCE, "options")
                             .forceLiteral()
                     ),
-                    startsWith("DecayLongEvaluator["),
+                    startsWith("DecayUnsignedLongEvaluator["),
                     DataType.DOUBLE,
                     equalTo(scoreScriptNumericResult)
                 );
@@ -828,11 +794,16 @@ public class DecayTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static double longDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+    private static double unsignedLongDecayWithScoreScript(long value, long origin, long scale, long offset, double decay, String type) {
+        var valueUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(value);
+        var originUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(origin);
+        var scaleUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(scale);
+        var offsetUnsignedLongAsDouble = NumericUtils.unsignedLongToDouble(offset);
+
         return switch (type) {
-            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(origin, scale, offset, decay).decayNumericLinear(value);
-            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(origin, scale, offset, decay).decayNumericGauss(value);
-            case "exp" -> new ScoreScriptUtils.DecayNumericExp(origin, scale, offset, decay).decayNumericExp(value);
+            case "linear" -> new ScoreScriptUtils.DecayNumericLinear(originUnsignedLongAsDouble, scaleUnsignedLongAsDouble, offsetUnsignedLongAsDouble, decay).decayNumericLinear(valueUnsignedLongAsDouble);
+            case "gauss" -> new ScoreScriptUtils.DecayNumericGauss(originUnsignedLongAsDouble, scaleUnsignedLongAsDouble, offsetUnsignedLongAsDouble, decay).decayNumericGauss(valueUnsignedLongAsDouble);
+            case "exp" -> new ScoreScriptUtils.DecayNumericExp(originUnsignedLongAsDouble, scaleUnsignedLongAsDouble, offsetUnsignedLongAsDouble, decay).decayNumericExp(valueUnsignedLongAsDouble);
             default -> throw new IllegalArgumentException("Unknown decay function type [" + type + "]");
         };
     }

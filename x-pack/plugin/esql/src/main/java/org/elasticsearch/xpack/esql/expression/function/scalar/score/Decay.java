@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -69,6 +70,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isUnsignedLong;
 
 /**
  * Decay a numeric, spatial or date type value based on the distance of it to an origin.
@@ -235,6 +237,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             );
         } else if (isMillisOrNanos(valueType)) {
             return validateOriginAndScale(DataType::isMillisOrNanos, "datetime or date_nanos", DataType::isTimeDuration, "time_duration");
+        } else if(isUnsignedLong(valueType)){
+            return validateOriginAndScale(DataType::isUnsignedLong, "unsigned long", DataType::isUnsignedLong, "unsigned_long");
         } else {
             return validateOriginAndScale(DataType::isNumeric, "numeric", DataType::isNumeric, "numeric");
         }
@@ -311,7 +315,16 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
                 decayFolded,
                 decayFunction
             );
-            case LONG, UNSIGNED_LONG -> new DecayLongEvaluator.Factory(
+            case LONG -> new DecayLongEvaluator.Factory(
+                source(),
+                valueFactory,
+                (Long) originFolded,
+                (Long) scaleFolded,
+                (Long) offsetFolded,
+                decayFolded,
+                decayFunction
+            );
+            case UNSIGNED_LONG -> new DecayUnsignedLongEvaluator.Factory(
                 source(),
                 valueFactory,
                 (Long) originFolded,
@@ -404,7 +417,24 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         @Fixed DecayFunction decayFunction
     ) {
         return decayFunction.numericDecay(value, origin, scale, offset, decay);
+    }
 
+    @Evaluator(extraName = "UnsignedLong")
+    static double processUnsignedLong(
+        long value,
+        @Fixed long origin,
+        @Fixed long scale,
+        @Fixed long offset,
+        @Fixed double decay,
+        @Fixed DecayFunction decayFunction
+    ) {
+        return decayFunction.numericDecay(
+            NumericUtils.unsignedLongToDouble(value),
+            NumericUtils.unsignedLongToDouble(origin),
+            NumericUtils.unsignedLongToDouble(scale),
+            NumericUtils.unsignedLongToDouble(offset),
+            decay
+        );
     }
 
     @Evaluator(extraName = "GeoPoint")

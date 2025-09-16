@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rank;
+package org.elasticsearch.search.retriever;
 
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -23,10 +23,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
-import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder.RetrieverSource;
-import org.elasticsearch.search.retriever.RetrieverBuilder;
-import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
 
@@ -43,6 +40,8 @@ public abstract class AbstractRetrieverBuilderTests<T extends CompoundRetrieverB
     protected abstract float[] getWeights(T builder);
 
     protected abstract ScoreNormalizer[] getScoreNormalizers(T builder);
+
+    protected abstract void assertCompoundRetriever(T originalRetriever, RetrieverBuilder rewrittenRetriever);
 
     protected static ResolvedIndices createMockResolvedIndices(
         Map<String, List<String>> localIndexInferenceFields,
@@ -150,13 +149,14 @@ public abstract class AbstractRetrieverBuilderTests<T extends CompoundRetrieverB
 
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
+        assertCompoundRetriever(retriever, rewritten);
         T rewrittenLinear = (T) rewritten;
         assertEquals(retriever.rankWindowSize(), rewrittenLinear.rankWindowSize());
 
         boolean assertedLexical = false;
         boolean assertedSemantic = false;
 
-        for (InnerRetriever topInnerRetriever : getInnerRetrieversAsSet(rewrittenLinear)) {
+        for (InnerRetriever topInnerRetriever : getInnerRetrieversAsSet(retriever, rewrittenLinear)) {
             assertEquals(expectedNormalizer, topInnerRetriever.normalizer);
             assertEquals(1.0f, topInnerRetriever.weight, 0.0f);
 
@@ -183,19 +183,21 @@ public abstract class AbstractRetrieverBuilderTests<T extends CompoundRetrieverB
     }
 
     @SuppressWarnings("unchecked")
-    private Set<InnerRetriever> getInnerRetrieversAsSet(T retriever) {
-        float[] weights = getWeights(retriever);
-        ScoreNormalizer[] normalizers = getScoreNormalizers(retriever);
+    private Set<InnerRetriever> getInnerRetrieversAsSet(T originalRetriever, T rewrittenRetriever) {
+        float[] weights = getWeights(rewrittenRetriever);
+        ScoreNormalizer[] normalizers = getScoreNormalizers(rewrittenRetriever);
 
         int i = 0;
         Set<InnerRetriever> innerRetrieversSet = new HashSet<>();
-        for (RetrieverSource innerRetriever : retriever.innerRetrievers()) {
+        for (RetrieverSource innerRetriever : rewrittenRetriever.innerRetrievers()) {
             float weight = weights[i];
             ScoreNormalizer normalizer = normalizers != null ? normalizers[i] : null;
 
             if (innerRetriever.retriever() instanceof CompoundRetrieverBuilder<?> compoundRetriever) {
-                assertEquals(retriever.rankWindowSize(), compoundRetriever.rankWindowSize());
-                innerRetrieversSet.add(new InnerRetriever(getInnerRetrieversAsSet((T) compoundRetriever), weight, normalizer));
+                assertCompoundRetriever(originalRetriever, compoundRetriever);
+                innerRetrieversSet.add(
+                    new InnerRetriever(getInnerRetrieversAsSet(originalRetriever, (T) compoundRetriever), weight, normalizer)
+                );
             } else {
                 innerRetrieversSet.add(new InnerRetriever(innerRetriever.retriever(), weight, normalizer));
             }

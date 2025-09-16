@@ -14,11 +14,12 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.retriever.AbstractRetrieverBuilderTests;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.rank.AbstractRetrieverBuilderTests;
 
 import java.util.List;
 import java.util.Map;
@@ -662,5 +663,12 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
     @Override
     protected ScoreNormalizer[] getScoreNormalizers(LinearRetrieverBuilder builder) {
         return builder.getNormalizers();
+    }
+
+    @Override
+    protected void assertCompoundRetriever(LinearRetrieverBuilder originalRetriever, RetrieverBuilder rewrittenRetriever) {
+        assertTrue(rewrittenRetriever instanceof LinearRetrieverBuilder);
+        LinearRetrieverBuilder actualRetrieverBuilder = (LinearRetrieverBuilder) rewrittenRetriever;
+        assertEquals(originalRetriever.rankWindowSize(), actualRetrieverBuilder.rankWindowSize());
     }
 }

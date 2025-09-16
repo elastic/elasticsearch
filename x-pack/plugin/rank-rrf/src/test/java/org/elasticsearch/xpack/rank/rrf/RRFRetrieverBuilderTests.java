@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.retriever.AbstractRetrieverBuilderTests;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -22,7 +23,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.rank.AbstractRetrieverBuilderTests;
 import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
 
 import java.io.IOException;
@@ -180,8 +180,7 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             queryRewriteContext,
             Map.of("field_1", 1.0f, "field_2", 1.0f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
-            "foo",
-            null
+            "foo"
         );
 
         // Non-default rank window size and rank constant
@@ -309,5 +308,13 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
     @Override
     protected ScoreNormalizer[] getScoreNormalizers(RRFRetrieverBuilder builder) {
         return null;
+    }
+
+    @Override
+    protected void assertCompoundRetriever(RRFRetrieverBuilder originalRetriever, RetrieverBuilder rewrittenRetriever) {
+        assert (rewrittenRetriever instanceof RRFRetrieverBuilder);
+        RRFRetrieverBuilder actualRetrieverBuilder = (RRFRetrieverBuilder) rewrittenRetriever;
+        assertEquals(originalRetriever.rankWindowSize(), actualRetrieverBuilder.rankWindowSize());
+        assertEquals(originalRetriever.rankConstant(), actualRetrieverBuilder.rankConstant());
     }
 }

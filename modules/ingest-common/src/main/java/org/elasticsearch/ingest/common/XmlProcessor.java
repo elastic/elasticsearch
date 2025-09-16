@@ -666,7 +666,7 @@ public final class XmlProcessor extends AbstractProcessor {
             // Add to DOM text node if needed
             if (buildDom && domElementStack.isEmpty() == false) {
                 String text = new String(ch, start, length);
-                if (removeEmptyValues == false || text.isBlank() == false) {
+                if (removeEmptyValues == false || isEmptyValue(text) == false) {
                     Text textNode = domDocument.createTextNode(text);
                     domElementStack.peek().appendChild(textNode);
                 }
@@ -689,7 +689,7 @@ public final class XmlProcessor extends AbstractProcessor {
             // Add repeated elements as arrays
             for (Map.Entry<String, List<Object>> entry : repeatedElements.entrySet()) {
                 List<Object> values = entry.getValue();
-                if (removeEmptyValues == false || values.isEmpty() == false) {
+                if (removeEmptyValues == false || isEmptyValue(values) == false) {
                     element.put(entry.getKey(), values);
                 }
             }

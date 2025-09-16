@@ -11,6 +11,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.impl.client.LaxRedirectStrategy;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -68,7 +69,10 @@ public class HttpClient implements Closeable {
     ) {
         var requestConfig = RequestConfig.custom().setConnectTimeout(settings.connectionTimeout()).build();
 
-        var clientBuilder = HttpAsyncClientBuilder.create().setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig);
+        var clientBuilder = HttpAsyncClientBuilder.create()
+            .setConnectionManager(connectionManager)
+            .setDefaultRequestConfig(requestConfig)
+            .setRedirectStrategy(new LaxRedirectStrategy());
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();

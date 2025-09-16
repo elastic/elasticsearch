@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -232,6 +233,218 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             Map.of("*", 1.0f),
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
             "baz"
+        );
+    }
+
+        public void testMultiIndexMultiFieldsParamsRewrite() {
+        String indexName = "test-index";
+        String anotherIndexName = "test-another-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            Map.of(
+                indexName,
+                List.of("semantic_field_1", "semantic_field_2"),
+                anotherIndexName,
+                List.of("semantic_field_2", "semantic_field_3")
+            ),
+            null,
+            Map.of() // use random and different inference IDs for semantic_text fields
+        );
+
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
+            null
+        );
+
+        // No wildcards, no per-field boosting
+        RRFRetrieverBuilder retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of(indexName),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of(anotherIndexName)
+            ),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(indexName)), // field with different inference IDs, we filter on index name
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
+                1.0f
+            ),
+            "foo",
+            null
+        );
+
+        // Non-default rank window size
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo2",
+            DEFAULT_RANK_WINDOW_SIZE * 2,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of(indexName),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of(anotherIndexName)
+            ),
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
+                1.0f
+            ),
+            "foo2",
+            null
+        );
+
+        // All-fields wildcard
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("*"),
+            "qux",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("*", 1.0f), List.of()), // no index filter for the lexical retriever
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of(anotherIndexName)),
+                1.0f,
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
+                1.0f
+            ),
+            "qux",
+            null
+        );
+    }
+
+    public void testMultiIndexMultiFieldsParamsRewriteWithSameInferenceIds() {
+        String indexName = "test-index";
+        String anotherIndexName = "test-another-index";
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(
+            Map.of(
+                indexName,
+                List.of("semantic_field_1", "semantic_field_2"),
+                anotherIndexName,
+                List.of("semantic_field_2", "semantic_field_3")
+            ),
+            null,
+            Map.of("semantic_field_2", "common_inference_id") // use the same inference ID for semantic_field_2
+        );
+
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
+            null,
+            null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
+            null
+        );
+
+        // No wildcards, no per-field boosting
+        RRFRetrieverBuilder retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of(indexName),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of(anotherIndexName)
+            ),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
+            "foo",
+            null
+        );
+
+        // Non-default rank window size
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
+            "foo2",
+            DEFAULT_RANK_WINDOW_SIZE * 2,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(
+                Map.of("field_1", 1.0f, "field_2", 1.0f),
+                List.of(indexName),
+                Map.of("field_1", 1.0f, "field_2", 1.0f, "semantic_field_1", 1.0f),
+                List.of(anotherIndexName)
+            ),
+            Map.of(new Tuple<>("semantic_field_1", List.of(indexName)), 1.0f, new Tuple<>("semantic_field_2", List.of()), 1.0f),
+            "foo2",
+            null
+        );
+
+        // All-fields wildcard
+        retriever = new RRFRetrieverBuilder(
+            null,
+            List.of("*"),
+            "qux",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiIndexMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of(Map.of("*", 1.0f), List.of()), // on index filter on the lexical query
+            Map.of(
+                new Tuple<>("semantic_field_1", List.of(indexName)),
+                1.0f,
+                new Tuple<>("semantic_field_2", List.of()), // no index filter since both indices have this field
+                1.0f,
+                new Tuple<>("semantic_field_3", List.of(anotherIndexName)),
+                1.0f
+            ),
+            "qux",
+            null
         );
     }
 

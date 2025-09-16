@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -82,7 +81,7 @@ public class FileGroupWatcher extends AbstractResourceWatcher<FileGroupChangesLi
 
     static class CoalescingFileChangesListener implements FileChangesListener {
 
-        private final ThreadLocal<List<Path>> filesChanged = ThreadLocal.withInitial(() -> Collections.synchronizedList(new ArrayList<>()));
+        private final ThreadLocal<List<Path>> filesChanged = ThreadLocal.withInitial(ArrayList::new);
 
         @Override
         public void onFileChanged(Path file) {
@@ -108,7 +107,7 @@ public class FileGroupWatcher extends AbstractResourceWatcher<FileGroupChangesLi
         }
 
         public void reset() {
-            filesChanged.set(Collections.synchronizedList(new ArrayList<>()));
+            filesChanged.set(new ArrayList<>());
         }
 
         public List<Path> getFiles() {

@@ -40,7 +40,7 @@ public class FileGroupWatcherTests extends ESTestCase {
         }
     }
 
-    public void testMultipleFileChanges() throws IOException {
+    public void testMultipleFileChanges() throws IOException, InterruptedException {
         Path tempDir = createTempDir();
         RecordingFileGroupChangesListener listener = new RecordingFileGroupChangesListener();
         Path file1 = tempDir.resolve("test1.txt");
@@ -56,8 +56,8 @@ public class FileGroupWatcherTests extends ESTestCase {
         fileGroupWatcher.init();
 
         // Modify multiple files - should batch into single notification
-        Files.setLastModifiedTime(file1, FileTime.fromMillis(System.currentTimeMillis()));
-        Files.setLastModifiedTime(file2, FileTime.fromMillis(System.currentTimeMillis()));
+        Files.setLastModifiedTime(file1, FileTime.fromMillis(System.currentTimeMillis() + 1)); // + 1 makes sure a change is detected
+        Files.setLastModifiedTime(file2, FileTime.fromMillis(System.currentTimeMillis() + 1));
 
         fileGroupWatcher.checkAndNotify();
         assertThat(listener.notifications(), hasSize(1));
@@ -118,7 +118,7 @@ public class FileGroupWatcherTests extends ESTestCase {
         fileGroupWatcher.addListener(listener);
         fileGroupWatcher.init();
 
-        Files.setLastModifiedTime(existingFile, FileTime.fromMillis(System.currentTimeMillis()));
+        Files.setLastModifiedTime(existingFile, FileTime.fromMillis(System.currentTimeMillis() + 1)); // + 1 makes sure a change is detected
         touch(newFile);
         Files.delete(deleteFile);
 

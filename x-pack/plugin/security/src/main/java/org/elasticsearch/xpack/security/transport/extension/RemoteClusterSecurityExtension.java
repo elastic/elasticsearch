@@ -34,19 +34,37 @@ import java.util.List;
  */
 public interface RemoteClusterSecurityExtension {
 
+    /**
+     * Returns a {@link RemoteClusterTransportInterceptor} that allows intercepting remote connections
+     * both on the receiver and the sender side.
+     */
     RemoteClusterTransportInterceptor getTransportInterceptor();
 
+    /**
+     * Returns a {@link RemoteClusterAuthenticationService} used to authenticate remote cluster requests.
+     */
     RemoteClusterAuthenticationService getAuthenticationService();
 
+    /**
+     * Allows exposing {@link ReloadableSecurityComponent}s to the security plugin
+     * that should be called when secure settings are reloaded.
+     */
     default List<ReloadableSecurityComponent> getReloadableComponents() {
         return List.of();
     }
 
     /**
      * An SPI interface for providing remote cluster security extensions.
+     * Allows to override the default extension ({@link CrossClusterAccessSecurityExtension}).
      */
     interface Provider {
 
+        /**
+         * Provides a custom {@link RemoteClusterSecurityExtension}.
+         *
+         * @param components security components that may be used to build remove cluster security extension services
+         * @return a non-null remote cluster extension
+         */
         RemoteClusterSecurityExtension getExtension(Components components);
     }
 

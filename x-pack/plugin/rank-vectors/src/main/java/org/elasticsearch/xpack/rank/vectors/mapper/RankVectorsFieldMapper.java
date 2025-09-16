@@ -409,8 +409,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new DocValuesSyntheticFieldLoader();
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorsAsList);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                DocValuesSyntheticFieldLoader::new,
+                DocValuesSyntheticFieldLoader::copyVectorsAsList
+            );
         }
         return null;
     }

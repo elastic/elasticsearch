@@ -5,14 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.authc.apikey;
+package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 /**
  * An extension point to provide a custom authenticator implementation. For example, a custom API key or a custom OAuth2

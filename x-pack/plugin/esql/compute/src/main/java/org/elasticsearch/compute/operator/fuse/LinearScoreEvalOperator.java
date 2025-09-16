@@ -30,8 +30,6 @@ import java.util.Map;
  * 2. Multiplies the normalized score by the weight specified in the config. The config contains the weights that
  * we need to apply for each result group.
  *
- * Grouping by _id and _index and summing up the scores for rows that have the same _id and _index does not
- * happen here.
  */
 public class LinearScoreEvalOperator implements Operator {
     public record Factory(int discriminatorPosition, int scorePosition, LinearConfig linearConfig) implements OperatorFactory {

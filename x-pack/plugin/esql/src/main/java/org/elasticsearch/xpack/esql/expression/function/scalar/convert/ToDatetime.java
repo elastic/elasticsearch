@@ -24,14 +24,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 
 public class ToDatetime extends AbstractConvertFunction {
@@ -42,14 +42,14 @@ public class ToDatetime extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DATETIME, (source, field) -> field),
-        Map.entry(DATE_NANOS, ToDatetimeFromDateNanosEvaluator.Factory::new),
-        Map.entry(LONG, (source, field) -> field),
-        Map.entry(KEYWORD, ToDatetimeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToDatetimeFromStringEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToLongFromDoubleEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToLongFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
+        Map.entry(DATETIME.type(), (source, field) -> field),
+        Map.entry(DATE_NANOS.type(), ToDatetimeFromDateNanosEvaluator.Factory::new),
+        Map.entry(LONG.type(), (source, field) -> field),
+        Map.entry(KEYWORD.type(), ToDatetimeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToDatetimeFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToLongFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), ToLongFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), ToLongFromIntEvaluator.Factory::new) // CastIntToLongEvaluator would be a candidate, but not MV'd
     );
 
     @FunctionInfo(
@@ -109,7 +109,7 @@ public class ToDatetime extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return DATETIME;
+        return DATETIME.type();
     }
 
     @Override

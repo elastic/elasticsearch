@@ -32,6 +32,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
 
 /**
  * Slowdown function - for debug purposes only.
@@ -61,7 +63,7 @@ public class Delay extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override
@@ -70,7 +72,7 @@ public class Delay extends UnaryScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isType(field(), t -> t == DataType.TIME_DURATION, sourceText(), FIRST, "time_duration");
+        return isType(field(), t -> t.atom() == TIME_DURATION, sourceText(), FIRST, "time_duration");
     }
 
     @Override

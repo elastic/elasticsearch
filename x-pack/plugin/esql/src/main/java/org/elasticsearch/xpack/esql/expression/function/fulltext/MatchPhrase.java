@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -57,11 +57,12 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
@@ -75,15 +76,15 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         "MatchPhrase",
         MatchPhrase::readFrom
     );
-    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT);
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
+    public static final Set<AtomType> FIELD_DATA_TYPES = Set.of(KEYWORD, TEXT);
+    public static final Set<AtomType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     protected final Expression field;
 
     // Options for match_phrase function. They don’t need to be serialized as the data nodes will retrieve them from the query builder
     private final transient Expression options;
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+    public static final Map<String, AtomType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(SLOP_FIELD.getPreferredName(), INTEGER),
@@ -262,7 +263,7 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
-            return switch (query().dataType()) {
+            return switch (query().dataType().atom()) {
                 case IP -> EsqlDataTypeConverter.ipToString(bytesRef);
                 case VERSION -> EsqlDataTypeConverter.versionToString(bytesRef);
                 default -> bytesRef.utf8ToString();
@@ -270,10 +271,10 @@ public class MatchPhrase extends FullTextFunction implements OptionalArgument, P
         }
 
         // Converts specific types to the correct type for the query
-        if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+        if (query().dataType().atom() == DATETIME && queryAsObject instanceof Long) {
             // When casting to date and datetime, we get a long back. But MatchPhrase query needs a date string
             return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
-        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
+        } else if (query().dataType().atom() == DATE_NANOS && queryAsObject instanceof Long) {
             return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
         }
 

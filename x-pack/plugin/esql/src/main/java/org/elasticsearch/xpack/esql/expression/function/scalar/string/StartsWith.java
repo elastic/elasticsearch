@@ -39,6 +39,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 public class StartsWith extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -91,7 +92,7 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override

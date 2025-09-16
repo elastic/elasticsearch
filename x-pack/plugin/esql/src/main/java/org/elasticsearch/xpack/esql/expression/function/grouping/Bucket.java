@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -47,6 +48,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
 import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
@@ -261,11 +266,11 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+        if (field.dataType().atom() == DATETIME || field.dataType().atom() == DATE_NANOS) {
             Rounding.Prepared preparedRounding = getDateRounding(toEvaluator.foldCtx());
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
-        if (field.dataType().isNumeric()) {
+        if (field.dataType().atom().isNumeric()) {
             double roundTo;
             if (from != null) {
                 int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
@@ -275,7 +280,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             } else {
                 roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
             }
-            Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
+            Literal rounding = new Literal(source(), roundTo, DOUBLE.type());
 
             // We could make this more efficient, either by generating the evaluators with byte code or hand rolling this one.
             Div div = new Div(source(), field, rounding);
@@ -290,7 +295,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
      * Returns the date rounding from this bucket function if the target field is a date type; otherwise, returns null.
      */
     public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
-        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
+        if (field.dataType().atom() == DATETIME || field.dataType().atom() == DATE_NANOS) {
             return getDateRounding(foldCtx);
         } else {
             return null;
@@ -302,8 +307,8 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     }
 
     public Rounding.Prepared getDateRounding(FoldContext foldContext, Long min, Long max) {
-        assert field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS : "expected date type; got " + field;
-        if (buckets.dataType().isWholeNumber()) {
+        assert field.dataType().atom() == DATETIME || field.dataType().atom() == DATE_NANOS : "expected date type; got " + field;
+        if (buckets.dataType().atom().isWholeNumber()) {
             int b = ((Number) buckets.fold(foldContext)).intValue();
             long f = foldToLong(foldContext, from);
             long t = foldToLong(foldContext, to);
@@ -312,7 +317,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
             }
             return new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
         } else {
-            assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
+            assert AtomType.isTemporalAmount(buckets.dataType().atom()) : "Unexpected span data type [" + buckets.dataType() + "]";
             return DateTrunc.createRounding(buckets.fold(foldContext), DEFAULT_TZ, min, max);
         }
     }
@@ -367,29 +372,29 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
         }
         var fieldType = field.dataType();
         var bucketsType = buckets.dataType();
-        if (fieldType == DataType.NULL || bucketsType == DataType.NULL) {
+        if (fieldType.atom() == NULL || bucketsType.atom() == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
+        if (fieldType.atom() == DATETIME || fieldType.atom() == DATE_NANOS) {
             TypeResolution resolution = isType(
                 buckets,
-                dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),
+                dt -> dt.atom().isWholeNumber() || AtomType.isTemporalAmount(dt.atom()),
                 sourceText(),
                 SECOND,
                 "integral",
                 "date_period",
                 "time_duration"
             );
-            return bucketsType.isWholeNumber()
+            return bucketsType.atom().isWholeNumber()
                 ? resolution.and(checkArgsCount(4))
                     .and(() -> isStringOrDate(from, sourceText(), THIRD))
                     .and(() -> isStringOrDate(to, sourceText(), FOURTH))
                 : resolution.and(checkArgsCount(2)); // temporal amount
         }
-        if (fieldType.isNumeric()) {
+        if (fieldType.atom().isNumeric()) {
             return isNumeric(buckets, sourceText(), SECOND).and(() -> {
-                if (bucketsType.isRationalNumber()) {
+                if (bucketsType.atom().isRationalNumber()) {
                     return checkArgsCount(2);
                 } else { // second arg is a whole number: either a span, but as a whole, or count, and we must expect a range
                     var resolution = checkArgsCount(2);
@@ -430,7 +435,7 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     private static TypeResolution isStringOrDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
         return TypeResolutions.isType(
             e,
-            exp -> DataType.isString(exp) || DataType.isDateTime(exp),
+            exp -> AtomType.isString(exp.atom()) || AtomType.isDateTime(exp.atom()),
             operationName,
             paramOrd,
             "datetime",
@@ -449,13 +454,13 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
 
     private long foldToLong(FoldContext ctx, Expression e) {
         Object value = Foldables.valueOf(ctx, e);
-        return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
+        return AtomType.isDateTime(e.dataType().atom()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 
     @Override
     public DataType dataType() {
-        if (field.dataType().isNumeric()) {
-            return DataType.DOUBLE;
+        if (field.dataType().atom().isNumeric()) {
+            return DOUBLE.type();
         }
         return field.dataType();
     }

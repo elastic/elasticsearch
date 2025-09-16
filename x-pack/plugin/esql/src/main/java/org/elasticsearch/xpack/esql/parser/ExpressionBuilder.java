@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -81,11 +82,17 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
@@ -160,7 +167,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitBooleanValue(EsqlBaseParser.BooleanValueContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, ctx.TRUE() != null, DataType.BOOLEAN);
+        return new Literal(source, ctx.TRUE() != null, BOOLEAN.type());
     }
 
     @Override
@@ -169,7 +176,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         String text = ctx.getText();
 
         try {
-            return new Literal(source, StringUtils.parseDouble(text), DataType.DOUBLE);
+            return new Literal(source, StringUtils.parseDouble(text), DOUBLE.type());
         } catch (InvalidArgumentException iae) {
             throw new ParsingException(source, iae.getMessage());
         }
@@ -186,7 +193,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataType.DOUBLE);
+                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DOUBLE.type());
             } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
@@ -196,13 +203,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         DataType type;
         if (number instanceof BigInteger bi) {
             val = asLongUnsigned(bi);
-            type = DataType.UNSIGNED_LONG;
+            type = UNSIGNED_LONG.type();
         } else if (number.intValue() == number.longValue()) { // try to downsize to int if possible (since that's the most common type)
             val = number.intValue();
-            type = DataType.INTEGER;
+            type = INTEGER.type();
         } else {
             val = number.longValue();
-            type = DataType.LONG;
+            type = LONG.type();
         }
         return new Literal(source, val, type);
     }
@@ -211,23 +218,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public Object visitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) {
         Source source = source(ctx);
         List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.DOUBLE)) {
-            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DataType.DOUBLE);
+        if (numbers.stream().anyMatch(l -> l.dataType().atom() == DOUBLE)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.doubleValue()), DOUBLE.type());
         }
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.UNSIGNED_LONG)) {
+        if (numbers.stream().anyMatch(l -> l.dataType().atom() == UNSIGNED_LONG)) {
             return new Literal(
                 source,
                 mapNumbers(
                     numbers,
-                    (no, dt) -> dt == DataType.UNSIGNED_LONG ? no.longValue() : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
+                    (no, dt) -> dt.atom() == UNSIGNED_LONG ? no.longValue() : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
                 ),
-                DataType.UNSIGNED_LONG
+                UNSIGNED_LONG.type()
             );
         }
-        if (numbers.stream().anyMatch(l -> l.dataType() == DataType.LONG)) {
-            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), DataType.LONG);
+        if (numbers.stream().anyMatch(l -> l.dataType().atom() == LONG)) {
+            return new Literal(source, mapNumbers(numbers, (no, dt) -> no.longValue()), LONG.type());
         }
-        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), DataType.INTEGER);
+        return new Literal(source, mapNumbers(numbers, (no, dt) -> no.intValue()), INTEGER.type());
     }
 
     private List<Object> mapNumbers(List<Literal> numbers, BiFunction<Number, DataType, Object> map) {
@@ -236,12 +243,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitBooleanArrayLiteral(EsqlBaseParser.BooleanArrayLiteralContext ctx) {
-        return visitArrayLiteral(ctx, ctx.booleanValue(), DataType.BOOLEAN);
+        return visitArrayLiteral(ctx, ctx.booleanValue(), BOOLEAN.type());
     }
 
     @Override
     public Object visitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx) {
-        return visitArrayLiteral(ctx, ctx.string(), DataType.KEYWORD);
+        return visitArrayLiteral(ctx, ctx.string(), KEYWORD.type());
     }
 
     private Object visitArrayLiteral(ParserRuleContext ctx, List<? extends ParserRuleContext> contexts, DataType dataType) {
@@ -253,7 +260,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitNullLiteral(EsqlBaseParser.NullLiteralContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, null, DataType.NULL);
+        return new Literal(source, null, NULL.type());
     }
 
     @Override
@@ -564,14 +571,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source source = source(ctx);
         Literal intLit = typedParsing(this, ctx.integerValue(), Literal.class);
         Number value = (Number) intLit.value();
-        if (intLit.dataType() == DataType.UNSIGNED_LONG) {
+        if (intLit.dataType().atom() == UNSIGNED_LONG) {
             value = unsignedLongAsNumber(value.longValue());
         }
         String qualifier = ctx.UNQUOTED_IDENTIFIER().getText().toLowerCase(Locale.ROOT);
 
         try {
             TemporalAmount quantity = parseTemporalAmount(value, qualifier, source);
-            return new Literal(source, quantity, quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD);
+            return new Literal(source, quantity, (quantity instanceof Duration ? TIME_DURATION : DATE_PERIOD).type());
         } catch (InvalidArgumentException | ArithmeticException e) {
             // the range varies by unit: Duration#ofMinutes(), #ofHours() will Math#multiplyExact() to reduce the unit to seconds;
             // and same for Period#ofWeeks()
@@ -710,7 +717,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
-                if (l.dataType() == NULL) {
+                if (l.dataType().atom() == NULL) {
                     throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
                 }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
@@ -762,8 +769,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
-        DataType dataType = DataType.fromNameOrAlias(typeName);
-        if (dataType == DataType.UNSUPPORTED) {
+        DataType dataType = AtomType.fromNameOrAlias(typeName).type();
+        if (dataType.atom() == UNSUPPORTED) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
         return dataType;
@@ -1035,7 +1042,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private Expression visitParam(EsqlBaseParser.ParameterContext ctx, QueryParam param) {
         Source source = source(ctx);
-        DataType type = param.type();
+        DataType type = param.type().type();
         var value = param.value();
         ParserUtils.ParamClassification classification = param.classification();
         // RequestXContent does not allow null value for identifier or pattern
@@ -1047,7 +1054,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 return new UnresolvedAttribute(source, value.toString());
             }
         }
-        if ((type == KEYWORD || type == TEXT)) {
+        if ((type.atom() == KEYWORD || type.atom() == TEXT)) {
             if (value instanceof String) {
                 value = BytesRefs.toBytesRef(value);
             } else if (value instanceof List<?> list) {

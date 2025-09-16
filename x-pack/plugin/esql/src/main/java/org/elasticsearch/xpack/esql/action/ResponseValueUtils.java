@@ -113,7 +113,8 @@ public final class ResponseValueUtils {
     }
 
     private static Object valueAt(DataType dataType, Block block, int offset, BytesRef scratch) {
-        return switch (dataType) {
+        // NOCOMMIT handle objects
+        return switch (dataType.atom()) {
             case UNSIGNED_LONG -> unsignedLongAsNumber(((LongBlock) block).getLong(offset));
             case LONG, COUNTER_LONG -> ((LongBlock) block).getLong(offset);
             case INTEGER, COUNTER_INTEGER -> ((IntBlock) block).getInt(offset);

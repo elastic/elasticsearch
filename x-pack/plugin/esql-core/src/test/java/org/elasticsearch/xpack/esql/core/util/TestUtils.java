@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
@@ -22,35 +20,16 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 
 public final class TestUtils {
     private TestUtils() {}
 
     private static final Pattern WS_PATTERN = Pattern.compile("\\s");
 
-    public static Literal of(Object value) {
-        return of(Source.EMPTY, value);
-    }
-
-    /**
-     * Utility method for creating 'in-line' Literals (out of values instead of expressions).
-     */
-    public static Literal of(Source source, Object value) {
-        if (value instanceof Literal) {
-            return (Literal) value;
-        }
-        DataType type = DataType.fromJava(value);
-        if ((type == TEXT || type == KEYWORD) && value instanceof String) {
-            value = BytesRefs.toBytesRef(value);
-        }
-        return new Literal(source, value, DataType.fromJava(value));
-    }
-
     public static FieldAttribute fieldAttribute() {
-        return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
+        // NOCOMMIT should be randomDataType instead?
+        return fieldAttribute(randomAlphaOfLength(10), DataType.atom(randomFrom(AtomType.types())));
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
@@ -58,7 +37,7 @@ public final class TestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name) {
-        return getFieldAttribute(name, INTEGER);
+        return getFieldAttribute(name, DataType.atom(INTEGER));
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {

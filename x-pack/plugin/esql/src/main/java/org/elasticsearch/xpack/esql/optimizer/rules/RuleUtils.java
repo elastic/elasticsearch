@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -41,7 +42,7 @@ public final class RuleUtils {
         List<Attribute> outputAttributes,
         Predicate<Attribute> shouldBeReplaced
     ) {
-        Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(DataType.types().size());
+        Map<DataType, Alias> nullLiterals = Maps.newLinkedHashMapWithExpectedSize(AtomType.types().size());
         List<NamedExpression> newProjections = new ArrayList<>(outputAttributes.size());
         for (Attribute attr : outputAttributes) {
             NamedExpression projection;

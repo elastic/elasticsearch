@@ -46,7 +46,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
@@ -134,7 +134,7 @@ public final class Case extends EsqlScalarFunction {
         for (int c = 0; c < conditionCount; c++) {
             conditions.add(new Condition(children().get(c * 2), children().get(c * 2 + 1)));
         }
-        elseValue = elseValueIsExplicit() ? children().get(children().size() - 1) : new Literal(source, null, NULL);
+        elseValue = elseValueIsExplicit() ? children().get(children().size() - 1) : new Literal(source, null, DataType.atom(NULL));
     }
 
     private Case(StreamInput in) throws IOException {
@@ -201,16 +201,16 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private TypeResolution resolveValueType(Expression value, int position) {
-        if (dataType == null || dataType == NULL) {
+        if (dataType == null || dataType.atom() == NULL) {
             dataType = value.dataType().noText();
             return TypeResolution.TYPE_RESOLVED;
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType,
+            dt -> dt.noText() == dataType,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
-            dataType.typeName()
+            dataType.toString()
         );
     }
 

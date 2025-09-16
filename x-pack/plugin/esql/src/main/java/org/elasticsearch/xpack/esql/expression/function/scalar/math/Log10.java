@@ -27,6 +27,10 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 public class Log10 extends UnaryScalarFunction {
@@ -65,16 +69,16 @@ public class Log10 extends UnaryScalarFunction {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 
-        if (fieldType == DataType.DOUBLE) {
+        if (fieldType.atom() == DOUBLE) {
             return new Log10DoubleEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataType.INTEGER) {
+        if (fieldType.atom() == INTEGER) {
             return new Log10IntEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataType.LONG) {
+        if (fieldType.atom() == LONG) {
             return new Log10LongEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataType.UNSIGNED_LONG) {
+        if (fieldType.atom() == UNSIGNED_LONG) {
             return new Log10UnsignedLongEvaluator.Factory(source(), field);
         }
 
@@ -125,7 +129,7 @@ public class Log10 extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

@@ -38,6 +38,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 
 /**
  * Combines the values from two multivalued fields with a delimiter that joins them together.
@@ -46,7 +48,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvZip", MvZip::new);
 
     private final Expression mvLeft, mvRight, delim;
-    private static final Literal COMMA = new Literal(Source.EMPTY, BytesRefs.toBytesRef(","), DataType.TEXT);
+    private static final Literal COMMA = new Literal(Source.EMPTY, BytesRefs.toBytesRef(","), TEXT.type());
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -151,7 +153,7 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     private static void buildOneSide(BytesRefBlock.Builder builder, int start, int end, BytesRefBlock field, BytesRef fieldScratch) {

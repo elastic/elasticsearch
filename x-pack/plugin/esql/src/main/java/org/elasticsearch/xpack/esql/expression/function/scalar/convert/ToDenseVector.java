@@ -22,11 +22,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
 
 /**
  * Converts a multi-valued input of numbers, or a hexadecimal string, to a dense_vector.
@@ -39,11 +39,11 @@ public class ToDenseVector extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DENSE_VECTOR, (source, fieldEval) -> fieldEval),
-        Map.entry(LONG, ToDenseVectorFromLongEvaluator.Factory::new),
-        Map.entry(INTEGER, ToDenseVectorFromIntEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToDenseVectorFromDoubleEvaluator.Factory::new),
-        Map.entry(KEYWORD, ToDenseVectorFromStringEvaluator.Factory::new)
+        Map.entry(DENSE_VECTOR.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(LONG.type(), ToDenseVectorFromLongEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), ToDenseVectorFromIntEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToDenseVectorFromDoubleEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), ToDenseVectorFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -78,7 +78,7 @@ public class ToDenseVector extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return DENSE_VECTOR;
+        return DENSE_VECTOR.type();
     }
 
     @Override

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
 
 public class ToDatePeriod extends FoldablesConvertFunction {
 
@@ -39,7 +39,7 @@ public class ToDatePeriod extends FoldablesConvertFunction {
 
     @Override
     public DataType dataType() {
-        return DATE_PERIOD;
+        return DataType.atom(DATE_PERIOD);
     }
 
     @Override

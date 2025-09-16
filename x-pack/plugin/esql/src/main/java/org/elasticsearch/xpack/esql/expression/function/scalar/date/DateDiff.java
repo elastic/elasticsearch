@@ -45,8 +45,9 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 
 /**
@@ -289,13 +290,13 @@ public class DateDiff extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATETIME) {
+        if (startTimestamp.dataType().atom() == DATETIME && endTimestamp.dataType().atom() == DATETIME) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisEvaluator.Factory::new, DateDiffMillisEvaluator.Factory::new);
-        } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATE_NANOS) {
+        } else if (startTimestamp.dataType().atom() == DATE_NANOS && endTimestamp.dataType().atom() == DATE_NANOS) {
             return toEvaluator(toEvaluator, DateDiffConstantNanosEvaluator.Factory::new, DateDiffNanosEvaluator.Factory::new);
-        } else if (startTimestamp.dataType() == DATE_NANOS && endTimestamp.dataType() == DATETIME) {
+        } else if (startTimestamp.dataType().atom() == DATE_NANOS && endTimestamp.dataType().atom() == DATETIME) {
             return toEvaluator(toEvaluator, DateDiffConstantNanosMillisEvaluator.Factory::new, DateDiffNanosMillisEvaluator.Factory::new);
-        } else if (startTimestamp.dataType() == DATETIME && endTimestamp.dataType() == DATE_NANOS) {
+        } else if (startTimestamp.dataType().atom() == DATETIME && endTimestamp.dataType().atom() == DATE_NANOS) {
             return toEvaluator(toEvaluator, DateDiffConstantMillisNanosEvaluator.Factory::new, DateDiffMillisNanosEvaluator.Factory::new);
         }
         throw new UnsupportedOperationException(
@@ -336,8 +337,8 @@ public class DateDiff extends EsqlScalarFunction {
 
         String operationName = sourceText();
         TypeResolution resolution = isString(unit, sourceText(), FIRST).and(
-            TypeResolutions.isType(startTimestamp, DataType::isDate, operationName, SECOND, "datetime or date_nanos")
-        ).and(TypeResolutions.isType(endTimestamp, DataType::isDate, operationName, THIRD, "datetime or date_nanos"));
+            TypeResolutions.isType(startTimestamp, dt -> dt.atom().isDate(), operationName, SECOND, "datetime or date_nanos")
+        ).and(TypeResolutions.isType(endTimestamp, dt -> dt.atom().isDate(), operationName, THIRD, "datetime or date_nanos"));
 
         if (resolution.unresolved()) {
             return resolution;
@@ -353,7 +354,7 @@ public class DateDiff extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return INTEGER.type();
     }
 
     @Override

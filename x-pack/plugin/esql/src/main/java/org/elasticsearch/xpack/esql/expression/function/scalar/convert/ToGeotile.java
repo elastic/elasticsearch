@@ -26,10 +26,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 
 public class ToGeotile extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -39,10 +39,10 @@ public class ToGeotile extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEOTILE, (source, fieldEval) -> fieldEval),
-        Map.entry(LONG, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToGeotileFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeotileFromStringEvaluator.Factory::new)
+        Map.entry(GEOTILE.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(LONG.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(KEYWORD.type(), ToGeotileFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToGeotileFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -83,7 +83,7 @@ public class ToGeotile extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return GEOTILE;
+        return GEOTILE.type();
     }
 
     @Override

@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -27,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineOr;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -78,7 +78,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                 // consider only equals against foldables
                 if (eq.right().foldable()) {
                     ins.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
-                    if (eq.left().dataType() == DataType.IP) {
+                    if (eq.left().dataType().atom() == IP) {
                         Object value = eq.right().fold(ctx.foldCtx());
                         // ImplicitCasting and ConstantFolding(includes explicit casting) are applied before CombineDisjunctions.
                         // They fold the input IP string to an internal IP format. These happen to Equals and IN, but not for CIDRMatch,
@@ -89,7 +89,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                         if (value instanceof BytesRef bytesRef) {
                             value = ipToString(bytesRef);
                         }
-                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(new Literal(Source.EMPTY, value, DataType.IP));
+                        ips.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(new Literal(Source.EMPTY, value, IP.type()));
                     }
                 } else {
                     ors.add(exp);
@@ -99,7 +99,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                 }
             } else if (exp instanceof In in) {
                 ins.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(in.list());
-                if (in.value().dataType() == DataType.IP) {
+                if (in.value().dataType().atom() == IP) {
                     List<Expression> values = new ArrayList<>(in.list().size());
                     for (Expression i : in.list()) {
                         Object value = i.fold(ctx.foldCtx());
@@ -107,7 +107,7 @@ public final class CombineDisjunctions extends OptimizerRules.OptimizerExpressio
                         if (value instanceof BytesRef bytesRef) {
                             value = ipToString(bytesRef);
                         }
-                        values.add(new Literal(Source.EMPTY, value, DataType.IP));
+                        values.add(new Literal(Source.EMPTY, value, IP.type()));
                     }
                     ips.computeIfAbsent(in.value(), k -> new LinkedHashSet<>()).addAll(values);
                 }

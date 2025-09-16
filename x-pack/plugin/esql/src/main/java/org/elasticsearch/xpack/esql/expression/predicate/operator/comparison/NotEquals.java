@@ -22,6 +22,25 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
+
 public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -30,24 +49,24 @@ public class NotEquals extends EsqlBinaryComparison implements Negatable<EsqlBin
     );
 
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataType.BOOLEAN, NotEqualsBoolsEvaluator.Factory::new),
-        Map.entry(DataType.INTEGER, NotEqualsIntsEvaluator.Factory::new),
-        Map.entry(DataType.DOUBLE, NotEqualsDoublesEvaluator.Factory::new),
-        Map.entry(DataType.LONG, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.UNSIGNED_LONG, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.DATETIME, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.DATE_NANOS, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.GEO_POINT, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.CARTESIAN_POINT, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.GEO_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.CARTESIAN_SHAPE, NotEqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.GEOHASH, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.GEOTILE, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.GEOHEX, NotEqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, NotEqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, NotEqualsKeywordsEvaluator.Factory::new)
+        Map.entry(BOOLEAN.type(), NotEqualsBoolsEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), NotEqualsIntsEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), NotEqualsDoublesEvaluator.Factory::new),
+        Map.entry(LONG.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DATETIME.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(DATE_NANOS.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(GEO_POINT.type(), NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(CARTESIAN_POINT.type(), NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(GEO_SHAPE.type(), NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(CARTESIAN_SHAPE.type(), NotEqualsGeometriesEvaluator.Factory::new),
+        Map.entry(GEOHASH.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(GEOTILE.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(GEOHEX.type(), NotEqualsLongsEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(TEXT.type(), NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(VERSION.type(), NotEqualsKeywordsEvaluator.Factory::new),
+        Map.entry(IP.type(), NotEqualsKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(

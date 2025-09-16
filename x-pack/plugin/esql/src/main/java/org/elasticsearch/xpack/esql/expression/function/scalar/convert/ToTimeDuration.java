@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
 
 public class ToTimeDuration extends FoldablesConvertFunction {
 
@@ -39,7 +39,7 @@ public class ToTimeDuration extends FoldablesConvertFunction {
 
     @Override
     public DataType dataType() {
-        return TIME_DURATION;
+        return TIME_DURATION.type();
     }
 
     @Override

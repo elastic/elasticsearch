@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 
 import java.util.List;
 import java.util.Objects;
@@ -78,7 +78,7 @@ public class Row extends LeafPlan implements PostAnalysisVerificationAware, Tele
     @Override
     public void postAnalysisVerification(Failures failures) {
         fields.forEach(a -> {
-            if (DataType.isRepresentable(a.dataType()) == false) {
+            if (AtomType.isRepresentable(a.dataType().atom()) == false) {
                 failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
             }
         });

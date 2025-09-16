@@ -299,6 +299,7 @@ public final class BlockUtils {
                     aggBlock.countBlock().getInt(offset)
                 );
             }
+            case COLUMNS -> throw new IllegalArgumentException("NOCOMMIT can't read values from [" + block + "]");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

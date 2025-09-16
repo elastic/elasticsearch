@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
@@ -172,13 +172,13 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(start, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+        resolution = TypeResolutions.isType(start, dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer");
         if (resolution.unresolved()) {
             return resolution;
         }
 
         if (end != null) {
-            resolution = TypeResolutions.isType(end, dt -> dt == INTEGER, sourceText(), THIRD, "integer");
+            resolution = TypeResolutions.isType(end, dt -> dt.atom() == INTEGER, sourceText(), THIRD, "integer");
             if (resolution.unresolved()) {
                 return resolution;
             }

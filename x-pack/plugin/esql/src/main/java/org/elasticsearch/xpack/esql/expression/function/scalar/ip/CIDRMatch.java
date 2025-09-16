@@ -44,6 +44,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.fromIndex;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 
 /**
@@ -143,7 +144,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override

@@ -27,6 +27,8 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+
 public class Now extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Now", Now::new);
 
@@ -71,7 +73,7 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return DATETIME.type();
     }
 
     @Evaluator

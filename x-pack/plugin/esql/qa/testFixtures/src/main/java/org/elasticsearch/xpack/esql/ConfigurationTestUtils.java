@@ -19,7 +19,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.action.ParseTables;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -118,8 +118,8 @@ public class ConfigurationTestUtils {
         try {
             for (int i = 0; i < count; i++) {
                 String name = randomAlphaOfLength(i + 1);
-                DataType dataType = randomFrom(ParseTables.SUPPORTED_TYPES);
-                ElementType type = PlannerUtils.toElementType(dataType);
+                AtomType dataType = randomFrom(ParseTables.SUPPORTED_TYPES);
+                ElementType type = PlannerUtils.toElementType(dataType.type());
                 try (
                     Block.Builder builder = type.newBlockBuilder(
                         positions,
@@ -127,9 +127,9 @@ public class ConfigurationTestUtils {
                     )
                 ) {
                     for (int p = 0; p < positions; p++) {
-                        BlockUtils.appendValue(builder, randomLiteral(dataType).value(), type);
+                        BlockUtils.appendValue(builder, randomLiteral(dataType.type()).value(), type);
                     }
-                    columns.put(name, new Column(dataType, builder.build()));
+                    columns.put(name, new Column(dataType.type(), builder.build()));
                 }
             }
             return columns;

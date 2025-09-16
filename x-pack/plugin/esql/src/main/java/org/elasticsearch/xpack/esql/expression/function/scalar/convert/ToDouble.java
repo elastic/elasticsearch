@@ -24,14 +24,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
@@ -39,17 +42,17 @@ public class ToDouble extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToDouble", ToDouble::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DOUBLE, (source, fieldEval) -> fieldEval),
-        Map.entry(BOOLEAN, ToDoubleFromBooleanEvaluator.Factory::new),
-        Map.entry(DATETIME, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(KEYWORD, ToDoubleFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToDoubleFromStringEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToDoubleFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(LONG, ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(INTEGER, ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
-        Map.entry(DataType.COUNTER_DOUBLE, (source, field) -> field),
-        Map.entry(DataType.COUNTER_INTEGER, ToDoubleFromIntEvaluator.Factory::new),
-        Map.entry(DataType.COUNTER_LONG, ToDoubleFromLongEvaluator.Factory::new)
+        Map.entry(DOUBLE.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(BOOLEAN.type(), ToDoubleFromBooleanEvaluator.Factory::new),
+        Map.entry(DATETIME.type(), ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
+        Map.entry(KEYWORD.type(), ToDoubleFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToDoubleFromStringEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), ToDoubleFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(LONG.type(), ToDoubleFromLongEvaluator.Factory::new), // CastLongToDoubleEvaluator would be a candidate, but not MV'd
+        Map.entry(INTEGER.type(), ToDoubleFromIntEvaluator.Factory::new), // CastIntToDoubleEvaluator would be a candidate, but not MV'd
+        Map.entry(COUNTER_DOUBLE.type(), (source, field) -> field),
+        Map.entry(COUNTER_INTEGER.type(), ToDoubleFromIntEvaluator.Factory::new),
+        Map.entry(COUNTER_LONG.type(), ToDoubleFromLongEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -106,7 +109,7 @@ public class ToDouble extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

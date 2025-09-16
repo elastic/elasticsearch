@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
@@ -23,17 +24,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+
 public class OptionsTests extends ESTestCase {
 
     public void testNullOptions_SingleDataTypeAllowed() {
-        Map<String, DataType> allowedOptions = Map.of("keyword_option", DataType.KEYWORD);
+        Map<String, AtomType> allowedOptions = Map.of("keyword_option", KEYWORD);
         Expression.TypeResolution resolution = Options.resolve(null, Source.EMPTY, TypeResolutions.ParamOrdinal.DEFAULT, allowedOptions);
 
         assertTrue(resolution.resolved());
     }
 
     public void testSingleEntryOptions_SingleDataTypeAllowed_ShouldResolve() {
-        Map<String, DataType> allowedOptions = Map.of("keyword_option", DataType.KEYWORD);
+        Map<String, AtomType> allowedOptions = Map.of("keyword_option", KEYWORD);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "keyword_option"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
@@ -49,7 +56,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_SingleDataTypeAllowed_UnknownOption_ShouldNotResolve() {
-        Map<String, DataType> allowedOptions = Map.of("keyword_option", DataType.KEYWORD);
+        Map<String, AtomType> allowedOptions = Map.of("keyword_option", KEYWORD);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "unknown_option"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
@@ -65,13 +72,10 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testMultipleEntryOptions_SingleDataTypeAllowed_ShouldResolve() {
-        Map<String, DataType> allowedOptions = Map.of(
-            "keyword_option",
-            DataType.KEYWORD,
-            "int_option",
-            DataType.INTEGER,
-            "double_option",
-            DataType.DOUBLE
+        Map<String, AtomType> allowedOptions = Map.ofEntries(
+            Map.entry("keyword_option", KEYWORD),
+            Map.entry("int_option", INTEGER),
+            Map.entry("double_option", DOUBLE)
         );
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
@@ -95,13 +99,10 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testMultipleEntryOptions_SingleDataTypeAllowed_UnknownOption_ShouldNotResolve() {
-        Map<String, DataType> allowedOptions = Map.of(
-            "keyword_option",
-            DataType.KEYWORD,
-            "int_option",
-            DataType.INTEGER,
-            "double_option",
-            DataType.DOUBLE
+        Map<String, AtomType> allowedOptions = Map.ofEntries(
+            Map.entry("keyword_option", KEYWORD),
+            Map.entry("int_option", INTEGER),
+            Map.entry("double_option", DOUBLE)
         );
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
@@ -125,7 +126,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_NullDataType_ShouldNotResolve() {
-        Map<String, DataType> allowedOptions = new HashMap<>();
+        Map<String, AtomType> allowedOptions = new HashMap<>();
         allowedOptions.put("keyword_option", null);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
@@ -142,7 +143,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_SingleDataTypeAllowed_MapExpressionAsValue_ShouldNotResolve() {
-        Map<String, DataType> allowedOptions = Map.of("map_option", DataType.OBJECT);
+        Map<String, AtomType> allowedOptions = Map.of("map_option", OBJECT);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(
@@ -164,7 +165,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testNullOptions_MultipleDataTypesAllowed() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("keyword_text_option", List.of(DataType.KEYWORD));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("keyword_text_option", List.of(KEYWORD));
         Expression.TypeResolution resolution = Options.resolveWithMultipleDataTypesAllowed(
             null,
             Source.EMPTY,
@@ -176,7 +177,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_MultipleDataTypesAllowed_ShouldResolve() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("keyword_text_option", List.of(DataType.KEYWORD, DataType.TEXT));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("keyword_text_option", List.of(KEYWORD, TEXT));
 
         // Keyword resolution
         MapExpression mapExpression = new MapExpression(
@@ -208,7 +209,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_MultipleDataTypesAllowed_UnknownOption_ShouldNotResolve() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("keyword_string_option", List.of(DataType.KEYWORD, DataType.TEXT));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("keyword_string_option", List.of(KEYWORD, TEXT));
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "unknown_option"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
@@ -224,11 +225,11 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testMultipleEntryOptions_MultipleDataTypesAllowed_ShouldResolve() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of(
+        Map<String, Collection<AtomType>> allowedOptions = Map.of(
             "keyword_text_option",
-            List.of(DataType.KEYWORD, DataType.TEXT),
+            List.of(KEYWORD, TEXT),
             "double_int_option",
-            List.of(DataType.DOUBLE, DataType.INTEGER)
+            List.of(DOUBLE, INTEGER)
         );
 
         // Keyword & double resolution
@@ -271,11 +272,9 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testMultipleEntryOptions_MultipleDataTypesAllowed_UnknownOption_ShouldNotResolve() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of(
-            "keyword_text_option",
-            List.of(DataType.KEYWORD, DataType.TEXT),
-            "double_int_option",
-            List.of(DataType.DOUBLE, DataType.INTEGER)
+        Map<String, Collection<AtomType>> allowedOptions = Map.ofEntries(
+            Map.entry("keyword_text_option", List.of(KEYWORD, TEXT)),
+            Map.entry("double_int_option", List.of(DOUBLE, INTEGER))
         );
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
@@ -297,10 +296,10 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_MultipleDataTypesAllowed_NullDataType_ShouldNotResolve() {
-        Collection<DataType> allowedDataTypes = new ArrayList<>();
+        Collection<AtomType> allowedDataTypes = new ArrayList<>();
         allowedDataTypes.add(null);
 
-        Map<String, Collection<DataType>> allowedOptions = Map.of("null_option", allowedDataTypes);
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("null_option", allowedDataTypes);
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(Literal.keyword(Source.EMPTY, "null_option"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
@@ -316,7 +315,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testSingleEntryOptions_MultipleDataTypeAllowed_MapExpressionAsValue_ShouldNotResolve() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("map_option", List.of(DataType.OBJECT, DataType.TEXT));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("map_option", List.of(OBJECT, TEXT));
         MapExpression mapExpression = new MapExpression(
             Source.EMPTY,
             List.of(
@@ -338,7 +337,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testPopulateMapWithExpressions_SingleEntry_KeywordDataType() throws InvalidArgumentException {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("keyword_option", List.of(DataType.KEYWORD));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("keyword_option", List.of(KEYWORD));
         Map<String, Object> optionsMap = new HashMap<>();
 
         MapExpression mapExpression = new MapExpression(
@@ -358,12 +357,12 @@ public class OptionsTests extends ESTestCase {
         assertTrue(optionsMap.containsKey("keyword_option"));
         assertTrue(optionsMap.get("keyword_option") instanceof Literal);
         Literal storedLiteral = (Literal) optionsMap.get("keyword_option");
-        assertEquals(DataType.KEYWORD, storedLiteral.dataType());
+        assertEquals(KEYWORD, storedLiteral.dataType().atom());
         assertEquals("test_value", ((BytesRef) storedLiteral.value()).utf8ToString());
     }
 
     public void testPopulateMapWithExpressions_SingleEntry_MultipleAllowedDataTypes_Keyword() throws InvalidArgumentException {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("keyword_text_option", List.of(DataType.KEYWORD, DataType.TEXT));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("keyword_text_option", List.of(KEYWORD, TEXT));
         Map<String, Object> optionsMap = new HashMap<>();
 
         MapExpression mapExpression = new MapExpression(
@@ -382,16 +381,14 @@ public class OptionsTests extends ESTestCase {
         assertEquals(1, optionsMap.size());
         assertTrue(optionsMap.containsKey("keyword_text_option"));
         Literal storedLiteral = (Literal) optionsMap.get("keyword_text_option");
-        assertEquals(DataType.KEYWORD, storedLiteral.dataType());
+        assertEquals(KEYWORD, storedLiteral.dataType().atom());
         assertEquals("keyword_value", ((BytesRef) storedLiteral.value()).utf8ToString());
     }
 
     public void testPopulateMapWithExpressions_MultipleEntries() throws InvalidArgumentException {
-        Map<String, Collection<DataType>> allowedOptions = Map.of(
-            "keyword_text_option",
-            List.of(DataType.KEYWORD, DataType.TEXT),
-            "double_int_option",
-            List.of(DataType.DOUBLE, DataType.INTEGER)
+        Map<String, Collection<AtomType>> allowedOptions = Map.ofEntries(
+            Map.entry("keyword_text_option", List.of(KEYWORD, TEXT)),
+            Map.entry("double_int_option", List.of(DOUBLE, INTEGER))
         );
         Map<String, Object> optionsMap = new HashMap<>();
 
@@ -418,18 +415,18 @@ public class OptionsTests extends ESTestCase {
         // Check first option
         assertTrue(optionsMap.containsKey("keyword_text_option"));
         Literal firstLiteral = (Literal) optionsMap.get("keyword_text_option");
-        assertEquals(DataType.KEYWORD, firstLiteral.dataType());
+        assertEquals(KEYWORD, firstLiteral.dataType().atom());
         assertEquals("keyword_value", ((BytesRef) firstLiteral.value()).utf8ToString());
 
         // Check second option
         assertTrue(optionsMap.containsKey("double_int_option"));
         Literal secondLiteral = (Literal) optionsMap.get("double_int_option");
-        assertEquals(DataType.INTEGER, secondLiteral.dataType());
+        assertEquals(INTEGER, secondLiteral.dataType().atom());
         assertEquals(42, secondLiteral.value());
     }
 
     public void testPopulateMapWithExpressions_UnknownOption_ShouldThrowException() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("known_option", List.of(DataType.KEYWORD));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("known_option", List.of(KEYWORD));
         Map<String, Object> optionsMap = new HashMap<>();
 
         MapExpression mapExpression = new MapExpression(
@@ -452,7 +449,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testPopulateMapWithExpressions_WrongDataType_ShouldThrowException() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("keyword_only_option", List.of(DataType.KEYWORD));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("keyword_only_option", List.of(KEYWORD));
         Map<String, Object> optionsMap = new HashMap<>();
 
         MapExpression mapExpression = new MapExpression(
@@ -475,7 +472,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testPopulateMapWithExpressions_EmptyAllowedDataTypes_ShouldThrowException() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("empty_option", List.of());
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("empty_option", List.of());
         Map<String, Object> optionsMap = new HashMap<>();
 
         MapExpression mapExpression = new MapExpression(
@@ -497,7 +494,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testPopulateMapWithExpressions_NullAllowedDataTypes_ShouldThrowException() {
-        Map<String, Collection<DataType>> allowedOptions = new HashMap<>();
+        Map<String, Collection<AtomType>> allowedOptions = new HashMap<>();
         allowedOptions.put("null_option", null);
 
         Map<String, Object> optionsMap = new HashMap<>();
@@ -521,7 +518,7 @@ public class OptionsTests extends ESTestCase {
     }
 
     public void testPopulateMapWithExpressions_NonLiteralValue_ShouldThrowException() {
-        Map<String, Collection<DataType>> allowedOptions = Map.of("map_option", List.of(DataType.OBJECT));
+        Map<String, Collection<AtomType>> allowedOptions = Map.of("map_option", List.of(DataType.OBJECT));
         Map<String, Object> optionsMap = new HashMap<>();
 
         MapExpression nestedMap = new MapExpression(

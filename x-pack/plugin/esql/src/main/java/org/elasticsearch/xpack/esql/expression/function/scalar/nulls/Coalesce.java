@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 /**
  * Function returning the first non-null value. {@code COALESCE} runs as though
@@ -146,7 +146,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         }
 
         for (int position = 0; position < children().size(); position++) {
-            if (dataType == null || dataType == NULL) {
+            if (dataType == null || dataType.atom() == NULL) {
                 dataType = children().get(position).dataType().noText();
                 continue;
             }
@@ -155,7 +155,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
-                dataType.typeName()
+                dataType.toString()
             );
             if (resolution.unresolved()) {
                 return resolution;
@@ -197,7 +197,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return switch (dataType()) {
+        // TODO support for object types - what does that even mean?
+        return switch (dataType().atom()) {
             case BOOLEAN -> CoalesceBooleanEvaluator.toEvaluator(toEvaluator, children());
             case DOUBLE, COUNTER_DOUBLE -> CoalesceDoubleEvaluator.toEvaluator(toEvaluator, children());
             case INTEGER, COUNTER_INTEGER -> CoalesceIntEvaluator.toEvaluator(toEvaluator, children());

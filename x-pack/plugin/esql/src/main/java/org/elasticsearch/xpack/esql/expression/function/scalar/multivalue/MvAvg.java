@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 
 /**
@@ -63,12 +65,12 @@ public class MvAvg extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> t.isNumeric() && isRepresentable(t), sourceText(), null, "numeric");
+        return isType(field(), t -> t.atom().isNumeric() && isRepresentable(t.atom()), sourceText(), null, "numeric");
     }
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -76,7 +78,7 @@ public class MvAvg extends AbstractMultivalueFunction {
         return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvAvgDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvAvgIntEvaluator.Factory(fieldEval);
-            case LONG -> field().dataType() == DataType.UNSIGNED_LONG
+            case LONG -> field().dataType().atom() == UNSIGNED_LONG
                 ? new MvAvgUnsignedLongEvaluator.Factory(fieldEval)
                 : new MvAvgLongEvaluator.Factory(fieldEval);
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;

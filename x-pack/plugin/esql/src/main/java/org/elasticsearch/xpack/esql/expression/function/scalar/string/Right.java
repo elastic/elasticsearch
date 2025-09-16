@@ -34,7 +34,8 @@ import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 /**
  * {code right(foo, len)} is an alias to {code substring(foo, foo.length-len, len)}
@@ -121,7 +122,7 @@ public class Right extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -135,7 +136,7 @@ public class Right extends EsqlScalarFunction {
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(length, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+        resolution = TypeResolutions.isType(length, dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer");
 
         if (resolution.unresolved()) {
             return resolution;

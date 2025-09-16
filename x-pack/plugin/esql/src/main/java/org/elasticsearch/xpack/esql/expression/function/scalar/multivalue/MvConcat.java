@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 /**
  * Reduce a multivalued string field to a single valued field by concatenating all values.
@@ -85,7 +86,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override

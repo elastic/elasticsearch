@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -51,11 +52,20 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SCALED_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
@@ -216,13 +226,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         EvalOperator.ExpressionEvaluator.Factory rhs;
 
         // Special cases for mixed nanosecond and millisecond comparisions
-        if (left().dataType() == DataType.DATE_NANOS && right().dataType() == DataType.DATETIME) {
+        if (left().dataType().atom() == DATE_NANOS && right().dataType().atom() == DATETIME) {
             lhs = toEvaluator.apply(left());
             rhs = toEvaluator.apply(right());
             return nanosToMillisEvaluator.apply(source(), lhs, rhs);
         }
 
-        if (left().dataType() == DataType.DATETIME && right().dataType() == DataType.DATE_NANOS) {
+        if (left().dataType().atom() == DATETIME && right().dataType().atom() == DATE_NANOS) {
             lhs = toEvaluator.apply(left());
             rhs = toEvaluator.apply(right());
             return millisToNanosEvaluator.apply(source(), lhs, rhs);
@@ -230,7 +240,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = commonType(left().dataType(), right().dataType());
-        if (commonType.isNumeric()) {
+        if (commonType.atom().isNumeric()) {
             lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
         } else {
@@ -266,7 +276,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             evaluatorMap::containsKey,
             sourceText(),
             paramOrdinal,
-            evaluatorMap.keySet().stream().map(DataType::typeName).sorted().toArray(String[]::new)
+            evaluatorMap.keySet().stream().map(Object::toString).sorted().toArray(String[]::new)
         );
     }
 
@@ -282,17 +292,17 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         DataType rightType = right().dataType();
 
         // Unsigned long is only interoperable with other unsigned longs
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
+        if ((rightType.atom() == UNSIGNED_LONG && (false == (leftType.atom() == UNSIGNED_LONG || leftType.atom() == NULL)))
+            || (leftType.atom() == UNSIGNED_LONG && (false == (rightType.atom() == UNSIGNED_LONG || rightType.atom() == NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
         }
 
-        if ((leftType.isNumeric() && rightType.isNumeric())
-            || (DataType.isString(leftType) && DataType.isString(rightType))
-            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
+        if ((leftType.atom().isNumeric() && rightType.atom().isNumeric())
+            || (AtomType.isString(leftType.atom()) && AtomType.isString(rightType.atom()))
+            || (leftType.atom().isDate() && rightType.atom().isDate()) // Millis and Nanos
             || leftType.equals(rightType)
-            || DataType.isNull(leftType)
-            || DataType.isNull(rightType)) {
+            || AtomType.isNull(leftType.atom())
+            || AtomType.isNull(rightType.atom())) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return new TypeResolution(formatIncompatibleTypesMessage(left().dataType(), right().dataType(), sourceText()));
@@ -305,7 +315,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
                 "first argument of [{}] is [unsigned_long] and second is [{}]. "
                     + "[unsigned_long] can only be operated on together with another [unsigned_long]",
                 sourceText,
-                rightType.typeName()
+                rightType
             );
         }
         if (rightType.equals(UNSIGNED_LONG)) {
@@ -314,16 +324,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
                 "first argument of [{}] is [{}] and second is [unsigned_long]. "
                     + "[unsigned_long] can only be operated on together with another [unsigned_long]",
                 sourceText,
-                leftType.typeName()
+                leftType
             );
         }
         return format(
             null,
             "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
             sourceText,
-            leftType.isNumeric() ? "numeric" : leftType.typeName(),
-            leftType.isNumeric() ? "numeric" : leftType.typeName(),
-            rightType.typeName()
+            leftType.atom().isNumeric() ? "numeric" : leftType.atom().typeName(),
+            leftType.atom().isNumeric() ? "numeric" : leftType.atom().typeName(),
+            rightType
         );
     }
 
@@ -400,7 +410,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             DateFormatter formatter;
             if (value instanceof ZonedDateTime) {
                 // NB: we check the data type of right here because value is the RHS value
-                formatter = switch (right().dataType()) {
+                formatter = switch (right().dataType().atom()) {
                     case DATETIME -> DEFAULT_DATE_TIME_FORMATTER;
                     case DATE_NANOS -> DEFAULT_DATE_NANOS_FORMATTER;
                     default -> throw new EsqlIllegalArgumentException("Found date value in non-date type comparison");
@@ -415,9 +425,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             }
             format = formatter.pattern();
             isDateLiteralComparison = true;
-        } else if (attribute.dataType() == IP && value instanceof BytesRef bytesRef) {
+        } else if (attribute.dataType().atom() == IP && value instanceof BytesRef bytesRef) {
             value = ipToString(bytesRef);
-        } else if (attribute.dataType() == VERSION) {
+        } else if (attribute.dataType().atom() == VERSION) {
             // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
             // encoded) representation of the version as it'll do the encoding itself.
             if (value instanceof BytesRef bytesRef) {
@@ -425,16 +435,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             } else if (value instanceof Version version) {
                 value = versionToString(version);
             }
-        } else if (attribute.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
+        } else if (attribute.dataType().atom() == UNSIGNED_LONG && value instanceof Long ul) {
             value = unsignedLongAsNumber(ul);
         }
 
         ZoneId zoneId = null;
-        if (attribute.dataType() == DATETIME) {
+        if (attribute.dataType().atom() == DATETIME) {
             zoneId = zoneId();
             value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
-        } else if (attribute.dataType() == DATE_NANOS) {
+        } else if (attribute.dataType().atom() == DATE_NANOS) {
             zoneId = zoneId();
             value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
@@ -475,7 +485,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     private Query translateOutOfRangeComparisons() {
-        if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
+        if ((left() instanceof FieldAttribute) == false || left().dataType().atom().isNumeric() == false) {
             return null;
         }
         Object value = literalValueOf(right());
@@ -487,7 +497,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         DataType valueType = right().dataType();
         DataType attributeDataType = left().dataType();
-        if (valueType == UNSIGNED_LONG && value instanceof Long ul) {
+        if (valueType.atom() == UNSIGNED_LONG && value instanceof Long ul) {
             value = unsignedLongAsNumber(ul);
         }
         Number num = (Number) value;
@@ -529,34 +539,36 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
             // Unsigned longs may be represented as BigInteger.
             decimalValue = new BigDecimal(bigIntValue);
         } else {
-            decimalValue = valueDataType.isRationalNumber() ? BigDecimal.valueOf(doubleValue) : BigDecimal.valueOf(value.longValue());
+            decimalValue = valueDataType.atom().isRationalNumber()
+                ? BigDecimal.valueOf(doubleValue)
+                : BigDecimal.valueOf(value.longValue());
         }
 
         // Determine min/max for dataType. Use BigDecimals as doubles will have rounding errors for long/ulong.
         BigDecimal minValue;
         BigDecimal maxValue;
-        if (numericFieldDataType == DataType.BYTE) {
+        if (numericFieldDataType.atom() == BYTE) {
             minValue = BigDecimal.valueOf(Byte.MIN_VALUE);
             maxValue = BigDecimal.valueOf(Byte.MAX_VALUE);
-        } else if (numericFieldDataType == DataType.SHORT) {
+        } else if (numericFieldDataType.atom() == SHORT) {
             minValue = BigDecimal.valueOf(Short.MIN_VALUE);
             maxValue = BigDecimal.valueOf(Short.MAX_VALUE);
-        } else if (numericFieldDataType == DataType.INTEGER) {
+        } else if (numericFieldDataType.atom() == INTEGER) {
             minValue = BigDecimal.valueOf(Integer.MIN_VALUE);
             maxValue = BigDecimal.valueOf(Integer.MAX_VALUE);
-        } else if (numericFieldDataType == DataType.LONG) {
+        } else if (numericFieldDataType.atom() == LONG) {
             minValue = BigDecimal.valueOf(Long.MIN_VALUE);
             maxValue = BigDecimal.valueOf(Long.MAX_VALUE);
-        } else if (numericFieldDataType == DataType.UNSIGNED_LONG) {
+        } else if (numericFieldDataType.atom() == UNSIGNED_LONG) {
             minValue = BigDecimal.ZERO;
             maxValue = UNSIGNED_LONG_MAX;
-        } else if (numericFieldDataType == DataType.HALF_FLOAT) {
+        } else if (numericFieldDataType.atom() == HALF_FLOAT) {
             minValue = HALF_FLOAT_MAX.negate();
             maxValue = HALF_FLOAT_MAX;
-        } else if (numericFieldDataType == DataType.FLOAT) {
+        } else if (numericFieldDataType.atom() == FLOAT) {
             minValue = BigDecimal.valueOf(-Float.MAX_VALUE);
             maxValue = BigDecimal.valueOf(Float.MAX_VALUE);
-        } else if (numericFieldDataType == DataType.DOUBLE || numericFieldDataType == DataType.SCALED_FLOAT) {
+        } else if (numericFieldDataType.atom() == DOUBLE || numericFieldDataType.atom() == SCALED_FLOAT) {
             // Scaled floats are represented as doubles in ESQL.
             minValue = BigDecimal.valueOf(-Double.MAX_VALUE);
             maxValue = BigDecimal.valueOf(Double.MAX_VALUE);

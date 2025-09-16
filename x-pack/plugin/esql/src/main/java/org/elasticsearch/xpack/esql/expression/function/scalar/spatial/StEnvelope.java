@@ -30,10 +30,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
@@ -83,10 +83,10 @@ public class StEnvelope extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         var resolution = isSpatial(field(), sourceText(), TypeResolutions.ParamOrdinal.DEFAULT);
         if (resolution.resolved()) {
-            this.dataType = switch (field().dataType()) {
-                case GEO_POINT, GEO_SHAPE -> GEO_SHAPE;
-                case CARTESIAN_POINT, CARTESIAN_SHAPE -> CARTESIAN_SHAPE;
-                default -> NULL;
+            this.dataType = switch (field().dataType().atom()) {
+                case GEO_POINT, GEO_SHAPE -> GEO_SHAPE.type();
+                case CARTESIAN_POINT, CARTESIAN_SHAPE -> CARTESIAN_SHAPE.type();
+                default -> NULL.type();
             };
         }
         return resolution;
@@ -94,7 +94,7 @@ public class StEnvelope extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
+        if (field().dataType().atom() == GEO_POINT || field().dataType().atom() == GEO_SHAPE) {
             return new StEnvelopeFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
         return new StEnvelopeFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));

@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.time.ZoneId;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+
 // marker class to indicate operations that rely on values
 public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
 
@@ -36,7 +38,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataType.atom(BOOLEAN);
     }
 
     public static Integer compare(Object left, Object right) {

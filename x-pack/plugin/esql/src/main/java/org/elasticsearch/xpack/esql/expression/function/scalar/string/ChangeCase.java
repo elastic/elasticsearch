@@ -23,6 +23,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public abstract class ChangeCase extends EsqlConfigurationFunction {
 
@@ -66,7 +67,7 @@ public abstract class ChangeCase extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override

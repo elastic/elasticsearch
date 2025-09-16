@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -63,10 +64,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
@@ -90,7 +92,7 @@ public class Knn extends FullTextFunction
 
     public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
+    public static final Map<String, AtomType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(MIN_CANDIDATES_OPTION, INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
@@ -204,7 +206,7 @@ public class Knn extends FullTextFunction
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataType.atom(BOOLEAN);
     }
 
     @Override
@@ -215,15 +217,20 @@ public class Knn extends FullTextFunction
     private TypeResolution resolveField() {
         return isNotNull(field(), sourceText(), FIRST).and(
             // It really should be semantic_text instead of text, but field_caps retrieves semantic_text fields as text
-            isType(field(), dt -> dt == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
-                isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
+            isType(field(), dt -> dt.atom() == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
+                isType(field(), dt -> dt.atom() == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
             )
         );
     }
 
     private TypeResolution resolveQuery() {
-        TypeResolution result = isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector")
-            .and(isNotNull(query(), sourceText(), SECOND));
+        TypeResolution result = isType(
+            query(),
+            dt -> dt.atom() == DENSE_VECTOR,
+            sourceText(),
+            TypeResolutions.ParamOrdinal.SECOND,
+            "dense_vector"
+        ).and(isNotNull(query(), sourceText(), SECOND));
         if (result.unresolved()) {
             return result;
         }

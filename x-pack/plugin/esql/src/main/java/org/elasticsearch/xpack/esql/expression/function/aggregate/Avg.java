@@ -27,7 +27,9 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class Avg extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Avg", Avg::readFrom);
@@ -71,7 +73,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == AGGREGATE_METRIC_DOUBLE,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG || dt.atom() == AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double or numeric except unsigned_long or counter types"
@@ -93,7 +95,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataType.atom(DOUBLE);
     }
 
     @Override
@@ -118,7 +120,7 @@ public class Avg extends AggregateFunction implements SurrogateExpression {
         if (field.foldable()) {
             return new MvAvg(s, field);
         }
-        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+        if (field.dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
             return new Div(s, new Sum(s, field, filter(), summationMode).surrogate(), new Count(s, field, filter()).surrogate());
         }
         return new Div(s, new Sum(s, field, filter(), summationMode), new Count(s, field, filter()), dataType());

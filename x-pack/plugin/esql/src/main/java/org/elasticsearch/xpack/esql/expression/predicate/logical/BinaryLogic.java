@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation>
     implements
@@ -62,7 +63,7 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     @Override

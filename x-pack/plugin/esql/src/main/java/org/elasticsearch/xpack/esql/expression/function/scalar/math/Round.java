@@ -36,6 +36,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -106,7 +110,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
             ? TypeResolution.TYPE_RESOLVED
             : isType(
                 decimals,
-                dt -> dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG,
+                dt -> dt.atom().isWholeNumber() && dt.atom() != UNSIGNED_LONG,
                 sourceText(),
                 SECOND,
                 "whole number except unsigned_long or counter types"
@@ -180,16 +184,16 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType fieldType = dataType();
-        if (fieldType == DataType.DOUBLE) {
+        if (fieldType.atom() == DOUBLE) {
             return toEvaluator(toEvaluator, RoundDoubleNoDecimalsEvaluator.Factory::new, RoundDoubleEvaluator.Factory::new);
         }
-        if (fieldType == DataType.INTEGER) {
+        if (fieldType.atom() == INTEGER) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundIntEvaluator.Factory::new);
         }
-        if (fieldType == DataType.LONG) {
+        if (fieldType.atom() == LONG) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundLongEvaluator.Factory::new);
         }
-        if (fieldType == DataType.UNSIGNED_LONG) {
+        if (fieldType.atom() == UNSIGNED_LONG) {
             return toEvaluator(toEvaluator, EVALUATOR_IDENTITY, RoundUnsignedLongEvaluator.Factory::new);
         }
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
@@ -204,7 +208,7 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         if (decimals == null) {
             return noDecimals.apply(source(), fieldEvaluator);
         }
-        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), DataType.LONG, toEvaluator.apply(decimals()));
+        var decimalsEvaluator = Cast.cast(source(), decimals().dataType(), LONG.type(), toEvaluator.apply(decimals()));
         return withDecimals.apply(source(), fieldEvaluator, decimalsEvaluator);
     }
 }

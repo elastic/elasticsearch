@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -19,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
     @Override
@@ -45,7 +45,7 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
             boolean nullLeft = Expressions.isGuaranteedNull(or.left());
             boolean nullRight = Expressions.isGuaranteedNull(or.right());
             if (nullLeft && nullRight) {
-                return new Literal(binaryLogic.source(), null, DataType.NULL);
+                return new Literal(binaryLogic.source(), null, NULL.type());
             }
             if (nullLeft) {
                 return or.right();
@@ -56,7 +56,7 @@ public final class PruneFilters extends OptimizerRules.OptimizerRule<Filter> {
         }
         if (binaryLogic instanceof And and) {
             if (Expressions.isGuaranteedNull(and.left()) || Expressions.isGuaranteedNull(and.right())) {
-                return new Literal(binaryLogic.source(), null, DataType.NULL);
+                return new Literal(binaryLogic.source(), null, NULL.type());
             }
         }
         return binaryLogic;

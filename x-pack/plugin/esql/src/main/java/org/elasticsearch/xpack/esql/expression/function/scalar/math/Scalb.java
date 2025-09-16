@@ -17,6 +17,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -35,6 +36,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class Scalb extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Scalb", Scalb::new);
@@ -102,7 +105,7 @@ public class Scalb extends EsqlScalarFunction {
             ? TypeResolution.TYPE_RESOLVED
             : isType(
                 scaleFactor,
-                dt -> dt.isWholeNumber() && dt != DataType.UNSIGNED_LONG,
+                dt -> dt.atom().isWholeNumber() && dt.atom() != UNSIGNED_LONG,
                 sourceText(),
                 SECOND,
                 "whole number except unsigned_long or counter types"
@@ -154,32 +157,24 @@ public class Scalb extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var dEval = Cast.cast(source(), d.dataType(), DataType.DOUBLE, toEvaluator.apply(d));
+        var dEval = Cast.cast(source(), d.dataType(), DOUBLE.type(), toEvaluator.apply(d));
         if (scaleFactor.foldable()) {
-            return switch (scaleFactor.dataType()) {
-                case DataType.INTEGER -> new ScalbConstantIntEvaluator.Factory(
-                    source(),
-                    dEval,
-                    (Integer) (scaleFactor.fold(toEvaluator.foldCtx()))
-                );
-                case DataType.LONG -> new ScalbConstantLongEvaluator.Factory(
-                    source(),
-                    dEval,
-                    (Long) (scaleFactor.fold(toEvaluator.foldCtx()))
-                );
+            return switch (scaleFactor.dataType().atom()) {
+                case INTEGER -> new ScalbConstantIntEvaluator.Factory(source(), dEval, (Integer) (scaleFactor.fold(toEvaluator.foldCtx())));
+                case LONG -> new ScalbConstantLongEvaluator.Factory(source(), dEval, (Long) (scaleFactor.fold(toEvaluator.foldCtx())));
                 default -> throw new IllegalStateException("Invalid type for scaleFactor, should be int or long.");
             };
         }
         var scaleFactorEval = toEvaluator.apply(scaleFactor);
-        return switch (scaleFactor.dataType()) {
-            case DataType.INTEGER -> new ScalbIntEvaluator.Factory(source(), dEval, scaleFactorEval);
-            case DataType.LONG -> new ScalbLongEvaluator.Factory(source(), dEval, scaleFactorEval);
-            case DataType type -> throw new IllegalStateException(
+        return switch (scaleFactor.dataType().atom()) {
+            case INTEGER -> new ScalbIntEvaluator.Factory(source(), dEval, scaleFactorEval);
+            case LONG -> new ScalbLongEvaluator.Factory(source(), dEval, scaleFactorEval);
+            case AtomType type -> throw new IllegalStateException(
                 Strings.format("Invalid type for scaleFactor: %s, should be int or long.", type)
             );
         };

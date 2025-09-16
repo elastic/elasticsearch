@@ -14,10 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 
 /**
  * When deciding if a filter or topN can be pushed down to Lucene, we need to check a few things on the field.
@@ -83,13 +84,13 @@ public interface LucenePushdownPredicates {
      */
     default boolean isPushableFieldAttribute(Expression exp) {
         if (exp instanceof FieldAttribute fa && fa.getExactInfo().hasExact() && isIndexedAndHasDocValues(fa)) {
-            return fa.dataType() != DataType.TEXT || hasExactSubfield(fa);
+            return fa.dataType().atom() != TEXT || hasExactSubfield(fa);
         }
         return false;
     }
 
     static boolean isPushableTextFieldAttribute(Expression exp) {
-        return exp instanceof FieldAttribute fa && fa.dataType() == DataType.TEXT;
+        return exp instanceof FieldAttribute fa && fa.dataType().atom() == TEXT;
     }
 
     static boolean isPushableMetadataAttribute(Expression exp) {

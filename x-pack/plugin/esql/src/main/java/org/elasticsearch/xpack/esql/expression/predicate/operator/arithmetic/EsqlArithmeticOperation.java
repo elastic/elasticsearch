@@ -23,10 +23,11 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
@@ -151,8 +152,8 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
         // This checks that unsigned longs should only be compatible with other unsigned longs
         DataType leftType = left().dataType();
         DataType rightType = right().dataType();
-        if ((rightType == UNSIGNED_LONG && (false == (leftType == UNSIGNED_LONG || leftType == DataType.NULL)))
-            || (leftType == UNSIGNED_LONG && (false == (rightType == UNSIGNED_LONG || rightType == DataType.NULL)))) {
+        if ((rightType.atom() == UNSIGNED_LONG && (false == (leftType.atom() == UNSIGNED_LONG || leftType.atom() == NULL)))
+            || (leftType.atom() == UNSIGNED_LONG && (false == (rightType.atom() == UNSIGNED_LONG || rightType.atom() == NULL)))) {
             return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
 
@@ -161,26 +162,26 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     public static String formatIncompatibleTypesMessage(String symbol, DataType leftType, DataType rightType) {
-        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType.typeName(), rightType.typeName());
+        return format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol, leftType, rightType);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
-        if (leftType.isNumeric()) {
+        if (leftType.atom().isNumeric()) {
 
             var lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             var rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
 
             BinaryEvaluator eval;
-            if (commonType == INTEGER) {
+            if (commonType.atom() == INTEGER) {
                 eval = ints;
-            } else if (commonType == LONG) {
+            } else if (commonType.atom() == LONG) {
                 eval = longs;
-            } else if (commonType == UNSIGNED_LONG) {
+            } else if (commonType.atom() == UNSIGNED_LONG) {
                 eval = ulongs;
-            } else if (commonType == DOUBLE) {
+            } else if (commonType.atom() == DOUBLE) {
                 eval = doubles;
             } else {
                 throw new EsqlIllegalArgumentException("Unsupported type " + commonType);

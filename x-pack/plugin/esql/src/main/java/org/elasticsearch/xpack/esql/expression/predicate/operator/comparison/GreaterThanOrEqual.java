@@ -22,6 +22,17 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Esq
 import java.time.ZoneId;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
+
 public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -30,16 +41,16 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
     );
 
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataType.INTEGER, GreaterThanOrEqualIntsEvaluator.Factory::new),
-        Map.entry(DataType.DOUBLE, GreaterThanOrEqualDoublesEvaluator.Factory::new),
-        Map.entry(DataType.LONG, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataType.UNSIGNED_LONG, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataType.DATETIME, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataType.DATE_NANOS, GreaterThanOrEqualLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, GreaterThanOrEqualKeywordsEvaluator.Factory::new)
+        Map.entry(INTEGER.type(), GreaterThanOrEqualIntsEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), GreaterThanOrEqualDoublesEvaluator.Factory::new),
+        Map.entry(LONG.type(), GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DATETIME.type(), GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(DATE_NANOS.type(), GreaterThanOrEqualLongsEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), GreaterThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(TEXT.type(), GreaterThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(VERSION.type(), GreaterThanOrEqualKeywordsEvaluator.Factory::new),
+        Map.entry(IP.type(), GreaterThanOrEqualKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(

@@ -90,6 +90,8 @@ import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
+
 /**
  * {@link AbstractLookupService} performs a {@code LEFT JOIN} for a given input
  * page against another index that <strong>must</strong> have only a single
@@ -217,7 +219,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         Block block,
         @Nullable DataType inputDataType
     ) {
-        return switch (inputDataType) {
+        return switch (inputDataType != null ? inputDataType.atom() : null) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, aliasFilter, (BytesRefBlock) block);
             case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
             case DATE_NANOS -> QueryList.dateNanosTermQueryList(field, searchExecutionContext, aliasFilter, (LongBlock) block);
@@ -428,7 +430,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 : extractField.name();
             BlockLoader loader = shardContext.blockLoader(
                 fieldName,
-                extractField.dataType() == DataType.UNSUPPORTED,
+                extractField.dataType().atom() == UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE
             );
             fields.add(

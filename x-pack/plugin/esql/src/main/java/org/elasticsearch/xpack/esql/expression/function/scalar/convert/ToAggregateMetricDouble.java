@@ -45,20 +45,20 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, (source, fieldEval) -> fieldEval),
-        Map.entry(DOUBLE, (source, fieldEval) -> new DoubleFactory(fieldEval)),
-        Map.entry(INTEGER, (source, fieldEval) -> new IntFactory(fieldEval)),
-        Map.entry(LONG, (source, fieldEval) -> new LongFactory(fieldEval)),
-        Map.entry(UNSIGNED_LONG, (source, fieldEval) -> new UnsignedLongFactory(fieldEval))
+        Map.entry(AGGREGATE_METRIC_DOUBLE.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(DOUBLE.type(), (source, fieldEval) -> new DoubleFactory(fieldEval)),
+        Map.entry(INTEGER.type(), (source, fieldEval) -> new IntFactory(fieldEval)),
+        Map.entry(LONG.type(), (source, fieldEval) -> new LongFactory(fieldEval)),
+        Map.entry(UNSIGNED_LONG.type(), (source, fieldEval) -> new UnsignedLongFactory(fieldEval))
     );
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -102,7 +102,11 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
         return isType(
             field,
-            dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE || dt == DataType.DOUBLE || dt == LONG || dt == INTEGER || dt == UNSIGNED_LONG,
+            dt -> dt.atom() == AGGREGATE_METRIC_DOUBLE
+                || dt.atom() == DOUBLE
+                || dt.atom() == LONG
+                || dt.atom() == INTEGER
+                || dt.atom() == UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "numeric or aggregate_metric_double"
@@ -111,7 +115,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return AGGREGATE_METRIC_DOUBLE;
+        return AGGREGATE_METRIC_DOUBLE.type();
     }
 
     @Override

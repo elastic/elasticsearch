@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class Replace extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Replace", Replace::new);
@@ -98,7 +99,7 @@ public class Replace extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -199,7 +200,7 @@ public class Replace extends EsqlScalarFunction {
         var strEval = toEvaluator.apply(str);
         var newStrEval = toEvaluator.apply(newStr);
 
-        if (regex.foldable() && regex.dataType() == DataType.KEYWORD) {
+        if (regex.foldable() && regex.dataType().atom() == KEYWORD) {
             Pattern regexPattern;
             try {
                 regexPattern = Pattern.compile(BytesRefs.toString(regex.fold(toEvaluator.foldCtx())));

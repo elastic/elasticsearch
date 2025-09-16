@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+
 /**
  * Local aggregation can only produce intermediate state that get wired into the global agg.
  */
@@ -41,7 +43,7 @@ public class LocalPropagateEmptyRelation extends PropagateEmptyRelation {
         for (Attribute o : output) {
             DataType dataType = o.dataType();
             // boolean right now is used for the internal #seen so always return true
-            var value = dataType == DataType.BOOLEAN ? true
+            var value = dataType.atom() == BOOLEAN ? true
                 // look for count(literal) with literal != null
                 : aggFunc instanceof Count count && (count.foldable() == false || count.fold(foldCtx) != null) ? 0L
                 // otherwise nullify

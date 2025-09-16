@@ -42,11 +42,11 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 
 public class IndexResolver {
     public static final Set<String> ALL_FIELDS = Set.of("*");
@@ -124,7 +124,7 @@ public class IndexResolver {
                 EsField obj = fields.get(parent);
                 if (obj == null) {
                     // Object fields can't be dimensions, so we can safely hard code that here
-                    obj = new EsField(parent, OBJECT, new HashMap<>(), false, true, EsField.TimeSeriesFieldType.NONE);
+                    obj = new EsField(parent, DataType.atom(OBJECT), new HashMap<>(), false, true, EsField.TimeSeriesFieldType.NONE);
                     isAlias = true;
                     fields.put(parent, obj);
                 } else if (firstUnsupportedParent == null && obj instanceof UnsupportedEsField unsupportedParent) {
@@ -249,19 +249,19 @@ public class IndexResolver {
 
         // TODO I think we only care about unmapped fields if we're aggregating on them. do we even then?
 
-        if (type == TEXT) {
+        if (type.atom() == TEXT) {
             return new TextEsField(name, new HashMap<>(), false, isAlias, timeSeriesFieldType);
         }
-        if (type == KEYWORD) {
+        if (type.atom() == KEYWORD) {
             int length = Short.MAX_VALUE;
             // TODO: to check whether isSearchable/isAggregateable takes into account the presence of the normalizer
             boolean normalized = false;
             return new KeywordEsField(name, new HashMap<>(), aggregatable, length, normalized, isAlias, timeSeriesFieldType);
         }
-        if (type == DATETIME) {
+        if (type.atom() == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable, timeSeriesFieldType);
         }
-        if (type == UNSUPPORTED) {
+        if (type.atom() == UNSUPPORTED) {
             return unsupported(name, first);
         }
 
@@ -279,10 +279,11 @@ public class IndexResolver {
             IndexFieldCapabilities fc = ir.get().get(fullName);
             if (fc != null) {
                 DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(fc.type(), fc.metricType());
-                if (type == UNSUPPORTED) {
+                if (type.atom() == UNSUPPORTED) {
                     return unsupported(name, fc);
                 }
-                typesToIndices.computeIfAbsent(type.typeName(), _key -> new TreeSet<>()).add(ir.getIndexName());
+                // NOCOMMIT this is going to be weird for flattened
+                typesToIndices.computeIfAbsent(type.toString(), _key -> new TreeSet<>()).add(ir.getIndexName());
             }
         }
         return new InvalidMappedField(name, typesToIndices);

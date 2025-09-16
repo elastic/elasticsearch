@@ -30,6 +30,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 public class Log extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Log", Log::new);
@@ -140,14 +141,14 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var valueEval = Cast.cast(source(), value.dataType(), DataType.DOUBLE, toEvaluator.apply(value));
+        var valueEval = Cast.cast(source(), value.dataType(), DOUBLE.type(), toEvaluator.apply(value));
         if (base != null) {
-            var baseEval = Cast.cast(source(), base.dataType(), DataType.DOUBLE, toEvaluator.apply(base));
+            var baseEval = Cast.cast(source(), base.dataType(), DOUBLE.type(), toEvaluator.apply(base));
             return new LogEvaluator.Factory(source(), baseEval, valueEval);
         }
         return new LogConstantEvaluator.Factory(source(), valueEval);

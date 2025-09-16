@@ -28,11 +28,11 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 import static org.junit.Assert.assertNotNull;
 
 public class LoadMapping {
@@ -86,7 +86,7 @@ public class LoadMapping {
             // extract field type
             DataType esDataType = getType(content);
             final Map<String, EsField> properties;
-            if (esDataType == OBJECT) {
+            if (esDataType.atom() == OBJECT) {
                 properties = fromEs(content);
             } else if (content.containsKey("fields")) {
                 // Check for multifields
@@ -99,17 +99,17 @@ public class LoadMapping {
             } else {
                 properties = fromEs(content);
             }
-            boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
+            boolean docValues = boolSetting(content.get("doc_values"), esDataType.atom().hasDocValues());
             final EsField field;
-            if (esDataType == TEXT) {
+            if (esDataType.atom() == TEXT) {
                 field = new TextEsField(name, properties, docValues, false, EsField.TimeSeriesFieldType.NONE);
-            } else if (esDataType == KEYWORD) {
+            } else if (esDataType.atom() == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
                 field = new KeywordEsField(name, properties, docValues, length, normalized, false, EsField.TimeSeriesFieldType.NONE);
-            } else if (esDataType == DATETIME) {
+            } else if (esDataType.atom() == DATETIME) {
                 field = DateEsField.dateEsField(name, properties, docValues, EsField.TimeSeriesFieldType.NONE);
-            } else if (esDataType == UNSUPPORTED) {
+            } else if (esDataType.atom() == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, List.of(type), null, properties);
                 propagateUnsupportedType(name, type, properties);
@@ -126,7 +126,7 @@ public class LoadMapping {
         if (content.containsKey("type")) {
             String typeName = content.get("type").toString();
             if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
-                return KEYWORD;
+                return KEYWORD.type();
             }
             final Object metricsTypeParameter = content.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM);
             final TimeSeriesParams.MetricType metricType;
@@ -138,12 +138,12 @@ public class LoadMapping {
             try {
                 return EsqlDataTypeRegistry.INSTANCE.fromEs(typeName, metricType);
             } catch (IllegalArgumentException ex) {
-                return UNSUPPORTED;
+                return UNSUPPORTED.type();
             }
         } else if (content.containsKey("properties")) {
-            return OBJECT;
+            return OBJECT.type();
         } else {
-            return UNSUPPORTED;
+            return UNSUPPORTED.type();
         }
     }
 

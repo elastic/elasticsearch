@@ -70,8 +70,7 @@ public class BlockTestUtils {
                 between(0, Integer.MAX_VALUE)
             );
             case NULL -> null;
-            case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
-            case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
+            case COMPOSITE, COLUMNS, UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
         };
     }
 

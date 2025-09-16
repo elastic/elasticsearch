@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -34,7 +34,7 @@ public class KeywordEsField extends EsField {
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias, timeSeriesFieldType);
+        this(name, DataType.atom(KEYWORD), properties, hasDocValues, precision, normalized, isAlias, timeSeriesFieldType);
     }
 
     protected KeywordEsField(
@@ -55,7 +55,7 @@ public class KeywordEsField extends EsField {
     public KeywordEsField(StreamInput in) throws IOException {
         this(
             readCachedStringWithVersionCheck(in),
-            KEYWORD,
+            DataType.atom(KEYWORD),
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             in.readInt(),

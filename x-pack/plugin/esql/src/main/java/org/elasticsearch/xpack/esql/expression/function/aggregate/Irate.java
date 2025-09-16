@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -35,6 +36,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
 
 public class Irate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Irate", Irate::new);
@@ -108,18 +110,26 @@ public class Irate extends TimeSeriesAggregateFunction implements OptionalArgume
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> DataType.isCounter(dt), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
+        return isType(
+            field(),
+            dt -> AtomType.isCounter(dt.atom()),
+            sourceText(),
+            FIRST,
+            "counter_long",
+            "counter_integer",
+            "counter_double"
+        );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-        return switch (type) {
+        return switch (type.atom()) {
             case COUNTER_LONG -> new IrateLongAggregatorFunctionSupplier(false);
             case COUNTER_INTEGER -> new IrateIntAggregatorFunctionSupplier(false);
             case COUNTER_DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(false);

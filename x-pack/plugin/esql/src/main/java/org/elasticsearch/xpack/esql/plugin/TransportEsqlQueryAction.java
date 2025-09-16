@@ -372,7 +372,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             } else {
                 originalTypes = null;
             }
-            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+            return new ColumnInfoImpl(c.name(), c.dataType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = configuration.profile()
             ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())

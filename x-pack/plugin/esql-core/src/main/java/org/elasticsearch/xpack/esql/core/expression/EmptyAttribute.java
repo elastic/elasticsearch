@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+
 /**
  * Marker for optional attributes. Acting as a dummy placeholder to avoid using null
  * in the tree (which is not allowed).
@@ -69,7 +71,7 @@ public class EmptyAttribute extends Attribute {
 
     @Override
     public DataType dataType() {
-        return DataType.NULL;
+        return DataType.atom(NULL);
     }
 
     @Override

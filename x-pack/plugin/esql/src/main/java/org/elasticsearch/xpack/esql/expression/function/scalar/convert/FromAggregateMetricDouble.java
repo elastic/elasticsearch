@@ -38,10 +38,10 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 
 public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -69,7 +69,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
     }
 
     public static FromAggregateMetricDouble withMetric(Source source, Expression field, AggregateMetricDoubleBlockBuilder.Metric metric) {
-        return new FromAggregateMetricDouble(source, field, new Literal(source, metric.getIndex(), INTEGER));
+        return new FromAggregateMetricDouble(source, field, new Literal(source, metric.getIndex(), INTEGER.type()));
     }
 
     private FromAggregateMetricDouble(StreamInput in) throws IOException {
@@ -95,13 +95,13 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
         }
         var folded = subfieldIndex.fold(FoldContext.small());
         if (folded == null) {
-            return NULL;
+            return NULL.type();
         }
         var subfield = ((Number) folded).intValue();
         if (subfield == AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()) {
-            return INTEGER;
+            return INTEGER.type();
         }
-        return DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -119,7 +119,7 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isType(field, dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE, sourceText(), DEFAULT, "aggregate_metric_double only");
+        return isType(field, dt -> dt.atom() == AGGREGATE_METRIC_DOUBLE, sourceText(), DEFAULT, "aggregate_metric_double only");
     }
 
     @Override
@@ -190,6 +190,6 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction implements Con
 
     @Override
     public Set<DataType> supportedTypes() {
-        return Set.of(AGGREGATE_METRIC_DOUBLE);
+        return Set.of(AGGREGATE_METRIC_DOUBLE.type());
     }
 }

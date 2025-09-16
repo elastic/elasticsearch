@@ -25,6 +25,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+
 public class Signum extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Signum", Signum::new);
 
@@ -59,16 +64,16 @@ public class Signum extends UnaryScalarFunction {
         var field = toEvaluator.apply(field());
         var fieldType = field().dataType();
 
-        if (fieldType == DataType.DOUBLE) {
+        if (fieldType.atom() == DOUBLE) {
             return new SignumDoubleEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataType.INTEGER) {
+        if (fieldType.atom() == INTEGER) {
             return new SignumIntEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataType.LONG) {
+        if (fieldType.atom() == LONG) {
             return new SignumLongEvaluator.Factory(source(), field);
         }
-        if (fieldType == DataType.UNSIGNED_LONG) {
+        if (fieldType.atom() == UNSIGNED_LONG) {
             return new SignumUnsignedLongEvaluator.Factory(source(), field);
         }
 
@@ -87,7 +92,7 @@ public class Signum extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Evaluator(extraName = "Double")

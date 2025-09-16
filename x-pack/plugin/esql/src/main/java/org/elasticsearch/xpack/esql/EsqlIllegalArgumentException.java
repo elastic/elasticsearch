@@ -36,7 +36,7 @@ public class EsqlIllegalArgumentException extends QlIllegalArgumentException {
     }
 
     public static EsqlIllegalArgumentException illegalDataType(DataType dataType) {
-        return EsqlIllegalArgumentException.illegalDataType(dataType.typeName());
+        return EsqlIllegalArgumentException.illegalDataType(dataType.toString());
     }
 
     public static EsqlIllegalArgumentException illegalDataType(String dataTypeName) {

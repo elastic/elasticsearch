@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression.TypeResolution;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -18,11 +19,11 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isSpatialOrGrid;
 
 public final class TypeResolutions {
 
@@ -49,40 +50,40 @@ public final class TypeResolutions {
     private TypeResolutions() {}
 
     public static TypeResolution isBoolean(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt == BOOLEAN, operationName, paramOrd, "boolean");
+        return isType(e, dt -> dt.atom() == BOOLEAN, operationName, paramOrd, "boolean");
     }
 
     public static TypeResolution isWholeNumber(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isWholeNumber, operationName, paramOrd, "integer");
+        return isType(e, dt -> dt.atom().isWholeNumber(), operationName, paramOrd, "integer");
     }
 
     public static TypeResolution isNumeric(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isNumeric, operationName, paramOrd, "numeric");
+        return isType(e, dt -> dt.atom().isNumeric(), operationName, paramOrd, "numeric");
     }
 
     public static TypeResolution isString(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isString, operationName, paramOrd, "string");
+        return isType(e, dt -> AtomType.isString(dt.atom()), operationName, paramOrd, "string");
     }
 
     public static TypeResolution isIP(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt == IP, operationName, paramOrd, "ip");
+        return isType(e, dt -> dt.atom() == IP, operationName, paramOrd, "ip");
     }
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, dt -> dt == DATETIME, operationName, paramOrd, "datetime");
+        return isType(e, dt -> dt.atom() == DATETIME, operationName, paramOrd, "datetime");
     }
 
     /**
-     * @see DataType#isRepresentable(DataType)
+     * @see AtomType#isRepresentable(AtomType)
      */
     public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
+        return isType(e, dt -> AtomType.isRepresentable(dt.atom()), operationName, paramOrd, "any type except counter types");
     }
 
     public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(
             e,
-            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t),
+            (dt) -> isSpatialOrGrid(dt.atom()) == false && AtomType.isRepresentable(dt.atom()),
             operationName,
             paramOrd,
             "any type except counter and spatial types"
@@ -93,7 +94,7 @@ public final class TypeResolutions {
         if (e instanceof FieldAttribute fa) {
             EsField.Exact exact = fa.getExactInfo();
             if (exact.hasExact() == false) {
-                return new TypeResolution(format(null, message, e.dataType().typeName(), exact.errorMsg()));
+                return new TypeResolution(format(null, message, e.dataType().atom().typeName(), exact.errorMsg()));
             }
         }
         return TypeResolution.TYPE_RESOLVED;
@@ -109,7 +110,7 @@ public final class TypeResolutions {
                         "[{}] cannot operate on {}field of data type [{}]: {}",
                         operationName,
                         paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " argument ",
-                        e.dataType().typeName(),
+                        e.dataType().atom().typeName(),
                         exact.errorMsg()
                     )
                 );
@@ -152,7 +153,7 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (e.dataType() == DataType.NULL) {
+        if (e.dataType().atom() == AtomType.NULL) {
             return new TypeResolution(
                 format(
                     null,
@@ -195,7 +196,7 @@ public final class TypeResolutions {
         boolean allowUnionTypes,
         String... acceptedTypes
     ) {
-        if (predicate.test(e.dataType()) || e.dataType() == NULL) {
+        if (predicate.test(e.dataType()) || e.dataType().atom() == NULL) {
             return TypeResolution.TYPE_RESOLVED;
         }
 
@@ -226,7 +227,7 @@ public final class TypeResolutions {
             operationName,
             acceptedTypesForErrorMsg(acceptedTypes),
             argumentName,
-            foundType.typeName()
+            foundType.atom().typeName()
         );
     }
 

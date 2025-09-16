@@ -52,7 +52,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 
 @Fork(1)
 @Warmup(iterations = 5)
@@ -95,7 +95,7 @@ public class QueryPlanningBenchmark {
         var mapping = LinkedHashMap.<String, EsField>newLinkedHashMap(fields);
         for (int i = 0; i < fields; i++) {
             // We're creating a standard index, so none of these fields should be marked as dimensions.
-            mapping.put("field" + i, new EsField("field-" + i, TEXT, emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
+            mapping.put("field" + i, new EsField("field-" + i, TEXT.type(), emptyMap(), true, EsField.TimeSeriesFieldType.NONE));
         }
 
         var esIndex = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));

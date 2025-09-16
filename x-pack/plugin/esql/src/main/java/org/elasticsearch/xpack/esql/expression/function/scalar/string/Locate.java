@@ -34,6 +34,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
 
 /**
  * Locate function, given a string 'a' and a substring 'b', it returns the index of the first occurrence of the substring 'b' in 'a'.
@@ -89,7 +90,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataType.INTEGER;
+        return INTEGER.type();
     }
 
     @Override
@@ -107,7 +108,7 @@ public class Locate extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        return start == null ? TypeResolution.TYPE_RESOLVED : isType(start, dt -> dt == DataType.INTEGER, sourceText(), THIRD, "integer");
+        return start == null ? TypeResolution.TYPE_RESOLVED : isType(start, dt -> dt.atom() == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override

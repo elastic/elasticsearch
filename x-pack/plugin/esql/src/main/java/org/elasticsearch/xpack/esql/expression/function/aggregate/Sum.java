@@ -35,10 +35,11 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 /**
  * Sum all values of a field in matching documents.
@@ -110,7 +111,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     @Override
     public DataType dataType() {
         DataType dt = field().dataType();
-        return dt.isWholeNumber() == false || dt == UNSIGNED_LONG ? DOUBLE : LONG;
+        return (dt.atom().isWholeNumber() == false || dt.atom() == UNSIGNED_LONG ? DOUBLE : LONG).type();
     }
 
     @Override
@@ -141,7 +142,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         if (supportsDates()) {
             return TypeResolutions.isType(
                 this,
-                e -> e == DataType.DATETIME || e == DataType.AGGREGATE_METRIC_DOUBLE || e.isNumeric() && e != DataType.UNSIGNED_LONG,
+                e -> e.atom() == DATETIME || e.atom() == AGGREGATE_METRIC_DOUBLE || e.atom().isNumeric() && e.atom() != UNSIGNED_LONG,
                 sourceText(),
                 DEFAULT,
                 "datetime",
@@ -150,7 +151,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         }
         return isType(
             field(),
-            dt -> dt == DataType.AGGREGATE_METRIC_DOUBLE || dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom() == AGGREGATE_METRIC_DOUBLE || dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "aggregate_metric_double or numeric except unsigned_long or counter types"
@@ -161,7 +162,7 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     public Expression surrogate() {
         var s = source();
         var field = field();
-        if (field.dataType() == AGGREGATE_METRIC_DOUBLE) {
+        if (field.dataType().atom() == AGGREGATE_METRIC_DOUBLE) {
             return new Sum(
                 s,
                 FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM),

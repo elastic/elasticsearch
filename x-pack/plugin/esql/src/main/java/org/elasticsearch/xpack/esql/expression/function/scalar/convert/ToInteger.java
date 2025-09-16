@@ -24,15 +24,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToInt;
@@ -45,15 +45,15 @@ public class ToInteger extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(INTEGER, (source, fieldEval) -> fieldEval),
-        Map.entry(BOOLEAN, ToIntegerFromBooleanEvaluator.Factory::new),
-        Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
-        Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToIntegerFromStringEvaluator.Factory::new),
-        Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
-        Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
-        Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
-        Map.entry(COUNTER_INTEGER, (source, fieldEval) -> fieldEval)
+        Map.entry(INTEGER.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(BOOLEAN.type(), ToIntegerFromBooleanEvaluator.Factory::new),
+        Map.entry(DATETIME.type(), ToIntegerFromLongEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), ToIntegerFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToIntegerFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), ToIntegerFromDoubleEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), ToIntegerFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(LONG.type(), ToIntegerFromLongEvaluator.Factory::new),
+        Map.entry(COUNTER_INTEGER.type(), (source, fieldEval) -> fieldEval)
     );
 
     @FunctionInfo(
@@ -101,7 +101,7 @@ public class ToInteger extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return INTEGER;
+        return INTEGER.type();
     }
 
     @Override

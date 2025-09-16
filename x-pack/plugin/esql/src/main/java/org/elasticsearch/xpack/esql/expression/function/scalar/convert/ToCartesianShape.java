@@ -23,10 +23,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 
 public class ToCartesianShape extends AbstractConvertFunction {
@@ -37,10 +37,10 @@ public class ToCartesianShape extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(CARTESIAN_POINT, (source, fieldEval) -> fieldEval),
-        Map.entry(CARTESIAN_SHAPE, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToCartesianShapeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToCartesianShapeFromStringEvaluator.Factory::new)
+        Map.entry(CARTESIAN_POINT.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(CARTESIAN_SHAPE.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(KEYWORD.type(), ToCartesianShapeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToCartesianShapeFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -78,7 +78,7 @@ public class ToCartesianShape extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return CARTESIAN_SHAPE;
+        return CARTESIAN_SHAPE.type();
     }
 
     @Override

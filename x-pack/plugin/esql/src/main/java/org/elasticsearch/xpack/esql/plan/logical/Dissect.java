@@ -18,13 +18,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class Dissect extends RegexExtract implements TelemetryAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Dissect", Dissect::new);
@@ -48,7 +49,7 @@ public class Dissect extends RegexExtract implements TelemetryAware {
             List<Attribute> keys = new ArrayList<>();
             for (var x : parser.outputKeys()) {
                 if (x.isEmpty() == false) {
-                    keys.add(new ReferenceAttribute(src, null, x, DataType.KEYWORD));
+                    keys.add(new ReferenceAttribute(src, null, x, KEYWORD.type()));
                 }
             }
 

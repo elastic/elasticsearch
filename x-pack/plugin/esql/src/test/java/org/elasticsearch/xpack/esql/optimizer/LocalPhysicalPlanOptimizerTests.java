@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
@@ -138,8 +139,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
@@ -154,20 +161,13 @@ import static org.hamcrest.Matchers.nullValue;
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
-    public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
-        DataType.BOOLEAN,
-        DataType.INTEGER,
-        DataType.LONG,
-        DataType.DOUBLE,
-        DataType.KEYWORD,
-        DataType.TEXT
-    );
+    public static final List<AtomType> UNNECESSARY_CASTING_DATA_TYPES = List.of(BOOLEAN, INTEGER, LONG, DOUBLE, KEYWORD, TEXT);
     private static final String PARAM_FORMATTING = "%1$s";
 
     /**
      * Estimated size of a keyword field in bytes.
      */
-    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(DataType.KEYWORD);
+    private static final int KEYWORD_EST = EstimatesRowSize.estimateSize(KEYWORD.type());
     public static final String MATCH_OPERATOR_QUERY = "from test | where %s:%s";
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
@@ -222,8 +222,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 List.of("a", "b"),
                 Map.of("", "idx"),
                 Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
+                    Map.entry("a", new EsField("a", INTEGER.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
+                    Map.entry("b", new EsField("b", LONG.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE))
                 )
             )
         );
@@ -1137,7 +1137,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      */
     public void testSingleMatchOperatorFilterPushdownWithoutCasting() {
         checkMatchFunctionPushDown(
-            (value, dataType) -> DataType.isString(dataType) ? "\"" + value + "\"" : value.toString(),
+            (value, dataType) -> AtomType.isString(dataType.atom()) ? "\"" + value + "\"" : value.toString(),
             value -> value,
             UNNECESSARY_CASTING_DATA_TYPES,
             MATCH_OPERATOR_QUERY
@@ -1167,7 +1167,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      */
     public void testSingleMatchFunctionFilterPushdownWithoutCasting() {
         checkMatchFunctionPushDown(
-            (value, dataType) -> DataType.isString(dataType) ? "\"" + value + "\"" : value.toString(),
+            (value, dataType) -> AtomType.isString(dataType.atom()) ? "\"" + value + "\"" : value.toString(),
             value -> value,
             UNNECESSARY_CASTING_DATA_TYPES,
             MATCH_FUNCTION_QUERY
@@ -1217,20 +1217,20 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private void checkMatchFunctionPushDown(
         BiFunction<Object, DataType, String> queryValueProvider,
         Function<Object, Object> expectedValueProvider,
-        Collection<DataType> fieldDataTypes,
+        Collection<AtomType> fieldDataTypes,
         String queryFormat
     ) {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
-        for (DataType fieldDataType : fieldDataTypes) {
-            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldDataType)) {
+        for (AtomType fieldDataType : fieldDataTypes) {
+            if (AtomType.UNDER_CONSTRUCTION.containsKey(fieldDataType)) {
                 continue;
             }
 
             var queryValue = randomQueryValue(fieldDataType);
 
-            String fieldName = fieldDataType == DataType.DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);
-            var esqlQuery = String.format(Locale.ROOT, queryFormat, fieldName, queryValueProvider.apply(queryValue, fieldDataType));
+            String fieldName = fieldDataType == DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);
+            var esqlQuery = String.format(Locale.ROOT, queryFormat, fieldName, queryValueProvider.apply(queryValue, fieldDataType.type()));
 
             try {
                 var plan = plannerOptimizer.plan(esqlQuery, IS_SV_STATS, analyzer);
@@ -1248,7 +1248,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
     }
 
-    private static Object randomQueryValue(DataType dataType) {
+    private static Object randomQueryValue(AtomType dataType) {
         return switch (dataType) {
             case BOOLEAN -> randomBoolean();
             case INTEGER -> randomInt();
@@ -1269,7 +1269,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         if (value instanceof String) {
             value = "\"" + value + "\"";
         }
-        return switch (dataType) {
+        return switch (dataType.atom()) {
             case VERSION -> value + "::VERSION";
             case IP -> value + "::IP";
             case DATETIME -> value + "::DATETIME";
@@ -2459,7 +2459,13 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // emulate a rule that adds a missing attribute
         FieldAttribute missingAttr = getFieldAttribute("missing attr");
         List<Order> orders = List.of(new Order(plan.source(), missingAttr, Order.OrderDirection.ASC, Order.NullsPosition.FIRST));
-        TopNExec topNExec = new TopNExec(plan.source(), plan, orders, new Literal(Source.EMPTY, limit, INTEGER), randomEstimatedRowSize());
+        TopNExec topNExec = new TopNExec(
+            plan.source(),
+            plan,
+            orders,
+            new Literal(Source.EMPTY, limit, INTEGER.type()),
+            randomEstimatedRowSize()
+        );
 
         // We want to verify that the localOptimize detects the missing attribute.
         // However, it also throws an error in one of the rules before we get to the verifier.
@@ -2509,7 +2515,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                     // We only want to apply it once, so we use a static counter
                     if (appliedCount.get() == 0) {
                         appliedCount.set(appliedCount.get() + 1);
-                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER);
+                        Literal additionalLiteral = new Literal(Source.EMPTY, "additional literal", INTEGER.type());
                         return new EvalExec(
                             plan.source(),
                             plan,
@@ -2555,14 +2561,14 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                         LimitExec newLimit = new LimitExec(
                             plan.source(),
                             limit.child(),
-                            new Literal(Source.EMPTY, 1000, INTEGER),
+                            new Literal(Source.EMPTY, 1000, INTEGER.type()),
                             randomEstimatedRowSize()
                         ) {
                             @Override
                             public List<Attribute> output() {
                                 List<Attribute> oldOutput = super.output();
                                 List<Attribute> newOutput = new ArrayList<>(oldOutput);
-                                newOutput.set(0, oldOutput.get(0).withDataType(DataType.DATETIME));
+                                newOutput.set(0, oldOutput.get(0).withDataType(DATETIME.type()));
                                 return newOutput;
                             }
                         };

@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -21,6 +20,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineOr;
@@ -60,7 +60,7 @@ public final class BooleanSimplification extends OptimizerRules.OptimizerExpress
             }
 
             if (FALSE.equals(l) || FALSE.equals(r)) {
-                return new Literal(bc.source(), Boolean.FALSE, DataType.BOOLEAN);
+                return new Literal(bc.source(), Boolean.FALSE, BOOLEAN.type());
             }
             if (l.semanticEquals(r)) {
                 return l;
@@ -90,7 +90,7 @@ public final class BooleanSimplification extends OptimizerRules.OptimizerExpress
 
         if (bc instanceof Or) {
             if (TRUE.equals(l) || TRUE.equals(r)) {
-                return new Literal(bc.source(), Boolean.TRUE, DataType.BOOLEAN);
+                return new Literal(bc.source(), Boolean.TRUE, BOOLEAN.type());
             }
 
             if (FALSE.equals(l)) {
@@ -136,10 +136,10 @@ public final class BooleanSimplification extends OptimizerRules.OptimizerExpress
         Expression c = n.field();
 
         if (TRUE.semanticEquals(c)) {
-            return new Literal(n.source(), Boolean.FALSE, DataType.BOOLEAN);
+            return new Literal(n.source(), Boolean.FALSE, BOOLEAN.type());
         }
         if (FALSE.semanticEquals(c)) {
-            return new Literal(n.source(), Boolean.TRUE, DataType.BOOLEAN);
+            return new Literal(n.source(), Boolean.TRUE, BOOLEAN.type());
         }
 
         Expression negated = maybeSimplifyNegatable(c);

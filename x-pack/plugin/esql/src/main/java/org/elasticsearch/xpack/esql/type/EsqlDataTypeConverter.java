@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
@@ -86,34 +87,34 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isDateTime;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isDateTimeOrNanosOrTemporal;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isNullOrDatePeriod;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isNullOrTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isNullOrTimeDuration;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeDoubleToLong;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToLong;
@@ -133,10 +134,10 @@ public class EsqlDataTypeConverter {
 
     public static final DateFormatter HOUR_MINUTE_SECOND = DateFormatter.forPattern("strict_hour_minute_second_fraction");
 
-    private static final Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION;
+    private static final Map<AtomType, BiFunction<Source, Expression, AbstractConvertFunction>> TYPE_TO_CONVERTER_FUNCTION;
 
     static {
-        Map<DataType, BiFunction<Source, Expression, AbstractConvertFunction>> typeToConverter = new HashMap<>();
+        Map<AtomType, BiFunction<Source, Expression, AbstractConvertFunction>> typeToConverter = new HashMap<>();
         typeToConverter.put(AGGREGATE_METRIC_DOUBLE, ToAggregateMetricDouble::new);
         typeToConverter.put(BOOLEAN, ToBoolean::new);
         typeToConverter.put(CARTESIAN_POINT, ToCartesianPoint::new);
@@ -240,53 +241,53 @@ public class EsqlDataTypeConverter {
 
     public static Converter converterFor(DataType from, DataType to) {
         // TODO move EXPRESSION_TO_LONG here if there is no regression
-        if (isString(from)) {
-            if (to == DataType.DATETIME) {
+        if (isString(from.atom())) {
+            if (to.atom() == DATETIME) {
                 return EsqlConverter.STRING_TO_DATETIME;
             }
-            if (to == DATE_NANOS) {
+            if (to.atom() == DATE_NANOS) {
                 return EsqlConverter.STRING_TO_DATE_NANOS;
             }
-            if (to == DataType.IP) {
+            if (to.atom() == IP) {
                 return EsqlConverter.STRING_TO_IP;
             }
-            if (to == DataType.VERSION) {
+            if (to.atom() == VERSION) {
                 return EsqlConverter.STRING_TO_VERSION;
             }
-            if (to == DataType.DOUBLE) {
+            if (to.atom() == DOUBLE) {
                 return EsqlConverter.STRING_TO_DOUBLE;
             }
-            if (to == DataType.LONG) {
+            if (to.atom() == LONG) {
                 return EsqlConverter.STRING_TO_LONG;
             }
-            if (to == DataType.INTEGER) {
+            if (to.atom() == INTEGER) {
                 return EsqlConverter.STRING_TO_INT;
             }
-            if (to == DataType.BOOLEAN) {
+            if (to.atom() == BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
             }
-            if (DataType.isSpatialGeo(to)) {
+            if (AtomType.isSpatialGeo(to.atom())) {
                 return EsqlConverter.STRING_TO_GEO;
             }
-            if (DataType.isSpatial(to)) {
+            if (AtomType.isSpatial(to.atom())) {
                 return EsqlConverter.STRING_TO_SPATIAL;
             }
-            if (to == DataType.GEOHASH) {
+            if (to.atom() == GEOHASH) {
                 return EsqlConverter.STRING_TO_GEOHASH;
             }
-            if (to == DataType.GEOTILE) {
+            if (to.atom() == GEOTILE) {
                 return EsqlConverter.STRING_TO_GEOTILE;
             }
-            if (to == DataType.GEOHEX) {
+            if (to.atom() == GEOHEX) {
                 return EsqlConverter.STRING_TO_GEOHEX;
             }
-            if (to == DataType.TIME_DURATION) {
+            if (to.atom() == TIME_DURATION) {
                 return EsqlConverter.STRING_TO_TIME_DURATION;
             }
-            if (to == DataType.DATE_PERIOD) {
+            if (to.atom() == DATE_PERIOD) {
                 return EsqlConverter.STRING_TO_DATE_PERIOD;
             }
-            if (to == DENSE_VECTOR) {
+            if (to.atom() == DENSE_VECTOR) {
                 return EsqlConverter.STRING_TO_DENSE_VECTOR;
             }
         }
@@ -309,7 +310,7 @@ public class EsqlDataTypeConverter {
                             null,
                             INVALID_INTERVAL_ERROR,
                             sourceText,
-                            expectedType == DATE_PERIOD ? DATE_PERIODS : TIME_DURATIONS,
+                            expectedType.atom() == DATE_PERIOD ? DATE_PERIODS : TIME_DURATIONS,
                             b.utf8ToString()
                         )
                     );
@@ -341,15 +342,15 @@ public class EsqlDataTypeConverter {
         if ((value.isEmpty() || temporalUnit.isEmpty()) == false) {
             try {
                 TemporalAmount result = parseTemporalAmount(Integer.parseInt(value.toString()), temporalUnit.toString(), Source.EMPTY);
-                if (DataType.DATE_PERIOD == expectedType && result instanceof Period
-                    || DataType.TIME_DURATION == expectedType && result instanceof Duration) {
+                if (DATE_PERIOD == expectedType.atom() && result instanceof Period
+                    || TIME_DURATION == expectedType.atom() && result instanceof Duration) {
                     return result;
                 }
-                if (result instanceof Period && expectedType == DataType.TIME_DURATION) {
-                    errorMessage += ", did you mean " + DataType.DATE_PERIOD + "?";
+                if (result instanceof Period && expectedType.atom() == TIME_DURATION) {
+                    errorMessage += ", did you mean " + DATE_PERIOD + "?";
                 }
-                if (result instanceof Duration && expectedType == DataType.DATE_PERIOD) {
-                    errorMessage += ", did you mean " + DataType.TIME_DURATION + "?";
+                if (result instanceof Duration && expectedType.atom() == DATE_PERIOD) {
+                    errorMessage += ", did you mean " + TIME_DURATION + "?";
                 }
             } catch (NumberFormatException ex) {
                 // wrong pattern
@@ -406,19 +407,15 @@ public class EsqlDataTypeConverter {
      * Throws QlIllegalArgumentException if such conversion is not possible
      */
     public static Object convert(Object value, DataType dataType) {
-        DataType detectedType = DataType.fromJava(value);
-        if (detectedType == dataType || value == null) {
+        // NOCOMMIT This seems ok for now, because java can only become and atom
+        AtomType detectedType = AtomType.fromJava(value);
+        if (detectedType == dataType.atom() || value == null) {
             return value;
         }
-        Converter converter = converterFor(detectedType, dataType);
+        Converter converter = converterFor(DataType.atom(detectedType), dataType);
 
         if (converter == null) {
-            throw new QlIllegalArgumentException(
-                "cannot convert from [{}], type [{}] to [{}]",
-                value,
-                detectedType.typeName(),
-                dataType.typeName()
-            );
+            throw new QlIllegalArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType.typeName(), dataType);
         }
 
         return converter.convert(value);
@@ -434,39 +431,41 @@ public class EsqlDataTypeConverter {
         if (left == right) {
             return left;
         }
-        if (left == NULL) {
+        if (left.atom() == NULL) {
             return right;
         }
-        if (right == NULL) {
+        if (right.atom() == NULL) {
             return left;
         }
-        if (isDateTimeOrNanosOrTemporal(left) || isDateTimeOrNanosOrTemporal(right)) {
-            if ((isDateTime(left) && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && isDateTime(right))) {
-                return DATETIME;
+        if (isDateTimeOrNanosOrTemporal(left.atom()) || isDateTimeOrNanosOrTemporal(right.atom())) {
+            if ((isDateTime(left.atom()) && isNullOrTemporalAmount(right.atom()))
+                || (isNullOrTemporalAmount(left.atom()) && isDateTime(right.atom()))) {
+                return DataType.atom(DATETIME);
             }
-            if ((left == DATE_NANOS && isNullOrTemporalAmount(right)) || (isNullOrTemporalAmount(left) && right == DATE_NANOS)) {
-                return DATE_NANOS;
+            if ((left.atom() == DATE_NANOS && isNullOrTemporalAmount(right.atom()))
+                || (isNullOrTemporalAmount(left.atom()) && right.atom() == DATE_NANOS)) {
+                return DataType.atom(DATE_NANOS);
             }
-            if (isNullOrTimeDuration(left) && isNullOrTimeDuration(right)) {
-                return TIME_DURATION;
+            if (isNullOrTimeDuration(left.atom()) && isNullOrTimeDuration(right.atom())) {
+                return DataType.atom(TIME_DURATION);
             }
-            if (isNullOrDatePeriod(left) && isNullOrDatePeriod(right)) {
-                return DATE_PERIOD;
+            if (isNullOrDatePeriod(left.atom()) && isNullOrDatePeriod(right.atom())) {
+                return DataType.atom(DATE_PERIOD);
             }
         }
-        if (isString(left) && isString(right)) {
+        if (isString(left.atom()) && isString(right.atom())) {
             // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
-            return KEYWORD;
+            return DataType.atom(KEYWORD);
         }
-        if (left.isNumeric() && right.isNumeric()) {
+        if (left.atom().isNumeric() && right.atom().isNumeric()) {
             int lsize = left.estimatedSize().orElseThrow();
             int rsize = right.estimatedSize().orElseThrow();
             // if one is int
-            if (left.isWholeNumber()) {
+            if (left.atom().isWholeNumber()) {
                 // promote the highest int
-                if (right.isWholeNumber()) {
-                    if (left == UNSIGNED_LONG || right == UNSIGNED_LONG) {
-                        return UNSIGNED_LONG;
+                if (right.atom().isWholeNumber()) {
+                    if (left.atom() == UNSIGNED_LONG || right.atom() == UNSIGNED_LONG) {
+                        return DataType.atom(UNSIGNED_LONG);
                     }
                     return lsize > rsize ? left : right;
                 }
@@ -474,7 +473,7 @@ public class EsqlDataTypeConverter {
                 return right;
             }
             // try the other side
-            if (right.isWholeNumber()) {
+            if (right.atom().isWholeNumber()) {
                 return left;
             }
             // promote the highest rational
@@ -587,7 +586,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static String geoGridToString(long field, DataType dataType) {
-        return switch (dataType) {
+        return switch (dataType.atom()) {
             case GEOHASH -> Geohash.stringEncode(field);
             case GEOTILE -> GeoTileUtils.stringEncode(field);
             case GEOHEX -> H3.h3ToString(field);
@@ -596,7 +595,7 @@ public class EsqlDataTypeConverter {
     }
 
     public static BytesRef geoGridToShape(long field, DataType dataType) {
-        return switch (dataType) {
+        return switch (dataType.atom()) {
             case GEOHASH -> StGeohash.toBounds(field);
             case GEOTILE -> StGeotile.toBounds(field);
             case GEOHEX -> StGeohex.toBounds(field);
@@ -630,10 +629,10 @@ public class EsqlDataTypeConverter {
     }
 
     public static String dateWithTypeToString(long dateTime, DataType type) {
-        if (type == DATETIME) {
+        if (type.atom() == DATETIME) {
             return dateTimeToString(dateTime);
         }
-        if (type == DATE_NANOS) {
+        if (type.atom() == DATE_NANOS) {
             return nanoTimeToString(dateTime);
         }
         throw new IllegalArgumentException("Unsupported data type [" + type + "]");
@@ -841,9 +840,8 @@ public class EsqlDataTypeConverter {
     }
 
     public enum EsqlConverter implements Converter {
-
-        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.DATE_PERIOD)),
-        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.TIME_DURATION)),
+        STRING_TO_DATE_PERIOD(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.atom(DATE_PERIOD))),
+        STRING_TO_TIME_DURATION(x -> EsqlDataTypeConverter.parseTemporalAmount(x, DataType.atom(TIME_DURATION))),
         STRING_TO_CHRONO_FIELD(EsqlDataTypeConverter::stringToChrono),
         STRING_TO_DATETIME(x -> EsqlDataTypeConverter.dateTimeToLong(BytesRefs.toString(x))),
         STRING_TO_DATE_NANOS(x -> EsqlDataTypeConverter.dateNanosToLong(BytesRefs.toString(x))),

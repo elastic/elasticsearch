@@ -34,7 +34,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class Substring extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -102,7 +103,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -116,7 +117,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        resolution = TypeResolutions.isType(start, dt -> dt == INTEGER, sourceText(), SECOND, "integer");
+        resolution = TypeResolutions.isType(start, dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer");
 
         if (resolution.unresolved()) {
             return resolution;
@@ -124,7 +125,7 @@ public class Substring extends EsqlScalarFunction implements OptionalArgument {
 
         return length == null
             ? TypeResolution.TYPE_RESOLVED
-            : TypeResolutions.isType(length, dt -> dt == INTEGER, sourceText(), THIRD, "integer");
+            : TypeResolutions.isType(length, dt -> dt.atom() == INTEGER, sourceText(), THIRD, "integer");
     }
 
     @Override

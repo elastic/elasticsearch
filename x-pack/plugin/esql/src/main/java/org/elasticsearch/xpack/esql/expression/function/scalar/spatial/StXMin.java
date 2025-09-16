@@ -30,8 +30,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
@@ -80,7 +81,7 @@ public class StXMin extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
+        if (field().dataType().atom() == GEO_POINT || field().dataType().atom() == GEO_SHAPE) {
             return new StXMinFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
         return new StXMinFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
@@ -88,7 +89,7 @@ public class StXMin extends UnaryScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

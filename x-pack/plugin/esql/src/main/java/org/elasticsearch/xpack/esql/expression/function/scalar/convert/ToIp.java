@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
@@ -32,8 +33,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTypeOrUnionType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction.supportedTypesNames;
 
 /**
@@ -64,7 +65,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.Ab
  */
 public class ToIp extends EsqlScalarFunction implements SurrogateExpression, OptionalArgument, ConvertFunction {
     private static final String LEADING_ZEROS = "leading_zeros";
-    public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(Map.entry(LEADING_ZEROS, KEYWORD));
+    public static final Map<String, AtomType> ALLOWED_OPTIONS = Map.ofEntries(Map.entry(LEADING_ZEROS, KEYWORD));
 
     private final Expression field;
     private final Expression options;
@@ -127,7 +128,7 @@ public class ToIp extends EsqlScalarFunction implements SurrogateExpression, Opt
 
     @Override
     public DataType dataType() {
-        return IP;
+        return DataType.atom(IP);
     }
 
     @Override

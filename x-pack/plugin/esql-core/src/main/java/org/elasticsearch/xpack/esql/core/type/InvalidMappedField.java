@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -55,7 +56,7 @@ public class InvalidMappedField extends EsField {
         Map<String, Set<String>> typesToIndices,
         TimeSeriesFieldType type
     ) {
-        super(name, DataType.UNSUPPORTED, properties, false, type);
+        super(name, DataType.atom(UNSUPPORTED), properties, false, type);
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
     }
@@ -71,7 +72,14 @@ public class InvalidMappedField extends EsField {
     }
 
     public Set<DataType> types() {
-        return typesToIndices.keySet().stream().map(DataType::fromTypeName).collect(Collectors.toSet());
+        return typesToIndices.keySet().stream().map(s -> {
+            AtomType atom = AtomType.fromTypeName(s);
+            if (atom == null) {
+                // NOCOMMIT this is going to be busted with flattened. Probably. Or something. It's weird to use string here.
+                return DataType.atom(UNSUPPORTED);
+            }
+            return DataType.atom(atom);
+        }).collect(Collectors.toSet());
     }
 
     @Override
@@ -126,7 +134,7 @@ public class InvalidMappedField extends EsField {
 
     private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
         StringBuilder errorMessage = new StringBuilder();
-        var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;
+        var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(AtomType.KEYWORD.typeName()) == false;
         errorMessage.append("mapped as [");
         errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
         errorMessage.append("] incompatible types: ");
@@ -144,7 +152,7 @@ public class InvalidMappedField extends EsField {
             errorMessage.append("[");
             errorMessage.append(e.getKey());
             errorMessage.append("] ");
-            if (e.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword) {
+            if (e.getKey().equals(AtomType.KEYWORD.typeName()) && includeInsistKeyword) {
                 errorMessage.append("enforced by INSIST command and in ");
             } else {
                 errorMessage.append("in ");

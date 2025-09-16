@@ -18,12 +18,14 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.TreeSet;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -78,7 +80,8 @@ public class ColumnInfoImpl implements ColumnInfo {
 
     @ParserConstructor
     public ColumnInfoImpl(String name, String type, @Nullable List<String> originalTypes) {
-        this(name, DataType.fromEs(type), originalTypes);
+        // NOCOMMIT do we still need this parser ctor? This is wrong for object
+        this(name, AtomType.fromEs(type).type(), originalTypes);
     }
 
     public ColumnInfoImpl(String name, DataType type, @Nullable List<String> originalTypes) {
@@ -92,14 +95,23 @@ public class ColumnInfoImpl implements ColumnInfo {
         if (originalTypes == null) {
             return null;
         }
-        return DataType.suggestedCast(
-            originalTypes.stream().map(DataType::fromTypeName).filter(Objects::nonNull).collect(Collectors.toSet())
-        );
+        Set<AtomType> orig = new TreeSet<>();
+        for (String s : originalTypes) {
+            AtomType t = AtomType.fromEs(s);
+            if (t == AtomType.OBJECT) {
+                // Object types don't get suggested casts
+                return null;
+            }
+            orig.add(t);
+        }
+        AtomType cast = AtomType.suggestedCast(orig);
+        return cast != null ? cast.type() : null;
     }
 
     public ColumnInfoImpl(StreamInput in) throws IOException {
         this.name = in.readString();
-        this.type = DataType.fromEs(in.readString());
+        // NOCOMMIT doesn't support object properly
+        this.type = AtomType.fromEs(in.readString()).type();
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
             || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
             this.originalTypes = in.readOptionalStringCollectionAsList();
@@ -113,6 +125,7 @@ public class ColumnInfoImpl implements ColumnInfo {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        // NOCOMMIT doesn't support object properly
         out.writeString(type.outputType());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_REPORT_ORIGINAL_TYPES_BACKPORT_8_19)) {
@@ -129,7 +142,7 @@ public class ColumnInfoImpl implements ColumnInfo {
             builder.field("original_types", originalTypes);
         }
         if (suggestedCast != null) {
-            builder.field("suggested_cast", suggestedCast.typeName());
+            builder.field("suggested_cast", suggestedCast.toString());
         }
         builder.endObject();
         return builder;

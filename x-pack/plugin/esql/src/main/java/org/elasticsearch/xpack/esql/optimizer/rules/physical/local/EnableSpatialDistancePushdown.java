@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.getAliasReplacedBy;
 
@@ -268,9 +270,9 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     }
 
     private DataType getShapeDataType(Expression expression) {
-        return switch (expression.dataType()) {
-            case GEO_POINT, GEO_SHAPE -> DataType.GEO_SHAPE;
-            case CARTESIAN_POINT, CARTESIAN_SHAPE -> DataType.CARTESIAN_SHAPE;
+        return switch (expression.dataType().atom()) {
+            case GEO_POINT, GEO_SHAPE -> GEO_SHAPE.type();
+            case CARTESIAN_POINT, CARTESIAN_SHAPE -> CARTESIAN_SHAPE.type();
             default -> throw new IllegalArgumentException("Unsupported spatial data type: " + expression.dataType());
         };
     }

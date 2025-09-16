@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -157,8 +158,11 @@ import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
@@ -175,12 +179,12 @@ import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
 
-    public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-    public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
-    public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
-    public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
-    public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+    public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.atom(INTEGER));
+    public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.atom(INTEGER));
+    public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.atom(INTEGER));
+    public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.atom(INTEGER));
+    public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.atom(INTEGER));
+    public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.atom(INTEGER));
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -211,7 +215,7 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute getFieldAttribute(String name) {
-        return getFieldAttribute(name, INTEGER);
+        return getFieldAttribute(name, DataType.atom(INTEGER));
     }
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
@@ -219,7 +223,8 @@ public final class EsqlTestUtils {
     }
 
     public static FieldAttribute fieldAttribute() {
-        return fieldAttribute(randomAlphaOfLength(10), randomFrom(DataType.types()));
+        // NOCOMMIT randomType
+        return fieldAttribute(randomAlphaOfLength(10), DataType.atom(randomFrom(AtomType.types())));
     }
 
     public static FieldAttribute fieldAttribute(String name, DataType type) {
@@ -237,11 +242,11 @@ public final class EsqlTestUtils {
         if (value instanceof Literal) {
             return (Literal) value;
         }
-        var dataType = DataType.fromJava(value);
+        var dataType = AtomType.fromJava(value);
         if (value instanceof String) {
             value = BytesRefs.toBytesRef(value);
         }
-        return new Literal(source, value, dataType);
+        return new Literal(source, value, DataType.atom(dataType));
     }
 
     public static ReferenceAttribute referenceAttribute(String name, DataType type) {
@@ -644,13 +649,16 @@ public final class EsqlTestUtils {
             tables.put(
                 "int_number_names",
                 table(
-                    Map.entry("int", new Column(DataType.INTEGER, intsBlock)),
-                    Map.entry("name", new Column(DataType.KEYWORD, namesBlock))
+                    Map.entry("int", new Column(DataType.atom(INTEGER), intsBlock)),
+                    Map.entry("name", new Column(DataType.atom(KEYWORD), namesBlock))
                 )
             );
             tables.put(
                 "long_number_names",
-                table(Map.entry("long", new Column(DataType.LONG, longsBlock)), Map.entry("name", new Column(DataType.KEYWORD, namesBlock)))
+                table(
+                    Map.entry("long", new Column(DataType.atom(LONG), longsBlock)),
+                    Map.entry("name", new Column(DataType.atom(KEYWORD), namesBlock))
+                )
             );
         }
         for (boolean hasNull : new boolean[] { true, false }) {
@@ -669,8 +677,8 @@ public final class EsqlTestUtils {
                 tables.put(
                     "double_number_names" + (hasNull ? "_with_null" : ""),
                     table(
-                        Map.entry("double", new Column(DataType.DOUBLE, doubles.build())),
-                        Map.entry("name", new Column(DataType.KEYWORD, names.build()))
+                        Map.entry("double", new Column(DataType.atom(DOUBLE), doubles.build())),
+                        Map.entry("name", new Column(DataType.atom(KEYWORD), names.build()))
                     )
                 );
             }
@@ -704,10 +712,10 @@ public final class EsqlTestUtils {
             tables.put(
                 "big",
                 table(
-                    Map.entry("aa", new Column(DataType.KEYWORD, aa.build())),
-                    Map.entry("ab", new Column(DataType.KEYWORD, ab.build())),
-                    Map.entry("na", new Column(DataType.INTEGER, na.build())),
-                    Map.entry("nb", new Column(DataType.INTEGER, nb.build()))
+                    Map.entry("aa", new Column(DataType.atom(KEYWORD), aa.build())),
+                    Map.entry("ab", new Column(DataType.atom(KEYWORD), ab.build())),
+                    Map.entry("na", new Column(DataType.atom(INTEGER), na.build())),
+                    Map.entry("nb", new Column(DataType.atom(INTEGER), nb.build()))
                 )
             );
         }
@@ -840,7 +848,7 @@ public final class EsqlTestUtils {
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
+        return new Literal(Source.EMPTY, switch (type.atom()) {
             case BOOLEAN -> randomBoolean();
             case BYTE -> randomByte();
             case SHORT -> randomShort();
@@ -888,8 +896,9 @@ public final class EsqlTestUtils {
                 }
             }
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
+            // NOCOMMIT random object?
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
-                "can't make random values for [" + type.typeName() + "]"
+                "can't make random values for [" + type + "]"
             );
         }, type);
     }
@@ -913,7 +922,7 @@ public final class EsqlTestUtils {
     }
 
     public static QueryParam paramAsConstant(String name, Object value) {
-        return new QueryParam(name, value, DataType.fromJava(value), VALUE);
+        return new QueryParam(name, value, AtomType.fromJava(value), VALUE);
     }
 
     public static QueryParam paramAsIdentifier(String name, Object value) {

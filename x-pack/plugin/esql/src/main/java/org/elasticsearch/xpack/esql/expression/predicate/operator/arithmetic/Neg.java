@@ -29,9 +29,13 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isTemporalAmount;
 
 public class Neg extends UnaryScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Neg", Neg::new);
@@ -65,24 +69,24 @@ public class Neg extends UnaryScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType type = dataType();
 
-        if (type.isNumeric()) {
+        if (type.atom().isNumeric()) {
             var f = toEvaluator.apply(field());
             ExpressionEvaluator.Factory factory = null;
 
-            if (type == DataType.INTEGER) {
+            if (type.atom() == INTEGER) {
                 factory = new NegIntsEvaluator.Factory(source(), f);
             }
             // Unsigned longs are unsupported by choice; negating them would require implicitly converting to long.
-            else if (type == DataType.LONG) {
+            else if (type.atom() == LONG) {
                 factory = new NegLongsEvaluator.Factory(source(), f);
-            } else if (type == DataType.DOUBLE) {
+            } else if (type.atom() == DOUBLE) {
                 factory = new NegDoublesEvaluator.Factory(source(), f);
             }
 
             if (factory != null) {
                 return factory;
             }
-        } else if (isTemporalAmount(type)) {
+        } else if (isTemporalAmount(type.atom())) {
             return toEvaluator.apply(field());
         }
         throw new EsqlIllegalArgumentException("arithmetic negation operator with unsupported data type [" + type + "]");
@@ -93,7 +97,7 @@ public class Neg extends UnaryScalarFunction {
         DataType dataType = field().dataType();
         // For date periods and time durations, we need to treat folding differently. These types are unrepresentable, so there is no
         // evaluator for them - but the default folding requires an evaluator.
-        if (dataType == DATE_PERIOD) {
+        if (dataType.atom() == DATE_PERIOD) {
             Period fieldValue = (Period) field().fold(ctx);
             try {
                 return fieldValue.negated();
@@ -103,7 +107,7 @@ public class Neg extends UnaryScalarFunction {
                 throw ExceptionUtils.math(source(), e);
             }
         }
-        if (dataType == TIME_DURATION) {
+        if (dataType.atom() == TIME_DURATION) {
             Duration fieldValue = (Duration) field().fold(ctx);
             try {
                 return fieldValue.negated();
@@ -120,7 +124,7 @@ public class Neg extends UnaryScalarFunction {
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt != DataType.UNSIGNED_LONG && (dt.isNumeric() || isTemporalAmount(dt)),
+            dt -> dt.atom() != UNSIGNED_LONG && (dt.atom().isNumeric() || isTemporalAmount(dt.atom())),
             sourceText(),
             DEFAULT,
             "numeric",

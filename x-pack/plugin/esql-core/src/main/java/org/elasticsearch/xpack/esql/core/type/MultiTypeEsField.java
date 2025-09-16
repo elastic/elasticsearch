@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -80,12 +81,12 @@ public class MultiTypeEsField extends EsField {
         Map<String, Expression> typesToConversionExpressions
     ) {
         Map<String, Set<String>> typesToIndices = invalidMappedField.getTypesToIndices();
-        DataType resolvedDataType = DataType.UNSUPPORTED;
+        DataType resolvedDataType = DataType.atom(UNSUPPORTED);
         Map<String, Expression> indexToConversionExpressions = new HashMap<>();
         for (String typeName : typesToIndices.keySet()) {
             Set<String> indices = typesToIndices.get(typeName);
             Expression convertExpr = typesToConversionExpressions.get(typeName);
-            if (resolvedDataType == DataType.UNSUPPORTED) {
+            if (resolvedDataType.atom() == UNSUPPORTED) {
                 resolvedDataType = convertExpr.dataType();
             } else if (resolvedDataType != convertExpr.dataType()) {
                 throw new IllegalArgumentException("Resolved data type mismatch: " + resolvedDataType + " != " + convertExpr.dataType());

@@ -31,6 +31,10 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class StdDev extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
@@ -68,14 +72,14 @@ public class StdDev extends AggregateFunction implements ToAggregator {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long or counter types"
@@ -99,13 +103,13 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     @Override
     public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        if (type == DataType.LONG) {
+        if (type.atom() == LONG) {
             return new StdDevLongAggregatorFunctionSupplier();
         }
-        if (type == DataType.INTEGER) {
+        if (type.atom() == INTEGER) {
             return new StdDevIntAggregatorFunctionSupplier();
         }
-        if (type == DataType.DOUBLE) {
+        if (type.atom() == DOUBLE) {
             return new StdDevDoubleAggregatorFunctionSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
@@ -32,6 +31,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 
 /**
  * This rule is responsible for marking spatial fields to be extracted from doc-values instead of source values.
@@ -177,7 +179,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
             return false;
         }
-        if (fieldAttribute.dataType() == DataType.GEO_SHAPE || fieldAttribute.dataType() == DataType.CARTESIAN_SHAPE) {
+        if (fieldAttribute.dataType().atom() == GEO_SHAPE || fieldAttribute.dataType().atom() == CARTESIAN_SHAPE) {
             return false;
         }
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);

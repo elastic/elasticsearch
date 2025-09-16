@@ -14,13 +14,14 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOC_DATA_TYPE;
 
 public class TopNExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -98,7 +99,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
     @Override
     public PhysicalPlan estimateRowSize(State state) {
         final List<Attribute> output = output();
-        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE);
+        final boolean needsSortedDocIds = output.stream().anyMatch(a -> a.dataType().atom() == DOC_DATA_TYPE);
         state.add(needsSortedDocIds, output);
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
@@ -49,6 +50,21 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -290,51 +306,51 @@ public class Verifier {
      *         otherwise a failure message suitable to return to the user.
      */
     public static Failure validateBinaryComparison(BinaryComparison bc) {
-        if (bc.left().dataType().isNumeric()) {
-            if (false == bc.right().dataType().isNumeric()) {
+        if (bc.left().dataType().atom().isNumeric()) {
+            if (false == bc.right().dataType().atom().isNumeric()) {
                 return fail(
                     bc,
                     "first argument of [{}] is [numeric] so second argument must also be [numeric] but was [{}]",
                     bc.sourceText(),
-                    bc.right().dataType().typeName()
+                    bc.right().dataType()
                 );
             }
             return null;
         }
 
         List<DataType> allowed = new ArrayList<>();
-        allowed.add(DataType.KEYWORD);
-        allowed.add(DataType.TEXT);
-        allowed.add(DataType.IP);
-        allowed.add(DataType.DATETIME);
-        allowed.add(DataType.DATE_NANOS);
-        allowed.add(DataType.VERSION);
-        allowed.add(DataType.GEO_POINT);
-        allowed.add(DataType.GEO_SHAPE);
-        allowed.add(DataType.CARTESIAN_POINT);
-        allowed.add(DataType.CARTESIAN_SHAPE);
-        allowed.add(DataType.GEOHASH);
-        allowed.add(DataType.GEOTILE);
-        allowed.add(DataType.GEOHEX);
+        allowed.add(KEYWORD.type());
+        allowed.add(TEXT.type());
+        allowed.add(IP.type());
+        allowed.add(DATETIME.type());
+        allowed.add(DATE_NANOS.type());
+        allowed.add(VERSION.type());
+        allowed.add(GEO_POINT.type());
+        allowed.add(GEO_SHAPE.type());
+        allowed.add(CARTESIAN_POINT.type());
+        allowed.add(CARTESIAN_SHAPE.type());
+        allowed.add(GEOHASH.type());
+        allowed.add(GEOTILE.type());
+        allowed.add(GEOHEX.type());
         if (bc instanceof Equals || bc instanceof NotEquals) {
-            allowed.add(DataType.BOOLEAN);
+            allowed.add(BOOLEAN.type());
         }
         Expression.TypeResolution r = TypeResolutions.isType(
             bc.left(),
             allowed::contains,
             bc.sourceText(),
             FIRST,
-            Stream.concat(Stream.of("numeric"), allowed.stream().map(DataType::typeName)).toArray(String[]::new)
+            Stream.concat(Stream.of("numeric"), allowed.stream().map(Object::toString)).toArray(String[]::new)
         );
         if (false == r.resolved()) {
             return fail(bc, r.message());
         }
-        if (DataType.isString(bc.left().dataType()) && DataType.isString(bc.right().dataType())) {
+        if (AtomType.isString(bc.left().dataType().atom()) && AtomType.isString(bc.right().dataType().atom())) {
             return null;
         }
 
         // Allow mixed millisecond and nanosecond binary comparisons
-        if (bc.left().dataType().isDate() && bc.right().dataType().isDate()) {
+        if (bc.left().dataType().atom().isDate() && bc.right().dataType().atom().isDate()) {
             return null;
         }
 
@@ -343,9 +359,9 @@ public class Verifier {
                 bc,
                 "first argument of [{}] is [{}] so second argument must also be [{}] but was [{}]",
                 bc.sourceText(),
-                bc.left().dataType().typeName(),
-                bc.left().dataType().typeName(),
-                bc.right().dataType().typeName()
+                bc.left().dataType(),
+                bc.left().dataType(),
+                bc.right().dataType()
             );
         }
         return null;
@@ -362,15 +378,15 @@ public class Verifier {
     public static Failure validateUnsignedLongOperator(BinaryOperator<?, ?, ?, ?> bo) {
         DataType leftType = bo.left().dataType();
         DataType rightType = bo.right().dataType();
-        if ((leftType == DataType.UNSIGNED_LONG || rightType == DataType.UNSIGNED_LONG) && leftType != rightType) {
+        if ((leftType.atom() == UNSIGNED_LONG || rightType.atom() == UNSIGNED_LONG) && leftType != rightType) {
             return fail(
                 bo,
                 "first argument of [{}] is [{}] and second is [{}]. [{}] can only be operated on together with another [{}]",
                 bo.sourceText(),
-                leftType.typeName(),
-                rightType.typeName(),
-                DataType.UNSIGNED_LONG.typeName(),
-                DataType.UNSIGNED_LONG.typeName()
+                leftType,
+                rightType,
+                UNSIGNED_LONG,
+                UNSIGNED_LONG
             );
         }
         return null;
@@ -381,13 +397,8 @@ public class Verifier {
      */
     private static Failure validateUnsignedLongNegation(Neg neg) {
         DataType childExpressionType = neg.field().dataType();
-        if (childExpressionType.equals(DataType.UNSIGNED_LONG)) {
-            return fail(
-                neg,
-                "negation unsupported for arguments of type [{}] in expression [{}]",
-                childExpressionType.typeName(),
-                neg.sourceText()
-            );
+        if (childExpressionType.equals(UNSIGNED_LONG.type())) {
+            return fail(neg, "negation unsupported for arguments of type [{}] in expression [{}]", childExpressionType, neg.sourceText());
         }
         return null;
     }

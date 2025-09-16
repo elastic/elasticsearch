@@ -308,7 +308,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             // $$fieldName$round_to$dateType
             fieldAttribute.fieldName().string(),
             "round_to",
-            roundTo.field().dataType().typeName()
+            roundTo.field().dataType().toString()
         );
         FieldAttribute tagField = new FieldAttribute(
             roundTo.source(),
@@ -390,7 +390,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         List<Object> points = new ArrayList<>(roundingPoints.size());
         for (Expression e : roundingPoints) {
             if (e instanceof Literal l && l.value() instanceof Number n) {
-                switch (dataType) {
+                switch (dataType.atom()) {
                     case INTEGER -> points.add(n.intValue());
                     case LONG, DATETIME, DATE_NANOS -> points.add(safeToLong(n));
                     case DOUBLE -> points.add(n.doubleValue());
@@ -418,7 +418,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
             return new GreaterThanOrEqual(source, field, lowerValue, zoneId);
         } else {
             // lower and upper should not be both null
-            return new Range(source, field, lowerValue, true, upperValue, false, dataType.isDate() ? zoneId : null);
+            return new Range(source, field, lowerValue, true, upperValue, false, dataType.atom().isDate() ? zoneId : null);
         }
     }
 

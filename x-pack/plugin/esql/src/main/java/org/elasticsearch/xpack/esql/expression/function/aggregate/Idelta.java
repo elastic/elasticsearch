@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -34,7 +35,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
 
 public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Idelta", Idelta::new);
@@ -103,14 +104,14 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return AtomType.DOUBLE.type();
     }
 
     @Override
     protected TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != AGGREGATE_METRIC_DOUBLE,
+            dt -> dt.atom().isNumeric() && dt.atom() != AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
             "numeric except counter types"
@@ -120,7 +121,7 @@ public class Idelta extends TimeSeriesAggregateFunction implements OptionalArgum
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
-        return switch (type) {
+        return switch (type.atom()) {
             case LONG -> new IrateLongAggregatorFunctionSupplier(true);
             case INTEGER -> new IrateIntAggregatorFunctionSupplier(true);
             case DOUBLE -> new IrateDoubleAggregatorFunctionSupplier(true);

@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -76,6 +75,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -157,7 +163,7 @@ public class EvalBenchmark {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataType.LONG)),
+                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, LONG.type())),
                     layout(longField)
                 ).get(driverContext);
             }
@@ -165,19 +171,19 @@ public class EvalBenchmark {
                 FieldAttribute doubleField = doubleField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE)),
+                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DOUBLE.type())),
                     layout(doubleField)
                 ).get(driverContext);
             }
             case "case_1_eager", "case_1_lazy" -> {
                 FieldAttribute f1 = longField();
                 FieldAttribute f2 = longField();
-                Expression condition = new Equals(Source.EMPTY, f1, new Literal(Source.EMPTY, 1L, DataType.LONG));
+                Expression condition = new Equals(Source.EMPTY, f1, new Literal(Source.EMPTY, 1L, LONG.type()));
                 Expression lhs = f1;
                 Expression rhs = f2;
                 if (operation.endsWith("lazy")) {
-                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
-                    rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
+                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, LONG.type()));
+                    rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, LONG.type()));
                 }
                 EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
@@ -195,7 +201,7 @@ public class EvalBenchmark {
                 FieldAttribute f2 = longField();
                 Expression lhs = f1;
                 if (operation.endsWith("lazy")) {
-                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
+                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, LONG.type()));
                 }
                 EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
@@ -212,11 +218,11 @@ public class EvalBenchmark {
                 FieldAttribute timestamp = new FieldAttribute(
                     Source.EMPTY,
                     "timestamp",
-                    new EsField("timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                    new EsField("timestamp", DATETIME.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
                 );
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION), timestamp),
+                    new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), TIME_DURATION.type()), timestamp),
                     layout(timestamp)
                 ).get(driverContext);
             }
@@ -224,7 +230,7 @@ public class EvalBenchmark {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataType.LONG)),
+                    new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, LONG.type())),
                     layout(longField)
                 ).get(driverContext);
             }
@@ -321,18 +327,14 @@ public class EvalBenchmark {
     }
 
     private static FieldAttribute longField() {
-        return new FieldAttribute(
-            Source.EMPTY,
-            "long",
-            new EsField("long", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+        return new FieldAttribute(Source.EMPTY, "long", new EsField("long", LONG.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static FieldAttribute doubleField() {
         return new FieldAttribute(
             Source.EMPTY,
             "double",
-            new EsField("double", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            new EsField("double", DOUBLE.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
     }
 
@@ -340,7 +342,7 @@ public class EvalBenchmark {
         return new FieldAttribute(
             Source.EMPTY,
             "int",
-            new EsField("int", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            new EsField("int", INTEGER.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
     }
 
@@ -348,7 +350,7 @@ public class EvalBenchmark {
         return new FieldAttribute(
             Source.EMPTY,
             "keyword",
-            new EsField("keyword", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            new EsField("keyword", KEYWORD.type(), Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
     }
 
@@ -704,7 +706,7 @@ public class EvalBenchmark {
     }
 
     private static Literal lit(long v) {
-        return new Literal(Source.EMPTY, v, DataType.LONG);
+        return new Literal(Source.EMPTY, v, LONG.type());
     }
 
     @Benchmark

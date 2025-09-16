@@ -35,6 +35,7 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 /**
  * Join strings.
@@ -79,7 +80,7 @@ public class Concat extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override

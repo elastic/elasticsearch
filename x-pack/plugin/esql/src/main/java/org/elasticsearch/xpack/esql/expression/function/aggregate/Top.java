@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator;
@@ -49,6 +50,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 
@@ -144,11 +152,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
         var typeResolution = isType(
             field(),
-            dt -> dt == DataType.BOOLEAN
-                || dt == DataType.DATETIME
-                || dt == DataType.IP
-                || DataType.isString(dt)
-                || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
+            dt -> dt.atom() == BOOLEAN
+                || dt.atom() == DATETIME
+                || dt.atom() == IP
+                || AtomType.isString(dt.atom())
+                || (dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG),
             sourceText(),
             FIRST,
             "boolean",
@@ -157,7 +165,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
             "string",
             "numeric except unsigned_long or counter types"
         ).and(isNotNull(limitField(), sourceText(), SECOND))
-            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"))
+            .and(isType(limitField(), dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer"))
             .and(isNotNull(orderField(), sourceText(), THIRD))
             .and(isString(orderField(), sourceText(), THIRD));
 
@@ -263,22 +271,22 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        if (type == DataType.LONG || type == DataType.DATETIME) {
+        if (type.atom() == LONG || type.atom() == DATETIME) {
             return new TopLongAggregatorFunctionSupplier(limitValue(), orderValue());
         }
-        if (type == DataType.INTEGER) {
+        if (type.atom() == INTEGER) {
             return new TopIntAggregatorFunctionSupplier(limitValue(), orderValue());
         }
-        if (type == DataType.DOUBLE) {
+        if (type.atom() == DOUBLE) {
             return new TopDoubleAggregatorFunctionSupplier(limitValue(), orderValue());
         }
-        if (type == DataType.BOOLEAN) {
+        if (type.atom() == BOOLEAN) {
             return new TopBooleanAggregatorFunctionSupplier(limitValue(), orderValue());
         }
-        if (type == DataType.IP) {
+        if (type.atom() == IP) {
             return new TopIpAggregatorFunctionSupplier(limitValue(), orderValue());
         }
-        if (DataType.isString(type)) {
+        if (AtomType.isString(type.atom())) {
             return new TopBytesRefAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);

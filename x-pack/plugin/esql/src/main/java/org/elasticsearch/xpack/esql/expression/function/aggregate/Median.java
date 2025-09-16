@@ -29,6 +29,9 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class Median extends AggregateFunction implements SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Median", Median::new);
@@ -74,7 +77,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
     protected Expression.TypeResolution resolveType() {
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long or counter types"
@@ -92,7 +95,7 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override
@@ -117,6 +120,6 @@ public class Median extends AggregateFunction implements SurrogateExpression {
 
         return field.foldable()
             ? new MvMedian(s, new ToDouble(s, field))
-            : new Percentile(source(), field(), filter(), new Literal(source(), (int) QuantileStates.MEDIAN, DataType.INTEGER));
+            : new Percentile(source(), field(), filter(), new Literal(source(), (int) QuantileStates.MEDIAN, INTEGER.type()));
     }
 }

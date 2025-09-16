@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -250,7 +250,7 @@ public class EnrichPolicyResolver {
                 EsField field = m.getValue();
                 field = new EsField(
                     field.getName(),
-                    DataType.fromTypeName(field.getDataType().typeName()),
+                    AtomType.fromTypeName(field.getDataType().atom().typeName()).type(),
                     field.getProperties(),
                     field.isAggregatable(),
                     field.isAlias(),

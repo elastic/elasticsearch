@@ -19,6 +19,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFunction {
 
@@ -41,7 +42,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return DataType.atom(BOOLEAN);
     }
 
     @Override

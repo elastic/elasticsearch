@@ -17,6 +17,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -27,14 +28,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
@@ -50,9 +52,9 @@ public class Literal extends LeafExpression implements Accountable {
         Literal::readFrom
     );
 
-    public static final Literal TRUE = new Literal(Source.EMPTY, Boolean.TRUE, DataType.BOOLEAN);
-    public static final Literal FALSE = new Literal(Source.EMPTY, Boolean.FALSE, DataType.BOOLEAN);
-    public static final Literal NULL = new Literal(Source.EMPTY, null, DataType.NULL);
+    public static final Literal TRUE = new Literal(Source.EMPTY, Boolean.TRUE, DataType.atom(AtomType.BOOLEAN));
+    public static final Literal FALSE = new Literal(Source.EMPTY, Boolean.FALSE, DataType.atom(AtomType.BOOLEAN));
+    public static final Literal NULL = new Literal(Source.EMPTY, null, DataType.atom(AtomType.NULL));
 
     private final Object value;
     private final DataType dataType;
@@ -65,7 +67,7 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     private boolean noPlainStrings(Object value, DataType dataType) {
-        if (dataType == KEYWORD || dataType == TEXT || dataType == VERSION) {
+        if (dataType.atom() == KEYWORD || dataType.atom() == TEXT || dataType.atom() == VERSION) {
             if (value == null) {
                 return true;
             }
@@ -152,9 +154,9 @@ public class Literal extends LeafExpression implements Accountable {
     @Override
     public String toString() {
         String str;
-        if (dataType == KEYWORD || dataType == TEXT) {
+        if (dataType.atom() == KEYWORD || dataType.atom() == TEXT) {
             str = BytesRefs.toString(value);
-        } else if (dataType == VERSION && value instanceof BytesRef br) {
+        } else if (dataType.atom() == VERSION && value instanceof BytesRef br) {
             str = new Version(br).toString();
             // TODO review how we manage IPs: https://github.com/elastic/elasticsearch/issues/129605
             // } else if (dataType == IP && value instanceof BytesRef ip) {
@@ -209,27 +211,27 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     public static Literal keyword(Source source, String literal) {
-        return new Literal(source, BytesRefs.toBytesRef(literal), KEYWORD);
+        return new Literal(source, BytesRefs.toBytesRef(literal), DataType.atom(KEYWORD));
     }
 
     public static Literal text(Source source, String literal) {
-        return new Literal(source, BytesRefs.toBytesRef(literal), TEXT);
+        return new Literal(source, BytesRefs.toBytesRef(literal), DataType.atom(TEXT));
     }
 
     public static Literal timeDuration(Source source, Duration literal) {
-        return new Literal(source, literal, DataType.TIME_DURATION);
+        return new Literal(source, literal, DataType.atom(TIME_DURATION));
     }
 
     public static Literal integer(Source source, Integer literal) {
-        return new Literal(source, literal, INTEGER);
+        return new Literal(source, literal, DataType.atom(INTEGER));
     }
 
     public static Literal fromDouble(Source source, Double literal) {
-        return new Literal(source, literal, DOUBLE);
+        return new Literal(source, literal, DataType.atom(DOUBLE));
     }
 
     public static Literal fromLong(Source source, Long literal) {
-        return new Literal(source, literal, LONG);
+        return new Literal(source, literal, DataType.atom(LONG));
     }
 
     /**
@@ -241,7 +243,7 @@ public class Literal extends LeafExpression implements Accountable {
      * while 8.13 uses WKB.
      */
     private static Object mapFromLiteralValue(StreamOutput out, DataType dataType, Object value) {
-        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+        if (dataType.atom() == GEO_POINT || dataType.atom() == CARTESIAN_POINT) {
             // In 8.12.0 we serialized point literals as encoded longs, but now use WKB
             if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 if (value instanceof List<?> list) {
@@ -258,7 +260,7 @@ public class Literal extends LeafExpression implements Accountable {
      * This mapper allows for addition of new and interesting values without (yet) changing StreamInput/Output.
      */
     private static Object mapToLiteralValue(StreamInput in, DataType dataType, Object value) {
-        if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
+        if (dataType.atom() == GEO_POINT || dataType.atom() == CARTESIAN_POINT) {
             // In 8.12.0 we serialized point literals as encoded longs, but now use WKB
             if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 if (value instanceof List<?> list) {
@@ -271,10 +273,10 @@ public class Literal extends LeafExpression implements Accountable {
     }
 
     private static BytesRef longAsWKB(DataType dataType, long encoded) {
-        return dataType == GEO_POINT ? GEO.longAsWkb(encoded) : CARTESIAN.longAsWkb(encoded);
+        return dataType.atom() == GEO_POINT ? GEO.longAsWkb(encoded) : CARTESIAN.longAsWkb(encoded);
     }
 
     private static long wkbAsLong(DataType dataType, BytesRef wkb) {
-        return dataType == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
+        return dataType.atom() == GEO_POINT ? GEO.wkbAsLong(wkb) : CARTESIAN.wkbAsLong(wkb);
     }
 }

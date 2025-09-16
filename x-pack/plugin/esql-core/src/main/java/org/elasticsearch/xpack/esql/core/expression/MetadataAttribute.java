@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
@@ -38,14 +39,14 @@ public class MetadataAttribute extends TypedAttribute {
     );
 
     private static final Map<String, MetadataAttributeConfiguration> ATTRIBUTES_MAP = Map.ofEntries(
-        Map.entry("_version", new MetadataAttributeConfiguration(DataType.LONG, false)),
-        Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
+        Map.entry("_version", new MetadataAttributeConfiguration(DataType.atom(AtomType.LONG), false)),
+        Map.entry(INDEX, new MetadataAttributeConfiguration(DataType.atom(AtomType.KEYWORD), true)),
         // actually _id is searchable, but fielddata access on it is disallowed by default
-        Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, false)),
-        Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.SOURCE, false)),
-        Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.KEYWORD, true)),
-        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.DOUBLE, false))
+        Map.entry(IdFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.atom(AtomType.KEYWORD), false)),
+        Map.entry(IgnoredFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.atom(AtomType.KEYWORD), true)),
+        Map.entry(SourceFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.atom(AtomType.SOURCE), false)),
+        Map.entry(IndexModeFieldMapper.NAME, new MetadataAttributeConfiguration(DataType.atom(AtomType.KEYWORD), true)),
+        Map.entry(SCORE, new MetadataAttributeConfiguration(DataType.atom(AtomType.DOUBLE), false))
     );
 
     private record MetadataAttributeConfiguration(DataType dataType, boolean searchable) {}

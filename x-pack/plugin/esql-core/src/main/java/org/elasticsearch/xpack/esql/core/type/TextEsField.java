@@ -15,8 +15,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -32,7 +32,7 @@ public class TextEsField extends EsField {
         boolean isAlias,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        super(name, TEXT, properties, hasDocValues, isAlias, timeSeriesFieldType);
+        super(name, DataType.atom(TEXT), properties, hasDocValues, isAlias, timeSeriesFieldType);
     }
 
     protected TextEsField(StreamInput in) throws IOException {
@@ -75,7 +75,7 @@ public class TextEsField extends EsField {
     private Tuple<EsField, String> findExact() {
         EsField field = null;
         for (EsField property : getProperties().values()) {
-            if (property.getDataType() == KEYWORD && property.getExactInfo().hasExact()) {
+            if (property.getDataType().atom() == KEYWORD && property.getExactInfo().hasExact()) {
                 if (field != null) {
                     return new Tuple<>(
                         null,

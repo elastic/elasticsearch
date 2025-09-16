@@ -91,6 +91,7 @@ import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
@@ -192,7 +193,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             shardContext = new DefaultShardContextForUnmappedField(shardContext, kf);
         }
 
-        boolean isUnsupported = attr.dataType() == DataType.UNSUPPORTED;
+        boolean isUnsupported = attr.dataType().atom() == UNSUPPORTED;
         String fieldName = getFieldName(attr);
         BlockLoader blockLoader = shardContext.blockLoader(fieldName, isUnsupported, fieldExtractPreference);
         MultiTypeEsField unionTypes = findUnionTypes(attr);

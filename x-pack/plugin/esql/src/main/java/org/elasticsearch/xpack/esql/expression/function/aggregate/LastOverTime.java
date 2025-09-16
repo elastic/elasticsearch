@@ -37,6 +37,9 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -114,16 +117,13 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long")
-            .and(
-                isType(
-                    timestamp,
-                    dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS,
-                    sourceText(),
-                    SECOND,
-                    "date_nanos or datetime"
-                )
-            );
+        return isType(
+            field(),
+            dt -> dt.atom().isNumeric() && dt.atom() != UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        ).and(isType(timestamp, dt -> dt.atom() == DATETIME || dt.atom() == DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime"));
     }
 
     @Override
@@ -131,7 +131,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         // TODO: When processing TSDB data_streams they are sorted by `_tsid` and timestamp in descending order,
         // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
-        return switch (type) {
+        return switch (type.atom()) {
             case LONG -> new LastLongByTimestampAggregatorFunctionSupplier();
             case INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();

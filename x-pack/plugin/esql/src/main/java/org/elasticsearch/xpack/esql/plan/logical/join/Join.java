@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
@@ -39,30 +40,30 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.AGGREGATE_METRIC_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOC_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.PARTIAL_AGG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TIME_DURATION;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TSID_DATA_TYPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
@@ -70,7 +71,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType
 public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
     private static final TransportVersion ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER = TransportVersion.fromName("esql_lookup_join_pre_join_filter");
-    public static final DataType[] UNSUPPORTED_TYPES = {
+    public static final AtomType[] UNSUPPORTED_TYPES = {
         TEXT,
         VERSION,
         UNSIGNED_LONG,
@@ -327,11 +328,11 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     private static boolean comparableTypes(Attribute left, Attribute right) {
         DataType leftType = left.dataType();
         DataType rightType = right.dataType();
-        if (leftType.isNumeric() && rightType.isNumeric()) {
+        if (leftType.atom().isNumeric() && rightType.atom().isNumeric()) {
             // Allow byte, short, integer, long, half_float, scaled_float, float and double to join against each other
             return commonType(leftType, rightType) != null;
         }
-        return leftType.noText() == rightType.noText();
+        return leftType.noText().equals(rightType.noText());
     }
 
     public boolean isRemote() {

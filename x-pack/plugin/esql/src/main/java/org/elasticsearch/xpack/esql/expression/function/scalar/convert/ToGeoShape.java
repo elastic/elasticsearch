@@ -24,13 +24,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHASH;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.geoGridToShape;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
@@ -42,13 +42,13 @@ public class ToGeoShape extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
-        Map.entry(GEO_SHAPE, (source, fieldEval) -> fieldEval),
-        Map.entry(GEOHASH, (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOHASH)),
-        Map.entry(GEOTILE, (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE)),
-        Map.entry(GEOHEX, (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX)),
-        Map.entry(KEYWORD, ToGeoShapeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeoShapeFromStringEvaluator.Factory::new)
+        Map.entry(GEO_POINT.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(GEO_SHAPE.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(GEOHASH.type(), (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOHASH.type())),
+        Map.entry(GEOTILE.type(), (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOTILE.type())),
+        Map.entry(GEOHEX.type(), (source, fieldEval) -> new ToGeoShapeFromGeoGridEvaluator.Factory(source, fieldEval, GEOHEX.type())),
+        Map.entry(KEYWORD.type(), ToGeoShapeFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToGeoShapeFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -86,7 +86,7 @@ public class ToGeoShape extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return GEO_SHAPE;
+        return GEO_SHAPE.type();
     }
 
     @Override

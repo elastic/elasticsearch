@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
@@ -145,8 +145,8 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (prompt.resolved() && DataType.isString(prompt.dataType()) == false) {
-            failures.add(fail(prompt, "prompt must be of type [{}] but is [{}]", TEXT.typeName(), prompt.dataType().typeName()));
+        if (prompt.resolved() && AtomType.isString(prompt.dataType().atom()) == false) {
+            failures.add(fail(prompt, "prompt must be of type [{}] but is [{}]", TEXT.typeName(), prompt.dataType()));
         }
     }
 

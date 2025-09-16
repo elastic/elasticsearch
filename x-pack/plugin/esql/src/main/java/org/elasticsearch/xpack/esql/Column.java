@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -27,12 +28,13 @@ public record Column(DataType type, Block values) implements Releasable, Writeab
     }
 
     public Column(BlockStreamInput in) throws IOException {
-        this(DataType.fromTypeName(in.readString()), Block.readTypedBlock(in));
+        // NOCOMMIT this is probably wrong too
+        this(AtomType.fromTypeName(in.readString()).type(), Block.readTypedBlock(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type.typeName());
+        out.writeString(type.atom().typeName());
         Block.writeTypedBlock(values, out);
     }
 

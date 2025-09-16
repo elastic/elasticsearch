@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -61,7 +62,7 @@ public class Order extends Expression {
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataType.isString(child.dataType())) {
+        if (AtomType.isString(child.dataType().atom())) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return isExact(child, "ORDER BY cannot be applied to field of data type [{}]: {}");

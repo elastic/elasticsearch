@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -33,6 +34,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
@@ -113,14 +115,11 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        boolean isNanos = switch (field().dataType()) {
+        boolean isNanos = switch (field().dataType().atom()) {
             case DATETIME -> false;
             case DATE_NANOS -> true;
             default -> throw new UnsupportedOperationException(
-                "Unsupported field type ["
-                    + field().dataType().name()
-                    + "]. "
-                    + "If you're seeing this, there’s a bug in DateExtract.resolveType"
+                "Unsupported field type [" + field().dataType() + "]. " + "If you're seeing this, there’s a bug in DateExtract.resolveType"
             );
         };
 
@@ -157,7 +156,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (chronoField == null) {
             Expression field = children().get(0);
             try {
-                if (field.foldable() && DataType.isString(field.dataType())) {
+                if (field.foldable() && AtomType.isString(field.dataType().atom())) {
                     chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
                 }
             } catch (Exception e) {
@@ -199,7 +198,7 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.LONG;
+        return LONG.type();
     }
 
     @Override
@@ -211,7 +210,7 @@ public class DateExtract extends EsqlConfigurationFunction {
         return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
             TypeResolutions.isType(
                 children().get(1),
-                DataType::isDate,
+                dt -> dt.atom().isDate(),
                 operationName,
                 TypeResolutions.ParamOrdinal.SECOND,
                 "datetime or date_nanos"

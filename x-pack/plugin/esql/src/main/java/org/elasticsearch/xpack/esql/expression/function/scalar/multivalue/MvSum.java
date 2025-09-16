@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -27,7 +26,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isRepresentable;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.isRepresentable;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 
 /**
@@ -63,7 +63,7 @@ public class MvSum extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> t.isNumeric() && isRepresentable(t), sourceText(), null, "numeric");
+        return isType(field(), t -> t.atom().isNumeric() && isRepresentable(t.atom()), sourceText(), null, "numeric");
     }
 
     @Override
@@ -71,7 +71,7 @@ public class MvSum extends AbstractMultivalueFunction {
         return switch (PlannerUtils.toElementType(field().dataType())) {
             case DOUBLE -> new MvSumDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvSumIntEvaluator.Factory(source(), fieldEval);
-            case LONG -> field().dataType() == DataType.UNSIGNED_LONG
+            case LONG -> field().dataType().atom() == UNSIGNED_LONG
                 ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
                 : new MvSumLongEvaluator.Factory(source(), fieldEval);
             case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;

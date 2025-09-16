@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
@@ -36,6 +37,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
 /**
@@ -93,7 +96,7 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
 
     @Override
     public DataType dataType() {
-        return DataType.isSpatialGeo(field().dataType()) ? DataType.GEO_SHAPE : DataType.CARTESIAN_SHAPE;
+        return (AtomType.isSpatialGeo(field().dataType().atom()) ? GEO_SHAPE : CARTESIAN_SHAPE).type();
     }
 
     @Override
@@ -109,21 +112,21 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        return switch (type) {
-            case DataType.GEO_POINT -> switch (fieldExtractPreference) {
+        return switch (type.atom()) {
+            case GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier();
             };
-            case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
+            case CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier();
                 case NONE, EXTRACT_SPATIAL_BOUNDS, STORED -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier();
             };
-            case DataType.GEO_SHAPE -> switch (fieldExtractPreference) {
+            case GEO_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier();
                 case NONE, STORED -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier();
                 case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
-            case DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
+            case CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier();
                 case NONE, STORED -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier();
                 case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);

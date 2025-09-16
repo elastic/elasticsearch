@@ -34,6 +34,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+
 /**
  * A function to be used to score specific portions of an ES|QL query e.g., in conjunction with
  * an {@link org.elasticsearch.xpack.esql.plan.logical.Eval}.
@@ -68,7 +70,7 @@ public class Score extends Function implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DOUBLE.type();
     }
 
     @Override

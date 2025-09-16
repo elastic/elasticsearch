@@ -42,6 +42,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeLimit;
@@ -105,7 +107,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
     }
 
     public Sample(Source source, Expression field, Expression filter, Expression limit) {
-        this(source, field, filter, limit, new Literal(Source.EMPTY, Randomness.get().nextLong(), DataType.LONG));
+        this(source, field, filter, limit, new Literal(Source.EMPTY, Randomness.get().nextLong(), LONG.type()));
     }
 
     /**
@@ -127,7 +129,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             return new TypeResolution("Unresolved children");
         }
         var typeResolution = isRepresentableExceptCounters(field(), sourceText(), FIRST).and(isNotNull(limitField(), sourceText(), SECOND))
-            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
+            .and(isType(limitField(), dt -> dt.atom() == INTEGER, sourceText(), SECOND, "integer"));
         if (typeResolution.unresolved()) {
             return typeResolution;
         }

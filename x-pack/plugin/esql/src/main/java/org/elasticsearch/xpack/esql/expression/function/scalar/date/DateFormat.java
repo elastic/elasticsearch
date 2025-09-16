@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -35,7 +36,8 @@ import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -104,7 +106,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -123,7 +125,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
 
         String operationName = sourceText();
         TypeResolutions.ParamOrdinal paramOrd = format == null ? FIRST : SECOND;
-        resolution = TypeResolutions.isType(field, DataType::isDate, operationName, paramOrd, "datetime or date_nanos");
+        resolution = TypeResolutions.isType(field, dt -> dt.atom().isDate(), operationName, paramOrd, "datetime or date_nanos");
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -161,7 +163,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
         DateFormatter formatter
     ) {
-        if (dateType == DATE_NANOS) {
+        if (dateType.atom() == DATE_NANOS) {
             return new DateFormatNanosConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
         }
         return new DateFormatMillisConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
@@ -172,7 +174,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         EvalOperator.ExpressionEvaluator.Factory fieldEvaluator,
         EvalOperator.ExpressionEvaluator.Factory formatEvaluator
     ) {
-        if (dateType == DATE_NANOS) {
+        if (dateType.atom() == DATE_NANOS) {
             return new DateFormatNanosEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
         }
         return new DateFormatMillisEvaluator.Factory(source(), fieldEvaluator, formatEvaluator, configuration().locale());
@@ -184,7 +186,7 @@ public class DateFormat extends EsqlConfigurationFunction implements OptionalArg
         if (format == null) {
             return getConstantEvaluator(field().dataType(), fieldEvaluator, DEFAULT_DATE_TIME_FORMATTER);
         }
-        if (DataType.isString(format.dataType()) == false) {
+        if (AtomType.isString(format.dataType().atom()) == false) {
             throw new IllegalArgumentException("unsupported data type for format [" + format.dataType() + "]");
         }
         if (format.foldable()) {

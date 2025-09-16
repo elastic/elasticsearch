@@ -29,6 +29,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoolean;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 
 public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatable<Expression>, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Not", Not::new);
@@ -58,7 +59,7 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
 
     @Override
     protected TypeResolution resolveType() {
-        if (DataType.BOOLEAN == field().dataType()) {
+        if (field().dataType().atom() == BOOLEAN) {
             return TypeResolution.TYPE_RESOLVED;
         }
         return isBoolean(field(), sourceText(), DEFAULT);
@@ -106,7 +107,7 @@ public class Not extends UnaryScalarFunction implements EvaluatorMapper, Negatab
 
     @Override
     public DataType dataType() {
-        return DataType.BOOLEAN;
+        return BOOLEAN.type();
     }
 
     static Expression negate(Expression exp) {

@@ -64,7 +64,7 @@ public class Ceil extends UnaryScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (dataType().isWholeNumber()) {
+        if (dataType().atom().isWholeNumber()) {
             return toEvaluator.apply(field());
         }
         var fieldEval = toEvaluator.apply(field());

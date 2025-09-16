@@ -23,9 +23,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
 public class ToGeoPoint extends AbstractConvertFunction {
@@ -36,9 +36,9 @@ public class ToGeoPoint extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToGeoPointFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToGeoPointFromStringEvaluator.Factory::new)
+        Map.entry(GEO_POINT.type(), (source, fieldEval) -> fieldEval),
+        Map.entry(KEYWORD.type(), ToGeoPointFromStringEvaluator.Factory::new),
+        Map.entry(TEXT.type(), ToGeoPointFromStringEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -76,7 +76,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @Override
     public DataType dataType() {
-        return GEO_POINT;
+        return GEO_POINT.type();
     }
 
     @Override

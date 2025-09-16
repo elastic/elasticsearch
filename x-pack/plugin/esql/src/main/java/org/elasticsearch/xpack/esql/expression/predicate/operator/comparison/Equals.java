@@ -29,6 +29,25 @@ import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import java.time.ZoneId;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.CARTESIAN_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHASH;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.IP;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.VERSION;
+
 public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinaryComparison> {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -37,24 +56,24 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     );
 
     private static final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap = Map.ofEntries(
-        Map.entry(DataType.BOOLEAN, EqualsBoolsEvaluator.Factory::new),
-        Map.entry(DataType.INTEGER, EqualsIntsEvaluator.Factory::new),
-        Map.entry(DataType.DOUBLE, EqualsDoublesEvaluator.Factory::new),
-        Map.entry(DataType.LONG, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.UNSIGNED_LONG, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.DATETIME, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.DATE_NANOS, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.GEO_POINT, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.CARTESIAN_POINT, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.GEO_SHAPE, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.CARTESIAN_SHAPE, EqualsGeometriesEvaluator.Factory::new),
-        Map.entry(DataType.GEOHASH, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.GEOTILE, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.GEOHEX, EqualsLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, EqualsKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, EqualsKeywordsEvaluator.Factory::new)
+        Map.entry(BOOLEAN.type(), EqualsBoolsEvaluator.Factory::new),
+        Map.entry(INTEGER.type(), EqualsIntsEvaluator.Factory::new),
+        Map.entry(DOUBLE.type(), EqualsDoublesEvaluator.Factory::new),
+        Map.entry(LONG.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(DATETIME.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(DATE_NANOS.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(GEO_POINT.type(), EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(CARTESIAN_POINT.type(), EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(GEO_SHAPE.type(), EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(CARTESIAN_SHAPE.type(), EqualsGeometriesEvaluator.Factory::new),
+        Map.entry(GEOHASH.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(GEOTILE.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(GEOHEX.type(), EqualsLongsEvaluator.Factory::new),
+        Map.entry(KEYWORD.type(), EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(TEXT.type(), EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(VERSION.type(), EqualsKeywordsEvaluator.Factory::new),
+        Map.entry(IP.type(), EqualsKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -139,7 +158,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right() instanceof Literal lit) {
-            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+            if (left().dataType().atom() == TEXT && left() instanceof FieldAttribute fa) {
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, ((BytesRef) lit.value()).utf8ToString())) {
                     return Translatable.YES_BUT_RECHECK_NEGATED;
                 }
@@ -151,7 +170,7 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         if (right() instanceof Literal lit) {
-            if (left().dataType() == DataType.TEXT && left() instanceof FieldAttribute fa) {
+            if (left().dataType().atom() == TEXT && left() instanceof FieldAttribute fa) {
                 String value = ((BytesRef) lit.value()).utf8ToString();
                 if (pushdownPredicates.canUseEqualityOnSyntheticSourceDelegate(fa, value)) {
                     String name = handler.nameOf(fa);

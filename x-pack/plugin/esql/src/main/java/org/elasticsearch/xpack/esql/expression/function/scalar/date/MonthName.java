@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.KEYWORD;
 
 public class MonthName extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -87,7 +89,7 @@ public class MonthName extends EsqlConfigurationFunction {
 
     @Override
     public DataType dataType() {
-        return DataType.KEYWORD;
+        return KEYWORD.type();
     }
 
     @Override
@@ -97,7 +99,7 @@ public class MonthName extends EsqlConfigurationFunction {
         }
 
         String operationName = sourceText();
-        TypeResolution resolution = TypeResolutions.isType(field, DataType::isDate, operationName, FIRST, "datetime or date_nanos");
+        TypeResolution resolution = TypeResolutions.isType(field, dt -> dt.atom().isDate(), operationName, FIRST, "datetime or date_nanos");
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -113,7 +115,7 @@ public class MonthName extends EsqlConfigurationFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(field);
-        if (field().dataType() == DataType.DATE_NANOS) {
+        if (field().dataType().atom() == DATE_NANOS) {
             return new MonthNameNanosEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());
         }
         return new MonthNameMillisEvaluator.Factory(source(), fieldEvaluator, configuration().zoneId(), configuration().locale());

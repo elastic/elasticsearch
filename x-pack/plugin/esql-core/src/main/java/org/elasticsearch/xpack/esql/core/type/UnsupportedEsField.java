@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
@@ -45,7 +46,7 @@ public class UnsupportedEsField extends EsField {
         Map<String, EsField> properties,
         TimeSeriesFieldType timeSeriesFieldType
     ) {
-        super(name, DataType.UNSUPPORTED, properties, false, timeSeriesFieldType);
+        super(name, DataType.atom(UNSUPPORTED), properties, false, timeSeriesFieldType);
         this.originalTypes = originalTypes;
         this.inherited = inherited;
     }

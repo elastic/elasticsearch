@@ -227,8 +227,8 @@ public class Aggregate extends UnaryPlan
             if (attr != null) {
                 groupRefsBuilder.add(attr);
             }
-            if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
-                failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
+            if (e instanceof FieldAttribute f && f.dataType().atom().isCounter()) {
+                failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().atom().typeName(), e.sourceText()));
             }
         });
         var groupRefs = groupRefsBuilder.build();

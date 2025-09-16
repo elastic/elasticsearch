@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
@@ -170,7 +170,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     public DataType dataType() {
-        return GEOHEX;
+        return GEOHEX.type();
     }
 
     @Override

@@ -24,10 +24,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.UNSIGNED_LONG;
 
 /**
  * Converts from <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
@@ -41,11 +41,17 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DOUBLE, ToDegreesEvaluator.Factory::new),
-        Map.entry(INTEGER, (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))),
-        Map.entry(LONG, (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))),
+        Map.entry(DOUBLE.type(), ToDegreesEvaluator.Factory::new),
         Map.entry(
-            UNSIGNED_LONG,
+            INTEGER.type(),
+            (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromIntEvaluator.Factory(source, field))
+        ),
+        Map.entry(
+            LONG.type(),
+            (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromLongEvaluator.Factory(source, field))
+        ),
+        Map.entry(
+            UNSIGNED_LONG.type(),
             (source, field) -> new ToDegreesEvaluator.Factory(source, new ToDoubleFromUnsignedLongEvaluator.Factory(source, field))
         )
     );
@@ -92,7 +98,7 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
 
     @Override
     public DataType dataType() {
-        return DOUBLE;
+        return DOUBLE.type();
     }
 
     @ConvertEvaluator(warnExceptions = { ArithmeticException.class })

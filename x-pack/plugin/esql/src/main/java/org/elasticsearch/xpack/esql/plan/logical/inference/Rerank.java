@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.type.AtomType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerificationAware, TelemetryAware {
@@ -164,9 +165,9 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     public boolean isValidRerankField(Alias rerankField) {
         // Only supportinng the following datatypes for now: text, numeric and boolean
-        return DataType.isString(rerankField.dataType())
-            || rerankField.dataType() == DataType.BOOLEAN
-            || rerankField.dataType().isNumeric();
+        return AtomType.isString(rerankField.dataType().atom())
+            || rerankField.dataType().atom() == BOOLEAN
+            || rerankField.dataType().atom().isNumeric();
     }
 
     @Override
@@ -182,7 +183,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
     @Override
     public void postAnalysisVerification(Failures failures) {
         if (queryText.resolved()) {
-            if (DataType.isString(queryText.dataType()) == false) {
+            if (AtomType.isString(queryText.dataType().atom()) == false) {
                 // Rerank only supports string as query
                 failures.add(fail(queryText, "query must be a valid string in RERANK, found [{}]", queryText.source().text()));
             }

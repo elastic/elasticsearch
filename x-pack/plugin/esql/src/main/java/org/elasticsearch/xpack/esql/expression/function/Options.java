@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 
@@ -35,7 +36,7 @@ public class Options {
         Expression options,
         Source source,
         TypeResolutions.ParamOrdinal paramOrdinal,
-        Map<String, DataType> allowedOptions
+        Map<String, AtomType> allowedOptions
     ) {
         return resolve(
             options,
@@ -50,7 +51,7 @@ public class Options {
         Expression options,
         Source source,
         TypeResolutions.ParamOrdinal paramOrdinal,
-        Map<String, DataType> allowedOptions,
+        Map<String, AtomType> allowedOptions,
         Consumer<Map<String, Object>> verifyOptions
     ) {
         return resolve(
@@ -66,7 +67,7 @@ public class Options {
         Expression options,
         Source source,
         TypeResolutions.ParamOrdinal paramOrdinal,
-        Map<String, Collection<DataType>> allowedOptions
+        Map<String, Collection<AtomType>> allowedOptions
     ) {
         return resolve(
             options,
@@ -112,7 +113,7 @@ public class Options {
         final Map<String, Object> optionsMap,
         final Source source,
         final TypeResolutions.ParamOrdinal paramOrdinal,
-        final Map<String, DataType> allowedOptions
+        final Map<String, AtomType> allowedOptions
     ) throws InvalidArgumentException {
         for (EntryExpression entry : options.entryExpressions()) {
             Expression optionExpr = entry.key();
@@ -125,7 +126,7 @@ public class Options {
 
             Object optionExprLiteral = ((Literal) optionExpr).value();
             String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            DataType dataType = allowedOptions.get(optionName);
+            AtomType dataType = allowedOptions.get(optionName);
 
             // valueExpr could be a MapExpression, but for now functions only accept literal values in options
             if ((valueExpr instanceof Literal) == false) {
@@ -143,7 +144,7 @@ public class Options {
                 );
             }
             try {
-                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, dataType));
+                optionsMap.put(optionName, DataTypeConverter.convert(optionValue, DataType.atom(dataType)));
             } catch (InvalidArgumentException e) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], {}", optionName, source.text(), e.getMessage())
@@ -157,7 +158,7 @@ public class Options {
         final Map<String, Object> optionsMap,
         final Source source,
         final TypeResolutions.ParamOrdinal paramOrdinal,
-        final Map<String, Collection<DataType>> allowedOptions
+        final Map<String, Collection<AtomType>> allowedOptions
     ) throws InvalidArgumentException {
         if (options == null) {
             return;
@@ -174,7 +175,7 @@ public class Options {
 
             Object optionExprLiteral = ((Literal) optionExpr).value();
             String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            Collection<DataType> allowedDataTypes = allowedOptions.get(optionName);
+            Collection<AtomType> allowedDataTypes = allowedOptions.get(optionName);
 
             // valueExpr could be a MapExpression, but for now functions only accept literal values in options
             if ((valueExpr instanceof Literal) == false) {
@@ -192,7 +193,7 @@ public class Options {
 
             Literal valueExprLiteral = ((Literal) valueExpr);
             // validate that the literal has one of the allowed data types
-            if (allowedDataTypes.contains(valueExprLiteral.dataType()) == false) {
+            if (allowedDataTypes.contains(valueExprLiteral.dataType().atom()) == false) {
                 throw new InvalidArgumentException(
                     format(null, "Invalid option [{}] in [{}], allowed types [{}]", optionName, source.text(), allowedDataTypes)
                 );

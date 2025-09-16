@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.AtomType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -128,7 +128,7 @@ public final class Expressions {
      * {@code true} from here.
      */
     public static boolean isGuaranteedNull(Expression e) {
-        return e.dataType() == DataType.NULL || (e instanceof Literal lit && lit.value() == null);
+        return e.dataType().atom() == AtomType.NULL || (e instanceof Literal lit && lit.value() == null);
     }
 
     public static List<String> names(Collection<? extends Expression> e) {

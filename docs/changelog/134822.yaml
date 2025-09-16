@@ -1,0 +1,5 @@
+pr: 134822
+summary: Query multiple indices with simplified RRF
+area: Relevance
+type: enhancement
+issues: []

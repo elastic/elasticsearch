@@ -29,6 +29,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -88,6 +90,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -282,10 +285,15 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         }
 
         public MapperService build() {
-            IndexSettings indexSettings = createIndexSettings(indexVersion, settings);
+            Collection<? extends Plugin> plugins = getPlugins();
+            Collection<Setting<?>> pluginIndexSettings = plugins.stream()
+                .flatMap(plugin -> plugin.getSettings().stream())
+                .filter(Setting::hasIndexScope)
+                .toList();
+            IndexSettings indexSettings = createIndexSettings(indexVersion, settings, pluginIndexSettings);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             MapperRegistry mapperRegistry = new IndicesModule(
-                getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+                plugins.stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
             ).getMapperRegistry();
 
             BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
@@ -327,9 +335,19 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
+        return createIndexSettings(version, settings, List.of());
+    }
+
+    protected static IndexSettings createIndexSettings(
+        IndexVersion version,
+        Settings settings,
+        Collection<Setting<?>> pluginIndexSettings
+    ) {
         settings = indexSettings(1, 0).put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
-        return new IndexSettings(meta, settings);
+        Set<Setting<?>> indexSettings = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        indexSettings.addAll(pluginIndexSettings);
+        return new IndexSettings(meta, settings, new IndexScopedSettings(Settings.EMPTY, indexSettings));
     }
 
     protected MapperMetrics createTestMapperMetrics() {

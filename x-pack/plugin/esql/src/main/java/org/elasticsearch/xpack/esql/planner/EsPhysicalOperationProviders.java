@@ -28,7 +28,7 @@ import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
+import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -307,12 +307,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
-            luceneFactory = TimeSeriesSourceOperatorFactory.create(
-                limit,
-                context.pageSize(rowEstimatedSize),
-                context.queryPragmas().taskConcurrency(),
+            luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
-                querySupplier(esQueryExec.queryBuilderAndTags())
+                querySupplier(esQueryExec.queryBuilderAndTags()),
+                context.queryPragmas().taskConcurrency(),
+                context.pageSize(rowEstimatedSize),
+                limit
             );
         } else {
             luceneFactory = new LuceneSourceOperator.Factory(

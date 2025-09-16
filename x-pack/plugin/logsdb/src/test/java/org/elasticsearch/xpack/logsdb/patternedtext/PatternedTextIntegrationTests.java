@@ -76,7 +76,8 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                 "field_match_only_text": { "type": "match_only_text" },
                 "field_patterned_text": {
                     "type": "patterned_text",
-                    "index_options": "%"
+                    "index_options": "%",
+                    "analyzer": "standard"
                 }
               }
             }
@@ -94,7 +95,9 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     @After
     public void cleanup() {
-        assertAcked(admin().indices().prepareDelete(INDEX));
+        if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()) {
+            assertAcked(admin().indices().prepareDelete(INDEX));
+        }
     }
 
     public void testSourceMatchAllManyValues() throws IOException {

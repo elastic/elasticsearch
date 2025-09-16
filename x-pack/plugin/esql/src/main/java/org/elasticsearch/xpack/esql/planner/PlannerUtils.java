@@ -317,7 +317,7 @@ public class PlannerUtils {
             .map(x -> ((LookupJoinExec) x).right())
             .collect(Collectors.toSet());
 
-        var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+        PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             if (lookupJoinExecRightChildren.contains(f)) {
                 // Do not optimize the right child of a lookup join exec
                 // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
@@ -325,9 +325,9 @@ public class PlannerUtils {
                 return f;
             }
             isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            var physicalFragment = localMapper.map(optimizedFragment);
-            var filter = f.esFilter();
+            LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            PhysicalPlan physicalFragment = localMapper.map(optimizedFragment);
+            QueryBuilder filter = f.esFilter();
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,

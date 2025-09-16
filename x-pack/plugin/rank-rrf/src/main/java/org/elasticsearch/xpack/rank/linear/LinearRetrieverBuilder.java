@@ -314,7 +314,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     }
 
     @Override
-    protected RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
+    public RetrieverBuilder doRewrite(QueryRewriteContext ctx) {
         RetrieverBuilder rewritten = this;
 
         ResolvedIndices resolvedIndices = ctx.getResolvedIndices();

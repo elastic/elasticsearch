@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: [ "mapper.patterned_text" ]
-      reason: "patterned_text mappings are used in this test"
+      cluster_features: [ "mapper.pattern_text" ]
+      reason: "pattern_text mappings are used in this test"
 
   - do:
       indices.create:
@@ -15,7 +15,7 @@ setup:
           mappings:
             properties:
               foo:
-                type: patterned_text
+                type: pattern_text
 
   - do:
       index:

@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: [ "mapper.patterned_text" ]
-      reason: "patterned_text mappings are used in this test"
+      cluster_features: [ "mapper.pattern_text" ]
+      reason: "pattern_text mappings are used in this test"
 
 ---
 simple:
@@ -17,7 +17,7 @@ simple:
               id:
                 type: integer
               message:
-                type: patterned_text
+                type: pattern_text
 
   - do:
       bulk:
@@ -56,7 +56,7 @@ synthetic_source with copy_to:
           mappings:
             properties:
               foo:
-                type: patterned_text
+                type: pattern_text
                 copy_to: copy
               copy:
                 type: keyword

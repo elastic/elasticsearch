@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
@@ -44,9 +44,9 @@ import java.util.function.Supplier;
  * A {@link FieldMapper} for full-text log fields that internally splits text into a low cardinality template component
  * and high cardinality argument component. Separating these pieces allows the template component to be highly compressed.
  */
-public class PatternedTextFieldMapper extends FieldMapper {
+public class PatternTextFieldMapper extends FieldMapper {
 
-    public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
+    public static final FeatureFlag PATTERN_TEXT_MAPPER = new FeatureFlag("pattern_text");
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     public static class Defaults {
@@ -79,7 +79,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
+        private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
         private final Parameter<NamedAnalyzer> analyzer;
 
         public Builder(String name, MappingParserContext context) {
@@ -90,7 +90,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
-            this.analyzer = analyzerParam(name, m -> ((PatternedTextFieldMapper) m).analyzer);
+            this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
         }
 
         @Override
@@ -98,10 +98,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta, indexOptions, analyzer };
         }
 
-        private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
+        private PatternTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer analyzer = this.analyzer.get();
             TextSearchInfo tsi = new TextSearchInfo(fieldType, null, analyzer, analyzer);
-            return new PatternedTextFieldType(
+            return new PatternTextFieldType(
                 context.buildFullName(leafName()),
                 tsi,
                 analyzer,
@@ -115,7 +115,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             return indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ? Defaults.FIELD_TYPE_POSITIONS : Defaults.FIELD_TYPE_DOCS;
         }
 
-        private static Parameter<String> patternedTextIndexOptions(Function<FieldMapper, String> initializer) {
+        private static Parameter<String> patternTextIndexOptions(Function<FieldMapper, String> initializer) {
             return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
                 switch (v) {
                     case "positions":
@@ -146,17 +146,17 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public PatternedTextFieldMapper build(MapperBuilderContext context) {
+        public PatternTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = buildLuceneFieldType(indexOptions);
-            PatternedTextFieldType patternedTextFieldType = buildFieldType(fieldType, context);
+            PatternTextFieldType patternTextFieldType = buildFieldType(fieldType, context);
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
-                patternedTextFieldType.templateIdFieldName(leafName()),
+                patternTextFieldType.templateIdFieldName(leafName()),
                 indexSettings.getMode(),
                 indexCreatedVersion,
                 true
             ).indexed(false).build(context);
-            return new PatternedTextFieldMapper(leafName(), fieldType, patternedTextFieldType, builderParams, this, templateIdMapper);
+            return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
         }
     }
 
@@ -169,10 +169,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
-    private PatternedTextFieldMapper(
+    private PatternTextFieldMapper(
         String simpleName,
         FieldType fieldType,
-        PatternedTextFieldType mappedFieldType,
+        PatternTextFieldType mappedFieldType,
         BuilderParams builderParams,
         Builder builder,
         KeywordFieldMapper templateIdMapper
@@ -222,7 +222,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         // Parse template and args
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
+        PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split(value);
 
         // Add index on original value
         context.doc().add(new Field(fieldType().name(), value, fieldType));
@@ -250,12 +250,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return PatternedTextFieldType.CONTENT_TYPE;
+        return PatternTextFieldType.CONTENT_TYPE;
     }
 
     @Override
-    public PatternedTextFieldType fieldType() {
-        return (PatternedTextFieldType) super.fieldType();
+    public PatternTextFieldType fieldType() {
+        return (PatternTextFieldType) super.fieldType();
     }
 
     @FunctionalInterface
@@ -269,9 +269,9 @@ public class PatternedTextFieldMapper extends FieldMapper {
             () -> new CompositeSyntheticFieldLoader(
                 leafName(),
                 fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(
+                new PatternTextSyntheticFieldLoaderLayer(
                     fieldType().name(),
-                    leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType())
+                    leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
                 )
             )
         );

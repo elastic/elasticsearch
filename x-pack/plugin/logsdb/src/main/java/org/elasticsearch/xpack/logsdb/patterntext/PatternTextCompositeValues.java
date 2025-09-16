@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -25,32 +25,32 @@ import java.util.Set;
  * larges values which are in stored fields. Despite being backed by stored
  * fields, this class implements a doc value interface.
  */
-public final class PatternedTextCompositeValues extends BinaryDocValues {
+public final class PatternTextCompositeValues extends BinaryDocValues {
     private final LeafStoredFieldLoader storedTemplateLoader;
     private final String storedMessageFieldName;
-    private final BinaryDocValues patternedTextDocValues;
+    private final BinaryDocValues patternTextDocValues;
     private final SortedSetDocValues templateIdDocValues;
     private boolean hasDocValue = false;
 
-    PatternedTextCompositeValues(
+    PatternTextCompositeValues(
         LeafStoredFieldLoader storedTemplateLoader,
         String storedMessageFieldName,
-        BinaryDocValues patternedTextDocValues,
+        BinaryDocValues patternTextDocValues,
         SortedSetDocValues templateIdDocValues
     ) {
         this.storedTemplateLoader = storedTemplateLoader;
         this.storedMessageFieldName = storedMessageFieldName;
-        this.patternedTextDocValues = patternedTextDocValues;
+        this.patternTextDocValues = patternTextDocValues;
         this.templateIdDocValues = templateIdDocValues;
     }
 
-    static PatternedTextCompositeValues from(LeafReader leafReader, PatternedTextFieldType fieldType) throws IOException {
+    static PatternTextCompositeValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
         SortedSetDocValues templateIdDocValues = DocValues.getSortedSet(leafReader, fieldType.templateIdFieldName());
         if (templateIdDocValues.getValueCount() == 0) {
             return null;
         }
 
-        var docValues = PatternedTextDocValues.from(
+        var docValues = PatternTextDocValues.from(
             leafReader,
             fieldType.templateFieldName(),
             fieldType.argsFieldName(),
@@ -58,12 +58,12 @@ public final class PatternedTextCompositeValues extends BinaryDocValues {
         );
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.create(false, Set.of(fieldType.storedNamed()));
         LeafStoredFieldLoader storedTemplateLoader = storedFieldLoader.getLoader(leafReader.getContext(), null);
-        return new PatternedTextCompositeValues(storedTemplateLoader, fieldType.storedNamed(), docValues, templateIdDocValues);
+        return new PatternTextCompositeValues(storedTemplateLoader, fieldType.storedNamed(), docValues, templateIdDocValues);
     }
 
     public BytesRef binaryValue() throws IOException {
         if (hasDocValue) {
-            return patternedTextDocValues.binaryValue();
+            return patternTextDocValues.binaryValue();
         }
 
         // If there is no doc value, the value was too large and was put in a stored field
@@ -79,7 +79,7 @@ public final class PatternedTextCompositeValues extends BinaryDocValues {
 
     public boolean advanceExact(int i) throws IOException {
         boolean hasValue = templateIdDocValues.advanceExact(i);
-        hasDocValue = patternedTextDocValues.advanceExact(i);
+        hasDocValue = patternTextDocValues.advanceExact(i);
         if (hasValue && hasDocValue == false) {
             storedTemplateLoader.advanceTo(i);
         }
@@ -99,6 +99,6 @@ public final class PatternedTextCompositeValues extends BinaryDocValues {
 
     @Override
     public long cost() {
-        return templateIdDocValues.cost() + patternedTextDocValues.cost();
+        return templateIdDocValues.cost() + patternTextDocValues.cost();
     }
 }

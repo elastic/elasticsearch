@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
@@ -112,7 +112,7 @@ public class Arg {
         return arguments;
     }
 
-    static String encodeRemainingArgs(PatternedTextValueProcessor.Parts parts) {
+    static String encodeRemainingArgs(PatternTextValueProcessor.Parts parts) {
         return String.join(SPACE, parts.args());
     }
 

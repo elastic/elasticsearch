@@ -86,7 +86,7 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 
 Standard (non-time-series) aggregation functions, such as `SUM()`, `AVG()`,
 can be used as outer aggregation functions. Using a time-series aggregation as
-the outer function leads to an error.
+the outer function, in combination with an inner function, leads to an error.
 
 ::::{note}
 If the outer aggregation function is missing, results are grouped by time-series

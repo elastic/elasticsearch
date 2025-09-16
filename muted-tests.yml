@@ -564,6 +564,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBeforeStatsByWithWhere}
   issue: https://github.com/elastic/elasticsearch/issues/134817
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<0 longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/134844
 
 # Examples:
 #

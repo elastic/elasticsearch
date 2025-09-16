@@ -56,6 +56,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTA
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
@@ -167,7 +168,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportTimeSeriesCommand() {
-        return false;
+        return hasCapabilities(adminClient(), List.of(TS_COMMAND_V0.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

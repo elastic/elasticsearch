@@ -602,9 +602,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
-        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
-            throw new IllegalArgumentException("TS command currently requires a snapshot build");
-        }
         return visitRelation(source(ctx), IndexMode.TIME_SERIES, ctx.indexPatternAndMetadataFields());
     }
 

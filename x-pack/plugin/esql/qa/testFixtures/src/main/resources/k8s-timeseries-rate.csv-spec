@@ -1,5 +1,5 @@
 rate_of_long_no_grouping
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,1minute)
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
@@ -18,7 +18,7 @@ null                 | 2024-05-10T00:01:00.000Z
 ;
 
 rate_of_long_grouping
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,5minute)
 | SORT rate_bytes_in DESC, time_bucket, cluster | LIMIT 10;
@@ -38,7 +38,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_of_double_no_grouping
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_cost=sum(rate(network.total_cost)) BY time_bucket = bucket(@timestamp,1minute)
 | SORT rate_cost DESC, time_bucket | LIMIT 10;
@@ -58,7 +58,7 @@ null               | 2024-05-10T00:01:00.000Z
 ;
 
 rate_with_filtering
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | WHERE pod == "one"
 | STATS rate_bytes_in = sum(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | SORT time_bucket, cluster | LIMIT 10;
@@ -76,7 +76,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_with_inline_filtering
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s 
 | STATS rate_bytes_in = sum(rate(network.total_bytes_in)) WHERE pod == "one" BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | SORT time_bucket, cluster | LIMIT 10;
@@ -94,7 +94,7 @@ rate_bytes_in:double | cluster:keyword | time_bucket:datetime
 ;
 
 eval_on_rate
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_bytes = avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL rate_kb = rate_bytes / 1024.0
@@ -115,7 +115,7 @@ rate_bytes:double  | cluster:keyword | time_bucket:datetime     | rate_kb:double
 ;
 
 rate_of_aggregate_metric
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s-downsampled
 | STATS sum_bytes = sum(rate(network.total_bytes_in)),
         max_bytes = max(rate(network.total_bytes_in)), 
@@ -129,7 +129,7 @@ sum_bytes:double  | max_bytes:double    | min_bytes:double     | avg_bytes:doubl
 ;
 
 rate_of_expression
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in) + 10) BY time_bucket = bucket(@timestamp,1minute)
 | SORT rate_bytes_in DESC, time_bucket DESC | LIMIT 10;
@@ -148,7 +148,7 @@ null                 | 2024-05-10T00:01:00.000Z
 ;
 
 rate_combined_avg
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS avg_rate_bytes = avg(rate(network.total_bytes_in)), avg_rate_cost = avg(rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL ratio = avg_rate_bytes / avg_rate_cost
@@ -167,7 +167,7 @@ avg_rate_bytes:double | avg_rate_cost:double | cluster:keyword | time_bucket:dat
 ;
 
 rate_combined_sum
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS sum_rate_bytes = sum(rate(network.total_bytes_in)), sum_rate_cost = sum(rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | EVAL ratio = sum_rate_bytes / sum_rate_cost
@@ -186,7 +186,7 @@ sum_rate_bytes:double | sum_rate_cost:double | cluster:keyword | time_bucket:dat
 ;
 
 rate_of_ratio
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_of_ratio = sum(rate(network.total_cost) / rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
 | SORT time_bucket, cluster | LIMIT 10;
@@ -204,7 +204,7 @@ rate_of_ratio:double | cluster:keyword | time_bucket:datetime
 ;
 
 rate_of_long_grouping_1min_nulls
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS rate_bytes_in=avg(rate(network.total_bytes_in)) BY cluster, time_bucket = bucket(@timestamp,2minute)
 | SORT rate_bytes_in NULLS FIRST, time_bucket, cluster | LIMIT 10;

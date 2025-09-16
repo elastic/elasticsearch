@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_COMMAND_V0;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
@@ -67,7 +68,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportTimeSeriesCommand() {
-        return false;
+        return hasCapabilities(adminClient(), List.of(TS_COMMAND_V0.capabilityName()));
     }
 
     @Override

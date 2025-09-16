@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.downsample;
 
-import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -18,7 +17,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,7 +34,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -224,12 +221,6 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             }
         };
         bulkIndex(dataStreamName, nextSourceSupplier, 100);
-
-        // check that TS command is available
-        var response = clusterAdmin().nodesCapabilities(
-            new NodesCapabilitiesRequest().method(RestRequest.Method.POST).path("/_query").capabilities(METRICS_COMMAND.capabilityName())
-        ).actionGet();
-        assumeTrue("TS command must be available for this test", response.isSupported().orElse(Boolean.FALSE));
 
         // Since the downsampled field (cpu) is downsampled in one index and not in the other, we want to confirm
         // first that the field is unsupported and has 2 original types - double and aggregate_metric_double

@@ -1049,6 +1049,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1502,7 +1503,12 @@ public class EsqlCapabilities {
         /**
          * Support absent_over_time aggregation that gets evaluated per time-series
          */
-        ABSENT_OVER_TIME(Build.current().isSnapshot());
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0();
 
         private final boolean enabled;
 

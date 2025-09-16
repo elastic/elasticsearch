@@ -1,5 +1,5 @@
 timeseriesWithoutAggs
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,network.bytes_in,network.cost | limit 5;
 
 @timestamp:datetime      | cluster:keyword | pod: keyword| network.bytes_in:long | network.cost:double
@@ -11,7 +11,7 @@ TS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,networ
 ;
 
 timeseriesWithAggsAndSourceQuoting
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
 TS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
 
@@ -22,7 +22,7 @@ max_bytes:long | cluster: keyword
 ;
 
 maxRate
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
 TS k8s | STATS max(rate(network.total_bytes_in));
 
@@ -31,7 +31,7 @@ max(rate(network.total_bytes_in)): double
 ;
 
 maxRatePerMinute
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: double_quotes_source_enclosing
 TS k8s | STATS max(60 * rate(network.total_bytes_in));
 
@@ -40,7 +40,7 @@ max(60 * rate(network.total_bytes_in)): double
 ;
 
 maxCost
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max_cost=max(rate(network.total_cost));
 
 max_cost: double
@@ -48,7 +48,7 @@ max_cost: double
 ;
 
 maxRateAndBytes
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: implicit_last_over_time
 TS k8s | STATS max(60 * rate(network.total_bytes_in)), max(network.bytes_in);
 
@@ -57,7 +57,7 @@ max(60 * rate(network.total_bytes_in)): double | max(network.bytes_in): long
 ;
 
 maxRateAndBytesExplicit
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(60 * rate(network.total_bytes_in)), max(last_over_time(network.bytes_in));
 
 max(60 * rate(network.total_bytes_in)): double | max(last_over_time(network.bytes_in)): long
@@ -65,7 +65,7 @@ max(60 * rate(network.total_bytes_in)): double | max(last_over_time(network.byte
 ;
 
 maxRateAndMarkupBytes
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), max(network.bytes_in * 1.05);
 
 max(rate(network.total_bytes_in)): double | max(network.bytes_in * 1.05): double
@@ -73,7 +73,7 @@ max(rate(network.total_bytes_in)): double | max(network.bytes_in * 1.05): double
 ;
 
 maxRateAndMarkupBytesExplicit
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), max_bytes_in = max(last_over_time(network.bytes_in) * 1.05);
 
 max(rate(network.total_bytes_in)): double | max_bytes_in: double
@@ -81,7 +81,7 @@ max(rate(network.total_bytes_in)): double | max_bytes_in: double
 ;
 
 maxRateAndLastBytesIn
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), max_bytes_in = max(last_over_time(network.bytes_in * 1.05));
 
 max(rate(network.total_bytes_in)): double | max_bytes_in: double
@@ -89,7 +89,7 @@ max(rate(network.total_bytes_in)): double | max_bytes_in: double
 ;
 
 maxRateAndBytesAndCost
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), max(max_over_time(network.bytes_in)), max(rate(network.total_cost));
 
 max(rate(network.total_bytes_in)): double| max(max_over_time(network.bytes_in)): long| max(rate(network.total_cost)): double
@@ -97,7 +97,7 @@ max(rate(network.total_bytes_in)): double| max(max_over_time(network.bytes_in)):
 ;
 
 sumRate
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster | SORT cluster;
 
 bytes: double       | sum(rate(network.total_cost)): double | cluster: keyword
@@ -107,7 +107,7 @@ bytes: double       | sum(rate(network.total_cost)): double | cluster: keyword
 ;
 
 oneRateWithBucket
-required_capability: metrics_command
+required_capability: ts_command_v0
 // tag::rate[]
 TS k8s
 | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute)
@@ -122,7 +122,7 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 oneRateWithTBucket
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: tbucket
 TS k8s
 | STATS max(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute)
@@ -134,7 +134,7 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 twoRatesWithBucket
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 3;
 
 max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):double | time_bucket:datetime    
@@ -144,7 +144,7 @@ max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):dou
 ;
 
 twoRatesWithTBucket
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: tbucket
 TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute) | SORT time_bucket DESC | LIMIT 3;
 
@@ -155,7 +155,7 @@ max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):dou
 ;
 
 oneRateWithBucketAndCluster
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:keyword
@@ -168,7 +168,7 @@ max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:ke
 ;
 
 BytesAndCostByBucketAndCluster
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max(rate(network.total_bytes_in)), max(max_over_time(network.cost)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max(rate(network.total_bytes_in)): double | max(max_over_time(network.cost)): double | time_bucket:date         | cluster: keyword
@@ -181,7 +181,7 @@ max(rate(network.total_bytes_in)): double | max(max_over_time(network.cost)): do
 ;
 
 oneRateWithBucketAndClusterThenFilter
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | WHERE cluster=="prod" | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC | LIMIT 3;
 
 max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:keyword
@@ -192,7 +192,7 @@ max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:ke
 
 
 oneRateWithBucketAndClusterThenFilter
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | WHERE cluster=="prod" | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC | LIMIT 3;
 
 max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:keyword
@@ -202,7 +202,7 @@ max(rate(network.total_bytes_in)):double | time_bucket:datetime     | cluster:ke
 ;
 
 maxRateWithInlineFilter
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS max_rate = max(rate(network.total_bytes_in)) WHERE cluster=="prod" BY cluster | SORT cluster;
 
 max_rate:double         | cluster:keyword
@@ -212,7 +212,7 @@ null                    | staging
 ;
 
 maxRateWithPreFilter
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | WHERE cluster=="prod" | STATS max_rate = max(rate(network.total_bytes_in)) BY cluster | SORT cluster;
 
 max_rate:double         | cluster:keyword
@@ -220,7 +220,7 @@ max_rate:double         | cluster:keyword
 ;
 
 notEnoughSamples
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | WHERE @timestamp <= "2024-05-10T00:06:14.000Z" | STATS max(rate(network.total_bytes_in)) BY pod, time_bucket = bucket(@timestamp,1minute) | SORT pod, time_bucket DESC | LIMIT 10;
 
 max(rate(network.total_bytes_in)):double | pod:keyword | time_bucket:datetime    
@@ -238,7 +238,7 @@ null                                     | three       | 2024-05-10T00:01:00.000
 
 
 max_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: max_over_time
 // tag::max_over_time[]
 TS k8s 
@@ -262,7 +262,7 @@ cost:double | cluster:keyword | time_bucket:datetime
 ;
 
 min_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: min_over_time
 // tag::min_over_time[]
 TS k8s 
@@ -286,7 +286,7 @@ cost:double | cluster:keyword | time_bucket:datetime
 ;
 
 max_of_avg_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: avg_over_time
 // tag::avg_over_time[]
 TS k8s
@@ -310,7 +310,7 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 ;
 
 avg_of_avg_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: avg_over_time
 TS k8s | STATS avg_cost=avg(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT avg_cost DESC, time_bucket DESC, cluster | LIMIT 10;
 
@@ -329,7 +329,7 @@ avg_cost:double    | cluster:keyword | time_bucket:datetime
 
 
 max_of_last_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: last_over_time
 // tag::last_over_time[]
 TS k8s 
@@ -353,7 +353,7 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 ;
 
 max_of_first_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: first_over_time
 // tag::first_over_time[]
 TS k8s
@@ -377,7 +377,7 @@ max_cost:double | cluster:keyword | time_bucket:datetime
 ;
 
 sum_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: sum_over_time
 
 TS k8s | STATS sum_cost=sum(sum_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT sum_cost DESC, time_bucket DESC, cluster | LIMIT 10;
@@ -397,7 +397,7 @@ sum_cost:double | cluster:keyword | time_bucket:datetime
 ;
 
 count_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: count_over_time
 
 // tag::count_over_time[]
@@ -424,7 +424,7 @@ count:long | cluster:keyword | time_bucket:datetime
 
 ;
 count_distinct_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: count_distinct_over_time
 
 // tag::count_distinct_over_time[]
@@ -453,7 +453,7 @@ distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:dateti
 
 
 two_rates
-required_capability: metrics_command
+required_capability: ts_command_v0
 
 TS k8s | STATS cost_per_mb=max(rate(network.total_bytes_in) / 1024 * 1024 * rate(network.total_cost)) BY cluster, time_bucket = bucket(@timestamp,5minute) | SORT cost_per_mb DESC, cluster, time_bucket DESC | LIMIT 5;
 
@@ -466,7 +466,7 @@ cost_per_mb:double | cluster:keyword | time_bucket:datetime
 ;
 
 present_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: present_over_time
 
 // tag::present_over_time[]
@@ -493,7 +493,7 @@ true                    | two         | 2024-05-10T00:22:00.000Z
 ;
 
 absent_over_time
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: absent_over_time
 
 // tag::absent_over_time[]

@@ -635,7 +635,7 @@ public class Security extends Plugin
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
     private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SamlAuthenticateResponseHandler.Factory> samlAuthenticateResponseHandlerFactory = new SetOnce<>();
-    private final SetOnce<RemoteClusterSecurityExtension> remoteClusterSecurityExtension = new SetOnce<>();
+    private final SetOnce<RemoteClusterSecurityExtension.Provider> remoteClusterSecurityExtensionProvider = new SetOnce<>();
     private final SetOnce<RemoteClusterAuthenticationService> remoteClusterAuthenticationService = new SetOnce<>();
 
     private final SetOnce<SecurityMigrations.Manager> migrationManager = new SetOnce<>();
@@ -1185,9 +1185,9 @@ public class Security extends Plugin
             threadPool,
             settings
         );
-        RemoteClusterSecurityExtension rcsExtension = this.getRemoteClusterSecurityExtension();
-        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = rcsExtension.getTransportInterceptor(rcsComponents);
-        remoteClusterAuthenticationService.set(rcsExtension.getAuthenticationService(rcsComponents));
+        RemoteClusterSecurityExtension rcsExtension = this.getRemoteClusterSecurityExtension(rcsComponents);
+        RemoteClusterTransportInterceptor remoteClusterTransportInterceptor = rcsExtension.getTransportInterceptor();
+        remoteClusterAuthenticationService.set(rcsExtension.getAuthenticationService());
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
 
         securityInterceptor.set(
@@ -1261,11 +1261,12 @@ public class Security extends Plugin
         return components;
     }
 
-    private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension() {
-        if (this.remoteClusterSecurityExtension.get() == null) {
-            this.remoteClusterSecurityExtension.set(new CrossClusterAccessSecurityExtension());
+    private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension(RemoteClusterSecurityExtension.Components components) {
+        if (this.remoteClusterSecurityExtensionProvider.get() == null) {
+            this.remoteClusterSecurityExtensionProvider.set(new CrossClusterAccessSecurityExtension.Provider());
         }
-        RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtension.get();
+        RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtensionProvider.get().getExtension(components);
+        assert rcsExtension != null;
         if (false == isInternalRemoteClusterSecurityExtension(rcsExtension)) {
             throw new IllegalStateException(
                 "The ["
@@ -2490,7 +2491,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
-        loadSingletonExtensionAndSetOnce(loader, remoteClusterSecurityExtension, RemoteClusterSecurityExtension.class);
+        loadSingletonExtensionAndSetOnce(loader, remoteClusterSecurityExtensionProvider, RemoteClusterSecurityExtension.Provider.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

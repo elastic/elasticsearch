@@ -7,52 +7,56 @@
 
 package org.elasticsearch.xpack.security.transport.extension;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
-
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Remote cluster security extension point which is based on cross-cluster API keys.
  */
 public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurityExtension {
 
-    private static final AtomicReference<InstancesHolder> instancesHolder = new AtomicReference<>();
+    private final CrossClusterAccessAuthenticationService authenticationService;
+    private final CrossClusterAccessTransportInterceptor transportInterceptor;
 
-    @Override
-    public CrossClusterAccessTransportInterceptor getTransportInterceptor(Components components) {
-        return instancesHolder(components).transportInterceptor;
+    private CrossClusterAccessSecurityExtension(Components components) {
+        this.authenticationService = new CrossClusterAccessAuthenticationService(
+            components.clusterService(),
+            components.apiKeyService(),
+            components.authenticationService()
+        );
+        this.transportInterceptor = new CrossClusterAccessTransportInterceptor(
+            components.settings(),
+            components.threadPool(),
+            components.authenticationService(),
+            components.authorizationService(),
+            components.securityContext(),
+            this.authenticationService,
+            components.licenseState()
+        );
     }
 
     @Override
-    public CrossClusterAccessAuthenticationService getAuthenticationService(Components components) {
-        return instancesHolder(components).authenticationService;
+    public CrossClusterAccessTransportInterceptor getTransportInterceptor() {
+        return transportInterceptor;
     }
 
-    private InstancesHolder instancesHolder(Components components) {
-        return instancesHolder.updateAndGet(current -> current != null ? current : new InstancesHolder(components));
+    @Override
+    public CrossClusterAccessAuthenticationService getAuthenticationService() {
+        return authenticationService;
     }
 
-    private static class InstancesHolder {
+    public static class Provider implements RemoteClusterSecurityExtension.Provider {
 
-        private final CrossClusterAccessAuthenticationService authenticationService;
-        private final CrossClusterAccessTransportInterceptor transportInterceptor;
+        private final SetOnce<CrossClusterAccessSecurityExtension> extension = new SetOnce<>();
 
-        private InstancesHolder(Components components) {
-            this.authenticationService = new CrossClusterAccessAuthenticationService(
-                components.clusterService(),
-                components.apiKeyService(),
-                components.authenticationService()
-            );
-            this.transportInterceptor = new CrossClusterAccessTransportInterceptor(
-                components.settings(),
-                components.threadPool(),
-                components.authenticationService(),
-                components.authorizationService(),
-                components.securityContext(),
-                this.authenticationService,
-                components.licenseState()
-            );
+        @Override
+        public RemoteClusterSecurityExtension getExtension(Components components) {
+            if (extension.get() == null) {
+                extension.set(new CrossClusterAccessSecurityExtension(components));
+            }
+            return extension.get();
         }
     }
+
 }

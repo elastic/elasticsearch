@@ -31,9 +31,17 @@ import org.elasticsearch.xpack.security.transport.RemoteClusterTransportIntercep
  */
 public interface RemoteClusterSecurityExtension {
 
-    RemoteClusterTransportInterceptor getTransportInterceptor(Components components);
+    RemoteClusterTransportInterceptor getTransportInterceptor();
 
-    RemoteClusterAuthenticationService getAuthenticationService(Components components);
+    RemoteClusterAuthenticationService getAuthenticationService();
+
+    /**
+     * An SPI interface for providing remote cluster security extensions.
+     */
+    interface Provider {
+
+        RemoteClusterSecurityExtension getExtension(Components components);
+    }
 
     /**
      * Provides access to components that can be used by interceptor and authentication service.
@@ -63,4 +71,5 @@ public interface RemoteClusterSecurityExtension {
         Settings settings();
 
     }
+
 }

@@ -55,10 +55,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
-            CrossClusterAccessAuthenticationService.class,
-            nodeName
-        );
+        final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
 
         try (var ignored = threadContext.stashContext()) {
             authenticateAndAssertExpectedErrorMessage(
@@ -142,14 +139,26 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
+    private static CrossClusterAccessAuthenticationService getCrossClusterAccessAuthenticationService(String nodeName) {
+        RemoteClusterAuthenticationService service = internalCluster().getInstance(RemoteClusterAuthenticationService.class, nodeName);
+        if (service instanceof CrossClusterAccessAuthenticationService) {
+            return (CrossClusterAccessAuthenticationService) service;
+        } else {
+            throw new AssertionError(
+                "expected ["
+                    + CrossClusterAccessAuthenticationService.class.getCanonicalName()
+                    + "] but got  ["
+                    + service.getClass().getSimpleName()
+                    + "]"
+            );
+        }
+    }
+
     public void testAuthenticateHeadersSuccess() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
-            CrossClusterAccessAuthenticationService.class,
-            nodeName
-        );
+        final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
 
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKey);
@@ -165,10 +174,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
 
     public void testGetApiKeyCredentialsFromHeaders() {
         final String nodeName = internalCluster().getRandomNodeName();
-        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
-            CrossClusterAccessAuthenticationService.class,
-            nodeName
-        );
+        final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
 
         {
             ElasticsearchSecurityException ex = expectThrows(
@@ -214,10 +220,7 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         final EncodedKeyWithId encodedRestApiKeyWithId = getEncodedRestApiKeyWithId();
         final String nodeName = internalCluster().getRandomNodeName();
         final ThreadContext threadContext = internalCluster().getInstance(SecurityContext.class, nodeName).getThreadContext();
-        final CrossClusterAccessAuthenticationService service = internalCluster().getInstance(
-            CrossClusterAccessAuthenticationService.class,
-            nodeName
-        );
+        final CrossClusterAccessAuthenticationService service = getCrossClusterAccessAuthenticationService(nodeName);
 
         try (var ignored = threadContext.stashContext()) {
             addRandomizedHeaders(threadContext, encodedCrossClusterAccessApiKeyWithId.encoded);

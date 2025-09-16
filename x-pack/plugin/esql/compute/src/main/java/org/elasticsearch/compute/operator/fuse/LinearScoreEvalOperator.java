@@ -164,13 +164,13 @@ public class LinearScoreEvalOperator implements Operator {
         };
     }
 
-    private abstract class Normalizer {
+    private interface Normalizer {
         public abstract double normalize(double score, String discriminator);
 
         public abstract void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition);
     }
 
-    private class NoneNormalizer extends Normalizer {
+    private class NoneNormalizer implements Normalizer {
         @Override
         public double normalize(double score, String discriminator) {
             return score;
@@ -180,7 +180,7 @@ public class LinearScoreEvalOperator implements Operator {
         public void preprocess(Collection<Page> inputPages, int scorePosition, int discriminatorPosition) {}
     }
 
-    private class L2NormNormalizer extends Normalizer {
+    private class L2NormNormalizer implements Normalizer {
         private final Map<String, Double> l2Norms = new HashMap<>();
 
         @Override
@@ -208,7 +208,7 @@ public class LinearScoreEvalOperator implements Operator {
         }
     }
 
-    private class MinMaxNormalizer extends Normalizer {
+    private class MinMaxNormalizer implements Normalizer {
         private final Map<String, Double> minScores = new HashMap<>();
         private final Map<String, Double> maxScores = new HashMap<>();
 

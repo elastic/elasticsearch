@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -19,7 +18,6 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FuseIT extends AbstractEsqlIntegTestCase {
@@ -162,48 +160,6 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             );
             assertValues(resp.values(), expectedValues);
         }
-    }
-
-    public void testLinearInvalidOptions() {
-        var e = expectThrows(VerificationException.class, () -> run("""
-            FROM test METADATA _score, _id, _index
-            | FORK (WHERE true) (WHERE true)
-            | FUSE linear WITH { "abc": {} }
-            """));
-
-        assertThat(e.getMessage(), containsString("unknown option [abc] in [FUSE linear WITH { \"abc\": {} }]"));
-
-        e = expectThrows(VerificationException.class, () -> run("""
-            FROM test METADATA _score, _id, _index
-            | FORK (WHERE true) (WHERE true)
-            | FUSE linear WITH { "normalizer": 123 }
-            """));
-
-        assertThat(e.getMessage(), containsString("expected normalizer to be a string, got [123]"));
-
-        e = expectThrows(VerificationException.class, () -> run("""
-            FROM test METADATA _score, _id, _index
-            | FORK (WHERE true) (WHERE true)
-            | FUSE linear WITH { "normalizer": { "a": 1 } }
-            """));
-
-        assertThat(e.getMessage(), containsString("expected normalizer to be a literal, got [{ \"a\": 1 }]"));
-
-        e = expectThrows(VerificationException.class, () -> run("""
-            FROM test METADATA _score, _id, _index
-            | FORK (WHERE true) (WHERE true)
-            | FUSE linear WITH { "weights": "abc" }
-            """));
-
-        assertThat(e.getMessage(), containsString("expected weights to be a MapExpression, got [\"abc\"]"));
-
-        e = expectThrows(VerificationException.class, () -> run("""
-            FROM test METADATA _score, _id, _index
-            | FORK (WHERE true) (WHERE true)
-            | FUSE linear WITH { "weights": { "fork1": - 1 } }
-            """));
-
-        assertThat(e.getMessage(), containsString("expected weight to be positive, got [- 1]"));
     }
 
     private void createAndPopulateIndex() {

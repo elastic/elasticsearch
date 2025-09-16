@@ -10,7 +10,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.ExceptionsHelper;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -119,15 +118,8 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
         // check if our current buffer already contains the requested range
         final long absPos = pos + offset;
-        if (absPos >= filePos && absPos <= filePos + buffer.limit() && absPos + length <= filePos + buffer.limit()) {
-            // the new position is within the existing buffer
-            return;
-        }
         final long alignedPos = absPos - (absPos % blockSize);
         final int delta = (int) (absPos - alignedPos);
-        if (alignedPos == 4323131392L) {
-            System.out.println("debug prefetch of pos " + pos + " aligned" + alignedPos);
-        }
         prefetcher.prefetch(alignedPos, length + delta);
     }
 
@@ -170,17 +162,17 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     private void seekInternal(long pos) throws IOException {
         final long absPos = pos + offset;
         final long alignedPos = absPos - (absPos % blockSize);
-        if (alignedPos <= 4323131392L + 4096 && alignedPos >= 4323131392L - 4096) {
-            System.out.println("debug prefetch of pos " + pos + " aligned" + alignedPos);
-        }
         filePos = alignedPos - buffer.capacity();
 
         final int delta = (int) (absPos - alignedPos);
-        refill(delta);
-        buffer.position(delta);
+        refill(delta, delta);
     }
 
     private void refill(int bytesToRead) throws IOException {
+        refill(bytesToRead, 0);
+    }
+
+    private void refill(int bytesToRead, int delta) throws IOException {
         filePos += buffer.capacity();
         // BaseDirectoryTestCase#testSeekPastEOF test for consecutive read past EOF,
         // hence throwing EOFException early to maintain buffer state (position in particular)
@@ -189,7 +181,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
         buffer.clear();
         try {
-            if (prefetcher.readBytes(filePos, buffer)) {
+            if (prefetcher.readBytes(filePos, buffer, delta)) {
                 // successfully read from prefetch buffer
                 return;
             }
@@ -202,6 +194,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             throw new IOException(ioe.getMessage() + ": " + this, ioe);
         }
         buffer.flip();
+        buffer.position(delta);
     }
 
     @Override
@@ -322,9 +315,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     @Override
     public AsyncDirectIOIndexInput clone() {
         try {
-            var clone = new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
-            clone.prefetch(getFilePointer(), buffer.capacity());
-            return clone;
+            return new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
@@ -335,8 +326,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         if ((length | offset) < 0 || length > this.length - offset) {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
         }
-        var slice = new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
-        return slice;
+        return new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
     }
 
     record PrefetchReq(long pos, long length) {}
@@ -377,9 +367,6 @@ public class AsyncDirectIOIndexInput extends IndexInput {
          * @throws IOException
          */
         void prefetch(long pos, long length) throws IOException {
-            if (pos == 4323131392L) {
-                System.out.println("debug prefetch of pos " + pos + ", length " + length);
-            }
             if (pos < 0 || length < 0 || pos + length > channel.size()) {
                 throw new IllegalArgumentException("Invalid prefetch range: pos=" + pos + ", length=" + length);
             }
@@ -411,28 +398,17 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             }
         }
 
-        boolean readBytes(long pos, ByteBuffer slice) throws IOException {
-            final int slot;
-            final long prefetchedPos;
-            if (pos == 4323131392L) {
-                System.out.println(
-                    "debug readBytes of pos " + pos + "trace: " + ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace())
-                );
-            }
-            var entry = this.posToSlot.floorEntry(pos);
+        boolean readBytes(long pos, ByteBuffer slice, int delta) throws IOException {
+            final var entry = this.posToSlot.floorEntry(pos);
             if (entry == null) {
-                System.out.println("no prefetch entry for pos " + pos + ", active prefetches: " + this.posToSlot);
                 return false;
             }
-            slot = entry.getValue();
-            prefetchedPos = entry.getKey();
+            final int slot = entry.getValue();
+            final long prefetchedPos = entry.getKey();
             // determine if the requested pos is within the prefetched range
             if (pos >= this.prefetchPos[slot] + prefetchBytesSize) {
                 return false;
             }
-            /*            if (pos != prefetchedPos) {
-                System.out.println("pos: " + pos + " adjusting position by " + (pos - prefetchedPos) + " bytes: " + this.posToSlot);
-            }*/
             final Future<?> thread = prefetchThreads[slot];
             if (thread == null) {
                 // free slot and decrement active prefetches
@@ -457,8 +433,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             // our buffer sizes are uniform, and match the required buffer size, however, the position here
             // might be before the requested pos, so offset it
             slice.put(prefetchBuffers[slot]);
-
-            slice.position(Math.toIntExact(pos - prefetchedPos));
+            slice.position(Math.toIntExact(pos - prefetchedPos) + delta);
             clearSlotAndMaybeStartPending(slot);
             return true;
         }

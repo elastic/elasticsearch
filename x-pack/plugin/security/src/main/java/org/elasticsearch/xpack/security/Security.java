@@ -857,7 +857,8 @@ public class Security extends Plugin
             clusterService,
             resourceWatcherService,
             userRoleMapper,
-            projectResolver
+            projectResolver,
+            telemetryProvider
         );
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(

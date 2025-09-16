@@ -99,6 +99,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -174,7 +175,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
             @Override
             public IndexInput openInput(String name, IOContext context) throws IOException {
-                if (EsExecutors.executorName(Thread.currentThread()).equals(ThreadPool.Names.SNAPSHOT)) {
+                if (Objects.equals(EsExecutors.executorName(Thread.currentThread()), ThreadPool.Names.SNAPSHOT)) {
                     safeAcquire(blocker);
                     try {
                         return super.openInput(name, context);

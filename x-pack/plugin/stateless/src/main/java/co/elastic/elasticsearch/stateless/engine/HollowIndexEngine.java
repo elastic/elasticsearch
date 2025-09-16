@@ -28,6 +28,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.lucene.Lucene;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.SparseVectorStats;
@@ -173,6 +175,21 @@ public class HollowIndexEngine extends Engine {
         }
     }
 
+    /**
+     * This is used by internal functions of the Engine that are not supported by the hollow engine, e.g., getReferenceManager, to
+     * return an exception that qualifies for the
+     * {@link org.elasticsearch.action.support.TransportActions#isShardNotAvailableException(java.lang.Throwable)} function.
+     *
+     * Some operations that may unhollow (e.g., force merge, pre-update) via
+     * {@link HollowShardsService#onMutableOperation(IndexShard, boolean, ActionListener)} ultimately can still race with hollowing
+     * as they do not prevent a shard from being relocated. So they may end up calling these unsupported functions on a hollow engine,
+     * similarly to how they may end up calling the functions on a closed/relocated shard. They handle such eventualities by handling
+     * qualifying exceptions specially, e.g., by ignoring them (in the case of force merge) or retrying (in the case of pre-update).
+     */
+    protected void throwShardNotAvailableException(String message) {
+        throw new NoShardAvailableActionException(shardId, message);
+    }
+
     public StatelessCommitService getStatelessCommitService() {
         return statelessCommitService;
     }
@@ -281,8 +298,8 @@ public class HollowIndexEngine extends Engine {
         DocumentParser documentParser,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        assert false : "get should not be called on a hollow engine";
-        throw new UnsupportedOperationException("gets are not supported on a hollow engine");
+        throwShardNotAvailableException("gets are not supported on a hollow engine");
+        return null;
     }
 
     @Override
@@ -360,7 +377,7 @@ public class HollowIndexEngine extends Engine {
         if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             // noop
         } else if (maxNumSegments < segmentInfos.size()) {
-            throw new UnsupportedOperationException(
+            throwShardNotAvailableException(
                 "force merge is not supported on a hollow engine, "
                     + "target max number of segments["
                     + maxNumSegments
@@ -496,8 +513,8 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     protected ReferenceManager<ElasticsearchDirectoryReader> getReferenceManager(SearcherScope scope) {
-        assert false : "getting reference manager / searcher should not be called on a hollow engine";
-        throw new UnsupportedOperationException("getting reference manager / searcher is not supported on a hollow engine");
+        throwShardNotAvailableException("getting reference manager / searcher is not supported on a hollow engine");
+        return null;
     }
 
     @Override

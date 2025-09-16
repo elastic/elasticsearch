@@ -13,5 +13,22 @@ import java.util.Map;
 
 /**
  * A collection of {@link ReplacedIndexExpression}, keyed by the original expression.
+ *
+ * <p>An example structure is:</p>
+ *
+ * <pre>{@code
+ * {
+ *   "my-index-*": {
+ *      {
+ *          "original": "my-index-*",
+ *          "localExpressions": {
+ *              "expressions": ["my-index-000001", "my-index-000002"],
+ *              "localIndexResolutionResult": "SUCCESS"
+ *          },
+ *          "remoteExpressions": ["remote1:my-index-*", "remote2:my-index-*"]
+ *      }
+ *   }
+ * }
+ * }</pre>
  */
 public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> expressions) {}

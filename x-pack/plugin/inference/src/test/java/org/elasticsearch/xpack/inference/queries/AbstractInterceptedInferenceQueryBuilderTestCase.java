@@ -69,6 +69,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
+// TODO: Add serialization tests with remote cluster inference results
+
 public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends AbstractQueryBuilder<T>> extends MapperServiceTestCase {
     private static TestThreadPool threadPool;
     private static ModelRegistry modelRegistry;

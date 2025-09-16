@@ -540,12 +540,33 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.repositories.s3.S3BlobStoreRepositoryTests
-  method: testFailIfAlreadyExists
-  issue: https://github.com/elastic/elasticsearch/issues/134669
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithNulls {TestCase=<integer>, <integer>, <integer>, <_source> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/134679
+- class: org.elasticsearch.action.support.nodes.TransportNodesActionTests
+  method: testConcurrentlyCompletionAndCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/134277
+- class: org.elasticsearch.search.vectors.CachingEnableFilterQueryTests
+  method: testTermQuery
+  issue: https://github.com/elastic/elasticsearch/issues/134723
+- class: org.elasticsearch.discovery.DiscoveryDisruptionIT
+  method: testElectMasterWithLatestVersion
+  issue: https://github.com/elastic/elasticsearch/issues/134748
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testLargeValueIsStored
+  issue: https://github.com/elastic/elasticsearch/issues/134760
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testSourceMatchAllManyValues
+  issue: https://github.com/elastic/elasticsearch/issues/134761
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testQueryResultsSameAsMatchOnlyText
+  issue: https://github.com/elastic/elasticsearch/issues/134762
+- class: org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextIntegrationTests
+  method: testSmallValueNotStored
+  issue: https://github.com/elastic/elasticsearch/issues/134763
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/134407
 
 # Examples:
 #

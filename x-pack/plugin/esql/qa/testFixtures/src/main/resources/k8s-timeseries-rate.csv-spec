@@ -116,6 +116,7 @@ rate_bytes:double  | cluster:keyword | time_bucket:datetime     | rate_kb:double
 
 rate_of_aggregate_metric
 required_capability: ts_command_v0
+required_capability: aggregate_metric_double
 TS k8s-downsampled
 | STATS sum_bytes = sum(rate(network.total_bytes_in)),
         max_bytes = max(rate(network.total_bytes_in)), 

@@ -10,8 +10,6 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -24,7 +22,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
-import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
@@ -48,7 +45,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -68,16 +64,6 @@ public final class IngestDocument {
 
     // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
     private static final Object NOT_FOUND = new Object();
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> DEPRECATION_FUNCTIONS = Map.of("_type", value -> {
-        deprecationLogger.warn(
-            DeprecationCategory.INDICES,
-            "conditional-processor__type",
-            "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        return value;
-    });
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -1022,8 +1008,14 @@ public final class IngestDocument {
         return ctxMap;
     }
 
+    /*
+     * This returns the same information as getSourceAndMetadata(), but in an unmodifiable map that is safe to send into a script that is
+     * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map or List nested within it, an
+     * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
+     * results are not reflected on this IngestDocument.
+     */
     public Map<String, Object> getUnmodifiableSourceAndMetadata() {
-        return new UnmodifiableIngestData(new DynamicMap(ctxMap, DEPRECATION_FUNCTIONS));
+        return new UnmodifiableIngestData(ctxMap);
     }
 
     /**

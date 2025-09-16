@@ -1528,6 +1528,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener to notify after full durability has been achieved
      */
     public void flush(FlushRequest request, ActionListener<Engine.FlushResult> listener) {
+        flush(request, this::getEngine, listener);
+    }
+
+    protected void flush(FlushRequest request, Supplier<Engine> engine, ActionListener<Engine.FlushResult> listener) {
         final boolean waitIfOngoing = request.waitIfOngoing();
         final boolean force = request.force();
         logger.trace("flush with {}", request);
@@ -1539,7 +1543,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             verifyNotClosed();
             final long startTime = System.nanoTime();
-            getEngine().flush(force, waitIfOngoing, ActionListener.runBefore(l, () -> flushMetric.inc(System.nanoTime() - startTime)));
+            assert engine != null : "engine supplier is null";
+            assert engine.get() != null : "engine is null";
+            engine.get().flush(force, waitIfOngoing, ActionListener.runBefore(l, () -> flushMetric.inc(System.nanoTime() - startTime)));
         });
     }
 
@@ -2545,33 +2551,46 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * indexing operation, so we can flush the index.
      */
     public void flushOnIdle(long inactiveTimeNS) {
-        Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
-            boolean wasActive = active.getAndSet(false);
-            if (wasActive) {
-                logger.debug("flushing shard on inactive");
-                threadPool.executor(ThreadPool.Names.FLUSH)
-                    .execute(() -> flush(new FlushRequest().waitIfOngoing(false).force(false), new ActionListener<>() {
-                        @Override
-                        public void onResponse(Engine.FlushResult flushResult) {
-                            if (flushResult.skippedDueToCollision()) {
-                                // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
-                                // will retry (#87888)
+        tryWithEngineOrNull(engineOrNull -> {
+            if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
+                boolean wasActive = active.getAndSet(false);
+                if (wasActive) {
+                    logger.debug("flushing shard on inactive");
+                    threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
+                        tryWithEngineOrNull(engine -> {
+                            if (engine == null) {
+                                // Revert active flag so that a next flushOnIdle request will retry
                                 active.set(true);
-                            }
-                            periodicFlushMetric.inc();
-                        }
+                            } else {
+                                flush(new FlushRequest().waitIfOngoing(false).force(false), () -> engine, new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(Engine.FlushResult flushResult) {
+                                        if (flushResult.skippedDueToCollision()) {
+                                            // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
+                                            // will retry (#87888)
+                                            active.set(true);
+                                        }
+                                        periodicFlushMetric.inc();
+                                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (state != IndexShardState.CLOSED) {
-                                active.set(true);
-                                logger.warn("failed to flush shard on inactive", e);
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        if (state != IndexShardState.CLOSED) {
+                                            active.set(true);
+                                            logger.warn("failed to flush shard on inactive", e);
+                                        }
+                                    }
+                                });
                             }
-                        }
-                    }));
+                            return null;
+                        });
+                    });
+                }
+            } else {
+                logger.trace(() -> "flush on idle skipped as it is either closed, engine being reset, or has been recently written to");
             }
-        }
+            return null;
+        });
     }
 
     public boolean isActive() {

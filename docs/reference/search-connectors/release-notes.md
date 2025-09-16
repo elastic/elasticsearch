@@ -13,6 +13,11 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.0.7 [connectors-9.0.7-release-notes]
+
+### Features and enhancements [connectors-9.0.7-features-enhancements]
+* Reduced API calls during field validation with caching, improving sync performance in Salesforce connector. [#3668](https://github.com/elastic/connectors/pull/3668).
+
 ## 9.0.6 [connectors-9.0.6-release-notes]
 No changes since 9.0.5
 

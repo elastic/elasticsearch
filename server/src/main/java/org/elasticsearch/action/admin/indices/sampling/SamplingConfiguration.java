@@ -40,7 +40,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         ToXContentObject,
         SimpleDiffable<SamplingConfiguration> {
 
-    private static final String TYPE = "sampling_configuration";
+    public static final String TYPE = "sampling_configuration";
     private static final String RATE_FIELD_NAME = "rate";
     private static final String MAX_SAMPLES_FIELD_NAME = "max_samples";
     private static final String MAX_SIZE_FIELD_NAME = "max_size";

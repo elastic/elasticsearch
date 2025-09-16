@@ -41,7 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class SamplingMetadata implements Metadata.ProjectCustom {
 
-    private static final String TYPE = "sampling";
+    public static final String TYPE = "sampling";
     private static final String INDEX_SAMPLING_CONFIG_MAP_FIELD_NAME = "index_to_sampling_config";
     private static final ParseField INDEX_SAMPLING_CONFIG_MAP_PARSE_FIELD = new ParseField(INDEX_SAMPLING_CONFIG_MAP_FIELD_NAME);
 

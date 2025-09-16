@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -41,5 +42,20 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
         } else {
             System.setProperty("es.allow_unknown_lucene_file_extensions", value);
         }
+    }
+
+    public void testIsLuceneExtension() {
+        assertFalse(LuceneFilesExtensions.isLuceneExtension(null));
+        assertFalse(LuceneFilesExtensions.isLuceneExtension("bcde"));
+        String randomStringWithLuceneExtension = randomAlphanumericOfLength(10) + "." +
+            LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length) - 1].getExtension();
+        String extension = IndexFileNames.getExtension(randomStringWithLuceneExtension);
+        assertTrue(extension + " should be considered a Lucene extension",
+            LuceneFilesExtensions.isLuceneExtension(extension)
+        );
+        String upperCaseExtension = extension.toUpperCase();
+        assertFalse(upperCaseExtension + " (uppercase) should not be considered a Lucene extension",
+            LuceneFilesExtensions.isLuceneExtension(upperCaseExtension)
+        );
     }
 }

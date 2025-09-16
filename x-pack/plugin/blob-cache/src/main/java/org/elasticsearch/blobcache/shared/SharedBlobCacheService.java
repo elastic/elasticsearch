@@ -2089,15 +2089,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
             return LuceneFilesExtensions.CFS.getExtension();
         }
-        try {
-            String extension = IndexFileNames.getExtension(resourceDescription);
-            if (LuceneFilesExtensions.isLuceneExtension(extension)) {
-                LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromExtension(extension);
-                return luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
-            } else {
-                return NON_LUCENE_EXTENSION_TO_RECORD;
-            }
-        } catch (Exception t) {
+        String extension = IndexFileNames.getExtension(resourceDescription);
+        if (LuceneFilesExtensions.isLuceneExtension(extension)) {
+            return extension;
+        } else {
             return NON_LUCENE_EXTENSION_TO_RECORD;
         }
     }

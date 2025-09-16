@@ -184,10 +184,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
 
         // Get IndexRouting here and pass onto performOnPrimary
-        ClusterState clusterState  = clusterService.state();
+        ClusterState clusterState = clusterService.state();
         ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
         Index index = primary.shardId().getIndex();
-        //IndexMetadata indexMetadata = clusterState.getMetadata().indexMetadata(index);
+        // IndexMetadata indexMetadata = clusterState.getMetadata().indexMetadata(index);
         IndexRouting routing = IndexRouting.fromIndexMetadata(project.getIndexSafe(index));
         performOnPrimary(routing, request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;

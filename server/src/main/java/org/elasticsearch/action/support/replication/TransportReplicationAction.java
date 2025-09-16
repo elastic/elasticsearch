@@ -532,11 +532,11 @@ public abstract class TransportReplicationAction<
 
                         // Use the metadata in the response to figure out if we need to forward a request
                         // to the target shard.
-                        //  setPhase(replicationTask, "split-request");
+                        // setPhase(replicationTask, "split-request");
                         // If so use an abstract method (to be implemented by bulk,flush,refresh) to send the split request
                         // to the target shard and combine this response with the response from target.
-                        //    transportService.sendRequest (global checkpoint sync will occur at target shard as well)
-                        //    listener will combine response
+                        // transportService.sendRequest (global checkpoint sync will occur at target shard as well)
+                        // listener will combine response
 
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);

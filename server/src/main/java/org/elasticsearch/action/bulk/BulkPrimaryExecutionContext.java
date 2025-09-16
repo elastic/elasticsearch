@@ -96,7 +96,9 @@ class BulkPrimaryExecutionContext {
 
     /** move to the next item to execute */
     private void advance() {
-        assert currentItemState == ItemProcessingState.COMPLETED || currentIndex == -1 || currentItemState == ItemProcessingState.RESHARD_FORWARD
+        assert currentItemState == ItemProcessingState.COMPLETED
+            || currentIndex == -1
+            || currentItemState == ItemProcessingState.RESHARD_FORWARD
             : "moving to next but current item wasn't completed (state: " + currentItemState + ")";
         currentItemState = ItemProcessingState.INITIAL;
         currentIndex = findNextNonAborted(currentIndex + 1);

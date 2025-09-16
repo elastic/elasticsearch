@@ -6,12 +6,12 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package org.elasticsearch.action.admin.indices.sample;
+package org.elasticsearch.action.admin.indices.sampling;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,26 +19,26 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class IndexSampleConfigurationMapTests extends AbstractXContentSerializingTestCase<IndexSampleConfigurationMap> {
+public class SamplingMetadataTests extends AbstractChunkedSerializingTestCase<SamplingMetadata> {
 
     @Override
-    protected IndexSampleConfigurationMap doParseInstance(XContentParser parser) throws IOException {
-        return IndexSampleConfigurationMap.fromXContent(parser);
+    protected SamplingMetadata doParseInstance(XContentParser parser) throws IOException {
+        return SamplingMetadata.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<IndexSampleConfigurationMap> instanceReader() {
-        return IndexSampleConfigurationMap::new;
+    protected Writeable.Reader<SamplingMetadata> instanceReader() {
+        return SamplingMetadata::new;
     }
 
     @Override
-    protected IndexSampleConfigurationMap createTestInstance() {
-        return new IndexSampleConfigurationMap(randomSampleConfigMap());
+    protected SamplingMetadata createTestInstance() {
+        return new SamplingMetadata(randomSampleConfigMap());
     }
 
     @Override
-    protected IndexSampleConfigurationMap mutateInstance(IndexSampleConfigurationMap instance) {
-        Map<String, SampleConfiguration> map = new HashMap<>(instance.getIndexToSampleConfig());
+    protected SamplingMetadata mutateInstance(SamplingMetadata instance) {
+        Map<String, SamplingConfiguration> map = new HashMap<>(instance.getIndexToSamplingConfigMap());
         if (map.isEmpty() || randomBoolean()) {
             // Add a new entry
             map.put(randomAlphaOfLength(10), createRandomSampleConfig());
@@ -46,11 +46,11 @@ public class IndexSampleConfigurationMapTests extends AbstractXContentSerializin
             // Remove an entry
             map.remove(map.keySet().iterator().next());
         }
-        return new IndexSampleConfigurationMap(map);
+        return new SamplingMetadata(map);
     }
 
-    private Map<String, SampleConfiguration> randomSampleConfigMap() {
-        Map<String, SampleConfiguration> map = new HashMap<>();
+    private Map<String, SamplingConfiguration> randomSampleConfigMap() {
+        Map<String, SamplingConfiguration> map = new HashMap<>();
         int numConfigs = randomIntBetween(0, 5);
         for (int i = 0; i < numConfigs; i++) {
             map.put(randomAlphaOfLength(10), createRandomSampleConfig());
@@ -58,8 +58,8 @@ public class IndexSampleConfigurationMapTests extends AbstractXContentSerializin
         return map;
     }
 
-    private static SampleConfiguration createRandomSampleConfig() {
-        return new SampleConfiguration(
+    private static SamplingConfiguration createRandomSampleConfig() {
+        return new SamplingConfiguration(
             randomDoubleBetween(0.0, 1.0, true),
             randomBoolean() ? null : randomIntBetween(1, 1000),
             randomBoolean() ? null : ByteSizeValue.ofGb(randomIntBetween(1, 5)),

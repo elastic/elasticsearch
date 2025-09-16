@@ -7,11 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.action.admin.indices.sample;
+package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -34,12 +35,18 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  * timeToLive (optional): The duration for which the sampled documents should be retained.
  * condition (optional): An optional condition that sampled documents must satisfy.
  */
-public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
+public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
     implements
-        Writeable,
-        ToXContentObject {
+        ToXContentObject,
+        SimpleDiffable<SamplingConfiguration> {
 
-    private static final String SAMPLE_CONFIG_DOWNLOADER = "sample-configuration-downloader";
+    private static final String TYPE = "sampling_configuration";
+    private static final String RATE_FIELD_NAME = "rate";
+    private static final String MAX_SAMPLES_FIELD_NAME = "max_samples";
+    private static final String MAX_SIZE_FIELD_NAME = "max_size";
+    private static final String TIME_TO_LIVE_FIELD_NAME = "time_to_live";
+    private static final String CONDITION_FIELD_NAME = "condition";
+
     // Constants for validation and defaults
     public static final int MAX_SAMPLES_LIMIT = 10_000;
     public static final long MAX_SIZE_LIMIT_GIGABYTES = 5;
@@ -60,41 +67,37 @@ public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue
         + " days";
     public static final String INVALID_CONDITION_MESSAGE = "condition must be a non-empty string";
 
-    private static final ConstructingObjectParser<SampleConfiguration, Void> PARSER = new ConstructingObjectParser<>(
-        SAMPLE_CONFIG_DOWNLOADER,
-        true,
-        args -> {
-            double rate = (double) args[0];
-            Integer maxSamples = (Integer) args[1];
-            ByteSizeValue maxSize = (ByteSizeValue) args[2];
-            TimeValue timeToLive = (TimeValue) args[3];
-            String condition = (String) args[4];
-            return new SampleConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
-        }
-    );
+    private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(TYPE, true, args -> {
+        double rate = (double) args[0];
+        Integer maxSamples = (Integer) args[1];
+        ByteSizeValue maxSize = (ByteSizeValue) args[2];
+        TimeValue timeToLive = (TimeValue) args[3];
+        String condition = (String) args[4];
+        return new SamplingConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
+    });
 
     static {
-        PARSER.declareDouble(constructorArg(), new ParseField("rate"));
-        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_SAMPLES, new ParseField("maxSamples"));
+        PARSER.declareDouble(constructorArg(), new ParseField(RATE_FIELD_NAME));
+        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_SAMPLES, new ParseField(MAX_SAMPLES_FIELD_NAME));
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), "maxSize"),
-            new org.elasticsearch.xcontent.ParseField("maxSize"),
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME),
+            new org.elasticsearch.xcontent.ParseField(MAX_SIZE_FIELD_NAME),
             org.elasticsearch.xcontent.ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), "timeToLive"),
-            new org.elasticsearch.xcontent.ParseField("timeToLive"),
+            (p, c) -> TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME),
+            new org.elasticsearch.xcontent.ParseField(TIME_TO_LIVE_FIELD_NAME),
             org.elasticsearch.xcontent.ObjectParser.ValueType.STRING
         );
-        PARSER.declareStringOrNull(optionalConstructorArg(), new org.elasticsearch.xcontent.ParseField("condition"));
+        PARSER.declareStringOrNull(optionalConstructorArg(), new org.elasticsearch.xcontent.ParseField(CONDITION_FIELD_NAME));
     }
 
     /*
      * Constructor with validation and defaulting for optional fields.
      */
-    public SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
+    public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
 
         // Set defaults
@@ -111,7 +114,7 @@ public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue
     }
 
     // StreamInput constructor
-    public SampleConfiguration(StreamInput in) throws IOException {
+    public SamplingConfiguration(StreamInput in) throws IOException {
         this(
             in.readDouble(),
             in.readOptionalInt(),
@@ -135,26 +138,30 @@ public record SampleConfiguration(double rate, Integer maxSamples, ByteSizeValue
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("rate", rate);
+        builder.field(RATE_FIELD_NAME, rate);
         if (maxSamples != null) {
-            builder.field("maxSamples", maxSamples);
+            builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
         }
         if (maxSize != null) {
-            builder.field("maxSize", maxSize.toString());
+            builder.field(MAX_SIZE_FIELD_NAME, maxSize.toString());
         }
         if (timeToLive != null) {
-            builder.field("timeToLive", timeToLive.toString());
+            builder.field(TIME_TO_LIVE_FIELD_NAME, timeToLive.toString());
         }
         if (condition != null && condition.isEmpty() == false) {
-            builder.field("condition", condition);
+            builder.field(CONDITION_FIELD_NAME, condition);
         }
         builder.endObject();
         return builder;
     }
 
     // Deserialize from XContent (JSON)
-    public static SampleConfiguration fromXContent(XContentParser parser) throws IOException {
+    public static SamplingConfiguration fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    public static Diff<SamplingConfiguration> readDiffFrom(StreamInput in) throws IOException {
+        return SimpleDiffable.readDiffFrom(SamplingConfiguration::new, in);
     }
 
     // Input validation method

@@ -1030,7 +1030,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return null;
     }
 
-    // Visible for testing
     @Nullable
     public BatchedCompoundCommit getLatestUploadedBcc(ShardId shardId) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);

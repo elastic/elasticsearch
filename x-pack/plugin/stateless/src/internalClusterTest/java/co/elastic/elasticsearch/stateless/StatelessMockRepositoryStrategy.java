@@ -48,6 +48,9 @@ import java.util.function.BooleanSupplier;
  * constructed result.
  */
 public class StatelessMockRepositoryStrategy {
+
+    public static final StatelessMockRepositoryStrategy DEFAULT = new StatelessMockRepositoryStrategy();
+
     /**
      * Called in {@link BlobContainer#deleteBlobsIgnoringIfNotExists(OperationPurpose, Iterator)}.
      */

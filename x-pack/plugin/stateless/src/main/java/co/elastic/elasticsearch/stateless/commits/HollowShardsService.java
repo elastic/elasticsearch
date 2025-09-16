@@ -26,6 +26,8 @@ import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelo
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -150,7 +152,8 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         this.relativeTimeSupplierInMillis = relativeTimeSupplierInMillis;
         this.metrics = metrics;
         this.threadPool = threadPool;
-        this.featureEnabled = HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
+        this.featureEnabled = HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings)
+            && DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         this.ingestionDataStreamNonWriteTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.get(settings);
         this.ingestionTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_TTL.get(settings);
         if (featureEnabled) {
@@ -213,7 +216,8 @@ public class HollowShardsService extends AbstractLifecycleComponent {
      * @param indexShard the hollow index shard for which ingestion will be blocked
      */
     public void addHollowShard(IndexShard indexShard, String reason) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+        // Generic thread for recoveries and snapshot thread when restoring a snapshot
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC, ThreadPool.Names.SNAPSHOT);
         final var shardId = indexShard.shardId();
         logger.info(() -> "installing ingestion blocker for shard " + shardId + " due to " + reason);
 
@@ -295,7 +299,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         // blocker until unhollowing (which needs to be initiated by this function) completes.
         var shardId = indexShard.shardId();
         var ingestionBlocker = hollowShards.get(shardId);
-        if (ingestionBlocker != null) {
+        if (featureEnabled && ingestionBlocker != null) {
             if (permitAcquired) {
                 logger.debug(() -> "adding ingestion operation for shard " + shardId + " to the ingestion blocker");
                 assert indexShard.getActiveOperationsCount() > 0 : indexShard.getActiveOperationsCount();

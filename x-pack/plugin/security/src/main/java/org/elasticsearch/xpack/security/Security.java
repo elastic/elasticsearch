@@ -1131,6 +1131,9 @@ public class Security extends Plugin
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
+        if (authorizationDenialMessages.get() == null) {
+            authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
+        }
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1207,7 +1210,7 @@ public class Security extends Plugin
                 threadPool,
                 securityContext.get(),
                 destructiveOperations,
-                secondaryAuthActions.get()
+                secondaryAuthActions.get() == null ? Set::of : secondaryAuthActions.get()
             )
         );
 

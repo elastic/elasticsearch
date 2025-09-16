@@ -558,7 +558,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
                 EsqlQueryResponse.Profile profile = resp.profile();
                 List<DriverProfile> dataProfiles = profile.drivers().stream().filter(d -> d.description().equals("data")).toList();
                 for (DriverProfile p : dataProfiles) {
-                    assertThat(p.operators().get(0).operator(), containsString("LuceneSourceOperator"));
+                    assertThat(p.operators().get(0).operator(), containsString("TimeSeriesSourceOperator"));
                     LuceneSourceOperator.Status luceneStatus = (LuceneSourceOperator.Status) p.operators().get(0).status();
                     for (LuceneSliceQueue.PartitioningStrategy v : luceneStatus.partitioningStrategies().values()) {
                         assertThat(v, equalTo(LuceneSliceQueue.PartitioningStrategy.SHARD));

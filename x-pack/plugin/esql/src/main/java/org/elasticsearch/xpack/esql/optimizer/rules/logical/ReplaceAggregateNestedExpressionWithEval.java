@@ -79,7 +79,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         boolean groupingChanged = false;
 
         List<Alias> evalsAfterAgg = new ArrayList<>();
-        int[] counter = new int[] { 0 };
 
         // Count DateFormat occurrences to avoid incorrect grouping when replacing multiple DATE_FORMAT with DATE_TRUNC
         int[] dateFormatCount = new int[] { 0 };
@@ -108,7 +107,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     var attr = as.toAttribute();
                     if (asChild instanceof DateFormat df && dateFormatCount[0] == 1) {
                         // Extract the format pattern and field from DateFormat
-
                         Literal format = (Literal) df.format();
                         Expression field = df.field();
 
@@ -120,7 +118,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                             // Create a new DateTrunc operation with the optimized interval
                             DateTrunc dateTrunc = new DateTrunc(df.source(), interval, field);
                             // Create a synthetic alias for the DateTrunc operation
-                            var alias = new Alias(as.source(), syntheticName(dateTrunc, as, counter[0]++), dateTrunc, null, true);
+                            var alias = new Alias(as.source(), as.name(), dateTrunc, null, true);
                             attr = alias.toAttribute();
                             // Replace the original DateFormat children with the new format and attribute
                             Expression expression = df.replaceChildren(List.of(format, attr));
@@ -153,6 +151,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             expToAttribute.put(a.child().canonical(), a.toAttribute());
         }
 
+        int[] counter = new int[] { 0 };
         // for the aggs make sure to unwrap the agg function and check the existing groupings
         for (NamedExpression agg : aggs) {
             NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {

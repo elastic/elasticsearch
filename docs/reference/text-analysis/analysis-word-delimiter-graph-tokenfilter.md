@@ -279,7 +279,7 @@ While indexing does not support token graphs containing multi-position tokens, q
 
 To see how token graphs produced by the `word_delimiter` and `word_delimiter_graph` filters differ, check out the following example.
 
-:::::{dropdown} **Example**
+:::::{dropdown} Example
 $$$analysis-word-delimiter-graph-basic-token-graph$$$
 **Basic token graph**
 

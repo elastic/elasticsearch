@@ -6,10 +6,14 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,19 +37,42 @@ public abstract class Attribute extends NamedExpression {
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
-    // can the attr be null - typically used in JOINs
+    private static final TransportVersion ESQL_QUALIFIERS_IN_ATTRIBUTES = TransportVersion.fromName("esql_qualifiers_in_attributes");
+
+    // can the attr be null
     private final Nullability nullability;
+    private final String qualifier;
 
     public Attribute(Source source, String name, @Nullable NameId id) {
         this(source, name, Nullability.TRUE, id);
     }
 
+    public Attribute(Source source, @Nullable String qualifier, String name, @Nullable NameId id) {
+        this(source, qualifier, name, Nullability.TRUE, id);
+    }
+
     public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id) {
-        this(source, name, nullability, id, false);
+        this(source, null, name, nullability, id);
+    }
+
+    public Attribute(Source source, @Nullable String qualifier, String name, Nullability nullability, @Nullable NameId id) {
+        this(source, qualifier, name, nullability, id, false);
     }
 
     public Attribute(Source source, String name, Nullability nullability, @Nullable NameId id, boolean synthetic) {
+        this(source, null, name, nullability, id, synthetic);
+    }
+
+    public Attribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        Nullability nullability,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
         super(source, name, emptyList(), id, synthetic);
+        this.qualifier = qualifier;
         this.nullability = nullability;
     }
 
@@ -59,6 +86,14 @@ public abstract class Attribute extends NamedExpression {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 
+    public String qualifier() {
+        return qualifier;
+    }
+
+    public String qualifiedName() {
+        return qualifier != null ? "[" + qualifier + "].[" + name() + "]" : name();
+    }
+
     @Override
     public Nullability nullable() {
         return nullability;
@@ -70,26 +105,40 @@ public abstract class Attribute extends NamedExpression {
     }
 
     public Attribute withLocation(Source source) {
-        return Objects.equals(source(), source) ? this : clone(source, name(), dataType(), nullable(), id(), synthetic());
+        return Objects.equals(source(), source) ? this : clone(source, qualifier(), name(), dataType(), nullable(), id(), synthetic());
+    }
+
+    public Attribute withQualifier(String qualifier) {
+        return Objects.equals(qualifier, qualifier) ? this : clone(source(), qualifier, name(), dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withName(String name) {
-        return Objects.equals(name(), name) ? this : clone(source(), name, dataType(), nullable(), id(), synthetic());
+        return Objects.equals(name(), name) ? this : clone(source(), qualifier(), name, dataType(), nullable(), id(), synthetic());
     }
 
     public Attribute withNullability(Nullability nullability) {
-        return Objects.equals(nullable(), nullability) ? this : clone(source(), name(), dataType(), nullability, id(), synthetic());
+        return Objects.equals(nullable(), nullability)
+            ? this
+            : clone(source(), qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     public Attribute withId(NameId id) {
-        return clone(source(), name(), dataType(), nullable(), id, synthetic());
+        return clone(source(), qualifier(), name(), dataType(), nullable(), id, synthetic());
     }
 
     public Attribute withDataType(DataType type) {
-        return Objects.equals(dataType(), type) ? this : clone(source(), name(), type, nullable(), id(), synthetic());
+        return Objects.equals(dataType(), type) ? this : clone(source(), qualifier(), name(), type, nullable(), id(), synthetic());
     }
 
-    protected abstract Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic);
+    protected abstract Attribute clone(
+        Source source,
+        String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    );
 
     @Override
     public Attribute toAttribute() {
@@ -108,24 +157,24 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     protected Expression canonicalize() {
-        return clone(Source.EMPTY, name(), dataType(), nullability, id(), synthetic());
+        return clone(Source.EMPTY, qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), nullability);
+        return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Attribute) o;
-        return super.innerEquals(other) && Objects.equals(nullability, other.nullability);
+        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
     }
 
     @Override
     public String toString() {
-        return name() + "{" + label() + (synthetic() ? "$" : "") + "}" + "#" + id();
+        return qualifiedName() + "{" + label() + (synthetic() ? "$" : "") + "}" + "#" + id();
     }
 
     @Override
@@ -136,12 +185,45 @@ public abstract class Attribute extends NamedExpression {
     protected abstract String label();
 
     /**
-     * If this field is unsupported this contains the underlying ES types. If there
-     * is a type conflict this will have many elements, some or all of which may
-     * be actually supported types.
+     * Compares the size and datatypes of two lists of attributes for equality.
      */
-    @Nullable
-    public List<String> originalTypes() {
+    public static boolean dataTypeEquals(List<Attribute> left, List<Attribute> right) {
+        if (left.size() != right.size()) {
+            return false;
+        }
+        for (int i = 0; i < left.size(); i++) {
+            if (left.get(i).dataType() != right.get(i).dataType()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * @return true if the attribute represents a TSDB dimension type
+     */
+    public abstract boolean isDimension();
+
+    /**
+     * @return true if the attribute represents a TSDB metric type
+     */
+    public abstract boolean isMetric();
+
+    protected void checkAndSerializeQualifier(PlanStreamOutput out, TransportVersion version) throws IOException {
+        if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+            out.writeOptionalCachedString(qualifier());
+        } else if (qualifier() != null) {
+            // Non-null qualifier means the query specifically defined one. Old nodes don't know what to do with it and just writing
+            // null would lose information and lead to undefined, likely invalid queries.
+            // IllegalArgumentException returns a 400 to the user, which is what we want here.
+            throw new IllegalArgumentException("Trying to serialize an Attribute with a qualifier to an old node");
+        }
+    }
+
+    protected static String readQualifier(PlanStreamInput in, TransportVersion version) throws IOException {
+        if (version.supports(ESQL_QUALIFIERS_IN_ATTRIBUTES)) {
+            return in.readOptionalCachedString();
+        }
         return null;
     }
 }

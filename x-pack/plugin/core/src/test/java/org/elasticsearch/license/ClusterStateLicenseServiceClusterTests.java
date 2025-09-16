@@ -33,8 +33,6 @@ public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesInte
     }
 
     public void testClusterRestartWithLicense() throws Exception {
-        wipeAllLicenses();
-
         int numNodes = randomIntBetween(1, 5);
         logger.info("--> starting {} node(s)", numNodes);
         internalCluster().startNodes(numNodes);
@@ -79,7 +77,6 @@ public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesInte
     }
 
     public void testClusterRestartWhileEnabled() throws Exception {
-        wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
         assertLicenseActive(true);
@@ -91,7 +88,6 @@ public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesInte
     }
 
     public void testClusterRestartWhileExpired() throws Exception {
-        wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
         assertLicenseActive(true);
@@ -106,7 +102,6 @@ public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesInte
 
     public void testClusterRestartWithOldSignature() throws Exception {
         assumeFalse("Can't run in a FIPS JVM. We can't generate old licenses since PBEWithSHA1AndDESede is not available", inFipsJvm());
-        wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
         assertLicenseActive(true);

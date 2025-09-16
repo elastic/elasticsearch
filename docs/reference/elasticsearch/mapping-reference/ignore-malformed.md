@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/ignore-malformed.html
+applies_to:
+  stack: all
+  serverless: all
 ---
 
 # ignore_malformed [ignore-malformed]

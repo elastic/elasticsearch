@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.application.search.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,11 +33,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class PutSearchApplicationAction {
 
     public static final String NAME = "cluster:admin/xpack/application/search_application/put";
-    public static final ActionType<PutSearchApplicationAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private PutSearchApplicationAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         private final SearchApplication searchApp;
         private final boolean create;
@@ -110,6 +110,7 @@ public class PutSearchApplicationAction {
             false,
             (params) -> new Request((SearchApplication) params[0], (boolean) params[1])
         );
+
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> SearchApplication.fromXContent(c, p), SEARCH_APPLICATION);
             PARSER.declareBoolean(constructorArg(), CREATE);

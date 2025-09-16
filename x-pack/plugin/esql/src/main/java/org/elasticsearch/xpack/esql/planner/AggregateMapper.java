@@ -96,7 +96,7 @@ final class AggregateMapper {
             } else {
                 dataType = DataType.fromEs(is.dataType());
             }
-            return new ReferenceAttribute(Source.EMPTY, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
+            return new ReferenceAttribute(Source.EMPTY, null, Attribute.rawTemporaryName(aggAlias, is.name()), dataType);
         });
     }
 
@@ -109,7 +109,9 @@ final class AggregateMapper {
             case INT -> DataType.INTEGER;
             case LONG -> DataType.LONG;
             case DOUBLE -> DataType.DOUBLE;
-            case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new EsqlIllegalArgumentException("unsupported agg type: " + elementType);
+            case FLOAT, NULL, DOC, COMPOSITE, AGGREGATE_METRIC_DOUBLE, UNKNOWN -> throw new EsqlIllegalArgumentException(
+                "unsupported agg type: " + elementType
+            );
         };
     }
 }

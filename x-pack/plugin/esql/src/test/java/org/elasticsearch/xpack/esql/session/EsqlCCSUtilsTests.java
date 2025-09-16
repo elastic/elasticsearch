@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
@@ -21,14 +20,12 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -38,22 +35,23 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.checkForCcsLicense;
-import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.shouldIgnoreRuntimeError;
+import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasSize;
 
 public class EsqlCCSUtilsTests extends ESTestCase {
 
@@ -152,7 +150,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", true));
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            var unvailableClusters = Map.of(REMOTE1_ALIAS, failure, REMOTE2_ALIAS, failure);
+            var unvailableClusters = Map.of(REMOTE1_ALIAS, List.of(failure), REMOTE2_ALIAS, List.of(failure));
             EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, unvailableClusters);
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER_ALIAS, REMOTE1_ALIAS, REMOTE2_ALIAS)));
@@ -184,7 +182,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
             RemoteTransportException e = expectThrows(
                 RemoteTransportException.class,
-                () -> EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of(REMOTE2_ALIAS, failure))
+                () -> EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, Map.of(REMOTE2_ALIAS, List.of(failure)))
             );
             assertThat(e.status().getStatus(), equalTo(500));
             assertThat(
@@ -253,7 +251,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -296,8 +294,7 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of();
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -338,8 +335,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             );
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -349,9 +346,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            // since remote1 is in the unavailable Map (passed to IndexResolution.valid), it's status will not be changed
-            // by updateExecutionInfoWithClustersWithNoMatchingIndices (it is handled in updateExecutionInfoWithUnavailableClusters)
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+            // since remote1 is in the failures Map (passed to IndexResolution.valid),
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
@@ -364,30 +360,44 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         }
 
         // No remotes had matching indices from field-caps call: 1) remote1 because it was unavailable, 2) remote2 was available,
-        // but had no matching indices and since a concrete index was requested, a VerificationException is thrown
+        // but had no matching indices. remote2 is set to skipped since it has skip_unavailable by default.
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*"));
             executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", randomBoolean()));
             executionInfo.swapCluster(
                 REMOTE2_ALIAS,
-                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", randomBoolean())
+                (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2*", randomBoolean())
             );
 
             EsIndex esIndex = new EsIndex(
-                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",  // original user-provided index expression
+                "logs*,remote2:mylogs1,remote2:mylogs2*,remote1:logs*",  // original user-provided index expression
                 randomMapping(),
                 Map.of("logs-a", IndexMode.STANDARD)  // resolved indices from field-caps (none from either remote)
             );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
-            VerificationException ve = expectThrows(
-                VerificationException.class,
-                () -> EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
-            );
-            assertThat(ve.getDetailedMessage(), containsString("Unknown index [remote2:mylogs1,mylogs2,logs*]"));
+            var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
+            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER_ALIAS);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
+            // skipped since remote1 is in the failures Map
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+
+            EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
+            assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(remote2Cluster.getTotalShards(), equalTo(0));
+            assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
+            assertThat(remote2Cluster.getFailedShards(), equalTo(0));
+            assertThat(remote2Cluster.getFailures(), hasSize(1));
+            assertThat(remote2Cluster.getFailures().getFirst().reason(), containsString("Unknown index [remote2:mylogs1,mylogs2*]"));
         }
 
         // test where remote2 is already marked as SKIPPED so no modifications or exceptions should be thrown
@@ -415,8 +425,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = Map.of(REMOTE1_ALIAS, failure);
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Set.of(), unavailableClusters);
+            var failures = Map.of(REMOTE1_ALIAS, List.of(failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), failures);
 
             EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -426,9 +436,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(REMOTE1_ALIAS);
             assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
-            // since remote1 is in the unavailable Map (passed to IndexResolution.valid), it's status will not be changed
-            // by updateExecutionInfoWithClustersWithNoMatchingIndices (it is handled in updateExecutionInfoWithUnavailableClusters)
-            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+            // skipped since remote1 is in the failures Map
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE2_ALIAS);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1*,mylogs2*,logs*"));
@@ -448,7 +457,9 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                 )
             );
 
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(
+                EsqlCCSUtils.groupFailuresPerCluster(failures)
+            );
             assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote1", "remote2")));
         }
 
@@ -458,7 +469,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSuchRemoteClusterException("remote2")));
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote2:mylogs1" }, new NoSeedNodeLeftException("no seed node")));
 
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
         }
 
@@ -472,7 +484,8 @@ public class EsqlCCSUtilsTests extends ESTestCase {
                     new IllegalStateException("Unable to open any connections")
                 )
             );
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of("remote2")));
         }
 
@@ -480,14 +493,16 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
             failures.add(new FieldCapabilitiesFailure(new String[] { "remote1:mylogs1" }, new RuntimeException("foo")));
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
 
         // empty failures list
         {
             List<FieldCapabilitiesFailure> failures = new ArrayList<>();
-            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(failures);
+            var groupedFailures = EsqlCCSUtils.groupFailuresPerCluster(failures);
+            Map<String, FieldCapabilitiesFailure> unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(groupedFailures);
             assertThat(unavailableClusters.keySet(), equalTo(Set.of()));
         }
     }
@@ -679,116 +694,72 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(EsqlCCSUtils.concreteIndexRequested("*"), equalTo(false));
     }
 
-    public void testCheckForCcsLicense() {
+    public void testInitCrossClusterState() {
         final TestIndicesExpressionGrouper indicesGrouper = new TestIndicesExpressionGrouper();
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
 
-        // this seems to be used only for tracking usage of features, not for checking if a license is expired
-        final LongSupplier currTime = () -> System.currentTimeMillis();
-
-        XPackLicenseState enterpriseLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.ENTERPRISE));
-        XPackLicenseState trialLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.TRIAL));
-        XPackLicenseState platinumLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.PLATINUM));
-        XPackLicenseState goldLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.GOLD));
-        XPackLicenseState basicLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.BASIC));
-        XPackLicenseState standardLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.STANDARD));
-        XPackLicenseState missingLicense = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.MISSING));
-        XPackLicenseState nullLicense = null;
-
-        final XPackLicenseStatus enterpriseStatus = inactiveLicenseStatus(License.OperationMode.ENTERPRISE);
-        XPackLicenseState enterpriseLicenseInactive = new XPackLicenseState(currTime, enterpriseStatus);
-        XPackLicenseState trialLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.TRIAL));
-        XPackLicenseState platinumLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.PLATINUM));
-        XPackLicenseState goldLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.GOLD));
-        XPackLicenseState basicLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.BASIC));
-        XPackLicenseState standardLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.STANDARD));
-        XPackLicenseState missingLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.MISSING));
-
-        // local only search does not require an enterprise license
+        // local only search works with any license state
         {
-            List<IndexPattern> indices = List.of(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
+            var localOnly = new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*"));
 
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), goldLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), basicLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), standardLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), missingLicense);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), nullLicense);
-
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), goldLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), basicLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), standardLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), missingLicenseInactive);
+            assertLicenseCheckPasses(indicesGrouper, null, localOnly, "");
+            for (var mode : License.OperationMode.values()) {
+                assertLicenseCheckPasses(indicesGrouper, activeLicenseStatus(mode), localOnly, "");
+                assertLicenseCheckPasses(indicesGrouper, inactiveLicenseStatus(mode), localOnly, "");
+            }
         }
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
         {
-            List<IndexPattern> indices = new ArrayList<>();
-            final String indexExprWithRemotes = randomFrom("remote:idx", "idx1,remote:idx2*,remote:logs,c*:idx4");
-            if (randomBoolean()) {
-                indices.add(new IndexPattern(EMPTY, indexExprWithRemotes));
-            } else {
-                indices.add(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
-                indices.add(new IndexPattern(EMPTY, indexExprWithRemotes));
+            var remote = new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs"));
+
+            var supportedLicenses = EnumSet.of(License.OperationMode.TRIAL, License.OperationMode.ENTERPRISE);
+            var unsupportedLicenses = EnumSet.complementOf(supportedLicenses);
+
+            assertLicenseCheckFails(indicesGrouper, null, remote, "none");
+            for (var mode : supportedLicenses) {
+                assertLicenseCheckPasses(indicesGrouper, activeLicenseStatus(mode), remote, "", "remote");
+                assertLicenseCheckFails(indicesGrouper, inactiveLicenseStatus(mode), remote, "expired " + nameOf(mode) + " license");
             }
-
-            // licenses that work
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseValid);
-
-            // all others fail ---
-
-            // active non-expired non-Enterprise non-Trial licenses
-            assertLicenseCheckFails(indices, indicesGrouper, platinumLicenseValid, "active platinum license");
-            assertLicenseCheckFails(indices, indicesGrouper, goldLicenseValid, "active gold license");
-            assertLicenseCheckFails(indices, indicesGrouper, basicLicenseValid, "active basic license");
-            assertLicenseCheckFails(indices, indicesGrouper, standardLicenseValid, "active standard license");
-            assertLicenseCheckFails(indices, indicesGrouper, missingLicense, "active missing license");
-            assertLicenseCheckFails(indices, indicesGrouper, nullLicense, "none");
-
-            // inactive/expired licenses
-            assertLicenseCheckFails(indices, indicesGrouper, enterpriseLicenseInactive, "expired enterprise license");
-            assertLicenseCheckFails(indices, indicesGrouper, trialLicenseInactive, "expired trial license");
-            assertLicenseCheckFails(indices, indicesGrouper, platinumLicenseInactive, "expired platinum license");
-            assertLicenseCheckFails(indices, indicesGrouper, goldLicenseInactive, "expired gold license");
-            assertLicenseCheckFails(indices, indicesGrouper, basicLicenseInactive, "expired basic license");
-            assertLicenseCheckFails(indices, indicesGrouper, standardLicenseInactive, "expired standard license");
-            assertLicenseCheckFails(indices, indicesGrouper, missingLicenseInactive, "expired missing license");
+            for (var mode : unsupportedLicenses) {
+                assertLicenseCheckFails(indicesGrouper, activeLicenseStatus(mode), remote, "active " + nameOf(mode) + " license");
+                assertLicenseCheckFails(indicesGrouper, inactiveLicenseStatus(mode), remote, "expired " + nameOf(mode) + " license");
+            }
         }
     }
 
-    public void testShouldIgnoreRuntimeError() {
-        Predicate<String> skipUnPredicate = s -> s.equals(REMOTE1_ALIAS);
+    private static String nameOf(License.OperationMode mode) {
+        return mode.name().toLowerCase(Locale.ROOT);
+    }
 
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, true);
-        executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-        executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-        executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false));
+    private static XPackLicenseState createLicenseState(XPackLicenseStatus status) {
+        return status != null ? new XPackLicenseState(System::currentTimeMillis, status) : null;
+    }
 
-        // remote1: skip_unavailable=true, so should ignore connect errors, but not others
-        assertThat(
-            shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new IllegalStateException("Unable to open any connections")),
-            is(true)
+    private void assertLicenseCheckPasses(
+        TestIndicesExpressionGrouper indicesGrouper,
+        XPackLicenseStatus status,
+        IndexPattern pattern,
+        String... expectedRemotes
+    ) {
+        var executionInfo = new EsqlExecutionInfo(true);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), pattern, executionInfo);
+        assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
+    }
+
+    private void assertLicenseCheckFails(
+        TestIndicesExpressionGrouper indicesGrouper,
+        XPackLicenseStatus licenseStatus,
+        IndexPattern pattern,
+        String expectedErrorMessageSuffix
+    ) {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            equalTo(
+                "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
+            ),
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), pattern, new EsqlExecutionInfo(true))
         );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new TaskCancelledException("task cancelled")), is(false));
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE1_ALIAS, new ElasticsearchException("something is wrong")), is(false));
-        // remote2: skip_unavailable=false, so should not ignore any errors
-        assertThat(
-            shouldIgnoreRuntimeError(executionInfo, REMOTE2_ALIAS, new IllegalStateException("Unable to open any connections")),
-            is(false)
-        );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, REMOTE2_ALIAS, new TaskCancelledException("task cancelled")), is(false));
-        // same for local
-        assertThat(
-            shouldIgnoreRuntimeError(executionInfo, LOCAL_CLUSTER_ALIAS, new IllegalStateException("Unable to open any connections")),
-            is(false)
-        );
-        assertThat(shouldIgnoreRuntimeError(executionInfo, LOCAL_CLUSTER_ALIAS, new TaskCancelledException("task cancelled")), is(false));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     private XPackLicenseStatus activeLicenseStatus(License.OperationMode operationMode) {
@@ -797,26 +768,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     private XPackLicenseStatus inactiveLicenseStatus(License.OperationMode operationMode) {
         return new XPackLicenseStatus(operationMode, false, "License Expired 123");
-    }
-
-    private void assertLicenseCheckFails(
-        List<IndexPattern> indices,
-        TestIndicesExpressionGrouper indicesGrouper,
-        XPackLicenseState licenseState,
-        String expectedErrorMessageSuffix
-    ) {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), licenseState)
-        );
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
-            )
-        );
     }
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {

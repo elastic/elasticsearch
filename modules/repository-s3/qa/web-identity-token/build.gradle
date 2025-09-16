@@ -11,8 +11,10 @@ dependencies {
   testImplementation project(':modules:repository-s3')
   testImplementation project(':test:framework')
   testImplementation project(':server')
+  testImplementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
 }
 
 tasks.named("test").configure {
-  systemProperty 'es.allow_insecure_settings', 'true'
+  environment 'AWS_REGION', 'es-test-region'
 }

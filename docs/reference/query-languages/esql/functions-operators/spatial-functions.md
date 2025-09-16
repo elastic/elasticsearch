@@ -48,3 +48,11 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_ymin.md
 :::
 
+:::{include} ../_snippets/functions/layout/st_geotile.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohex.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_geohash.md
+:::

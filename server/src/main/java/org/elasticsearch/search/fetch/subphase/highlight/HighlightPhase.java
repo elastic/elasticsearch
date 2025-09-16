@@ -124,7 +124,8 @@ public class HighlightPhase implements FetchSubPhase {
                 if (fieldNameContainsWildcards) {
                     if (fieldType.typeName().equals(TextFieldMapper.CONTENT_TYPE) == false
                         && fieldType.typeName().equals(KeywordFieldMapper.CONTENT_TYPE) == false
-                        && fieldType.typeName().equals("match_only_text") == false) {
+                        && fieldType.typeName().equals("match_only_text") == false
+                        && fieldType.typeName().equals("patterned_text") == false) {
                         continue;
                     }
                     if (highlighter.canHighlight(fieldType) == false) {

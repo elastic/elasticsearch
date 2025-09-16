@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -268,7 +269,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     private void collectCount(LeafReaderContext ctx, Bits live) throws IOException {
         Counter counter = new Counter(docCountProvider);
         for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-            incrementBucketDocCount(filterOrd, filters().get(filterOrd).count(ctx, counter, live));
+            incrementBucketDocCount(filterOrd, filters().get(filterOrd).count(ctx, counter, live, this::checkCancelled));
         }
     }
 
@@ -306,11 +307,17 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         MatchCollector collector = new MatchCollector();
         // create the buckets so we can call collectExistingBucket
         grow(filters().size() + 1);
-        filters().get(0).collect(aggCtx.getLeafReaderContext(), collector, live);
+        filters().get(0).collect(aggCtx.getLeafReaderContext(), collector, live, this::checkCancelled);
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
             collector.subCollector = collectableSubAggregators.getLeafCollector(aggCtx);
             collector.filterOrd = filterOrd;
-            filters().get(filterOrd).collect(aggCtx.getLeafReaderContext(), collector, live);
+            filters().get(filterOrd).collect(aggCtx.getLeafReaderContext(), collector, live, this::checkCancelled);
+        }
+    }
+
+    private void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("cancelled");
         }
     }
 

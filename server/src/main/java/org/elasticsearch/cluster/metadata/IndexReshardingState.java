@@ -181,6 +181,9 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         private final TargetShardState[] targetShards;
 
         Split(SourceShardState[] sourceShards, TargetShardState[] targetShards) {
+            // The resharding metadata is deleted when the last source shard transitions to done
+            assert Arrays.stream(sourceShards).allMatch((state) -> state == SourceShardState.DONE) == false;
+
             this.sourceShards = sourceShards;
             this.targetShards = targetShards;
 
@@ -350,8 +353,12 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return sourceShards[shardNum];
         }
 
+        public boolean isSourceShard(int shardId) {
+            return shardId < shardCountBefore();
+        }
+
         public boolean isTargetShard(int shardId) {
-            return shardId >= shardCountBefore();
+            return isSourceShard(shardId) == false;
         }
 
         /**
@@ -371,22 +378,12 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
         }
 
-        /**
-         * Check whether this metadata represents an incomplete split
-         * @return true if the split is incomplete (not all source shards are DONE)
-         */
-        public boolean inProgress() {
-            for (int i = 0; i < oldShardCount; i++) {
-                if (sourceShards[i] == SourceShardState.SOURCE) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         public Stream<TargetShardState> targetStates() {
             return Arrays.stream(targetShards);
+        }
+
+        public Stream<SourceShardState> sourceStates() {
+            return Arrays.stream(sourceShards);
         }
 
         /**

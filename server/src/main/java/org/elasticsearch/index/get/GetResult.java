@@ -74,8 +74,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            documentFields = in.readMapValues(DocumentField::new, DocumentField::getName);
-            metaFields = in.readMapValues(DocumentField::new, DocumentField::getName);
+            documentFields = DocumentField.readFieldsFromMapValues(in);
+            metaFields = DocumentField.readFieldsFromMapValues(in);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();

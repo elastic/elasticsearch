@@ -2,12 +2,14 @@
   "esql.list_queries": {
     "documentation": {
       "url": null,
-      "description": "Executes a list ESQL queries request"
+      "description": "Get running ES|QL queries information"
     },
     "stability": "experimental",
     "visibility": "public",
     "headers": {
-      "accept": [],
+      "accept": [
+        "application/json"
+      ],
       "content_type": [
         "application/json"
       ]

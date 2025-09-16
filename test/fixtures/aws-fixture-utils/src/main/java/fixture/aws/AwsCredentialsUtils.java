@@ -26,6 +26,7 @@ public enum AwsCredentialsUtils {
     /**
      * Region supplier which matches any region.
      */
+    // TODO: replace with DynamicRegionSupplier.
     public static final Supplier<String> ANY_REGION = () -> "*";
 
     /**

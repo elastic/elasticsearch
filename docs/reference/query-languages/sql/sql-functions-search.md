@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-search.html
 ---
 
-# Full-Text Search Functions [sql-functions-search]
+# Full-text search functions [sql-functions-search]
 
 Search functions should be used when performing full-text search, namely when the `MATCH` or `QUERY` predicates are being used. Outside a, so-called, search context, these functions will return default values such as `0` or `NULL`.
 

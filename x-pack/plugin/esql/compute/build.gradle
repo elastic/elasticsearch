@@ -3,6 +3,7 @@ import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgument
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.transport-version-references'
 
 base {
   archivesName = 'x-pack-esql-compute'
@@ -49,6 +50,7 @@ spotless {
     /*
      * Generated files go here.
      */
+    toggleOffOn('begin generated imports', 'end generated imports')
     targetExclude "src/main/generated/**/*.java"
   }
 }
@@ -79,6 +81,15 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
   ]
 }
 
+def addOccurrence(props, Occurrence) {
+  def newProps = props.collectEntries { [(it.key): it.value] }
+  newProps["Occurrence"] = Occurrence
+  newProps["First"] = Occurrence == "First" ? "true" : ""
+  newProps["Last"] = Occurrence == "Last" ? "true" : ""
+  newProps["occurrence"] = Occurrence.toLowerCase(Locale.ROOT)
+  return newProps
+}
+
 tasks.named('stringTemplates').configure {
   var intProperties = prop("Int", "Int", "int", "Integer", "INT", "Integer.BYTES", "IntArray", "LongHash")
   var floatProperties = prop("Float", "Float", "float", "Float", "FLOAT", "Float.BYTES", "FloatArray", "LongHash")
@@ -92,7 +103,7 @@ tasks.named('stringTemplates').configure {
     "",
     "BYTES_REF",
     "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF",
-    "",
+    "BytesRefArray",
     "BytesRefHash"
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")
@@ -459,6 +470,49 @@ tasks.named('stringTemplates').configure {
     it.inputFile = stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
   }
+
+  /*
+   * Generates pairwise states. We generate the ones that we need at the moment,
+   * but add more if you need more.
+   */
+  File twoStateInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st")
+  [longProperties].forEach { v1 ->
+    [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties].forEach { v2 ->
+      {
+        var properties = [:]
+        v1.forEach { k, v -> properties["v1_" + k] = v}
+        v2.forEach { k, v -> properties["v2_" + k] = v}
+        template {
+          it.properties = properties
+          it.inputFile = twoStateInputFile
+          it.outputFile = "org/elasticsearch/compute/aggregation/${v1.Type}${v2.Type}State.java"
+        }
+      }
+    }
+  }
+
+  File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = irateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/IrateDoubleAggregator.java"
+  }
+
   File fallibleStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-FallibleState.java.st")
   template {
     it.properties = booleanProperties
@@ -569,6 +623,7 @@ tasks.named('stringTemplates').configure {
     it.inputFile =  fallibleArrayStateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/FloatFallibleArrayState.java"
   }
+
   File valuesAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-ValuesAggregator.java.st")
   template {
     it.properties = intProperties
@@ -596,28 +651,6 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesBytesRefAggregator.java"
   }
 
-  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateAggregator.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntAggregator.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongAggregator.java"
-  }
-  template {
-    it.properties = floatProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateFloatAggregator.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = rateAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleAggregator.java"
-  }
-
   File stdDevAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-StdDevAggregator.java.st")
   template {
     it.properties = intProperties
@@ -638,6 +671,33 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile = stdDevAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/StdDevDoubleAggregator.java"
+  }
+
+  File sampleAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SampleAggregator.java.st")
+  template {
+    it.properties = booleanProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleBooleanAggregator.java"
+  }
+  template {
+    it.properties = bytesRefProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleBytesRefAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleDoubleAggregator.java"
+  }
+  template {
+    it.properties = intProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = sampleAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SampleLongAggregator.java"
   }
 
   File topAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-TopAggregator.java.st")
@@ -862,27 +922,52 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
   }
 
-  // TODO: add last_over_time for other types: boolean, bytes_refs
-  File lastOverTimeAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-LastOverTimeAggregator.java.st")
+  // TODO: add {value}_over_time for other types: boolean, bytes_refs
+  File valueByTimestampAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
+  ["First", "Last"].forEach { Occurrence ->
+    {
+      template {
+        it.properties = addOccurrence(intProperties, Occurrence)
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}IntByTimestampAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(longProperties, Occurrence)
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}LongByTimestampAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(floatProperties, Occurrence)
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}FloatByTimestampAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(doubleProperties, Occurrence)
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}DoubleByTimestampAggregator.java"
+      }
+      template {
+        it.properties = addOccurrence(bytesRefProperties, Occurrence)
+        it.inputFile = valueByTimestampAggregatorInputFile
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}BytesRefByTimestampAggregator.java"
+      }
+    }
+  }
+
+  File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
   template {
     it.properties = intProperties
-    it.inputFile = lastOverTimeAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeIntAggregator.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = lastOverTimeAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeLongAggregator.java"
-  }
-  template {
-    it.properties = floatProperties
-    it.inputFile = lastOverTimeAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeFloatAggregator.java"
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateIntGroupingAggregatorFunction.java"
   }
   template {
     it.properties = doubleProperties
-    it.inputFile = lastOverTimeAggregatorInputFile
-    it.outputFile = "org/elasticsearch/compute/aggregation/LastOverTimeDoubleAggregator.java"
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateDoubleGroupingAggregatorFunction.java"
   }
-
+  template {
+    it.properties = longProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
+  }
 }

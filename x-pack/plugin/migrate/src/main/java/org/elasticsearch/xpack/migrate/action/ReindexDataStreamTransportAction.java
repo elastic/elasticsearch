@@ -15,7 +15,8 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,6 +42,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public ReindexDataStreamTransportAction(
@@ -48,7 +50,8 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         ActionFilters actionFilters,
         PersistentTasksService persistentTasksService,
         ClusterService clusterService,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             ReindexDataStreamAction.NAME,
@@ -62,13 +65,14 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<AcknowledgedResponse> listener) {
         String sourceDataStreamName = request.getSourceDataStream();
-        Metadata metadata = clusterService.state().metadata();
-        DataStream dataStream = metadata.getProject().dataStreams().get(sourceDataStreamName);
+        final var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        DataStream dataStream = projectMetadata == null ? null : projectMetadata.dataStreams().get(sourceDataStreamName);
         if (dataStream == null) {
             listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
             return;
@@ -76,7 +80,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         int totalIndices = dataStream.getIndices().size();
         int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
             .stream()
-            .filter(getReindexRequiredPredicate(metadata.getProject(), false, dataStream.isSystem()))
+            .filter(getReindexRequiredPredicate(projectMetadata, false, dataStream.isSystem()))
             .count();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
             sourceDataStreamName,
@@ -85,11 +89,11 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             totalIndicesToBeUpgraded,
             ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
-        String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
-        final var persistentTask = PersistentTasksCustomMetadata.getTaskWithId(clusterService.state(), persistentTaskId);
-
+        final var projectId = projectMetadata.id();
+        final var persistentTaskId = getPersistentTaskId(sourceDataStreamName);
+        final var persistentTask = PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, persistentTaskId);
         if (persistentTask == null) {
-            startTask(listener, persistentTaskId, params);
+            startTask(projectId, listener, persistentTaskId, params);
         } else {
             GetMigrationReindexStatusAction.Request statusRequest = new GetMigrationReindexStatusAction.Request(sourceDataStreamName);
             statusRequest.setParentTask(task.getParentTaskId());
@@ -106,7 +110,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
                         CancelReindexDataStreamAction.INSTANCE,
                         cancelRequest,
                         getListener.delegateFailureAndWrap(
-                            (cancelListener, cancelResponse) -> startTask(cancelListener, persistentTaskId, params)
+                            (cancelListener, cancelResponse) -> startTask(projectId, cancelListener, persistentTaskId, params)
                         )
                     );
                 })
@@ -115,8 +119,14 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
 
     }
 
-    private void startTask(ActionListener<AcknowledgedResponse> listener, String persistentTaskId, ReindexDataStreamTaskParams params) {
-        persistentTasksService.sendStartRequest(
+    private void startTask(
+        ProjectId projectId,
+        ActionListener<AcknowledgedResponse> listener,
+        String persistentTaskId,
+        ReindexDataStreamTaskParams params
+    ) {
+        persistentTasksService.sendProjectStartRequest(
+            projectId,
             persistentTaskId,
             ReindexDataStreamTask.TASK_NAME,
             params,

@@ -145,7 +145,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
             }
-            in.searchNearestVectors(field, target, collector, new TimeOutCheckingBits(acceptDocs));
+            in.searchNearestVectors(field, target, new TimeOutCheckingKnnCollector(collector), acceptDocs);
         }
 
         @Override
@@ -163,31 +163,25 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
             }
-            in.searchNearestVectors(field, target, collector, new TimeOutCheckingBits(acceptDocs));
+            in.searchNearestVectors(field, target, new TimeOutCheckingKnnCollector(collector), acceptDocs);
         }
 
-        private class TimeOutCheckingBits implements Bits {
+        private class TimeOutCheckingKnnCollector extends KnnCollector.Decorator {
+            private final KnnCollector in;
             private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
-            private final Bits updatedAcceptDocs;
             private int calls;
 
-            TimeOutCheckingBits(Bits acceptDocs) {
-                // when acceptDocs is null due to no doc deleted, we will instantiate a new one that would
-                // match all docs to allow timeout checking.
-                this.updatedAcceptDocs = acceptDocs == null ? new Bits.MatchAllBits(maxDoc()) : acceptDocs;
+            private TimeOutCheckingKnnCollector(KnnCollector in) {
+                super(in);
+                this.in = in;
             }
 
             @Override
-            public boolean get(int index) {
+            public boolean collect(int docId, float similarity) {
                 if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
                     queryCancellation.checkCancelled();
                 }
-                return updatedAcceptDocs.get(index);
-            }
-
-            @Override
-            public int length() {
-                return updatedAcceptDocs.length();
+                return in.collect(docId, similarity);
             }
         }
     }

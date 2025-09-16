@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleArrayBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -53,10 +55,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, (source, fieldEval) -> fieldEval),
-        Map.entry(DOUBLE, DoubleFactory::new),
-        Map.entry(INTEGER, IntFactory::new),
-        Map.entry(LONG, LongFactory::new),
-        Map.entry(UNSIGNED_LONG, UnsignedLongFactory::new)
+        Map.entry(DOUBLE, (source, fieldEval) -> new DoubleFactory(fieldEval)),
+        Map.entry(INTEGER, (source, fieldEval) -> new IntFactory(fieldEval)),
+        Map.entry(LONG, (source, fieldEval) -> new LongFactory(fieldEval)),
+        Map.entry(UNSIGNED_LONG, (source, fieldEval) -> new UnsignedLongFactory(fieldEval))
     );
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -141,26 +143,25 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         }
 
         private Block build() {
-            Block[] blocks = new Block[4];
-            Block block;
+            DoubleBlock doubleBlock = null;
+            IntBlock countBlock = null;
             boolean success = false;
             try {
-                block = valuesBuilder.build().asBlock();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex()] = block;
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex()] = block;
-                block.incRef();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex()] = block;
-                block.incRef();
-                blocks[AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex()] = blockFactory.newConstantIntBlockWith(
-                    1,
-                    block.getPositionCount()
+                doubleBlock = valuesBuilder.build().asBlock();
+                countBlock = blockFactory.newConstantIntBlockWith(1, doubleBlock.getPositionCount());
+                AggregateMetricDoubleBlock aggBlock = new AggregateMetricDoubleArrayBlock(
+                    doubleBlock,
+                    doubleBlock,
+                    doubleBlock,
+                    countBlock
                 );
-                CompositeBlock compositeBlock = new CompositeBlock(blocks);
+                doubleBlock.incRef();
+                doubleBlock.incRef();
                 success = true;
-                return compositeBlock;
+                return aggBlock;
             } finally {
                 if (success == false) {
-                    Releasables.closeExpectNoException(blocks);
+                    Releasables.closeExpectNoException(doubleBlock, countBlock);
                 }
             }
         }
@@ -172,13 +173,10 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     }
 
     public static class DoubleFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public DoubleFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public DoubleFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
         }
 
         @Override
@@ -188,97 +186,95 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+            return new DoubleEvaluator(context.blockFactory(), fieldEvaluator.get(context));
+        }
+    }
 
-            return new EvalOperator.ExpressionEvaluator() {
-                private Block evalBlock(Block block) {
-                    int positionCount = block.getPositionCount();
-                    DoubleBlock doubleBlock = (DoubleBlock) block;
-                    try (
-                        AggregateMetricDoubleBlockBuilder builder = context.blockFactory()
-                            .newAggregateMetricDoubleBlockBuilder(positionCount)
-                    ) {
-                        CompensatedSum compensatedSum = new CompensatedSum();
-                        for (int p = 0; p < positionCount; p++) {
-                            int valueCount = doubleBlock.getValueCount(p);
-                            if (valueCount == 0) {
-                                builder.appendNull();
-                                continue;
-                            }
-                            int start = doubleBlock.getFirstValueIndex(p);
-                            int end = start + valueCount;
-                            if (valueCount == 1) {
-                                double current = doubleBlock.getDouble(start);
-                                builder.min().appendDouble(current);
-                                builder.max().appendDouble(current);
-                                builder.sum().appendDouble(current);
-                                builder.count().appendInt(valueCount);
-                                continue;
-                            }
-                            double min = Double.POSITIVE_INFINITY;
-                            double max = Double.NEGATIVE_INFINITY;
-                            for (int i = start; i < end; i++) {
-                                double current = doubleBlock.getDouble(i);
-                                min = Math.min(min, current);
-                                max = Math.max(max, current);
-                                compensatedSum.add(current);
-                            }
-                            builder.min().appendDouble(min);
-                            builder.max().appendDouble(max);
-                            builder.sum().appendDouble(compensatedSum.value());
-                            builder.count().appendInt(valueCount);
-                            compensatedSum.reset(0, 0);
-                        }
-                        return builder.build();
+    public record DoubleEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DoubleEvaluator.class);
+
+        private Block evalBlock(Block block) {
+            int positionCount = block.getPositionCount();
+            DoubleBlock doubleBlock = (DoubleBlock) block;
+            try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
+                CompensatedSum compensatedSum = new CompensatedSum();
+                for (int p = 0; p < positionCount; p++) {
+                    int valueCount = doubleBlock.getValueCount(p);
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
                     }
-                }
-
-                private Block evalVector(Vector vector) {
-                    int positionCount = vector.getPositionCount();
-                    DoubleVector doubleVector = (DoubleVector) vector;
-                    try (
-                        AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(
-                            positionCount,
-                            context.blockFactory()
-                        )
-                    ) {
-                        for (int p = 0; p < positionCount; p++) {
-                            double value = doubleVector.getDouble(p);
-                            builder.appendValue(value);
-                        }
-                        return builder.build();
+                    int start = doubleBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
+                    if (valueCount == 1) {
+                        double current = doubleBlock.getDouble(start);
+                        builder.min().appendDouble(current);
+                        builder.max().appendDouble(current);
+                        builder.sum().appendDouble(current);
+                        builder.count().appendInt(valueCount);
+                        continue;
                     }
-                }
-
-                @Override
-                public Block eval(Page page) {
-                    try (Block block = eval.eval(page)) {
-                        Vector vector = block.asVector();
-                        return vector == null ? evalBlock(block) : evalVector(vector);
+                    double min = Double.POSITIVE_INFINITY;
+                    double max = Double.NEGATIVE_INFINITY;
+                    for (int i = start; i < end; i++) {
+                        double current = doubleBlock.getDouble(i);
+                        min = Math.min(min, current);
+                        max = Math.max(max, current);
+                        compensatedSum.add(current);
                     }
+                    builder.min().appendDouble(min);
+                    builder.max().appendDouble(max);
+                    builder.sum().appendDouble(compensatedSum.value());
+                    builder.count().appendInt(valueCount);
+                    compensatedSum.reset(0, 0);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
+        private Block evalVector(Vector vector) {
+            int positionCount = vector.getPositionCount();
+            DoubleVector doubleVector = (DoubleVector) vector;
+            try (AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(positionCount, blockFactory)) {
+                for (int p = 0; p < positionCount; p++) {
+                    double value = doubleVector.getDouble(p);
+                    builder.appendValue(value);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromDoubleEvaluator[field=" + eval + "]";
-                }
-            };
+        @Override
+        public Block eval(Page page) {
+            try (Block block = eval.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(eval);
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + eval.baseRamBytesUsed();
+        }
+
+        @Override
+        public String toString() {
+            return "ToAggregateMetricDoubleFromDoubleEvaluator[field=" + eval + "]";
         }
     }
 
     public static class IntFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public IntFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public IntFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
         }
 
         @Override
@@ -288,97 +284,95 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+            return new IntEvaluator(context.blockFactory(), fieldEvaluator.get(context));
+        }
+    }
 
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    try (Block block = eval.eval(page)) {
-                        Vector vector = block.asVector();
-                        return vector == null ? evalBlock(block) : evalVector(vector);
+    public record IntEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntEvaluator.class);
+
+        @Override
+        public Block eval(Page page) {
+            try (Block block = eval.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
+            }
+        }
+
+        private Block evalBlock(Block block) {
+            int positionCount = block.getPositionCount();
+            IntBlock intBlock = (IntBlock) block;
+            try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
+                CompensatedSum sum = new CompensatedSum();
+                for (int p = 0; p < positionCount; p++) {
+                    int valueCount = intBlock.getValueCount(p);
+                    int start = intBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
                     }
-                }
-
-                private Block evalBlock(Block block) {
-                    int positionCount = block.getPositionCount();
-                    IntBlock intBlock = (IntBlock) block;
-                    try (
-                        AggregateMetricDoubleBlockBuilder builder = context.blockFactory()
-                            .newAggregateMetricDoubleBlockBuilder(positionCount)
-                    ) {
-                        CompensatedSum sum = new CompensatedSum();
-                        for (int p = 0; p < positionCount; p++) {
-                            int valueCount = intBlock.getValueCount(p);
-                            int start = intBlock.getFirstValueIndex(p);
-                            int end = start + valueCount;
-                            if (valueCount == 0) {
-                                builder.appendNull();
-                                continue;
-                            }
-                            if (valueCount == 1) {
-                                double current = intBlock.getInt(start);
-                                builder.min().appendDouble(current);
-                                builder.max().appendDouble(current);
-                                builder.sum().appendDouble(current);
-                                builder.count().appendInt(valueCount);
-                                continue;
-                            }
-                            double min = Double.POSITIVE_INFINITY;
-                            double max = Double.NEGATIVE_INFINITY;
-                            for (int i = start; i < end; i++) {
-                                double current = intBlock.getInt(i);
-                                min = Math.min(min, current);
-                                max = Math.max(max, current);
-                                sum.add(current);
-                            }
-                            builder.min().appendDouble(min);
-                            builder.max().appendDouble(max);
-                            builder.sum().appendDouble(sum.value());
-                            builder.count().appendInt(valueCount);
-                            sum.reset(0, 0);
-                        }
-                        return builder.build();
+                    if (valueCount == 1) {
+                        double current = intBlock.getInt(start);
+                        builder.min().appendDouble(current);
+                        builder.max().appendDouble(current);
+                        builder.sum().appendDouble(current);
+                        builder.count().appendInt(valueCount);
+                        continue;
                     }
-                }
-
-                private Block evalVector(Vector vector) {
-                    int positionCount = vector.getPositionCount();
-                    IntVector intVector = (IntVector) vector;
-                    try (
-                        AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(
-                            positionCount,
-                            context.blockFactory()
-                        )
-                    ) {
-                        for (int p = 0; p < positionCount; p++) {
-                            double value = intVector.getInt(p);
-                            builder.appendValue(value);
-                        }
-                        return builder.build();
+                    double min = Double.POSITIVE_INFINITY;
+                    double max = Double.NEGATIVE_INFINITY;
+                    for (int i = start; i < end; i++) {
+                        double current = intBlock.getInt(i);
+                        min = Math.min(min, current);
+                        max = Math.max(max, current);
+                        sum.add(current);
                     }
+                    builder.min().appendDouble(min);
+                    builder.max().appendDouble(max);
+                    builder.sum().appendDouble(sum.value());
+                    builder.count().appendInt(valueCount);
+                    sum.reset(0, 0);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
+        private Block evalVector(Vector vector) {
+            int positionCount = vector.getPositionCount();
+            IntVector intVector = (IntVector) vector;
+            try (AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(positionCount, blockFactory)) {
+                for (int p = 0; p < positionCount; p++) {
+                    double value = intVector.getInt(p);
+                    builder.appendValue(value);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromIntEvaluator[field=" + eval + "]";
-                }
-            };
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + eval.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(eval);
+        }
+
+        @Override
+        public String toString() {
+            return "ToAggregateMetricDoubleFromIntEvaluator[field=" + eval + "]";
         }
     }
 
     public static class LongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public LongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public LongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
         }
 
         @Override
@@ -388,97 +382,95 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+            return new LongEvaluator(context.blockFactory(), fieldEvaluator.get(context));
+        }
+    }
 
-            return new EvalOperator.ExpressionEvaluator() {
-                private Block evalBlock(Block block) {
-                    int positionCount = block.getPositionCount();
-                    LongBlock longBlock = (LongBlock) block;
-                    try (
-                        AggregateMetricDoubleBlockBuilder builder = context.blockFactory()
-                            .newAggregateMetricDoubleBlockBuilder(positionCount)
-                    ) {
-                        CompensatedSum sum = new CompensatedSum();
-                        for (int p = 0; p < positionCount; p++) {
-                            int valueCount = longBlock.getValueCount(p);
-                            int start = longBlock.getFirstValueIndex(p);
-                            int end = start + valueCount;
-                            if (valueCount == 0) {
-                                builder.appendNull();
-                                continue;
-                            }
-                            if (valueCount == 1) {
-                                double current = longBlock.getLong(start);
-                                builder.min().appendDouble(current);
-                                builder.max().appendDouble(current);
-                                builder.sum().appendDouble(current);
-                                builder.count().appendInt(valueCount);
-                                continue;
-                            }
-                            double min = Double.POSITIVE_INFINITY;
-                            double max = Double.NEGATIVE_INFINITY;
-                            for (int i = start; i < end; i++) {
-                                double current = longBlock.getLong(i);
-                                min = Math.min(min, current);
-                                max = Math.max(max, current);
-                                sum.add(current);
-                            }
-                            builder.min().appendDouble(min);
-                            builder.max().appendDouble(max);
-                            builder.sum().appendDouble(sum.value());
-                            builder.count().appendInt(valueCount);
-                            sum.reset(0, 0);
-                        }
-                        return builder.build();
+    public record LongEvaluator(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongEvaluator.class);
+
+        private Block evalBlock(Block block) {
+            int positionCount = block.getPositionCount();
+            LongBlock longBlock = (LongBlock) block;
+            try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
+                CompensatedSum sum = new CompensatedSum();
+                for (int p = 0; p < positionCount; p++) {
+                    int valueCount = longBlock.getValueCount(p);
+                    int start = longBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
                     }
-                }
-
-                private Block evalVector(Vector vector) {
-                    int positionCount = vector.getPositionCount();
-                    LongVector longVector = (LongVector) vector;
-                    try (
-                        AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(
-                            positionCount,
-                            context.blockFactory()
-                        )
-                    ) {
-                        for (int p = 0; p < positionCount; p++) {
-                            double value = longVector.getLong(p);
-                            builder.appendValue(value);
-                        }
-                        return builder.build();
+                    if (valueCount == 1) {
+                        double current = longBlock.getLong(start);
+                        builder.min().appendDouble(current);
+                        builder.max().appendDouble(current);
+                        builder.sum().appendDouble(current);
+                        builder.count().appendInt(valueCount);
+                        continue;
                     }
-                }
-
-                @Override
-                public Block eval(Page page) {
-                    try (Block block = eval.eval(page)) {
-                        Vector vector = block.asVector();
-                        return vector == null ? evalBlock(block) : evalVector(vector);
+                    double min = Double.POSITIVE_INFINITY;
+                    double max = Double.NEGATIVE_INFINITY;
+                    for (int i = start; i < end; i++) {
+                        double current = longBlock.getLong(i);
+                        min = Math.min(min, current);
+                        max = Math.max(max, current);
+                        sum.add(current);
                     }
+                    builder.min().appendDouble(min);
+                    builder.max().appendDouble(max);
+                    builder.sum().appendDouble(sum.value());
+                    builder.count().appendInt(valueCount);
+                    sum.reset(0, 0);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
+        private Block evalVector(Vector vector) {
+            int positionCount = vector.getPositionCount();
+            LongVector longVector = (LongVector) vector;
+            try (AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(positionCount, blockFactory)) {
+                for (int p = 0; p < positionCount; p++) {
+                    double value = longVector.getLong(p);
+                    builder.appendValue(value);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromLongEvaluator[field=" + eval + "]";
-                }
-            };
+        @Override
+        public Block eval(Page page) {
+            try (Block block = eval.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + eval.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(eval);
+        }
+
+        @Override
+        public String toString() {
+            return "ToAggregateMetricDoubleFromLongEvaluator[field=" + eval + "]";
         }
     }
 
     public static class UnsignedLongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public UnsignedLongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public UnsignedLongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
             this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
         }
 
         @Override
@@ -488,86 +480,87 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
+            return new UnsignedLong(context.blockFactory(), fieldEvaluator.get(context));
+        }
+    }
 
-            return new EvalOperator.ExpressionEvaluator() {
-                private Block evalBlock(Block block) {
-                    int positionCount = block.getPositionCount();
-                    LongBlock longBlock = (LongBlock) block;
-                    try (
-                        AggregateMetricDoubleBlockBuilder builder = context.blockFactory()
-                            .newAggregateMetricDoubleBlockBuilder(positionCount)
-                    ) {
-                        CompensatedSum sum = new CompensatedSum();
-                        for (int p = 0; p < positionCount; p++) {
-                            int valueCount = longBlock.getValueCount(p);
-                            int start = longBlock.getFirstValueIndex(p);
-                            int end = start + valueCount;
-                            if (valueCount == 0) {
-                                builder.appendNull();
-                                continue;
-                            }
-                            if (valueCount == 1) {
-                                double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
-                                builder.min().appendDouble(current);
-                                builder.max().appendDouble(current);
-                                builder.sum().appendDouble(current);
-                                builder.count().appendInt(valueCount);
-                                continue;
-                            }
-                            double min = Double.POSITIVE_INFINITY;
-                            double max = Double.NEGATIVE_INFINITY;
-                            for (int i = start; i < end; i++) {
-                                double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
-                                min = Math.min(min, current);
-                                max = Math.max(max, current);
-                                sum.add(current);
-                            }
-                            builder.min().appendDouble(min);
-                            builder.max().appendDouble(max);
-                            builder.sum().appendDouble(sum.value());
-                            builder.count().appendInt(valueCount);
-                            sum.reset(0, 0);
-                        }
-                        return builder.build();
+    public record UnsignedLong(BlockFactory blockFactory, EvalOperator.ExpressionEvaluator eval)
+        implements
+            EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(UnsignedLong.class);
+
+        private Block evalBlock(Block block) {
+            int positionCount = block.getPositionCount();
+            LongBlock longBlock = (LongBlock) block;
+            try (AggregateMetricDoubleBlockBuilder builder = blockFactory.newAggregateMetricDoubleBlockBuilder(positionCount)) {
+                CompensatedSum sum = new CompensatedSum();
+                for (int p = 0; p < positionCount; p++) {
+                    int valueCount = longBlock.getValueCount(p);
+                    int start = longBlock.getFirstValueIndex(p);
+                    int end = start + valueCount;
+                    if (valueCount == 0) {
+                        builder.appendNull();
+                        continue;
                     }
-                }
-
-                private Block evalVector(Vector vector) {
-                    int positionCount = vector.getPositionCount();
-                    LongVector longVector = (LongVector) vector;
-                    try (
-                        AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(
-                            positionCount,
-                            context.blockFactory()
-                        )
-                    ) {
-                        for (int p = 0; p < positionCount; p++) {
-                            double value = EsqlDataTypeConverter.unsignedLongToDouble(longVector.getLong(p));
-                            builder.appendValue(value);
-                        }
-                        return builder.build();
+                    if (valueCount == 1) {
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        builder.min().appendDouble(current);
+                        builder.max().appendDouble(current);
+                        builder.sum().appendDouble(current);
+                        builder.count().appendInt(valueCount);
+                        continue;
                     }
-                }
-
-                @Override
-                public Block eval(Page page) {
-                    try (Block block = eval.eval(page)) {
-                        Vector vector = block.asVector();
-                        return vector == null ? evalBlock(block) : evalVector(vector);
+                    double min = Double.POSITIVE_INFINITY;
+                    double max = Double.NEGATIVE_INFINITY;
+                    for (int i = start; i < end; i++) {
+                        double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                        min = Math.min(min, current);
+                        max = Math.max(max, current);
+                        sum.add(current);
                     }
+                    builder.min().appendDouble(min);
+                    builder.max().appendDouble(max);
+                    builder.sum().appendDouble(sum.value());
+                    builder.count().appendInt(valueCount);
+                    sum.reset(0, 0);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
+        private Block evalVector(Vector vector) {
+            int positionCount = vector.getPositionCount();
+            LongVector longVector = (LongVector) vector;
+            try (AggregateMetricDoubleVectorBuilder builder = new AggregateMetricDoubleVectorBuilder(positionCount, blockFactory)) {
+                for (int p = 0; p < positionCount; p++) {
+                    double value = EsqlDataTypeConverter.unsignedLongToDouble(longVector.getLong(p));
+                    builder.appendValue(value);
                 }
+                return builder.build();
+            }
+        }
 
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromUnsignedLongEvaluator[field=" + eval + "]";
-                }
-            };
+        @Override
+        public Block eval(Page page) {
+            try (Block block = eval.eval(page)) {
+                Vector vector = block.asVector();
+                return vector == null ? evalBlock(block) : evalVector(vector);
+            }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED + eval.baseRamBytesUsed();
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(eval);
+        }
+
+        @Override
+        public String toString() {
+            return "ToAggregateMetricDoubleFromUnsignedLongEvaluator[field=" + eval + "]";
         }
     }
 }

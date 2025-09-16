@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -29,8 +30,9 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePatternList;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
+import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
@@ -42,8 +44,10 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrate
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLikeList;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
@@ -80,6 +84,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
@@ -105,15 +110,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      * eg. EVAL x = sin(sin(sin(sin(sin(sin(sin(sin(sin(....sin(x)....)
      * ANTLR parser is recursive, so the only way to prevent a StackOverflow is to detect how
      * deep we are in the expression parsing and abort the query execution after a threshold
-     *
+     * <p>
      * This value is defined empirically, but the actual stack limit is highly
      * dependent on the JVM and on the JIT.
-     *
+     * <p>
      * A value of 500 proved to be right below the stack limit, but it still triggered
      * some CI failures (once every ~2000 iterations). see https://github.com/elastic/elasticsearch/issues/109846
      * Even though we didn't manage to reproduce the problem in real conditions, we decided
      * to reduce the max allowed depth to 400 (that is still a pretty reasonable limit for real use cases) and be more safe.
-     *
      */
     public static final int MAX_EXPRESSION_DEPTH = 400;
 
@@ -143,6 +147,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
         return visitList(this, contexts, Expression.class);
+    }
+
+    protected static ParsingException qualifiersUnsupportedInFieldDefinitions(Source source, String qualifiedName) {
+        return new ParsingException(source, "Qualified names are not supported in field definitions, found [{}]", qualifiedName);
+    }
+
+    protected static ParsingException qualifiersUnsupportedInPatterns(Source source, String qualifiedNamePattern) {
+        return new ParsingException(source, "Qualified names are not supported in patterns, found [{}]", qualifiedNamePattern);
     }
 
     @Override
@@ -252,14 +264,27 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitString(EsqlBaseParser.StringContext ctx) {
         Source source = source(ctx);
-        return new Literal(source, unquote(source), DataType.KEYWORD);
+        return Literal.keyword(source, unquote(source));
     }
 
     @Override
     public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx) {
+        return visitQualifiedName(ctx, null);
+    }
+
+    public UnresolvedAttribute visitQualifiedName(EsqlBaseParser.QualifiedNameContext ctx, UnresolvedAttribute defaultValue) {
         if (ctx == null) {
-            return null;
+            return defaultValue;
         }
+
+        String name = visitFieldName(ctx.fieldName());
+        String qualifier = ctx.qualifier != null ? ctx.qualifier.getText() : null;
+
+        return new UnresolvedAttribute(source(ctx), qualifier, name, null);
+    }
+
+    @Override
+    public String visitFieldName(EsqlBaseParser.FieldNameContext ctx) {
         List<Object> items = visitList(this, ctx.identifierOrParameter(), Object.class);
         List<String> strings = new ArrayList<>(items.size());
         for (Object item : items) {
@@ -269,7 +294,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 strings.add(unresolvedAttributeNameInParam(ctx, e));
             }
         }
-        return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+        return Strings.collectionToDelimitedString(strings, ".");
     }
 
     @Override
@@ -304,15 +329,21 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        if (ctx == null) {
+    public NamedExpression visitQualifiedNamePattern(EsqlBaseParser.QualifiedNamePatternContext qualifiedCtx) {
+        if (qualifiedCtx == null) {
             return null;
         }
 
-        var src = source(ctx);
+        String qualifier = qualifiedCtx.qualifier != null ? qualifiedCtx.qualifier.getText() : null;
+        if (qualifier != null && qualifier.charAt(0) == '`') {
+            throw new ParsingException(source(qualifiedCtx), "Quoted identifiers are not supported as qualifiers, found [{}]", qualifier);
+        }
+        EsqlBaseParser.FieldNamePatternContext unqualifiedCtx = qualifiedCtx.fieldNamePattern();
+
+        var src = source(qualifiedCtx);
         StringBuilder patternString = new StringBuilder();
         StringBuilder nameString = new StringBuilder();
-        var patterns = ctx.identifierPattern();
+        var patterns = unqualifiedCtx.identifierPattern();
 
         // check special wildcard case
         if (patterns.size() == 1) {
@@ -330,8 +361,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         throw new ParsingException(
                             src,
                             "Query parameter [{}] with value [{}] declared as a constant, cannot be used as an identifier or pattern",
-                            ctx.getText(),
-                            lit.value()
+                            unqualifiedCtx.getText(),
+                            lit
                         );
                     }
                 } else if (exp instanceof UnresolvedNamePattern up) {
@@ -341,6 +372,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (unresolvedStar) {
+                if (qualifier != null) {
+                    throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());
+                }
+
                 return new UnresolvedStar(src, null);
             }
         }
@@ -366,7 +401,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (exp instanceof Literal lit) {
                     // only Literal.NULL can happen with missing params, params for constants are not allowed
                     if (lit.value() != null) {
-                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, ctx.getText());
+                        throw new ParsingException(src, "Constant [{}] is unsupported for [{}]", pattern, unqualifiedCtx.getText());
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
@@ -456,8 +491,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 patternString.toString(),
                 nameString.toString()
             );
+
+            if (qualifier != null) {
+                throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());
+            }
         } else {
-            result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
+            result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""), null);
+
+            if (qualifier != null && qualifier.contains(WILDCARD)) {
+                throw qualifiersUnsupportedInPatterns(src, qualifiedCtx.getText());
+            }
         }
         return result;
     }
@@ -607,7 +650,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Expression> args = new ArrayList<>(expressions(ctx.booleanExpression()));
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
@@ -621,7 +664,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if ("count".equals(EsqlFunctionRegistry.normalizeName(name))) {
             // to simplify the registration, handle in the parser the special count cases
             if (args.isEmpty() || ctx.ASTERISK() != null) {
-                args = singletonList(new Literal(source(ctx), "*", DataType.KEYWORD));
+                args = singletonList(Literal.keyword(source(ctx), "*"));
             }
         }
         return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
@@ -629,9 +672,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public String visitFunctionName(EsqlBaseParser.FunctionNameContext ctx) {
-        var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
+        String name = functionName(ctx);
         context.telemetry().function(name);
         return name;
+    }
+
+    private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
+        /*
+         * FIRST and LAST are valid function names AND tokens used in `NULLS LAST`.
+         * So we have to have special handling for them here.
+         */
+        TerminalNode first = ctx.FIRST();
+        if (first != null) {
+            return first.getText();
+        }
+        TerminalNode last = ctx.LAST();
+        if (last != null) {
+            return last.getText();
+        }
+        return visitIdentifierOrParameter(ctx.identifierOrParameter());
     }
 
     @Override
@@ -643,33 +702,33 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.StringContext stringCtx = entry.string();
             String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
             if (key.isBlank()) {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named function argument [{}], empty key is not supported",
-                    entry.getText()
-                );
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
             }
             if (names.contains(key)) {
-                throw new ParsingException(source(ctx), "Duplicated function arguments with the same name [{}] is not supported", key);
+                throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
             }
-            Expression value = expression(entry.constant());
+            Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
+                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
                 }
-                namedArgs.add(new Literal(source(stringCtx), key, KEYWORD));
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
+            } else if (value instanceof MapExpression) {
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
+                namedArgs.add(value);
             } else {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named function argument [{}], only constant value is supported",
-                    entryText
-                );
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], only constant value is supported", entryText);
             }
         }
-        return new MapExpression(Source.EMPTY, namedArgs);
+        return new MapExpression(source(ctx), namedArgs);
+    }
+
+    @Override
+    public MapExpression visitCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx) {
+        return ctx == null || ctx.mapExpression() == null ? null : visitMapExpression(ctx.mapExpression());
     }
 
     @Override
@@ -738,31 +797,60 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitRegexBooleanExpression(EsqlBaseParser.RegexBooleanExpressionContext ctx) {
-        int type = ctx.kind.getType();
+    public Expression visitRlikeExpression(EsqlBaseParser.RlikeExpressionContext ctx) {
         Source source = source(ctx);
         Expression left = expression(ctx.valueExpression());
-        Literal pattern = visitString(ctx.pattern);
-        RegexMatch<?> result = switch (type) {
-            case EsqlBaseParser.LIKE -> {
-                try {
-                    yield new WildcardLike(
-                        source,
-                        left,
-                        new WildcardPattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
-                    );
-                } catch (InvalidArgumentException e) {
-                    throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", pattern, e.getMessage());
-                }
-            }
-            case EsqlBaseParser.RLIKE -> new RLike(
-                source,
-                left,
-                new RLikePattern(pattern.fold(FoldContext.small() /* TODO remove me */).toString())
-            );
-            default -> throw new ParsingException("Invalid predicate type for [{}]", source.text());
-        };
-        return ctx.NOT() == null ? result : new Not(source, result);
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            RLike rLike = new RLike(source, left, new RLikePattern(BytesRefs.toString(patternLiteral.fold(FoldContext.small()))));
+            return ctx.NOT() == null ? rLike : new Not(source, rLike);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for RLIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
+    }
+
+    @Override
+    public Expression visitLikeExpression(EsqlBaseParser.LikeExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        Literal patternLiteral = visitString(ctx.string());
+        try {
+            WildcardPattern pattern = new WildcardPattern(BytesRefs.toString(patternLiteral.fold(FoldContext.small())));
+            WildcardLike result = new WildcardLike(source, left, pattern);
+            return ctx.NOT() == null ? result : new Not(source, result);
+        } catch (InvalidArgumentException e) {
+            throw new ParsingException(source, "Invalid pattern for LIKE [{}]: [{}]", patternLiteral, e.getMessage());
+        }
+    }
+
+    @Override
+    public Expression visitLikeListExpression(EsqlBaseParser.LikeListExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        List<WildcardPattern> wildcardPatterns = ctx.string()
+            .stream()
+            .map(x -> new WildcardPattern(BytesRefs.toString(visitString(x).fold(FoldContext.small()))))
+            .toList();
+        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
+        Expression e = wildcardPatterns.size() == 1
+            ? new WildcardLike(source, left, wildcardPatterns.getFirst())
+            : new WildcardLikeList(source, left, new WildcardPatternList(wildcardPatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
+    }
+
+    @Override
+    public Expression visitRlikeListExpression(EsqlBaseParser.RlikeListExpressionContext ctx) {
+        Source source = source(ctx);
+        Expression left = expression(ctx.valueExpression());
+        List<RLikePattern> rLikePatterns = ctx.string()
+            .stream()
+            .map(x -> new RLikePattern(BytesRefs.toString(visitString(x).fold(FoldContext.small()))))
+            .toList();
+        // for now we will use the old WildcardLike function for one argument case to allow compatibility in mixed version deployments
+        Expression e = rLikePatterns.size() == 1
+            ? new RLike(source, left, rLikePatterns.getFirst())
+            : new RLikeList(source, left, new RLikePatternList(rLikePatterns));
+        return ctx.NOT() == null ? e : new Not(source, e);
     }
 
     @Override
@@ -788,6 +876,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             || oldName instanceof UnresolvedStar) {
             throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
+        assert newName instanceof UnresolvedAttribute && oldName instanceof UnresolvedAttribute;
+        UnresolvedAttribute ua = (UnresolvedAttribute) newName;
+        if (ua.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(src, ctx.newName.getText());
+        }
 
         return new Alias(src, newName.name(), oldName);
     }
@@ -801,6 +894,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
+        if (ctx != null && ctx.qualifier != null) {
+            throw new ParsingException(
+                source(ctx),
+                "Using qualifiers in ENRICH WITH projections is not allowed, found [{}]",
+                ctx.getText()
+            );
+        }
+
         return visitQualifiedNamePattern(ctx, ne -> {
             if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
@@ -816,6 +917,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        if (id != null && id.qualifier() != null) {
+            throw qualifiersUnsupportedInFieldDefinitions(source, ctx.qualifiedName().getText());
+        }
         Expression value = expression(ctx.booleanExpression());
         String name = id == null ? source.text() : id.name();
         return new Alias(source, name, value);
@@ -824,6 +928,25 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
         return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
+    }
+
+    @Override
+    public Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx) {
+        return visitRerankField(ctx, source(ctx));
+    }
+
+    private Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx, Source source) {
+        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
+        assert id != null;
+
+        var boolExprCtx = ctx.booleanExpression();
+        Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
+        return new Alias(source, id.qualifier() != null ? id.qualifiedName() : id.name(), value);
+    }
+
+    @Override
+    public List<Alias> visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) {
+        return ctx != null ? visitList(this, ctx.rerankField(), Alias.class) : new ArrayList<>();
     }
 
     @Override
@@ -878,6 +1001,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         name = source(field).text();
                     }
                 } else {
+                    if (id.qualifier() != null) {
+                        throw qualifiersUnsupportedInFieldDefinitions(source(field), field.qualifiedName().getText());
+                    }
                     name = id.name();
                 }
                 // wrap when necessary - no alias and no underlying attribute
@@ -919,6 +1045,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 return new UnresolvedNamePattern(source, null, value.toString(), value.toString());
             } else {
                 return new UnresolvedAttribute(source, value.toString());
+            }
+        }
+        if ((type == KEYWORD || type == TEXT)) {
+            if (value instanceof String) {
+                value = BytesRefs.toBytesRef(value);
+            } else if (value instanceof List<?> list) {
+                value = list.stream().map(v -> v instanceof String ? BytesRefs.toBytesRef(v) : v).toList();
             }
         }
         return new Literal(source, value, type);
@@ -976,7 +1109,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 source(ctx),
                 invalidParam,
                 ctx.getText(),
-                lit.value() != null ? " with value [" + lit.value() + "] declared as a constant" : " is null or undefined"
+                lit.value() != null ? " with value [" + lit + "] declared as a constant" : " is null or undefined"
             );
             case UnresolvedNamePattern up -> throw new ParsingException(
                 source(ctx),
@@ -1014,9 +1147,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     /**
-      * Double parameter markers represent identifiers, e.g. field or function names. An {@code UnresolvedAttribute}
-      * is returned regardless how the param is specified in the request.
-      */
+     * Double parameter markers represent identifiers, e.g. field or function names. An {@code UnresolvedAttribute}
+     * is returned regardless how the param is specified in the request.
+     */
     private Expression visitDoubleParam(EsqlBaseParser.DoubleParameterContext ctx, QueryParam param) {
         if (param.classification() == PATTERN) {
             context.params.addParsingError(

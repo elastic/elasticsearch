@@ -92,10 +92,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         // Ensure that initial credentials now invalid
         final var accessDeniedException2 = expectThrows(ResponseException.class, () -> client().performRequest(verifyRequest));
         assertThat(accessDeniedException2.getResponse().getStatusLine().getStatusCode(), equalTo(500));
-        assertThat(
-            accessDeniedException2.getMessage(),
-            allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("Error Code: AccessDenied"))
-        );
+        assertThat(accessDeniedException2.getMessage(), allOf(containsString("Access denied"), containsString("Status Code: 403")));
 
         // Set up refreshed credentials
         keystoreSettings.put("s3.client.default.access_key", accessKey2);

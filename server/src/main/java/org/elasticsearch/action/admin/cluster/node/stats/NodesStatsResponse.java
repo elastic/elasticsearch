@@ -18,11 +18,13 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
@@ -42,13 +44,17 @@ public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     @Override
     protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
+        if (outerParams.param(DenseVectorStats.INCLUDE_OFF_HEAP) == null) {
+            outerParams = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outerParams);
+        }
+        var finalOuterParams = new ToXContent.DelegatingMapParams(Map.of(DenseVectorStats.INCLUDE_OFF_HEAP, "true"), outerParams);
         return ChunkedToXContentHelper.object(
             "nodes",
             Iterators.flatMap(getNodes().iterator(), nodeStats -> Iterators.concat(Iterators.single((builder, params) -> {
                 builder.startObject(nodeStats.getNode().getId());
                 builder.field("timestamp", nodeStats.getTimestamp());
                 return builder;
-            }), nodeStats.toXContentChunked(outerParams), ChunkedToXContentHelper.endObject()))
+            }), nodeStats.toXContentChunked(finalOuterParams), ChunkedToXContentHelper.endObject()))
         );
     }
 

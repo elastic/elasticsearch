@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rollup.action;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -41,7 +42,13 @@ public class RollupInfoTransportActionTests extends ESTestCase {
     public void testUsage() throws ExecutionException, InterruptedException, IOException {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        var usageAction = new RollupUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class));
+        var usageAction = new RollupUsageTransportAction(
+            transportService,
+            null,
+            threadPool,
+            mock(ActionFilters.class),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         RollupFeatureSetUsage rollupUsage = (RollupFeatureSetUsage) future.get().getUsage();

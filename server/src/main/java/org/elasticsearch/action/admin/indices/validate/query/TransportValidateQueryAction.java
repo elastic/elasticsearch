@@ -128,9 +128,18 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         if (request.query() == null) {
             rewriteListener.onResponse(request.query());
         } else {
+            // We can safely set the cluster alias and CCS minimize round-trips to null because the validate endpoint can only reference
+            // local indices
             Rewriteable.rewriteAndFetch(
                 request.query(),
-                searchService.getRewriteContext(timeProvider, resolvedIndices, null),
+                searchService.getRewriteContext(
+                    timeProvider,
+                    clusterService.state().getMinTransportVersion(),
+                    null,
+                    resolvedIndices,
+                    null,
+                    null
+                ),
                 rewriteListener
             );
         }
@@ -176,7 +185,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ValidateQueryRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ);
     }
 
     @Override

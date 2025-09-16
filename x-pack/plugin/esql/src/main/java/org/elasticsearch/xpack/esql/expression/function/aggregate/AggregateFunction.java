@@ -11,22 +11,26 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -68,6 +72,39 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         );
     }
 
+    /**
+     * Read a generic AggregateFunction from the stream input. This is used for BWC when the subclass requires a generic instance;
+     * then convert the parameters to the specific ones.
+     */
+    protected static AggregateFunction readGenericAggregateFunction(StreamInput in) throws IOException {
+        return new AggregateFunction(in) {
+            @Override
+            public AggregateFunction withFilter(Expression filter) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public DataType dataType() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Expression replaceChildren(List<Expression> newChildren) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            protected NodeInfo<? extends Expression> info() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getWriteableName() {
+                throw new UnsupportedOperationException();
+            }
+        };
+    }
+
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
@@ -95,7 +132,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
 
     public boolean hasFilter() {
         return filter != null
-            && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold(FoldContext.small() /* TODO remove me */)) == false);
+            && (filter.foldable() == false || (filter instanceof Literal literal && Boolean.TRUE.equals(literal.value()) == false));
     }
 
     public Expression filter() {
@@ -119,6 +156,17 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
         return (AggregateFunction) replaceChildren(CollectionUtils.combine(asList(field, filter), parameters));
     }
 
+    /**
+     * Returns the set of input attributes required by this aggregate function, excluding those referenced by the filter.
+     */
+    public AttributeSet aggregateInputReferences(Supplier<List<Attribute>> inputAttributes) {
+        if (hasFilter()) {
+            return Expressions.references(CollectionUtils.combine(List.of(field), parameters));
+        } else {
+            return references();
+        }
+    }
+
     @Override
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
@@ -140,9 +188,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            // `dedup` for now is not exposed as a command,
-            // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
-            if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
+            if ((p instanceof Aggregate) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
                     failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));

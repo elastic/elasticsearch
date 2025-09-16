@@ -98,18 +98,22 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     public void testBuildSmallMultiValued() {
+        assumeMultiValued();
         testBuild(between(1, 100), false, 3);
     }
 
     public void testBuildHugeMultiValued() {
+        assumeMultiValued();
         testBuild(between(1_000, 50_000), false, 3);
     }
 
     public void testBuildSmallMultiValuedNullable() {
+        assumeMultiValued();
         testBuild(between(1, 100), true, 3);
     }
 
     public void testBuildHugeMultiValuedNullable() {
+        assumeMultiValued();
         testBuild(between(1_000, 50_000), true, 3);
     }
 
@@ -179,7 +183,9 @@ public class BlockBuilderTests extends ESTestCase {
                     RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
-                        assertThat(built.asVector().isConstant(), is(true));
+                        if (built instanceof AggregateMetricDoubleArrayBlock == false) {
+                            assertThat(built.asVector().isConstant(), is(true));
+                        }
                         assertThat(built, equalTo(random.block()));
                     }
                 }
@@ -190,5 +196,9 @@ public class BlockBuilderTests extends ESTestCase {
             }
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
+    }
+
+    private void assumeMultiValued() {
+        assumeTrue("Type must support multi-values", elementType != ElementType.AGGREGATE_METRIC_DOUBLE);
     }
 }

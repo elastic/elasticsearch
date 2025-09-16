@@ -79,14 +79,15 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final String MAPPING_VERSION_VARIABLE = "fleet.version";
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
     private static final int FLEET_ACTIONS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 2;
-    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 2;
+    private static final int FLEET_AGENTS_MAPPINGS_VERSION = 4;
+    private static final int FLEET_ENROLLMENT_API_KEYS_MAPPINGS_VERSION = 3;
     private static final int FLEET_SECRETS_MAPPINGS_VERSION = 1;
     private static final int FLEET_POLICIES_MAPPINGS_VERSION = 2;
     private static final int FLEET_POLICIES_LEADER_MAPPINGS_VERSION = 1;
     private static final int FLEET_SERVERS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ARTIFACTS_MAPPINGS_VERSION = 1;
     private static final int FLEET_ACTIONS_RESULTS_MAPPINGS_VERSION = 1;
+    private static final int FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION = 1;
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -111,7 +112,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetPoliciesSystemIndexDescriptor(),
             fleetPoliciesLeaderSystemIndexDescriptor(),
             fleetServersSystemIndexDescriptors(),
-            fleetArtifactsSystemIndexDescriptors()
+            fleetArtifactsSystemIndexDescriptors(),
+            fleetIntegrationKnowledgeSystemIndexDescriptor()
         );
     }
 
@@ -264,6 +266,29 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setIndexPattern(".fleet-artifacts*")
             .setAliasName(".fleet-artifacts")
             .setDescription("Fleet artifacts")
+            .build();
+    }
+
+    private static SystemIndexDescriptor fleetIntegrationKnowledgeSystemIndexDescriptor() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+        request.source(
+            loadTemplateSource("/fleet-integration-knowledge.json", FLEET_INTEGRATION_KNOWLEDGE_MAPPINGS_VERSION),
+            XContentType.JSON
+        );
+
+        return SystemIndexDescriptor.builder()
+            .setType(Type.EXTERNAL_MANAGED)
+            .setAllowedElasticProductOrigins(ALLOWED_PRODUCTS)
+            .setOrigin(FLEET_ORIGIN)
+            // This is a regular search index so it uses the shared thread pools.
+            // The only difference is that its mappings and settings are managed internally by Elasticsearch.
+            .setThreadPools(ExecutorNames.DEFAULT_INDEX_THREAD_POOLS)
+            .setMappings(request.mappings())
+            .setSettings(request.settings())
+            .setPrimaryIndex(".integration_knowledge-" + CURRENT_INDEX_VERSION)
+            .setIndexPattern(".integration_knowledge*")
+            .setAliasName(".integration_knowledge")
+            .setDescription("Integration package knowledge base content storage")
             .build();
     }
 

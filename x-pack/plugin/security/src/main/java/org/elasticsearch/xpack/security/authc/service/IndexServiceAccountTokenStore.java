@@ -47,9 +47,10 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
@@ -80,6 +81,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     private final ClusterService clusterService;
     private final Hasher hasher;
 
+    @SuppressWarnings("this-escape")
     public IndexServiceAccountTokenStore(
         Settings settings,
         ThreadPool threadPool,
@@ -116,14 +118,14 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                             final String tokenHash = (String) response.getSource().get("password");
                             assert tokenHash != null : "service account token hash cannot be null";
                             listener.onResponse(
-                                new StoreAuthenticationResult(
-                                    Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()),
-                                    getTokenSource()
+                                StoreAuthenticationResult.fromBooleanResult(
+                                    getTokenSource(),
+                                    Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray())
                                 )
                             );
                         } else {
                             logger.trace("service account token [{}] not found in index", token.getQualifiedName());
-                            listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
+                            listener.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
                         }
                     }, listener::onFailure)
                 )

@@ -13,7 +13,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Predicates;
@@ -28,6 +27,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Iterator;
@@ -36,6 +36,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
@@ -65,12 +66,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     // The Map itself is immutable after construction - all Clusters will be accounted for at the start of the search.
     // Updates to the Cluster occur with the updateCluster method that given the key to map transforms an
     // old Cluster Object to a new Cluster Object with the remapping function.
-    public final Map<String, Cluster> clusterInfo;
+    public final ConcurrentMap<String, Cluster> clusterInfo;
+    // Is the clusterInfo map iinitialization in progress? If so, we should not try to serialize it.
+    private transient volatile boolean clusterInfoInitializing;
     // whether the user has asked for CCS metadata to be in the JSON response (the overall took will always be present)
     private final boolean includeCCSMetadata;
 
     // fields that are not Writeable since they are only needed on the primary CCS coordinator
-    private final transient Predicate<String> skipUnavailablePredicate;
+    private final transient Predicate<String> skipOnFailurePredicate; // Predicate to determine if we should skip a cluster on failure
     private volatile boolean isPartial; // Does this request have partial results?
     private transient volatile boolean isStopped; // Have we received stop command?
 
@@ -80,17 +83,21 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private transient TimeSpan planningTimeSpan; // time elapsed since start of query to calling ComputeService.execute
     private TimeValue overallTook;
 
+    // Are we doing subplans? No need to serialize this because it is only relevant for the coordinator node.
+    private transient boolean inSubplan = false;
+
+    // This is only used is tests.
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
-        this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
+        this(Predicates.always(), includeCCSMetadata);  // default all clusters to being skippable on failure
     }
 
     /**
-     * @param skipUnavailablePredicate provide lookup for whether a given cluster has skip_unavailable set to true or false
+     * @param skipOnPlanTimeFailurePredicate Decides whether we should skip the cluster that fails during planning phase.
      * @param includeCCSMetadata (user defined setting) whether to include the CCS metadata in the HTTP response
      */
-    public EsqlExecutionInfo(Predicate<String> skipUnavailablePredicate, boolean includeCCSMetadata) {
-        this.clusterInfo = ConcurrentCollections.newConcurrentMap();
-        this.skipUnavailablePredicate = skipUnavailablePredicate;
+    public EsqlExecutionInfo(Predicate<String> skipOnPlanTimeFailurePredicate, boolean includeCCSMetadata) {
+        this.clusterInfo = new ConcurrentHashMap<>();
+        this.skipOnFailurePredicate = skipOnPlanTimeFailurePredicate;
         this.includeCCSMetadata = includeCCSMetadata;
         this.relativeStart = TimeSpan.start();
     }
@@ -101,35 +108,19 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     EsqlExecutionInfo(ConcurrentMap<String, Cluster> clusterInfo, boolean includeCCSMetadata) {
         this.clusterInfo = clusterInfo;
         this.includeCCSMetadata = includeCCSMetadata;
-        this.skipUnavailablePredicate = Predicates.always();
+        this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
     }
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
         this.overallTook = in.readOptionalTimeValue();
-        List<EsqlExecutionInfo.Cluster> clusterList = in.readCollectionAsList(EsqlExecutionInfo.Cluster::new);
-        if (clusterList.isEmpty()) {
-            this.clusterInfo = ConcurrentCollections.newConcurrentMap();
-        } else {
-            Map<String, EsqlExecutionInfo.Cluster> m = ConcurrentCollections.newConcurrentMap();
-            clusterList.forEach(c -> m.put(c.getClusterAlias(), c));
-            this.clusterInfo = m;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.includeCCSMetadata = in.readBoolean();
-        } else {
-            this.includeCCSMetadata = false;
-        }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
-            this.isPartial = in.readBoolean();
-        } else {
-            this.isPartial = false;
-        }
-
-        this.skipUnavailablePredicate = Predicates.always();
+        this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
+        this.includeCCSMetadata = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readBoolean() : false;
+        this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) ? in.readBoolean() : false;
+        this.skipOnFailurePredicate = Predicates.always();
         this.relativeStart = null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
             this.overallTimeSpan = in.readOptional(TimeSpan::readFrom);
             this.planningTimeSpan = in.readOptional(TimeSpan::readFrom);
         }
@@ -138,8 +129,8 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalTimeValue(overallTook);
-        if (clusterInfo != null) {
-            out.writeCollection(clusterInfo.values().stream().toList());
+        if (clusterInfo != null && clusterInfoInitializing == false) {
+            out.writeCollection(clusterInfo.values());
         } else {
             out.writeCollection(Collections.emptyList());
         }
@@ -149,10 +140,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL)) {
             out.writeBoolean(isPartial);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_QUERY_PLANNING_DURATION_8_19)) {
             out.writeOptionalWriteable(overallTimeSpan);
             out.writeOptionalWriteable(planningTimeSpan);
         }
+        assert inSubplan == false : "Should not be serializing execution info while in subplans";
     }
 
     public boolean includeCCSMetadata() {
@@ -179,8 +172,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      */
     public void markEndQuery() {
         assert relativeStart != null : "Relative start time must be set when markEndQuery is called";
-        overallTimeSpan = relativeStart.stop();
-        overallTook = overallTimeSpan.toTimeValue();
+        if (isMainPlan()) {
+            overallTimeSpan = relativeStart.stop();
+            overallTook = overallTimeSpan.toTimeValue();
+        }
     }
 
     // for testing only - use markEndQuery in production code
@@ -212,15 +207,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     }
 
     /**
-     * @param clusterAlias to lookup skip_unavailable from
-     * @return skip_unavailable setting (true/false)
+     * @param clusterAlias to check if we should skip this cluster on failure
+     * @return whether it's OK to skip the cluster on failure.
      * @throws NoSuchRemoteClusterException if clusterAlias is unknown to this node's RemoteClusterService
      */
-    public boolean isSkipUnavailable(String clusterAlias) {
+    public boolean shouldSkipOnFailure(String clusterAlias) {
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            // local cluster is not skippable for now
             return false;
         }
-        return skipUnavailablePredicate.test(clusterAlias);
+        return skipOnFailurePredicate.test(clusterAlias);
     }
 
     public boolean isCrossClusterSearch() {
@@ -362,6 +358,22 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public boolean isStopped() {
         return isStopped;
+    }
+
+    public void clusterInfoInitializing(boolean clusterInfoInitializing) {
+        this.clusterInfoInitializing = clusterInfoInitializing;
+    }
+
+    public boolean isMainPlan() {
+        return inSubplan == false;
+    }
+
+    public void startSubPlans() {
+        this.inSubplan = true;
+    }
+
+    public void finishSubPlans() {
+        this.inSubplan = false;
     }
 
     /**
@@ -560,8 +572,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
                 return this;
             }
 
-            public Cluster.Builder setFailures(List<ShardSearchFailure> failures) {
-                this.failures = failures;
+            public Cluster.Builder addFailures(List<ShardSearchFailure> failures) {
+                if (failures.isEmpty()) {
+                    return this;
+                }
+                if (this.failures == null) {
+                    this.failures = new ArrayList<>(original.failures);
+                }
+                this.failures.addAll(failures);
                 return this;
             }
 

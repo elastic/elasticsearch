@@ -69,4 +69,9 @@ public class RegexQuery extends Query {
     protected String innerToString() {
         return field + "~ /" + regex + "/";
     }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
+    }
 }

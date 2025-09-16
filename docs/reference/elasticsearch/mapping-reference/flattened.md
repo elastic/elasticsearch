@@ -90,7 +90,7 @@ Currently, flattened object fields can be used with the following query types:
 
 When querying, it is not possible to refer to field keys using wildcards, as in `{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including `range`, treat the values as string keywords. Highlighting is not supported on `flattened` fields.
 
-It is possible to sort on a flattened object field, as well as perform simple keyword-style aggregations such as `terms`. As with queries, there is no special support for numerics — all values in the JSON object are treated as keywords. When sorting, this implies that values are compared lexicographically.
+It is possible to sort on a flattened object field, as well as perform simple keyword-style aggregations such as `terms`. As with queries, there is no special support for numerics — all values in the JSON object are treated as keywords. When sorting, this implies that values are compared lexicographically.
 
 Flattened object fields currently cannot be stored. It is not possible to specify the [`store`](/reference/elasticsearch/mapping-reference/mapping-store.md) parameter in the mapping.
 
@@ -236,11 +236,6 @@ The following mapping parameters are accepted:
 
 ## Synthetic `_source` [flattened-synthetic-source]
 
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
-
 Flattened fields support [synthetic`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 
 Synthetic source may sort `flattened` field values and remove duplicates. For example:
@@ -366,6 +361,39 @@ Will become (note the nested objects instead of the "flattened" array):
 {
   "flattened": {
     "field": "foo"
+  }
+}
+```
+
+Flattened fields allow for a key to contain both an object and a scalar value.
+For example, consider the following flattened field `flattened`:
+
+```console-result
+{
+  "flattened": {
+    "foo.bar": "10",
+    "foo": {
+      "bar": {
+        "baz": "20"
+      }
+    }
+  }
+}
+```
+
+Because `"foo.bar": "10"` is implicitly equivalent to `"foo": { "bar": "10" }`,
+`"bar"` has both a scalar value `"10"`, and an object value of `{ "baz": "20" }`.
+
+With synthetic source, to produce a valid JSON output, objects with such fields will appear differently in `_source`.
+For example, if the field is defined in an index configured with synthetic source, the value of `_source` would be:
+
+```console-result
+{
+  "flattened": {
+    "foo": {
+      "bar": "10",
+      "bar.baz": "20"
+    }
   }
 }
 ```

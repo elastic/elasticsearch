@@ -21,7 +21,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.OriginalIndices;
@@ -44,6 +43,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -159,7 +159,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
@@ -522,7 +522,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         for (int i = 0; i < hits.getHits().length; i++) {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                             rankFeatureDocs[i].score = (numDocs - i) + randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
@@ -579,7 +579,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
             for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
                 assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
-                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
+                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, List.of("aardvark_" + sortedRankWindowDocs.get(i)));
             }
 
             List<Integer> globalTopKResults = randomNonEmptySubsetOf(
@@ -759,7 +759,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                             for (int i = 0; i < hits.getHits().length; i++) {
                                                 SearchHit hit = hits.getHits()[i];
                                                 rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                                rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                                 rankFeatureDocs[i].score = randomFloat();
                                                 rankFeatureDocs[i].rank = i + 1;
                                             }
@@ -886,7 +886,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                         for (int i = 0; i < hits.getHits().length; i++) {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                             rankFeatureDocs[i].score = randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
@@ -1150,7 +1150,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                                 for (int i = 0; i < hits.getHits().length; i++) {
                                                     SearchHit hit = hits.getHits()[i];
                                                     rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                    rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                                    rankFeatureDocs[i].featureData(parseFeatureData(hit, rankFeatureFieldName));
                                                     rankFeatureDocs[i].score = randomFloat();
                                                     rankFeatureDocs[i].rank = i + 1;
                                                 }
@@ -1255,8 +1255,22 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             TestShardRouting.newShardRouting(
                 new ShardId(indexService.index(), 0),
                 randomAlphaOfLength(5),
-                randomBoolean(),
-                ShardRoutingState.INITIALIZING
+                true,
+                ShardRoutingState.INITIALIZING,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE
+            ),
+            indexService.getIndexSettings().getSettings()
+        );
+        assertEquals(1, service.getActiveContexts());
+
+        boolean primary = randomBoolean();
+        service.beforeIndexShardCreated(
+            TestShardRouting.newShardRouting(
+                new ShardId(indexService.index(), 0),
+                randomAlphaOfLength(5),
+                primary,
+                ShardRoutingState.INITIALIZING,
+                primary ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
             ),
             indexService.getIndexSettings().getSettings()
         );
@@ -2889,6 +2903,13 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
+    private List<String> parseFeatureData(SearchHit hit, String fieldName) {
+        Object fieldValue = hit.getFields().get(fieldName).getValue();
+        @SuppressWarnings("unchecked")
+        List<String> fieldValues = fieldValue instanceof List ? (List<String>) fieldValue : List.of(String.valueOf(fieldValue));
+        return fieldValues;
+    }
+
     private static class TestRewriteCounterQueryBuilder extends AbstractQueryBuilder<TestRewriteCounterQueryBuilder> {
 
         final int asyncRewriteCount;
@@ -2911,7 +2932,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

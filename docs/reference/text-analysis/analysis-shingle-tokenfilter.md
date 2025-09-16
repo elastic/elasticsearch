@@ -146,7 +146,7 @@ PUT /my-index-000001
 
 Some token filters, such as the `stop` filter, create empty positions when removing stop words with a position increment greater than one.
 
-::::{dropdown} **Example**
+::::{dropdown} Example
 In the following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request, the `stop` filter removes the stop word `a` from `fox jumps a lazy dog`, creating an empty position. The subsequent `shingle` filter replaces this empty position with a plus sign (`+`) in shingles.
 
 ```console

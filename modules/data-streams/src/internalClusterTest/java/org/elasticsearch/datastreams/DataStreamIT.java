@@ -12,6 +12,7 @@ import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RequestBuilder;
@@ -41,6 +42,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
@@ -52,6 +54,7 @@ import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
+import org.elasticsearch.action.datastreams.UpdateDataStreamMappingsAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
@@ -62,6 +65,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
@@ -72,6 +76,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -79,13 +85,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
@@ -202,8 +211,8 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
 
-        verifyDocs("metrics-bar", numDocsBar, 1, 1);
-        verifyDocs("metrics-foo", numDocsFoo, 1, 1);
+        verifyDocs("metrics-bar", numDocsBar);
+        verifyDocs("metrics-foo", numDocsFoo);
 
         RolloverResponse fooRolloverResponse = indicesAdmin().rolloverIndex(new RolloverRequest("metrics-foo", null)).get();
         assertThat(fooRolloverResponse.getNewIndex(), backingIndexEqualTo("metrics-foo", 2));
@@ -234,8 +243,8 @@ public class DataStreamIT extends ESIntegTestCase {
         int numDocsFoo2 = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo2);
 
-        verifyDocs("metrics-bar", numDocsBar + numDocsBar2, 1, 2);
-        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2, 1, 2);
+        verifyDocs("metrics-bar", numDocsBar + numDocsBar2);
+        verifyDocs("metrics-foo", numDocsFoo + numDocsFoo2);
 
         DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "metrics-*");
         client().execute(DeleteDataStreamAction.INSTANCE, deleteDataStreamRequest).actionGet();
@@ -469,7 +478,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         int numDocs = randomIntBetween(2, 16);
         indexDocs(dataStreamName, numDocs);
-        verifyDocs(dataStreamName, numDocs, 1, 1);
+        verifyDocs(dataStreamName, numDocs);
 
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -504,7 +513,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         int numDocs2 = randomIntBetween(2, 16);
         indexDocs(dataStreamName, numDocs2);
-        verifyDocs(dataStreamName, numDocs + numDocs2, 1, 2);
+        verifyDocs(dataStreamName, numDocs + numDocs2);
 
         getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
         getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
@@ -959,7 +968,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
-        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        String backingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
         AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index(backingIndex).aliases("first_gen");
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         aliasesAddRequest.addAliasAction(addAction);
@@ -1384,7 +1393,9 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).buildTemplate();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
+            .buildTemplate();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle, false);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
@@ -2048,11 +2059,8 @@ public class DataStreamIT extends ESIntegTestCase {
         });
     }
 
-    static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
-        List<String> expectedIndices = new ArrayList<>();
-        for (long k = minGeneration; k <= maxGeneration; k++) {
-            expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
-        }
+    static void verifyDocs(String dataStream, long expectedNumHits) {
+        List<String> expectedIndices = getDataStreamBackingIndexNames(dataStream);
         verifyDocs(dataStream, expectedNumHits, expectedIndices);
     }
 
@@ -2410,6 +2418,153 @@ public class DataStreamIT extends ESIntegTestCase {
         final OptionalLong forecastedShardSizeInBytes = writeIndexMetadata.getForecastedShardSizeInBytes();
         assertThat(forecastedShardSizeInBytes.isPresent(), is(equalTo(true)));
         assertThat(forecastedShardSizeInBytes.getAsLong(), is(equalTo(expectedTotalSizeInBytes / shardCount)));
+    }
+
+    public void testGetEffectiveMappings() throws Exception {
+        /*
+         * This test creates a composable template with a mapping and with two component templates with mappings. It then makes sure that
+         * DataStream.getEffectiveMappings returns a mapping that merges the template's mapping, the component templates' mappings, and the
+         * mapping override given. It then makes sure we get the same result calling the non-static version of getEffectiveMappings.
+         */
+        ComposableIndexTemplate composableIndexTemplate;
+        {
+            ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+                    {
+                      "dynamic":"strict",
+                      "properties":{
+                        "field1":{
+                          "type":"text"
+                        }
+                      }
+                    }
+                """), null), 3L, null);
+            ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+                    {
+                      "dynamic":"strict",
+                      "properties":{
+                        "field2":{
+                          "type":"text"
+                        }
+                      }
+                    }
+                """), null), 3L, null);
+            client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("ct1").componentTemplate(ct1))
+                .get();
+            client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("ct2").componentTemplate(ct2))
+                .get();
+
+            List<String> componentTemplates = List.of("ct1", "ct2");
+            String templateName = "effective-mapping-template";
+            TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(templateName);
+            request.indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(List.of("effective-*"))
+                    .template(Template.builder().mappings(CompressedXContent.fromJSON("""
+                        {
+                          "dynamic":"strict",
+                          "properties":{
+                            "field3":{
+                              "type":"text"
+                            }
+                          }
+                        }
+                        """)))
+                    .componentTemplates(componentTemplates)
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
+            );
+            client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
+            GetComposableIndexTemplateAction.Response getTemplateResponse = client().execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                new GetComposableIndexTemplateAction.Request(TEST_REQUEST_TIMEOUT, templateName)
+            ).actionGet();
+            composableIndexTemplate = getTemplateResponse.indexTemplates().values().iterator().next();
+        }
+        // The mappingOverrides changes the type of one field, and adds another field:
+        CompressedXContent mappingOverrides = new CompressedXContent("""
+                {
+                    "properties":{
+                      "field1":{
+                        "type":"keyword"
+                      },
+                      "field4":{
+                        "type":"keyword"
+                      }
+                    }
+                }
+            """);
+
+        String dataStreamName = "effective-mappings-test";
+        Index writeIndex;
+        {
+            CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                dataStreamName
+            );
+            client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+            writeIndex = getDataStream(dataStreamName).getWriteIndex();
+        }
+
+        ProjectMetadata projectMetadata = client().admin()
+            .cluster()
+            .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+            .get()
+            .getState()
+            .metadata()
+            .getProject(ProjectId.DEFAULT);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            composableIndexTemplate,
+            mappingOverrides,
+            writeIndex,
+            indicesService
+        );
+        assertNotNull(effectiveMappings);
+        Map<String, Object> effectiveMappingMap = XContentHelper.convertToMap(effectiveMappings.uncompressed(), true, XContentType.JSON)
+            .v2();
+        Map<String, Object> expectedEffectiveMappingMap = Map.of(
+            "dynamic",
+            "strict",
+            "_data_stream_timestamp",
+            Map.of("enabled", true),
+            "properties",
+            Map.of(
+                "@timestamp",
+                Map.of("type", "date"),
+                "field1",
+                Map.of("type", "keyword"),
+                "field2",
+                Map.of("type", "text"),
+                "field3",
+                Map.of("type", "text"),
+                "field4",
+                Map.of("type", "keyword")
+            )
+        );
+        assertThat(effectiveMappingMap, equalTo(expectedEffectiveMappingMap));
+
+        // Add the same mappingOverrides to the data stream:
+        client().execute(
+            new ActionType<UpdateDataStreamMappingsAction.Response>(UpdateDataStreamMappingsAction.NAME),
+            new UpdateDataStreamMappingsAction.Request(mappingOverrides, false, TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).indices(
+                dataStreamName
+            )
+        ).actionGet();
+        assertThat(getDataStream(dataStreamName).getEffectiveMappings(projectMetadata, indicesService), equalTo(effectiveMappings));
+    }
+
+    private DataStream getDataStream(String dataStreamName) throws ExecutionException, InterruptedException {
+        return client().admin()
+            .cluster()
+            .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT))
+            .get()
+            .getState()
+            .getMetadata()
+            .getProject(ProjectId.DEFAULT)
+            .dataStreams()
+            .get(dataStreamName);
     }
 
     private void indexDocsAndEnsureThereIsCapturedWriteLoad(String dataStreamName) throws Exception {

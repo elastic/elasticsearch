@@ -22,6 +22,9 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -60,6 +63,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -690,7 +694,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .stream()
             .collect(toMap(Map.Entry::getKey, it -> new DiskUsage(it.getKey(), it.getKey(), "/data", diskSize, diskSize - it.getValue())));
 
-        var clusterInfo = new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), dataPath, Map.of());
+        var clusterInfo = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(diskUsage)
+            .mostAvailableSpaceUsage(diskUsage)
+            .shardSizes(shardSizes)
+            .dataPath(dataPath)
+            .build();
 
         var settings = Settings.EMPTY;
 
@@ -1196,7 +1205,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return ClusterInfo.builder()
+                .leastAvailableSpaceUsage(diskUsage)
+                .mostAvailableSpaceUsage(diskUsage)
+                .shardSizes(shardSizes)
+                .reservedSpace(reservedSpace)
+                .build();
         }
     }
 
@@ -1278,7 +1292,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        });
+        }, TEST_ONLY_EXPLAINER);
 
         assertLoggerExpectationsFor(() -> {
             var iteration = new AtomicInteger(0);
@@ -1310,7 +1324,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         final var computer = new DesiredBalanceComputer(
             clusterSettings,
             TimeProviderUtils.create(timeInMillis::incrementAndGet),
-            new BalancedShardsAllocator(Settings.EMPTY)
+            new BalancedShardsAllocator(Settings.EMPTY),
+            TEST_ONLY_EXPLAINER
         ) {
             @Override
             boolean hasEnoughIterations(int currentIteration) {
@@ -1431,6 +1446,139 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         assertDesiredAssignments(desiredBalance.get(), expectedAssignmentsMap);
     }
 
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer.allocation_explain:DEBUG",
+        reason = "test logging for allocation explain"
+    )
+    public void testLogAllocationExplainForUnassigned() {
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings();
+        final var computer = new DesiredBalanceComputer(
+            clusterSettings,
+            TimeProviderUtils.create(() -> 0L),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            createAllocationService()::explainShardAllocation
+        );
+        final String loggerName = DesiredBalanceComputer.class.getCanonicalName() + ".allocation_explain";
+
+        // No logging since no unassigned shard
+        {
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                createInitialClusterState(1, 1, 0),
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain since all shards are assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard * with allocation decision *"
+                    )
+                );
+                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+        var initialState = createInitialClusterState(1, 1, 1);
+        // Logging for unassigned primary shard (preferred over unassigned replica)
+        {
+            final DiscoveryNode dataNode = initialState.nodes().getDataNodes().values().iterator().next();
+            final var clusterState = initialState.copyAndUpdateMetadata(
+                b -> b.putCustom(
+                    NodesShutdownMetadata.TYPE,
+                    new NodesShutdownMetadata(
+                        Map.of(
+                            dataNode.getId(),
+                            SingleNodeShutdownMetadata.builder()
+                                .setNodeId(dataNode.getId())
+                                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                .setReason("test")
+                                .setStartedAtMillis(0L)
+                                .build()
+                        )
+                    )
+                )
+            );
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                clusterState,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            final DesiredBalance newDesiredBalance;
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log allocation explain for unassigned primary shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
+                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                    )
+                );
+                newDesiredBalance = computer.compute(
+                    DesiredBalance.BECOME_MASTER_INITIAL,
+                    DesiredBalanceInput.create(1, allocation),
+                    queue(),
+                    ignore -> true
+                );
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            // No logging since the same tracked primary is still unassigned
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain again for existing tracked unassigned shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
+                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                    )
+                );
+                computer.compute(newDesiredBalance, DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+        // Logging for unassigned replica shard (since primary is now assigned)
+        {
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                initialState,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log for previously unassigned shard becomes assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "previously tracked unassigned shard [[test-index][0], node[null], [P],* is now assigned"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log allocation explain for unassigned replica shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [R], * with allocation decision *"
+                            + "\"decider\":\"same_shard\",\"decision\":\"NO\"*"
+                    )
+                );
+                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
     private static ShardId findShardId(ClusterState clusterState, String name) {
         return clusterState.getRoutingTable().index(name).shard(0).shardId();
     }
@@ -1532,7 +1680,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator);
+        return new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            TimeProviderUtils.create(() -> 0L),
+            allocator,
+            TEST_ONLY_EXPLAINER
+        );
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

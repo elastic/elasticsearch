@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,32 +25,30 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.index.EsIndex;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.ESQL_SKIP_ES_INDEX_SERIALIZATION;
-
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        PhysicalPlan.class,
-        "EsQueryExec",
-        EsQueryExec::readFrom
+    public static final EsField DOC_ID_FIELD = new EsField(
+        "_doc",
+        DataType.DOC_DATA_TYPE,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.NONE
     );
 
-    public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
-    public static final List<Sort> NO_SORTS = List.of();  // only exists to mimic older serialization, but we no longer serialize sorts
+    public static final List<EsField> TIME_SERIES_SOURCE_FIELDS = List.of(
+        new EsField("_ts_slice_index", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+        new EsField("_ts_future_max_timestamp", DataType.LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+    );
 
     private final String indexPattern;
     private final IndexMode indexMode;
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
-    private final QueryBuilder query;
     private final Expression limit;
     private final List<Sort> sorts;
 
@@ -63,12 +58,28 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
+    /**
+     * queryBuilderAndTags may contain one or multiple {@code QueryBuilder}s, it is built on data node.
+     * If there is one {@code RoundTo} function in the query plan, {@code ReplaceRoundToWithQueryAndTags} rule will build multiple
+     * {@code QueryBuilder}s in the list, otherwise it is expected to contain only one {@code QueryBuilder} and its tag is
+     * null.
+     * It will be used by {@code EsPhysicalOperationProviders}.{@code sourcePhysicalOperation} to create
+     * {@code LuceneSliceQueue.QueryAndTags}
+     */
+    private final List<QueryBuilderAndTags> queryBuilderAndTags;
+
     public interface Sort {
         SortBuilder<?> sortBuilder();
 
         Order.OrderDirection direction();
 
         FieldAttribute field();
+
+        /**
+         * Type of the <strong>result</strong> of the sort. For example,
+         * geo distance will be {@link DataType#DOUBLE}.
+         */
+        DataType resulType();
     }
 
     public record FieldSort(FieldAttribute field, Order.OrderDirection direction, Order.NullsPosition nulls) implements Sort {
@@ -81,12 +92,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return builder;
         }
 
-        private static FieldSort readFrom(StreamInput in) throws IOException {
-            return new EsQueryExec.FieldSort(
-                FieldAttribute.readFrom(in),
-                in.readEnum(Order.OrderDirection.class),
-                in.readEnum(Order.NullsPosition.class)
-            );
+        @Override
+        public DataType resulType() {
+            return field.dataType();
         }
     }
 
@@ -96,6 +104,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             GeoDistanceSortBuilder builder = new GeoDistanceSortBuilder(field.name(), lat, lon);
             builder.order(Direction.from(direction).asOrder());
             return builder;
+        }
+
+        @Override
+        public DataType resulType() {
+            return DataType.DOUBLE;
         }
     }
 
@@ -110,18 +123,19 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             // TODO: refactor this: not all Sorts are backed by FieldAttributes
             return null;
         }
+
+        @Override
+        public DataType resulType() {
+            return DataType.DOUBLE;
+        }
     }
 
-    public EsQueryExec(
-        Source source,
-        String indexPattern,
-        IndexMode indexMode,
-        Map<String, IndexMode> indexNameWithModes,
-        List<Attribute> attributes,
-        QueryBuilder query
-    ) {
-        this(source, indexPattern, indexMode, indexNameWithModes, attributes, query, null, null, null);
-    }
+    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
+        @Override
+        public String toString() {
+            return "QueryBuilderAndTags{" + "queryBuilder=[" + query + "], tags=" + tags.toString() + "}";
+        }
+    };
 
     public EsQueryExec(
         Source source,
@@ -129,76 +143,31 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         IndexMode indexMode,
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attrs,
-        QueryBuilder query,
         Expression limit,
         List<Sort> sorts,
-        Integer estimatedRowSize
+        Integer estimatedRowSize,
+        List<QueryBuilderAndTags> queryBuilderAndTags
     ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attrs;
-        this.query = query;
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
-    }
-
-    /**
-     * The matching constructor is used during physical plan optimization and needs valid sorts. But we no longer serialize sorts.
-     * If this cluster node is talking to an older instance it might receive a plan with sorts, but it will ignore them.
-     */
-    private static EsQueryExec readFrom(StreamInput in) throws IOException {
-        var source = Source.readFrom((PlanStreamInput) in);
-        String indexPattern;
-        Map<String, IndexMode> indexNameWithModes;
-        if (in.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            indexPattern = in.readString();
-            indexNameWithModes = in.readMap(IndexMode::readFrom);
-        } else {
-            var index = EsIndex.readFrom(in);
-            indexPattern = index.name();
-            indexNameWithModes = index.indexNameWithModes();
-        }
-        var indexMode = EsRelation.readIndexMode(in);
-        var attrs = in.readNamedWriteableCollectionAsList(Attribute.class);
-        var query = in.readOptionalNamedWriteable(QueryBuilder.class);
-        var limit = in.readOptionalNamedWriteable(Expression.class);
-        in.readOptionalCollectionAsList(EsQueryExec::readSort);
-        var rowSize = in.readOptionalVInt();
-        // Ignore sorts from the old serialization format
-        return new EsQueryExec(source, indexPattern, indexMode, indexNameWithModes, attrs, query, limit, NO_SORTS, rowSize);
-    }
-
-    private static Sort readSort(StreamInput in) throws IOException {
-        return FieldSort.readFrom(in);
-    }
-
-    private static void writeSort(StreamOutput out, Sort sort) {
-        throw new IllegalStateException("sorts are no longer serialized");
+        // cannot keep the ctor with QueryBuilder as it has the same number of arguments as this ctor, EsqlNodeSubclassTests will fail
+        this.queryBuilderAndTags = queryBuilderAndTags;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(ESQL_SKIP_ES_INDEX_SERIALIZATION)) {
-            out.writeString(indexPattern);
-            out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
-        } else {
-            new EsIndex(indexPattern, Map.of(), indexNameWithModes).writeTo(out);
-        }
-        EsRelation.writeIndexMode(out, indexMode());
-        out.writeNamedWriteableCollection(output());
-        out.writeOptionalNamedWriteable(query());
-        out.writeOptionalNamedWriteable(limit());
-        out.writeOptionalCollection(NO_SORTS, EsQueryExec::writeSort);
-        out.writeOptionalVInt(estimatedRowSize());
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     public static boolean isSourceAttribute(Attribute attr) {
@@ -223,10 +192,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             indexMode,
             indexNameWithModes,
             attrs,
-            query,
             limit,
             sorts,
-            estimatedRowSize
+            estimatedRowSize,
+            queryBuilderAndTags
         );
     }
 
@@ -242,8 +211,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return indexNameWithModes;
     }
 
+    /**
+     * query is merged into queryBuilderAndTags, keep this method as it is called by many many places in both tests and product code.
+     * If this method is called, the caller looks for the original queryBuilder, before {@code ReplaceRoundToWithQueryAndTags} converts it
+     * to multiple queries with tags.
+     */
     public QueryBuilder query() {
-        return query;
+        return queryWithoutTag();
     }
 
     @Override
@@ -285,13 +259,23 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, size);
+            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, limit, sorts, size, queryBuilderAndTags);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                indexNameWithModes,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                queryBuilderAndTags
+            );
     }
 
     public boolean canPushSorts() {
@@ -305,12 +289,79 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts, estimatedRowSize);
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                indexNameWithModes,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                queryBuilderAndTags
+            );
+    }
+
+    /**
+     * query is merged into queryBuilderAndTags, keep this method as it is called by too many places.
+     * If this method is called, the caller looks for the original queryBuilder, before {@code ReplaceRoundToWithQueryAndTags} converts it
+     * to multiple queries with tags.
+     */
+    public EsQueryExec withQuery(QueryBuilder query) {
+        QueryBuilder thisQuery = queryWithoutTag();
+        return Objects.equals(thisQuery, query)
+            ? this
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                indexNameWithModes,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                List.of(new QueryBuilderAndTags(query, List.of()))
+            );
+    }
+
+    public List<QueryBuilderAndTags> queryBuilderAndTags() {
+        return queryBuilderAndTags;
+    }
+
+    public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
+        // LuceneTopNSourceOperator doesn't support QueryAndTags
+        return sorts == null || sorts.isEmpty();
+    }
+
+    /**
+     * Returns the original queryBuilder before {@code ReplaceRoundToWithQueryAndTags} converts it to multiple queryBuilder with tags.
+     * If we reach here, the caller is looking for the original query before the rule converts it. If there are multiple queries in
+     * queryBuilderAndTags or if the single query in queryBuilderAndTags already has a tag, that means
+     * {@code ReplaceRoundToWithQueryAndTags} already applied to the original query, the original query cannot be retrieved any more,
+     * exception will be thrown.
+     */
+    private QueryBuilder queryWithoutTag() {
+        QueryBuilder queryWithoutTag;
+        if (queryBuilderAndTags == null || queryBuilderAndTags.isEmpty()) {
+            return null;
+        } else if (queryBuilderAndTags.size() == 1) {
+            QueryBuilderAndTags firstQuery = this.queryBuilderAndTags.get(0);
+            if (firstQuery.tags().isEmpty()) {
+                queryWithoutTag = firstQuery.query();
+            } else {
+                throw new UnsupportedOperationException("query is converted to query with tags: " + "[" + firstQuery + "]");
+            }
+        } else {
+            throw new UnsupportedOperationException(
+                "query is converted to multiple queries and tags: " + "[" + this.queryBuilderAndTags + "]"
+            );
+        }
+        return queryWithoutTag;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs, query, limit, sorts);
+        return Objects.hash(indexPattern, indexMode, indexNameWithModes, attrs, limit, sorts, queryBuilderAndTags);
     }
 
     @Override
@@ -328,10 +379,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
             && Objects.equals(attrs, other.attrs)
-            && Objects.equals(query, other.query)
             && Objects.equals(limit, other.limit)
             && Objects.equals(sorts, other.sorts)
-            && Objects.equals(estimatedRowSize, other.estimatedRowSize);
+            && Objects.equals(estimatedRowSize, other.estimatedRowSize)
+            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags);
     }
 
     @Override
@@ -343,9 +394,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "indexMode["
             + indexMode
             + "], "
-            + "query["
-            + (query != null ? Strings.toString(query, false, true) : "")
-            + "]"
             + NodeUtils.limitedToString(attrs)
             + ", limit["
             + (limit != null ? limit.toString() : "")
@@ -353,6 +401,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + (sorts != null ? sorts.toString() : "")
             + "] estimatedRowSize["
             + estimatedRowSize
+            + "] queryBuilderAndTags ["
+            + (queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
             + "]";
     }
 

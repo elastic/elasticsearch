@@ -1,6 +1,0 @@
-pr: 126729
-summary: Use terminal reader in keystore add command
-area: Infra/CLI
-type: bug
-issues:
- - 98115

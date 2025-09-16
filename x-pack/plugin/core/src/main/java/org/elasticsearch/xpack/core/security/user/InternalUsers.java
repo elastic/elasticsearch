@@ -282,7 +282,7 @@ public class InternalUsers {
         UsernamesField.SYNONYMS_USER_NAME,
         new RoleDescriptor(
             UsernamesField.SYNONYMS_ROLE_NAME,
-            null,
+            new String[] { "monitor" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder().indices(".synonyms*").privileges("all").allowRestrictedIndices(true).build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges(TransportReloadAnalyzersAction.TYPE.name()).build(), },

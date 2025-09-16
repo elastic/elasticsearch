@@ -43,6 +43,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -909,6 +910,47 @@ public class ObjectMapper extends Mapper {
         }
 
         return null;
+    }
+
+    private static SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(Mapper mapper, SourceFilter sourceFilter) {
+        if (sourceFilter != null && sourceFilter.isPathFiltered(mapper.fullPath(), false)) {
+            return null;
+        }
+        if (mapper instanceof ObjectMapper objMapper) {
+            return objMapper.syntheticVectorsLoader(sourceFilter);
+        } else if (mapper instanceof FieldMapper fieldMapper) {
+            return fieldMapper.syntheticVectorsLoader();
+        } else {
+            return null;
+        }
+    }
+
+    SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader(SourceFilter sourceFilter) {
+        var loaders = mappers.values()
+            .stream()
+            .map(m -> syntheticVectorsLoader(m, sourceFilter))
+            .filter(l -> l != null)
+            .collect(Collectors.toList());
+        if (loaders.isEmpty()) {
+            return null;
+        }
+        return context -> {
+            final List<SourceLoader.SyntheticVectorsLoader.Leaf> leaves = new ArrayList<>();
+            for (var loader : loaders) {
+                var leaf = loader.leaf(context);
+                if (leaf != null) {
+                    leaves.add(leaf);
+                }
+            }
+            if (leaves.isEmpty()) {
+                return null;
+            }
+            return (doc, acc) -> {
+                for (var leaf : leaves) {
+                    leaf.load(doc, acc);
+                }
+            };
+        };
     }
 
     SourceLoader.SyntheticFieldLoader syntheticFieldLoader(SourceFilter filter, Collection<Mapper> mappers, boolean isFragment) {

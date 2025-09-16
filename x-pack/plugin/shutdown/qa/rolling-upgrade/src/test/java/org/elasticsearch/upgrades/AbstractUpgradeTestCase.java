@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 
@@ -37,7 +38,7 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
     }
 
     protected static final ClusterType CLUSTER_TYPE = ClusterType.parse(System.getProperty("tests.rest.suite"));
-    protected static final boolean FIRST_MIXED_ROUND = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
+    protected static final boolean FIRST_MIXED_ROUND = Booleans.parseBoolean(System.getProperty("tests.first_round", "false"));
 
     @Override
     protected Settings restClientSettings() {

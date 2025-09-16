@@ -10,8 +10,10 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
+import org.elasticsearch.cluster.routing.ShardMovementWriteLoadSimulator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CopyOnFirstWriteMap;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -33,6 +35,9 @@ public class ClusterInfoSimulator {
     private final CopyOnFirstWriteMap<String, Long> shardSizes;
     private final Map<ShardId, Long> shardDataSetSizes;
     private final Map<NodeAndShard, String> dataPath;
+    private final Map<String, EstimatedHeapUsage> estimatedHeapUsages;
+    private final Map<String, ByteSizeValue> maxHeapSizePerNode;
+    private final ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator;
 
     public ClusterInfoSimulator(RoutingAllocation allocation) {
         this.allocation = allocation;
@@ -41,6 +46,9 @@ public class ClusterInfoSimulator {
         this.shardSizes = new CopyOnFirstWriteMap<>(allocation.clusterInfo().shardSizes);
         this.shardDataSetSizes = Map.copyOf(allocation.clusterInfo().shardDataSetSizes);
         this.dataPath = Map.copyOf(allocation.clusterInfo().dataPath);
+        this.estimatedHeapUsages = allocation.clusterInfo().getEstimatedHeapUsages();
+        this.maxHeapSizePerNode = Map.copyOf(allocation.clusterInfo().maxHeapSizePerNode);
+        this.shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
     }
 
     /**
@@ -92,7 +100,7 @@ public class ClusterInfoSimulator {
         var project = allocation.metadata().projectFor(shard.index());
         var size = getExpectedShardSize(
             shard,
-            UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            shard.getExpectedShardSize(),
             getClusterInfo(),
             allocation.snapshotShardSizeInfo(),
             project,
@@ -111,6 +119,7 @@ public class ClusterInfoSimulator {
                 shardSizes.put(shardIdentifierFromRouting(shard), project.getIndexSafe(shard.index()).ignoreDiskWatermarks() ? 0 : size);
             }
         }
+        shardMovementWriteLoadSimulator.simulateShardStarted(shard);
     }
 
     private void modifyDiskUsage(String nodeId, long freeDelta) {
@@ -153,7 +162,11 @@ public class ClusterInfoSimulator {
             shardSizes.toImmutableMap(),
             shardDataSetSizes,
             dataPath,
-            Map.of()
+            Map.of(),
+            estimatedHeapUsages,
+            shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools(),
+            allocation.clusterInfo().getShardWriteLoads(),
+            maxHeapSizePerNode
         );
     }
 }

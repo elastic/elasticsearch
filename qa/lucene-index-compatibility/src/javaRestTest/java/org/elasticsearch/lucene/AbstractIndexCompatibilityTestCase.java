@@ -21,11 +21,14 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.DefaultSettingsProvider;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.LocalClusterSpec;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -77,6 +80,16 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
         .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
+        .settings(new DefaultSettingsProvider() {
+            @Override
+            public Map<String, String> get(LocalClusterSpec.LocalNodeSpec nodeSpec) {
+                var settings = super.get(nodeSpec);
+                if (nodeSpec.getVersion().onOrAfter(Version.fromString("9.2.0"))) {
+                    settings.put("xpack.inference.endpoint.cache.enabled", "false");
+                }
+                return settings;
+            }
+        })
         .apply(() -> clusterConfig)
         .build();
 
@@ -330,7 +343,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     @SuppressWarnings("unchecked")
     protected static void assertIndexSetting(String indexName, Setting<?> setting, Matcher<Boolean> matcher) throws Exception {
         var indexSettings = getIndexSettingsAsMap(indexName);
-        assertThat(Boolean.parseBoolean((String) indexSettings.get(setting.getKey())), matcher);
+        assertThat(Booleans.parseBoolean((String) indexSettings.get(setting.getKey()), false), matcher);
     }
 
     protected static ResponseException expectUpdateIndexSettingsThrows(String indexName, Settings.Builder settings) {

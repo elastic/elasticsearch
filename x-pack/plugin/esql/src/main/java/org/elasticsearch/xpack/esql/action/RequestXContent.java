@@ -54,7 +54,7 @@ final class RequestXContent {
         }
 
         String fields() {
-            StringBuffer s = new StringBuffer();
+            StringBuilder s = new StringBuilder();
             for (Map.Entry<?, ?> entry : fields.entrySet()) {
                 if (s.length() > 0) {
                     s.append(", ");
@@ -167,7 +167,6 @@ final class RequestXContent {
                     }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         ParserUtils.ParamClassification classification = null;
-                        paramValue = null;
                         String paramName = entry.getKey();
                         checkParamNameValidity(paramName, errors, loc);
 
@@ -177,17 +176,15 @@ final class RequestXContent {
                                 classification = getParamClassification(keyName.toString(), errors, loc);
                                 if (classification != null) {
                                     paramValue = value.get(keyName);
-                                    checkParamValueValidity(classification, paramValue, loc, errors);
+                                    checkParamValueValidity(entry, classification, paramValue, loc, errors);
                                 }
                             }
-                        } else {// parameter specifies as a value only
+                        } else {// parameter specifies a single or multi value
                             paramValue = entry.getValue();
                             classification = VALUE;
+                            checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
                         type = DataType.fromJava(paramValue);
-                        if (type == null) {
-                            errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
-                        }
                         currentParam = new QueryParam(
                             paramName,
                             paramValue,
@@ -197,32 +194,30 @@ final class RequestXContent {
                         namedParams.add(currentParam);
                     }
                 } else {
-                    paramValue = null;
-                    if (token == XContentParser.Token.VALUE_STRING) {
-                        paramValue = p.text();
-                        type = DataType.KEYWORD;
-                    } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                        XContentParser.NumberType numberType = p.numberType();
-                        if (numberType == XContentParser.NumberType.INT) {
-                            paramValue = p.intValue();
-                            type = DataType.INTEGER;
-                        } else if (numberType == XContentParser.NumberType.LONG) {
-                            paramValue = p.longValue();
-                            type = DataType.LONG;
-                        } else if (numberType == XContentParser.NumberType.DOUBLE) {
-                            paramValue = p.doubleValue();
-                            type = DataType.DOUBLE;
+                    if (token == XContentParser.Token.START_ARRAY) {
+                        DataType arrayType = DataType.NULL;
+                        List<Object> paramValues = new ArrayList<>();
+                        boolean nullValueFound = false, mixedTypesFound = false;
+                        while ((p.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
+                            DataType currentType = valueAndDataType.type;
+                            nullValueFound = nullValueFound | (currentType == DataType.NULL);
+                            mixedTypesFound = mixedTypesFound | (arrayType != DataType.NULL && arrayType != currentType);
+                            if (currentType != DataType.NULL) {
+                                arrayType = currentType;
+                            }
+                            paramValues.add(valueAndDataType.value);
                         }
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        paramValue = p.booleanValue();
-                        type = DataType.BOOLEAN;
-                    } else if (token == XContentParser.Token.VALUE_NULL) {
-                        type = DataType.NULL;
+                        if (nullValueFound) {
+                            addNullEntryError(errors, loc, null, paramValues);
+                        } else if (mixedTypesFound) {
+                            addMixedTypesError(errors, loc, null, paramValues);
+                        }
+                        unNamedParams.add(new QueryParam(null, paramValues, arrayType, VALUE));
                     } else {
-                        errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
+                        ParamValueAndType valueAndDataType = parseSingleParamValue(p, errors);
+                        unNamedParams.add(new QueryParam(null, valueAndDataType.value, valueAndDataType.type, VALUE));
                     }
-                    currentParam = new QueryParam(null, paramValue, type, VALUE);
-                    unNamedParams.add(currentParam);
                 }
             }
         }
@@ -244,6 +239,75 @@ final class RequestXContent {
             );
         }
         return new QueryParams(namedParams.isEmpty() ? unNamedParams : namedParams);
+    }
+
+    private static void addMixedTypesError(
+        List<XContentParseException> errors,
+        XContentLocation loc,
+        String paramName,
+        List<?> paramValues
+    ) {
+        errors.add(
+            new XContentParseException(
+                loc,
+                "Parameter "
+                    + (paramName == null ? "" : "[" + paramName + "] ")
+                    + "contains mixed data types: "
+                    + paramValues
+                    + ". Mixed data types are not allowed in multivalued params."
+            )
+        );
+    }
+
+    private static void addNullEntryError(
+        List<XContentParseException> errors,
+        XContentLocation loc,
+        String paramName,
+        List<?> paramValues
+    ) {
+        errors.add(
+            new XContentParseException(
+                loc,
+                "Parameter "
+                    + (paramName == null ? "" : "[" + paramName + "] ")
+                    + "contains a null entry: "
+                    + paramValues
+                    + ". Null values are not allowed in multivalued params"
+            )
+        );
+    }
+
+    private record ParamValueAndType(Object value, DataType type) {}
+
+    private static ParamValueAndType parseSingleParamValue(XContentParser p, List<XContentParseException> errors) throws IOException {
+        Object paramValue = null;
+        DataType type = DataType.NULL;
+        XContentParser.Token token = p.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            paramValue = p.text();
+            type = DataType.KEYWORD;
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            XContentParser.NumberType numberType = p.numberType();
+            if (numberType == XContentParser.NumberType.INT) {
+                paramValue = p.intValue();
+                type = DataType.INTEGER;
+            } else if (numberType == XContentParser.NumberType.LONG) {
+                paramValue = p.longValue();
+                type = DataType.LONG;
+            } else if (numberType == XContentParser.NumberType.DOUBLE) {
+                paramValue = p.doubleValue();
+                type = DataType.DOUBLE;
+            }
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            paramValue = p.booleanValue();
+            type = DataType.BOOLEAN;
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            type = DataType.NULL;
+        } else {
+            XContentLocation loc = p.getTokenLocation();
+            errors.add(new XContentParseException(loc, token + " is not supported as a parameter"));
+        }
+        return new ParamValueAndType(paramValue, type);
     }
 
     private static void checkParamNameValidity(String name, List<XContentParseException> errors, XContentLocation loc) {
@@ -317,11 +381,44 @@ final class RequestXContent {
     }
 
     private static void checkParamValueValidity(
+        Map.Entry<String, Object> entry,
         ParserUtils.ParamClassification classification,
         Object value,
         XContentLocation loc,
         List<XContentParseException> errors
     ) {
+        if (value instanceof List<?> valueList) {
+            if (classification != VALUE) {
+                errors.add(
+                    new XContentParseException(
+                        loc,
+                        entry + " parameter is multivalued, only " + VALUE.name() + " parameters can be multivalued"
+                    )
+                );
+                return;
+            }
+            // Multivalued field
+            DataType arrayType = null;
+            for (Object currentValue : valueList) {
+                checkParamValueValidity(entry, classification, currentValue, loc, errors);
+                DataType currentType = DataType.fromJava(currentValue);
+                if (currentType == DataType.NULL) {
+                    addNullEntryError(errors, loc, entry.getKey(), valueList);
+                    break;
+                } else if (arrayType != null && arrayType != currentType) {
+                    addMixedTypesError(errors, loc, entry.getKey(), valueList);
+                    break;
+                }
+                arrayType = currentType;
+            }
+            return;
+        }
+
+        DataType type = DataType.fromJava(value);
+        if (type == null) {
+            errors.add(new XContentParseException(loc, entry + " is not supported as a parameter"));
+        }
+
         // If a param is an "identifier" or a "pattern", validate it is a string.
         // If a param is a "pattern", validate it contains *.
         if (classification == IDENTIFIER || classification == PATTERN) {

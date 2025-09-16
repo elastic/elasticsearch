@@ -280,7 +280,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         // value is the number of times the request has been seen
         private final Map<String, AtomicInteger> requests;
 
-        private final HttpHandler delegate;
+        protected final HttpHandler delegate;
         private final int maxErrorsPerRequest;
 
         @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")

@@ -61,6 +61,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -68,6 +69,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -156,6 +158,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
+    protected NodeEnvironment nodeEnvironment;
     protected ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     protected TranslogHandler translogHandler;
 
@@ -166,6 +169,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
+    protected MergeMetrics mergeMetrics;
 
     protected IndexSettings defaultSettings;
     protected String codecName;
@@ -173,6 +177,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected Path replicaTranslogDir;
     // A default primary term is used by engine instances created in this test.
     protected final PrimaryTermSupplier primaryTerm = new PrimaryTermSupplier(1L);
+    protected static SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions = SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES;
 
     protected static void assertVisibleCount(Engine engine, int numDocs) throws IOException {
         assertVisibleCount(engine, numDocs, true);
@@ -200,6 +205,7 @@ public abstract class EngineTestCase extends ESTestCase {
             )
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), seqNoIndexOptions)
             .build();
     }
 
@@ -244,9 +250,11 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
+        nodeEnvironment = newNodeEnvironment(defaultSettings.getNodeSettings());
         threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
-            defaultSettings.getNodeSettings()
+            ClusterSettings.createBuiltInClusterSettings(defaultSettings.getNodeSettings()),
+            nodeEnvironment
         );
 
         store = createStore();
@@ -256,6 +264,7 @@ public abstract class EngineTestCase extends ESTestCase {
         primaryTranslogDir = createTempDir("translog-primary");
         mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping(), extraMappers());
         translogHandler = createTranslogHandler(mapperService);
+        mergeMetrics = MergeMetrics.NOOP;
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -306,7 +315,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -340,7 +351,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -374,7 +387,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -398,7 +413,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
         } finally {
-            IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool));
+            IOUtils.close(replicaEngine, storeReplica, engine, store, () -> terminate(threadPool), nodeEnvironment);
         }
     }
 
@@ -451,7 +466,7 @@ public abstract class EngineTestCase extends ESTestCase {
     ) {
         Field idField = new StringField("_id", Uid.encodeId(id), Field.Store.YES);
         Field versionField = new NumericDocValuesField("_version", 0);
-        SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID(seqNoIndexOptions);
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
@@ -776,7 +791,8 @@ public abstract class EngineTestCase extends ESTestCase {
             globalCheckpointSupplier,
             retentionLeasesSupplier,
             new NoneCircuitBreakerService(),
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -802,7 +818,8 @@ public abstract class EngineTestCase extends ESTestCase {
             maybeGlobalCheckpointSupplier,
             maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
             breakerService,
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -817,7 +834,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
         final CircuitBreakerService breakerService,
-        final @Nullable Engine.IndexCommitListener indexCommitListener
+        final @Nullable Engine.IndexCommitListener indexCommitListener,
+        final @Nullable Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -880,7 +898,9 @@ public abstract class EngineTestCase extends ESTestCase {
             indexCommitListener,
             true,
             mapperService,
-            new EngineResetLock()
+            new EngineResetLock(),
+            mergeMetrics,
+            indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper
         );
     }
 
@@ -922,7 +942,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -1397,11 +1419,16 @@ public abstract class EngineTestCase extends ESTestCase {
                 }
             }
             assertThat(luceneOp, notNullValue());
-            assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
+            assertThat(
+                "primary term does not match, luceneOp=[" + luceneOp + "], translogOp=[" + translogOp + "]",
+                luceneOp.primaryTerm(),
+                equalTo(translogOp.primaryTerm())
+            );
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
-                    || engine.engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false) {
+                    || engine.engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false
+                    || engine.engineConfig.getMapperService().mappingLookup().syntheticVectorFields().isEmpty() == false) {
                     assertTrue(
                         "luceneOp=" + luceneOp + " != translogOp=" + translogOp,
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)

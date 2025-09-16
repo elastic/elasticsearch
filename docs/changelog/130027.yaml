@@ -1,0 +1,6 @@
+pr: 130027
+summary: "Fix: prevent duplication of \"invalid index name\" string in the final exception\
+  \ error message"
+area: ES|QL
+type: bug
+issues: []

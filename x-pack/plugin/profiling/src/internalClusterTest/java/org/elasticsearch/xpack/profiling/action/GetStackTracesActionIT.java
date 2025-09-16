@@ -33,15 +33,21 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getTotalSamples());
         assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
 
         Map<TraceEventID, TraceEvent> traceEvents = response.getStackTraceEvents();
 
-        TraceEventID traceEventID = new TraceEventID("", "497295213074376", "8457605156473051743", "L7kj7UvlKbT-vN73el4faQ");
-        assertEquals(3L, response.getStackTraceEvents().get(traceEventID).count);
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "497295213074376",
+            "8457605156473051743",
+            "L7kj7UvlKbT-vN73el4faQ",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());
         // just do a high-level spot check. Decoding is tested in unit-tests
@@ -79,13 +85,19 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         );
         request.setAdjustSampleCount(true);
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
-        assertEquals(46, response.getTotalSamples());
+        assertEquals(45, response.getTotalSamples());
         assertEquals(1821, response.getTotalFrames());
 
         assertNotNull(response.getStackTraceEvents());
 
-        TraceEventID traceEventID = new TraceEventID("", "497295213074376", "8457605156473051743", "L7kj7UvlKbT-vN73el4faQ");
-        assertEquals(3L, response.getStackTraceEvents().get(traceEventID).count);
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "497295213074376",
+            "8457605156473051743",
+            "L7kj7UvlKbT-vN73el4faQ",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
+        assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
         assertEquals(Long.valueOf(2L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("basket"));
 
         assertNotNull(response.getStackTraces());
@@ -131,11 +143,17 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
 
         assertNotNull(response.getStackTraceEvents());
 
-        TraceEventID traceEventID = new TraceEventID("", "", "", "Ce77w10WeIDow3kd1jowlA");
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "",
+            "",
+            "Ce77w10WeIDow3kd1jowlA",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
         assertEquals(3L, response.getStackTraceEvents().get(traceEventID).count);
         assertEquals(Long.valueOf(3L), response.getStackTraceEvents().get(traceEventID).subGroups.getCount("encodeSha1"));
 
-        traceEventID = new TraceEventID("", "", "", "JvISdnJ47BQ01489cwF9DA");
+        traceEventID = new TraceEventID("", "", "", "JvISdnJ47BQ01489cwF9DA", TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY);
         assertEquals(2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());
@@ -182,10 +200,16 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertNotNull(response.getStackTraceEvents());
 
         // as the sampling rate is 0.2, we see 5 times more samples (random sampler agg automatically adjusts sample count)
-        TraceEventID traceEventID = new TraceEventID("", "", "", "Ce77w10WeIDow3kd1jowlA");
+        TraceEventID traceEventID = new TraceEventID(
+            "",
+            "",
+            "",
+            "Ce77w10WeIDow3kd1jowlA",
+            TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY
+        );
         assertEquals(5 * 3L, response.getStackTraceEvents().get(traceEventID).count);
 
-        traceEventID = new TraceEventID("", "", "", "JvISdnJ47BQ01489cwF9DA");
+        traceEventID = new TraceEventID("", "", "", "JvISdnJ47BQ01489cwF9DA", TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY);
         assertEquals(5 * 2L, response.getStackTraceEvents().get(traceEventID).count);
 
         assertNotNull(response.getStackTraces());

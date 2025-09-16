@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -72,7 +73,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 import static org.elasticsearch.search.SearchService.isExecutorQueuedBeyondPrewarmingFactor;
-import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
+import static org.elasticsearch.search.SearchService.wrapListenerForErrorHandling;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -137,7 +138,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         doTestCanMatch(searchRequest, sortField, true, null, false);
     }
 
-    public void testMaybeWrapListenerForStackTrace() {
+    public void testWrapListenerForErrorHandling() {
         ShardId shardId = new ShardId("index", "index", 0);
         // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
         AtomicBoolean isWrapped = new AtomicBoolean(false);
@@ -160,12 +161,34 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), "node", shardId, 123L, threadPool);
+        listener = wrapListenerForErrorHandling(listener, TransportVersion.current(), "node", shardId, 123L, threadPool, randomLifecycle());
         isWrapped.set(true);
         listener.onFailure(e);
     }
 
-    public void testMaybeWrapListenerForStackTraceDebugLog() {
+    private static Lifecycle randomLifecycle() {
+        return randomBoolean() ? randomInitializedOrStartedLifecycle() : randomStoppedOrClosedLifecycle();
+    }
+
+    private static Lifecycle randomInitializedOrStartedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        if (randomBoolean()) {
+            lifecycle.started();
+        }
+        return lifecycle;
+    }
+
+    private static Lifecycle randomStoppedOrClosedLifecycle() {
+        Lifecycle lifecycle = new Lifecycle();
+        lifecycle.started();
+        lifecycle.stopped();
+        if (randomBoolean()) {
+            lifecycle.closed();
+        }
+        return lifecycle;
+    }
+
+    public void testWrapListenerForErrorHandlingDebugLog() {
         final String nodeId = "node";
         final String index = "index";
         ShardId shardId = new ShardId(index, index, 0);
@@ -197,13 +220,35 @@ public class SearchServiceTests extends IndexShardTestCase {
                     mockLog.assertAllExpectationsMatched();
                 }
             };
-            IllegalArgumentException e = new IllegalArgumentException(exceptionMessage); // 400-level exception
-            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
-            listener.onFailure(e);
+            // Default behavior is to use debug level for 400-level exceptions
+            IllegalArgumentException iae = new IllegalArgumentException(exceptionMessage); // 400-level exception
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomLifecycle()
+            );
+            listener.onFailure(iae);
+
+            // Debug logging for a 500-level exception when closing or stopped lifecycle is to log as debug level
+            IllegalStateException ise = new IllegalStateException(exceptionMessage);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomStoppedOrClosedLifecycle()
+            );
+            listener.onFailure(ise);
         }
     }
 
-    public void testMaybeWrapListenerForStackTraceWarnLog() {
+    public void testWrapListenerForErrorHandlingWarnLog() {
         final String nodeId = "node";
         final String index = "index";
         ShardId shardId = new ShardId(index, index, 0);
@@ -235,7 +280,15 @@ public class SearchServiceTests extends IndexShardTestCase {
                 }
             };
             IllegalStateException e = new IllegalStateException(exceptionMessage); // 500-level exception
-            listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), nodeId, shardId, taskId, threadPool);
+            listener = wrapListenerForErrorHandling(
+                listener,
+                TransportVersion.current(),
+                nodeId,
+                shardId,
+                taskId,
+                threadPool,
+                randomInitializedOrStartedLifecycle()
+            );
             listener.onFailure(e);
         }
     }

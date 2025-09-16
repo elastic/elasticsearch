@@ -12,9 +12,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BYTE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
@@ -47,6 +52,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
+import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
@@ -185,5 +191,40 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     private static void assertNullCommonType(DataType dataType1, DataType dataType2) {
         assertNull("Expected null for " + dataType1 + " and " + dataType2, commonType(dataType1, dataType2));
         assertNull("Expected null for " + dataType1 + " and " + dataType2, commonType(dataType2, dataType1));
+    }
+
+    public void testSuggestedCast() {
+        // date
+        {
+            Set<DataType> typesToTest = new HashSet<>(Set.of(DATETIME, DATE_NANOS));
+            assertEquals(DATE_NANOS, DataType.suggestedCast(typesToTest));
+
+            DataType randomType = randomValueOtherThan(UNSUPPORTED, () -> randomFrom(DataType.values()));
+            typesToTest.add(randomType);
+            DataType suggested = DataType.suggestedCast(typesToTest);
+            if (randomType != DATETIME && randomType != DATE_NANOS) {
+                assertEquals(KEYWORD, suggested);
+            } else {
+                assertEquals(DATE_NANOS, suggested);
+            }
+        }
+
+        // aggregate metric double
+        {
+            List<DataType> NUMERICS = new ArrayList<>(Arrays.stream(DataType.values()).filter(DataType::isNumeric).toList());
+            Collections.shuffle(NUMERICS, random());
+            Set<DataType> subset = new HashSet<>(NUMERICS.subList(0, random().nextInt(NUMERICS.size())));
+            subset.add(AGGREGATE_METRIC_DOUBLE);
+            assertEquals(AGGREGATE_METRIC_DOUBLE, suggestedCast(subset));
+        }
+
+        // unsupported tests
+        {
+            assertNull(DataType.suggestedCast(Set.of()));
+            Set<DataType> typesWithUnsupported = new HashSet<>();
+            typesWithUnsupported.add(UNSUPPORTED);
+            typesWithUnsupported.add(DataType.values()[random().nextInt(DataType.values().length)]);
+            assertNull(DataType.suggestedCast(typesWithUnsupported));
+        }
     }
 }

@@ -49,6 +49,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -83,6 +84,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
      *
      * @param vectorsScorer the scorer to use for scoring vectors
      */
+    @SuppressWarnings("this-escape")
     protected ES818BinaryQuantizedVectorsWriter(
         ES818BinaryFlatVectorsScorer vectorsScorer,
         FlatVectorsWriter rawVectorDelegate,
@@ -196,12 +198,14 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     private void writeBinarizedVectors(FieldWriter fieldData, float[] clusterCenter, OptimizedScalarQuantizer scalarQuantizer)
         throws IOException {
         int discreteDims = BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64);
-        byte[] quantizationScratch = new byte[discreteDims];
+        int[] quantizationScratch = new int[discreteDims];
         byte[] vector = new byte[discreteDims / 8];
+        float[] scratch = new float[fieldData.fieldInfo.getVectorDimension()];
         for (int i = 0; i < fieldData.getVectors().size(); i++) {
             float[] v = fieldData.getVectors().get(i);
             OptimizedScalarQuantizer.QuantizationResult corrections = scalarQuantizer.scalarQuantize(
                 v,
+                scratch,
                 quantizationScratch,
                 (byte) 1,
                 clusterCenter
@@ -244,12 +248,14 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         OptimizedScalarQuantizer scalarQuantizer
     ) throws IOException {
         int discreteDims = BQVectorUtils.discretize(fieldData.fieldInfo.getVectorDimension(), 64);
-        byte[] quantizationScratch = new byte[discreteDims];
+        int[] quantizationScratch = new int[discreteDims];
         byte[] vector = new byte[discreteDims / 8];
+        float[] scratch = new float[fieldData.fieldInfo.getVectorDimension()];
         for (int ordinal : ordMap) {
             float[] v = fieldData.getVectors().get(ordinal);
             OptimizedScalarQuantizer.QuantizationResult corrections = scalarQuantizer.scalarQuantize(
                 v,
+                scratch,
                 quantizationScratch,
                 (byte) 1,
                 clusterCenter
@@ -362,14 +368,16 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     ) throws IOException {
         int discretizedDimension = BQVectorUtils.discretize(floatVectorValues.dimension(), 64);
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        byte[][] quantizationScratch = new byte[2][floatVectorValues.dimension()];
+        int[][] quantizationScratch = new int[2][floatVectorValues.dimension()];
         byte[] toIndex = new byte[discretizedDimension / 8];
         byte[] toQuery = new byte[(discretizedDimension / 8) * BQSpaceUtils.B_QUERY];
         KnnVectorValues.DocIndexIterator iterator = floatVectorValues.iterator();
+        float[] scratch = new float[floatVectorValues.dimension()];
         for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
             // write index vector
             OptimizedScalarQuantizer.QuantizationResult[] r = binaryQuantizer.multiScalarQuantize(
                 floatVectorValues.vectorValue(iterator.index()),
+                scratch,
                 quantizationScratch,
                 new byte[] { 1, 4 },
                 centroid
@@ -799,8 +807,8 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     static class BinarizedFloatVectorValues extends BinarizedByteVectorValues {
         private OptimizedScalarQuantizer.QuantizationResult corrections;
         private final byte[] binarized;
-        private final byte[] initQuantized;
-        private final float[] centroid;
+        private final int[] initQuantized;
+        private final float[] centroid, scratch;
         private final FloatVectorValues values;
         private final OptimizedScalarQuantizer quantizer;
 
@@ -810,7 +818,8 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             this.values = delegate;
             this.quantizer = quantizer;
             this.binarized = new byte[BQVectorUtils.discretize(delegate.dimension(), 64) / 8];
-            this.initQuantized = new byte[delegate.dimension()];
+            this.initQuantized = new int[delegate.dimension()];
+            this.scratch = new float[delegate.dimension()];
             this.centroid = centroid;
         }
 
@@ -864,7 +873,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         private void binarize(int ord) throws IOException {
-            corrections = quantizer.scalarQuantize(values.vectorValue(ord), initQuantized, (byte) 1, centroid);
+            corrections = quantizer.scalarQuantize(values.vectorValue(ord), scratch, initQuantized, (byte) 1, centroid);
             BQVectorUtils.packAsBinary(initQuantized, binarized);
         }
 

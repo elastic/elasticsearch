@@ -20,6 +20,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -41,6 +42,7 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
         PutSynonymRuleAction.Request request = new PutSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
             restRequest.param("synonymRuleId"),
+            restRequest.paramAsBoolean("refresh", true),
             restRequest.content(),
             restRequest.getXContentType()
         );
@@ -49,5 +51,10 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
             request,
             new RestToXContentListener<>(channel, SynonymUpdateResponse::status, r -> null)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SynonymCapabilities.CAPABILITIES;
     }
 }

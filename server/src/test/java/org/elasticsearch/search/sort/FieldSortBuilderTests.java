@@ -468,7 +468,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                             }
                             case INTEGER -> {
                                 int v2 = randomInt();
-                                values[i] = (long) v2;
+                                values[i] = v2;
                                 doc.add(new IntPoint(fieldName, v2));
                             }
                             case DOUBLE -> {
@@ -488,12 +488,12 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                             }
                             case BYTE -> {
                                 byte v6 = randomByte();
-                                values[i] = (long) v6;
+                                values[i] = (int) v6;
                                 doc.add(new IntPoint(fieldName, v6));
                             }
                             case SHORT -> {
                                 short v7 = randomShort();
-                                values[i] = (long) v7;
+                                values[i] = (int) v7;
                                 doc.add(new IntPoint(fieldName, v7));
                             }
                             default -> throw new AssertionError("unknown type " + numberType);

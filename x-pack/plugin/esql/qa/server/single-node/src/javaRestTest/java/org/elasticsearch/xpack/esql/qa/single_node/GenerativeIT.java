@@ -11,11 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
 import org.junit.ClassRule;
 
 /**
- * This test generates random queries, runs them agains the CSV test dataset and checks that they don't throw unexpected exceptions.
+ * This test generates random queries, runs them against the CSV test dataset and checks that they don't throw unexpected exceptions.
  *
  * If muted, please:
  * <ul>
@@ -26,6 +27,7 @@ import org.junit.ClassRule;
  * </ul>
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@TestLogging(value = "org.elasticsearch.xpack.esql.plugin.ComputeService", reason = "see plans on failure")
 public class GenerativeIT extends GenerativeRestTest {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();

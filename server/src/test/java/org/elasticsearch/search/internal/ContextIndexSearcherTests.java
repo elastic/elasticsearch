@@ -400,6 +400,29 @@ public class ContextIndexSearcherTests extends ESTestCase {
         assertThat(sumDocs, equalTo(numDocs));
     }
 
+    public void testClearQueryCancellations() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        w.addDocument(new Document());
+        DirectoryReader reader = w.getReader();
+        ContextIndexSearcher searcher = new ContextIndexSearcher(
+            reader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
+
+        assertFalse(searcher.hasCancellations());
+        searcher.addQueryCancellation(() -> {});
+        assertTrue(searcher.hasCancellations());
+
+        searcher.clearQueryCancellations();
+        assertFalse(searcher.hasCancellations());
+
+        IOUtils.close(reader, w, dir);
+    }
+
     public void testExitableTermsMinAndMax() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(null));

@@ -6,11 +6,9 @@ mapped_pages:
 
 # {{esql}} limitations [esql-limitations]
 
-
-
 ## Result set size limit [esql-max-rows]
 
-By default, an {{esql}} query returns up to 1,000 rows. You can increase the number of rows up to 10,000 using the [`LIMIT`](/reference/query-languages/esql/commands/processing-commands.md#esql-limit) command.
+By default, an {{esql}} query returns up to 1,000 rows. You can increase the number of rows up to 10,000 using the [`LIMIT`](/reference/query-languages/esql/commands/limit.md) command.
 
 :::{include} _snippets/common/result-set-size-limitation.md
 :::
@@ -87,7 +85,7 @@ Querying a column with an unsupported type returns an error. If a column with an
 
 Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.md) are not supported in all contexts:
 
-* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/processing-commands.md#esql-sort) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
+* Spatial types are not supported in the [SORT](/reference/query-languages/esql/commands/sort.md) processing command. Specifying a column of one of these types as a sort parameter will result in an error:
 
     * `geo_point`
     * `geo_shape`
@@ -95,23 +93,19 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
     * `cartesian_shape`
 
 
-In addition, when [querying multiple indexes](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md#esql-multi-index-union-types).
+In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
 
 ## _source availability [esql-_source-availability]
 
 {{esql}} does not support configurations where the [_source field](/reference/elasticsearch/mapping-reference/mapping-source-field.md) is [disabled](/reference/elasticsearch/mapping-reference/mapping-source-field.md#disable-source-field).
 
-[preview] {{esql}}'s support for [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is currently experimental.
-
-
 ## Full-text search [esql-limitations-full-text-search]
 
-[preview] {{esql}}'s support for [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is currently in Technical Preview.
-One limitation of full-text search is that it is necessary to use the search function,
+One limitation of [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) is that it is necessary to use the search function,
 like [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
-in a [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command directly after the
-[`FROM`](/reference/query-languages/esql/commands/source-commands.md#esql-from) source command, or close enough to it.
+in a [`WHERE`](/reference/query-languages/esql/commands/where.md) command directly after the
+[`FROM`](/reference/query-languages/esql/commands/from.md) source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
 
 For example, this query is valid:
@@ -121,7 +115,7 @@ FROM books
 | WHERE MATCH(author, "Faulkner") AND MATCH(author, "Tolkien")
 ```
 
-But this query will fail due to the [STATS](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command:
+But this query will fail due to the [STATS](/reference/query-languages/esql/commands/stats-by.md) command:
 
 ```esql
 FROM books
@@ -183,10 +177,10 @@ Or consider using one of the [full-text search](/reference/query-languages/esql/
 
 ## Using {{esql}} to query multiple indices [esql-multi-index-limitations]
 
-As discussed in more detail in [Using {{esql}} to query multiple indices](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md), {{esql}} can execute a single query across multiple indices, data streams, or aliases. However, there are some limitations to be aware of:
+As discussed in more detail in [Using {{esql}} to query multiple indices](/reference/query-languages/esql/esql-multi-index.md), {{esql}} can execute a single query across multiple indices, data streams, or aliases. However, there are some limitations to be aware of:
 
-* All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
-* The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](docs-content://explore-analyze/query-filter/languages/esql-multi-index.md#esql-multi-index-union-types).
+* All underlying indexes and shards must be active. Using admin commands or UI, it is possible to pause an index or shard, for example by disabling a frozen tier instance, but then any {{esql}} query that includes that index or shard will fail, even if the query uses [`WHERE`](/reference/query-languages/esql/commands/where.md) to filter out the results from the paused index. If you see an error of type `search_phase_execution_exception`, with the message `Search rejected due to missing shards`, you likely have an index or shard in `UNASSIGNED` state.
+* The same field must have the same type across all indexes. If the same field is mapped to different types it is still possible to query the indexes, but the field must be [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
 
 
 ## Time series data streams are not supported [esql-tsdb]
@@ -248,11 +242,21 @@ Work around this limitation by converting the field to single value with one of 
 {{esql}} only supports the UTC timezone.
 
 
+## INLINE STATS limitations [esql-limitations-inlinestats]
+
+[`CATEGORIZE`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-categorize) grouping function is not currently supported.
+
+Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) cannot yet have an unbounded [`SORT`](/reference/query-languages/esql/commands/sort.md) before it. You must either move the SORT after it, or add a [`LIMIT`](/reference/query-languages/esql/commands/limit.md) before the [`SORT`](/reference/query-languages/esql/commands/sort.md).
+
+
 ## Kibana limitations [esql-limitations-kibana]
 
-* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/processing-commands.md#esql-where) command instead.
+* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
-* Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/processing-commands.md#esql-drop) or [`KEEP`](/reference/query-languages/esql/commands/processing-commands.md#esql-keep) to limit the number of fields returned.
+* Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
 
+## Known issues [esql-known-issues]
+
+Refer to [Known issues](/release-notes/known-issues.md) for a list of known issues for {{esql}}.

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
-import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -30,8 +30,10 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
+import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -49,9 +51,11 @@ public enum FeatureMetric {
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
     SORT(OrderBy.class::isInstance),
-    STATS(Aggregate.class::isInstance),
+    // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an inlinestats command
+    STATS(plan -> false),
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
+    EXPLAIN(Explain.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
@@ -64,11 +68,11 @@ public enum FeatureMetric {
     CHANGE_POINT(ChangePoint.class::isInstance),
     INLINESTATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),
-    DEDUP(Dedup.class::isInstance),
     INSIST(Insist.class::isInstance),
     FORK(Fork.class::isInstance),
-    RRF(RrfScoreEval.class::isInstance),
-    COMPLETION(Completion.class::isInstance);
+    FUSE(Fuse.class::isInstance),
+    COMPLETION(Completion.class::isInstance),
+    SAMPLE(Sample.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry
@@ -77,7 +81,9 @@ public enum FeatureMetric {
         UnresolvedRelation.class,
         EsqlProject.class,
         Project.class,
-        Limit.class // LIMIT is managed in another way, see above
+        Limit.class, // LIMIT is managed in another way, see above
+        FuseScoreEval.class,
+        Aggregate.class // STATS is managed in another way, see above
     );
 
     private Predicate<LogicalPlan> planCheck;

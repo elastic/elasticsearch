@@ -79,6 +79,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
+    public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
 
     public static final String FLAT_SETTINGS_PARAM = "flat_settings";
 
@@ -874,6 +875,27 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
         keys = newKeySet;
         return newKeySet;
+    }
+
+    /*
+     * This method merges the given newSettings into this Settings, returning either a new Settings object or this if the newSettings are
+     * empty. If any values are null in newSettings, those keys are removed from the returned object.
+     */
+    public Settings merge(Settings newSettings) {
+        Objects.requireNonNull(newSettings);
+        if (Settings.EMPTY.equals(newSettings)) {
+            return this;
+        }
+        Settings.Builder builder = Settings.builder().put(this);
+        for (String key : newSettings.keySet()) {
+            String rawValue = newSettings.get(key);
+            if (rawValue == null) {
+                builder.remove(key);
+            } else {
+                builder.put(key, rawValue);
+            }
+        }
+        return builder.build();
     }
 
     /**

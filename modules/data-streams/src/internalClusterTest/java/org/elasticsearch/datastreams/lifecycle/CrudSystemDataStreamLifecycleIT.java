@@ -34,6 +34,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -207,7 +208,10 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                                 Template.builder()
                                     .settings(Settings.EMPTY)
                                     .mappings(mappings)
-                                    .lifecycle(DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()))
+                                    .lifecycle(
+                                        DataStreamLifecycle.dataLifecycleBuilder()
+                                            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
+                                    )
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),

@@ -51,13 +51,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
@@ -328,16 +328,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right().foldable()) {
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
-                return true;
+                return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
-                return this instanceof Equals || this instanceof NotEquals;
+                return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
             }
         }
-        return false;
+        return Translatable.NO;
     }
 
     /**
@@ -356,7 +356,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
      *  input to the operation.
      */
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Check.isTrue(
             right().foldable(),
             "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -378,7 +378,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
         String format = null;
         boolean isDateLiteralComparison = false;
 
@@ -478,7 +478,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
             return null;
         }
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
 
         // Comparisons with multi-values always return null in ESQL.
         if (value instanceof List<?>) {

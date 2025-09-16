@@ -20,7 +20,8 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -32,12 +33,10 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Flow;
@@ -58,7 +57,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class BaseTransportInferenceActionTestCase<Request extends BaseInferenceActionRequest> extends ESTestCase {
     private MockLicenseState licenseState;
-    private ModelRegistry modelRegistry;
+    private InferenceEndpointRegistry inferenceEndpointRegistry;
     private StreamingTaskManager streamingTaskManager;
     private BaseTransportInferenceAction<Request> action;
     private ThreadPool threadPool;
@@ -86,16 +85,16 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         transportService = mock();
         inferenceServiceRateLimitCalculator = mock();
         licenseState = mock();
-        modelRegistry = mock();
+        inferenceEndpointRegistry = mock();
         serviceRegistry = mock();
-        inferenceStats = new InferenceStats(mock(), mock());
+        inferenceStats = InferenceStatsTests.mockInferenceStats();
         streamingTaskManager = mock();
 
         action = createAction(
             transportService,
             actionFilters,
             licenseState,
-            modelRegistry,
+            inferenceEndpointRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
@@ -112,7 +111,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         TransportService transportService,
         ActionFilters actionFilters,
         MockLicenseState licenseState,
-        ModelRegistry modelRegistry,
+        InferenceEndpointRegistry inferenceEndpointRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
@@ -131,7 +130,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             ActionListener<?> listener = ans.getArgument(1);
             listener.onFailure(expectedException);
             return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
+        }).when(inferenceEndpointRegistry).getEndpoint(any(), any());
 
         doExecute(taskType);
 
@@ -167,7 +166,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     }
 
     public void testMetricsAfterMissingService() {
-        mockModelRegistry(taskType);
+        mockInferenceEndpointRegistry(taskType);
 
         when(serviceRegistry.getService(any())).thenReturn(Optional.empty());
 
@@ -175,7 +174,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         verify(listener).onFailure(assertArg(e -> {
             assertThat(e, isA(ElasticsearchException.class));
-            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]. "));
+            assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]"));
             assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
@@ -189,19 +188,18 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         }));
     }
 
-    protected void mockModelRegistry(TaskType expectedTaskType) {
-        var unparsedModel = new UnparsedModel(inferenceId, expectedTaskType, serviceId, Map.of(), Map.of());
+    protected void mockInferenceEndpointRegistry(TaskType expectedTaskType) {
         doAnswer(ans -> {
-            ActionListener<UnparsedModel> listener = ans.getArgument(1);
-            listener.onResponse(unparsedModel);
+            ActionListener<Model> listener = ans.getArgument(1);
+            listener.onResponse(mockModel(expectedTaskType));
             return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
+        }).when(inferenceEndpointRegistry).getEndpoint(any(), any());
     }
 
     public void testMetricsAfterUnknownTaskType() {
         var modelTaskType = TaskType.RERANK;
         var requestTaskType = TaskType.SPARSE_EMBEDDING;
-        mockModelRegistry(modelTaskType);
+        mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
         var listener = doExecute(requestTaskType);
@@ -362,7 +360,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        mockModelRegistry(taskType);
+        mockInferenceEndpointRegistry(taskType);
         mockService(listener -> listener.onResponse(mock()));
 
         Request request = createRequest();
@@ -425,33 +423,28 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(9));
             return null;
-        }).when(service).infer(any(), any(), any(), any(), any(), anyBoolean(), any(), any(), any(), any());
+        }).when(service).infer(any(), any(), anyBoolean(), any(), any(), anyBoolean(), any(), any(), any(), any());
         doAnswer(ans -> {
             listenerAction.accept(ans.getArgument(3));
             return null;
         }).when(service).unifiedCompletionInfer(any(), any(), any(), any());
-        mockModelAndServiceRegistry(service);
+        mockInferenceEndpointRegistry(taskType);
+        when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }
 
     protected Model mockModel() {
+        return mockModel(taskType);
+    }
+
+    protected Model mockModel(TaskType expectedTaskType) {
         Model model = mock();
         ModelConfigurations modelConfigurations = mock();
         when(modelConfigurations.getService()).thenReturn(serviceId);
         when(model.getConfigurations()).thenReturn(modelConfigurations);
-        when(model.getTaskType()).thenReturn(taskType);
+        when(model.getTaskType()).thenReturn(expectedTaskType);
         when(model.getServiceSettings()).thenReturn(mock());
+        when(model.getInferenceEntityId()).thenReturn(inferenceId);
         return model;
-    }
-
-    protected void mockModelAndServiceRegistry(InferenceService service) {
-        var unparsedModel = new UnparsedModel(inferenceId, taskType, serviceId, Map.of(), Map.of());
-        doAnswer(ans -> {
-            ActionListener<UnparsedModel> listener = ans.getArgument(1);
-            listener.onResponse(unparsedModel);
-            return null;
-        }).when(modelRegistry).getModelWithSecrets(any(), any());
-
-        when(serviceRegistry.getService(any())).thenReturn(Optional.of(service));
     }
 
     protected void mockValidLicenseState() {

@@ -388,6 +388,101 @@ emp_no:integer | name:keyword
 10010          | null
 ;
 
+
+contains
+required_capability: fn_contains
+// tag::contains[]
+ROW a = "hello"
+| EVAL has_ll = CONTAINS(a, "ll")
+// end::contains[]
+;
+
+// tag::contains-result[]
+a:keyword | has_ll:boolean
+hello     | true
+// end::contains-result[]
+;
+
+containsFail
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(a, "int");
+
+a:keyword | a_ll:boolean
+hello | false
+;
+
+containsLongerSubstr
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(a, "farewell");
+
+a:keyword | a_ll:boolean
+hello | false
+;
+
+containsSame
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(a, "hello");
+
+a:keyword | a_ll:boolean
+hello | true
+;
+
+containsWithSubstring
+required_capability: fn_contains
+from employees | where emp_no <= 10010 | eval f_s = substring(last_name, 2) | eval f_l = contains(last_name, f_s) | keep emp_no, last_name, f_s, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_s:keyword | f_l:boolean
+10001 | Facello   | acello | true
+10002 | Simmel    | immel | true
+10003 | Bamford   | amford | true
+10004 | Koblick   | oblick | true
+10005 | Maliniak  | aliniak | true
+10006 | Preusig   | reusig | true
+10007 | Zielinski | ielinski | true
+10008 | Kalloufi  | alloufi | true
+10009 | Peac      | eac | true
+10010 | Piveteau  | iveteau | true
+;
+
+containsUtf16Emoji
+required_capability: fn_contains
+row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = contains(a, f_s);
+
+a:keyword | f_s:keyword | f_l:boolean
+🐱Meow!🐶Woof! | Meow!🐶Woof! | true
+;
+
+containsNestedCase
+required_capability: fn_contains
+row a = "hello" | eval a_ll = CASE(contains(a, "ll"), "success","fail");
+
+a:keyword | a_ll:keyword
+hello | success
+;
+
+containsNestSubstring
+required_capability: fn_contains
+row a = "hello" | eval a_ll = contains(substring(a, 2), "ll");
+
+a:keyword | a_ll:boolean
+hello | true
+;
+
+containsWarnings
+required_capability: fn_contains
+
+from hosts | where host=="epsilon" | eval l1 = contains(host_group, "ate"), l2 = contains(description, "ate") | keep l1, l2;
+ignoreOrder:true
+warning:Line 1:82: evaluation of [contains(description, \"ate\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:82: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+l1:boolean | l2:boolean
+true          | null
+true          | null
+null       | false
+;
+
 // Note: no matches in MV returned
 in
 
@@ -1127,6 +1222,33 @@ warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group n
 first_name:keyword | result:keyword
 Alejandro          | null
 ;
+
+docsReplaceText
+//tag::replaceString[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "World", "Universe")
+// end::replaceString[]
+;
+
+//tag::replaceString-result[]
+str:keyword
+Hello Universe
+// end::replaceString-result[]
+;
+
+docsReplaceRegex
+//tag::replaceRegex[]
+ROW str = "Hello World"
+| EVAL str = REPLACE(str, "\\s+", "")
+// end::replaceRegex[]
+;
+
+//tag::replaceRegex-result[]
+str:keyword
+HelloWorld
+// end::replaceRegex-result[]
+;
+
 
 left
 // tag::left[]
@@ -1931,6 +2053,92 @@ l1:integer | l2:integer
 null       | 0
 ;
 
+mvContains
+required_capability: fn_mv_contains
+// tag::mv_contains[]
+ROW set = ["a", "b", "c"], element = "a"
+| EVAL set_contains_element = mv_contains(set, element)
+// end::mv_contains[]
+;
+
+// tag::mv_contains-result[]
+set:keyword | element:keyword | set_contains_element:boolean 
+[a, b, c]   | a               | true         
+// end::mv_contains-result[]
+;
+
+mvContains_bothsides
+required_capability: fn_mv_contains
+// tag::mv_contains_bothsides[]
+ROW setA = ["a","c"], setB = ["a", "b", "c"]
+| EVAL a_subset_of_b = mv_contains(setB, setA)
+| EVAL b_subset_of_a = mv_contains(setA, setB)
+// end::mv_contains_bothsides[]
+;
+
+// tag::mv_contains_bothsides-result[]
+setA:keyword | setB:keyword | a_subset_of_b:boolean | b_subset_of_a:boolean 
+[a, c]       | [a, b, c]    | true                  | false
+// end::mv_contains_bothsides-result[]
+;
+
+mvContainsCombinations
+required_capability: fn_mv_contains
+
+ROW a = "a", b = ["a", "b", "c"], n = null
+| EVAL aa = mv_contains(a, a), 
+       bb = mv_contains(b, b), 
+       ab = mv_contains(a, b), 
+       ba = mv_contains(b,a), 
+       na = mv_contains(n, a), 
+       an = mv_contains(a, n), 
+       nn = mv_contains(n,n)
+;
+
+a:keyword | b:keyword | n:null | aa:boolean | bb:boolean   | ab:boolean | ba:boolean | na:boolean | an:boolean | nn:boolean
+a         | [a, b, c] | null   | true       | true         | false      | true       | false      | true       | true
+;
+
+mvContainsCombinations_multirow
+required_capability: fn_mv_contains
+
+ROW row_number = [1,2,3,4,5], element = "e", n = null, setA = ["b","d"], setB = ["a", "c", "e"]
+| MV_EXPAND row_number
+| EVAL superset = CASE(
+                    row_number == 1, ["a","e"],
+                    row_number == 2, ["b","d"],
+                    row_number == 3, null,
+                    row_number == 4, ["a","e","c","b","d"], 
+                    row_number == 5, ["a","d","c","b","e"],
+                  null) 
+| EVAL contains_element = mv_contains(superset, element), 
+       contains_null    = mv_contains(superset, n), 
+       contains_setA    = mv_contains(superset, setA), 
+       contains_setB    = mv_contains(superset, setB) 
+;
+
+row_number:INTEGER | element:keyword | n:null | setA:keyword | setB:keyword    | superset:keyword         |contains_element:boolean | contains_null:boolean | contains_setA:boolean | contains_setB:boolean
+1                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","e"]                | true                    | true                  | false                 | false       
+2                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["b","d"]                | false                   | true                  | true                  | false    
+3                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | null                     | false                   | true                  | false                 | false    
+4                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","e","c","b","d"]    | true                    | true                  | true                  | true    
+5                  | "e"             | null   | ["b","d"]    | ["a", "c", "e"] | ["a","d","c","b","e"]    | true                    | true                  | true                  | true    
+;
+
+mvContains_where
+required_capability: fn_mv_contains
+// tag::mv_contains_where[]
+FROM airports
+| WHERE mv_contains(type, ["major","military"]) AND scalerank == 9
+| KEEP scalerank, name, country
+// end::mv_contains_where[]
+;
+
+// tag::mv_contains_where-result[]
+scalerank:integer | name:text               | country:keyword  
+9                 | Chandigarh Int'l        | India
+// end::mv_contains_where-result[]
+;
 
 mvAppend
 required_capability: fn_mv_append
@@ -2307,4 +2515,172 @@ ROW message = "foo ( bar"
 message:keyword
 foo ( bar
 // end::rlikeEscapingTripleQuotes-result[]
+;
+
+mvStringEquals
+FROM mv_text
+| WHERE message == "Connected to 10.1.0.1"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == \"Connected to 10.1.0.1\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;
+
+mvStringEqualsLongString
+FROM mv_text
+| WHERE message == "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message == \"More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEquals
+FROM mv_text
+| WHERE message != "Connected to 10.1.0.2"
+| KEEP @timestamp, message
+| SORT @timestamp ASC
+;
+warning:Line 2:9: evaluation of [message != \"Connected to 10.1.0.2\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEqualsFound
+FROM mv_text
+| WHERE message != "Connected to 10.1.0.1"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != \"Connected to 10.1.0.1\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.546Z|More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100
+;
+
+mvStringNotEqualsLong
+FROM mv_text
+| WHERE message != "More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100"
+| KEEP @timestamp, message
+;
+warning:Line 2:9: evaluation of [message != \"More than one hundred characters long so it isn't indexed by the sub keyword field with ignore_above:100\"] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+    @timestamp:date     | message:text
+2023-10-23T13:55:01.544Z|Connected to 10.1.0.1
+;
+
+url_encode sample for docs
+required_capability: url_encode
+
+// tag::url_encode[]
+ROW u = "https://www.example.com/papers?q=information+retrieval&year=2024&citations=high" | EVAL u = URL_ENCODE(u)
+// end::url_encode[]
+;
+
+// tag::url_encode-result[]
+u:keyword
+https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D2024%26citations%3Dhigh
+// end::url_encode-result[]
+;
+
+url_encode mixed functions tests
+required_capability: url_encode
+
+FROM employees 
+| WHERE emp_no == 10001 
+| EVAL a = TRIM(URL_ENCODE(first_name))
+| EVAL b = URL_ENCODE(TO_LOWER(first_name))
+| KEEP a,b;
+
+a:keyword | b:keyword
+Georgi    | georgi 
+;
+
+url_encode mixed input tests
+required_capability: url_encode
+
+ROW u = ["hello elastic!", "a+b-c%d", "", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
+
+u:keyword
+["hello+elastic%21", "a%2Bb-c%25d", "", "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
+;
+
+url_decode sample for docs
+required_capability: url_decode
+
+// tag::url_decode[]
+ROW u = "https%3A%2F%2Fwww.example.com%2Fpapers%3Fq%3Dinformation%2Bretrieval%26year%3D2024%26citations%3Dhigh" | EVAL u = URL_DECODE(u)
+// end::url_decode[]
+;
+
+// tag::url_decode-result[]
+u:keyword
+https://www.example.com/papers?q=information+retrieval&year=2024&citations=high
+// end::url_decode-result[]
+;
+
+url_decode mixed functions tests
+required_capability: url_decode
+
+FROM employees 
+| WHERE emp_no == 10001 
+| EVAL a = TRIM(URL_DECODE(first_name))
+| EVAL b = URL_DECODE(TO_LOWER(first_name))
+| KEEP a,b;
+
+a:keyword | b:keyword
+Georgi    | georgi 
+;
+
+url_decode mixed input tests
+required_capability: url_decode
+
+ROW u = "%21%23%24%26%27%28%29*%2B%2C%2F%3A%3B%3D%3F%40%5B%5D" | EVAL u = URL_DECODE(u);
+
+u:keyword
+"!#$&'()*+,/:;=?@[]"
+;
+
+combined url encode decode tests with table reads
+required_capability: url_encode
+required_capability: url_decode
+
+FROM employees 
+| SORT emp_no
+| LIMIT 10
+| EVAL name = URL_DECODE(URL_ENCODE(CONCAT(gender, " - ", first_name, "+", last_name, "; ", CONCAT("@", first_name, last_name))))
+| KEEP emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | M - Georgi+Facello; @GeorgiFacello
+10002          | F - Bezalel+Simmel; @BezalelSimmel
+10003          | M - Parto+Bamford; @PartoBamford
+10004          | M - Chirstian+Koblick; @ChirstianKoblick
+10005          | M - Kyoichi+Maliniak; @KyoichiMaliniak
+10006          | F - Anneke+Preusig; @AnnekePreusig
+10007          | F - Tzvetan+Zielinski; @TzvetanZielinski
+10008          | M - Saniya+Kalloufi; @SaniyaKalloufi
+10009          | F - Sumant+Peac; @SumantPeac
+10010          | null
+;
+
+combined url encode decode tests with random strings
+required_capability: url_encode
+required_capability: url_decode
+
+ROW u = ["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"] 
+| eval u = URL_DECODE(URL_ENCODE(u));
+
+u:keyword
+["https://www.example.com/papers?q=information+retrieval&year=2024&citations=high", "", "!#$&'()+/:;=?@[]", "💨🔥🪨💧"]
 ;

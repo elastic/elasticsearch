@@ -100,4 +100,14 @@ public class BoolQuery extends Query {
     public boolean scorable() {
         return true;
     }
+
+    @Override
+    public boolean containsPlan() {
+        for (Query q : queries) {
+            if (q.containsPlan()) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

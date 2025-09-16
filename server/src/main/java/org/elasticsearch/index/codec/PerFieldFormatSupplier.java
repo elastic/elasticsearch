@@ -12,7 +12,6 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.elasticsearch.common.util.BigArrays;
@@ -27,20 +26,43 @@ import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
  * vectors.
  */
 public class PerFieldFormatSupplier {
-    public static final FeatureFlag USE_LUCENE101_POSTINGS_FORMAT = new FeatureFlag("use_lucene101_postings_format");
+
+    static final FeatureFlag SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT = new FeatureFlag("seqno_field_use_tsdb_doc_values_format");
+    private static final Set<String> INCLUDE_META_FIELDS;
+
+    static {
+        // TODO: should we just allow all fields to use tsdb doc values codec?
+        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
+        // But _tsid and _ts_routing_hash should always use the tsdb codec.
+        Set<String> includeMetaField = new HashSet<>(3);
+        includeMetaField.add(TimeSeriesIdFieldMapper.NAME);
+        includeMetaField.add(TimeSeriesRoutingHashFieldMapper.NAME);
+        if (SEQNO_FIELD_USE_TSDB_DOC_VALUES_FORMAT.isEnabled()) {
+            includeMetaField.add(SeqNoFieldMapper.NAME);
+        }
+        // Don't the include _recovery_source_size and _recovery_source fields, since their values can be trimmed away in
+        // RecoverySourcePruneMergePolicy, which leads to inconsistencies between merge stats and actual values.
+        INCLUDE_META_FIELDS = Collections.unmodifiableSet(includeMetaField);
+    }
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
-    private static final Lucene101PostingsFormat lucene101PostingsFormat = new Lucene101PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
     private final ES87BloomFilterPostingsFormat bloomFilterPostingsFormat;
@@ -53,10 +75,9 @@ public class PerFieldFormatSupplier {
         this.bloomFilterPostingsFormat = new ES87BloomFilterPostingsFormat(bigArrays, this::internalGetPostingsFormatForField);
 
         if (mapperService != null
-            && USE_LUCENE101_POSTINGS_FORMAT.isEnabled()
             && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.USE_LUCENE101_POSTINGS_FORMAT)
-            && mapperService.getIndexSettings().getMode() == IndexMode.STANDARD) {
-            defaultPostingsFormat = lucene101PostingsFormat;
+            && mapperService.getIndexSettings().getMode().useDefaultPostingsFormat()) {
+            defaultPostingsFormat = Elasticsearch900Lucene101Codec.DEFAULT_POSTINGS_FORMAT;
         } else {
             // our own posting format using PFOR
             defaultPostingsFormat = es812PostingsFormat;
@@ -127,9 +148,7 @@ public class PerFieldFormatSupplier {
     }
 
     private boolean excludeFields(String fieldName) {
-        // Avoid using tsdb codec for fields like _seq_no, _primary_term.
-        // But _tsid and _ts_routing_hash should always use the tsdb codec.
-        return fieldName.startsWith("_") && fieldName.equals("_tsid") == false && fieldName.equals("_ts_routing_hash") == false;
+        return fieldName.startsWith("_") && INCLUDE_META_FIELDS.contains(fieldName) == false;
     }
 
     private boolean isTimeSeriesModeIndex() {

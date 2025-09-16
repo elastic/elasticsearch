@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,6 +26,11 @@ public class TopNOperatorStatus implements Operator.Status {
         "topn",
         TopNOperatorStatus::new
     );
+
+    private static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql_topn_timings");
+
+    private final long receiveNanos;
+    private final long emitNanos;
     private final int occupiedRows;
     private final long ramBytesUsed;
     private final int pagesReceived;
@@ -33,6 +39,8 @@ public class TopNOperatorStatus implements Operator.Status {
     private final long rowsEmitted;
 
     public TopNOperatorStatus(
+        long receiveNanos,
+        long emitNanos,
         int occupiedRows,
         long ramBytesUsed,
         int pagesReceived,
@@ -40,6 +48,8 @@ public class TopNOperatorStatus implements Operator.Status {
         long rowsReceived,
         long rowsEmitted
     ) {
+        this.receiveNanos = receiveNanos;
+        this.emitNanos = emitNanos;
         this.occupiedRows = occupiedRows;
         this.ramBytesUsed = ramBytesUsed;
         this.pagesReceived = pagesReceived;
@@ -49,6 +59,13 @@ public class TopNOperatorStatus implements Operator.Status {
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
+        if (in.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
+            this.receiveNanos = in.readVLong();
+            this.emitNanos = in.readVLong();
+        } else {
+            this.receiveNanos = 0;
+            this.emitNanos = 0;
+        }
         this.occupiedRows = in.readVInt();
         this.ramBytesUsed = in.readVLong();
 
@@ -67,6 +84,11 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().supports(ESQL_TOPN_TIMINGS)) {
+            out.writeVLong(receiveNanos);
+            out.writeVLong(emitNanos);
+        }
+
         out.writeVInt(occupiedRows);
         out.writeVLong(ramBytesUsed);
 
@@ -81,6 +103,14 @@ public class TopNOperatorStatus implements Operator.Status {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    public long receiveNanos() {
+        return receiveNanos;
+    }
+
+    public long emitNanos() {
+        return emitNanos;
     }
 
     public int occupiedRows() {
@@ -110,6 +140,14 @@ public class TopNOperatorStatus implements Operator.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("receive_nanos", receiveNanos);
+        if (builder.humanReadable()) {
+            builder.field("receive_time", TimeValue.timeValueNanos(receiveNanos).toString());
+        }
+        builder.field("emit_nanos", emitNanos);
+        if (builder.humanReadable()) {
+            builder.field("emit_time", TimeValue.timeValueNanos(emitNanos).toString());
+        }
         builder.field("occupied_rows", occupiedRows);
         builder.field("ram_bytes_used", ramBytesUsed);
         builder.field("ram_used", ByteSizeValue.ofBytes(ramBytesUsed));
@@ -126,7 +164,9 @@ public class TopNOperatorStatus implements Operator.Status {
             return false;
         }
         TopNOperatorStatus that = (TopNOperatorStatus) o;
-        return occupiedRows == that.occupiedRows
+        return receiveNanos == that.receiveNanos
+            && emitNanos == that.emitNanos
+            && occupiedRows == that.occupiedRows
             && ramBytesUsed == that.ramBytesUsed
             && pagesReceived == that.pagesReceived
             && pagesEmitted == that.pagesEmitted
@@ -136,7 +176,7 @@ public class TopNOperatorStatus implements Operator.Status {
 
     @Override
     public int hashCode() {
-        return Objects.hash(occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        return Objects.hash(receiveNanos, emitNanos, occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     @Override

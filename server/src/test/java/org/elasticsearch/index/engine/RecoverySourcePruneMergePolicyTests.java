@@ -34,6 +34,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.NullInfoStream;
 import org.apache.lucene.util.InfoStream;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
@@ -182,7 +183,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                                 Set<String> collect = document.getFields().stream().map(IndexableField::name).collect(Collectors.toSet());
                                 assertTrue(collect.contains("source"));
                                 assertTrue(collect.contains("even"));
-                                boolean isEven = Boolean.parseBoolean(document.getField("even").stringValue());
+                                boolean isEven = Booleans.parseBoolean(document.getField("even").stringValue());
                                 if (isEven) {
                                     assertTrue(collect.contains(IdFieldMapper.NAME));
                                     assertThat(collect.contains("extra_source"), equalTo(syntheticRecoverySource == false));

@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.versionfield.datageneration;
 
-import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.FieldDataGenerator;
+import org.elasticsearch.datageneration.datasource.DataSource;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 
 import java.util.Map;
 import java.util.function.Supplier;

@@ -18,6 +18,7 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -27,7 +28,9 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -49,7 +52,11 @@ public class SearchContextStats implements SearchStats {
 
     private final List<SearchExecutionContext> contexts;
 
-    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {}
+    private record FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues, MappedFieldType fieldType) {
+        FieldConfig(boolean exists, boolean hasExactSubfield, boolean indexed, boolean hasDocValues) {
+            this(exists, hasExactSubfield, indexed, hasDocValues, null);
+        }
+    }
 
     private static class FieldStats {
         private Long count;
@@ -91,11 +98,18 @@ public class SearchContextStats implements SearchStats {
         boolean hasExactSubfield = true;
         boolean indexed = true;
         boolean hasDocValues = true;
+        boolean mixedFieldType = false;
+        MappedFieldType fieldType = null; // Extract the field type, it will be used by min/max later.
         // even if there are deleted documents, check the existence of a field
         // since if it's missing, deleted documents won't change that
         for (SearchExecutionContext context : contexts) {
             if (context.isFieldMapped(field)) {
-                var type = context.getFieldType(field);
+                MappedFieldType type = context.getFieldType(field);
+                if (fieldType == null) {
+                    fieldType = type;
+                } else if (mixedFieldType == false && fieldType.typeName().equals(type.typeName()) == false) {
+                    mixedFieldType = true;
+                }
                 exists |= true;
                 indexed &= type.isIndexed();
                 hasDocValues &= type.hasDocValues();
@@ -113,7 +127,7 @@ public class SearchContextStats implements SearchStats {
             // if it does not exist on any context, no other settings are valid
             return new FieldConfig(false, false, false, false);
         } else {
-            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues);
+            return new FieldConfig(exists, hasExactSubfield, indexed, hasDocValues, mixedFieldType ? null : fieldType);
         }
     }
 
@@ -126,23 +140,28 @@ public class SearchContextStats implements SearchStats {
         return false;
     }
 
-    public boolean exists(String field) {
-        var stat = cache.get(field);
-        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field);
+    @Override
+    public boolean exists(FieldName field) {
+        var stat = cache.get(field.string());
+        return stat != null ? stat.config.exists : fastNoCacheFieldExists(field.string());
     }
 
-    public boolean isIndexed(String field) {
-        return cache.computeIfAbsent(field, this::makeFieldStats).config.indexed;
+    @Override
+    public boolean isIndexed(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.indexed;
     }
 
-    public boolean hasDocValues(String field) {
-        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasDocValues;
+    @Override
+    public boolean hasDocValues(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasDocValues;
     }
 
-    public boolean hasExactSubfield(String field) {
-        return cache.computeIfAbsent(field, this::makeFieldStats).config.hasExactSubfield;
+    @Override
+    public boolean hasExactSubfield(FieldName field) {
+        return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.hasExactSubfield;
     }
 
+    @Override
     public long count() {
         var count = new long[] { 0 };
         boolean completed = doWithContexts(r -> {
@@ -152,12 +171,13 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public long count(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public long count(FieldName field) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
         if (stat.count == null) {
             var count = new long[] { 0 };
             boolean completed = doWithContexts(r -> {
-                count[0] += countEntries(r, field);
+                count[0] += countEntries(r, field.string());
                 return true;
             }, false);
             stat.count = completed ? count[0] : -1;
@@ -165,9 +185,10 @@ public class SearchContextStats implements SearchStats {
         return stat.count;
     }
 
-    public long count(String field, BytesRef value) {
+    @Override
+    public long count(FieldName field, BytesRef value) {
         var count = new long[] { 0 };
-        Term term = new Term(field, value);
+        Term term = new Term(field.string(), value);
         boolean completed = doWithContexts(r -> {
             count[0] += r.docFreq(term);
             return true;
@@ -175,52 +196,64 @@ public class SearchContextStats implements SearchStats {
         return completed ? count[0] : -1;
     }
 
-    public byte[] min(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public Object min(FieldName field) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        // Consolidate min for indexed date fields only, skip the others and mixed-typed fields.
+        MappedFieldType fieldType = stat.config.fieldType;
+        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
+            return null;
+        }
         if (stat.min == null) {
-            var min = new byte[][] { null };
+            var min = new long[] { Long.MAX_VALUE };
+            Holder<Boolean> foundMinValue = new Holder<>(false);
             doWithContexts(r -> {
-                byte[] localMin = PointValues.getMinPackedValue(r, field);
-                // TODO: how to compare with the previous min
-                if (localMin != null) {
-                    if (min[0] == null) {
-                        min[0] = localMin;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous min");
+                byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
+                if (minPackedValue != null && minPackedValue.length == 8) {
+                    long minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
+                    if (minValue <= min[0]) {
+                        min[0] = minValue;
+                        foundMinValue.set(true);
                     }
                 }
                 return true;
             }, true);
-            stat.min = min[0];
+            stat.min = foundMinValue.get() ? min[0] : null;
         }
-        // return stat.min;
-        return null;
+        return stat.min;
     }
 
-    public byte[] max(String field, DataType dataType) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public Object max(FieldName field) {
+        var stat = cache.computeIfAbsent(field.string(), this::makeFieldStats);
+        // Consolidate max for indexed date fields only, skip the others and mixed-typed fields.
+        MappedFieldType fieldType = stat.config.fieldType;
+        if (fieldType == null || stat.config.indexed == false || fieldType instanceof DateFieldType == false) {
+            return null;
+        }
         if (stat.max == null) {
-            var max = new byte[][] { null };
+            var max = new long[] { Long.MIN_VALUE };
+            Holder<Boolean> foundMaxValue = new Holder<>(false);
             doWithContexts(r -> {
-                byte[] localMax = PointValues.getMaxPackedValue(r, field);
-                // TODO: how to compare with the previous max
-                if (localMax != null) {
-                    if (max[0] == null) {
-                        max[0] = localMax;
-                    } else {
-                        throw new EsqlIllegalArgumentException("Don't know how to compare with previous max");
+                byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
+                if (maxPackedValue != null && maxPackedValue.length == 8) {
+                    long maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
+                    if (maxValue >= max[0]) {
+                        max[0] = maxValue;
+                        foundMaxValue.set(true);
                     }
                 }
                 return true;
             }, true);
-            stat.max = max[0];
+            stat.max = foundMaxValue.get() ? max[0] : null;
         }
-        // return stat.max;
-        return null;
+        return stat.max;
     }
 
-    public boolean isSingleValue(String field) {
-        var stat = cache.computeIfAbsent(field, this::makeFieldStats);
+    @Override
+    public boolean isSingleValue(FieldName field) {
+        String fieldName = field.string();
+        var stat = cache.computeIfAbsent(fieldName, this::makeFieldStats);
         if (stat.singleValue == null) {
             // there's no such field so no need to worry about multi-value fields
             if (stat.config.exists == false) {
@@ -229,11 +262,11 @@ public class SearchContextStats implements SearchStats {
                 // fields are MV per default
                 var sv = new boolean[] { false };
                 for (SearchExecutionContext context : contexts) {
-                    MappedFieldType mappedType = context.isFieldMapped(field) ? context.getFieldType(field) : null;
+                    MappedFieldType mappedType = context.isFieldMapped(fieldName) ? context.getFieldType(fieldName) : null;
                     if (mappedType != null) {
                         sv[0] = true;
                         doWithContexts(r -> {
-                            sv[0] &= detectSingleValue(r, mappedType, field);
+                            sv[0] &= detectSingleValue(r, mappedType, fieldName);
                             return sv[0];
                         }, true);
                         break;
@@ -290,6 +323,60 @@ public class SearchContextStats implements SearchStats {
 
         // unsupported type - default to MV
         return false;
+    }
+
+    @Override
+    public boolean canUseEqualityOnSyntheticSourceDelegate(FieldAttribute.FieldName name, String value) {
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType type = ctx.getFieldType(name.string());
+            if (type == null) {
+                return false;
+            }
+            if (type instanceof TextFieldMapper.TextFieldType t) {
+                if (t.canUseSyntheticSourceDelegateForQueryingEquality(value) == false) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public String constantValue(FieldAttribute.FieldName name) {
+        String val = null;
+        for (SearchExecutionContext ctx : contexts) {
+            MappedFieldType f = ctx.getFieldType(name.string());
+            if (f == null) {
+                return null;
+            }
+            if (f instanceof ConstantFieldType cf) {
+                var fetcher = cf.valueFetcher(ctx, null);
+                String thisVal = null;
+                try {
+                    // since the value is a constant, the doc _should_ be irrelevant
+                    List<Object> vals = fetcher.fetchValues(null, -1, null);
+                    Object objVal = vals.size() == 1 ? vals.get(0) : null;
+                    // we are considering only string values for now, since this can return "strange" things,
+                    // see IndexModeFieldType
+                    thisVal = objVal instanceof String ? (String) objVal : null;
+                } catch (IOException iox) {}
+
+                if (thisVal == null) {
+                    // Value not yet set
+                    return null;
+                }
+                if (val == null) {
+                    val = thisVal;
+                } else if (thisVal.equals(val) == false) {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+        return val;
     }
 
     private interface DocCountTester {

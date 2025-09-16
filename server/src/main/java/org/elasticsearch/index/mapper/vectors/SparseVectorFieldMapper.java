@@ -12,16 +12,20 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.TermVectors;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -29,26 +33,38 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.inference.WeightedToken;
+import org.elasticsearch.inference.WeightedTokensUtils;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
@@ -57,6 +73,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "sparse_vector";
+    public static final String SPARSE_VECTOR_INDEX_OPTIONS = "index_options";
 
     static final String ERROR_MESSAGE_7X = "[sparse_vector] field type in old 7.x indices is allowed to "
         + "contain [sparse_vector] fields, but they cannot be indexed or searched.";
@@ -65,17 +82,37 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     static final IndexVersion NEW_SPARSE_VECTOR_INDEX_VERSION = IndexVersions.NEW_SPARSE_VECTOR;
     static final IndexVersion SPARSE_VECTOR_IN_FIELD_NAMES_INDEX_VERSION = IndexVersions.SPARSE_VECTOR_IN_FIELD_NAMES_SUPPORT;
+    static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION = IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
+    static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X =
+        IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X;
+
+    public static final NodeFeature SPARSE_VECTOR_INDEX_OPTIONS_FEATURE = new NodeFeature("sparse_vector.index_options_supported");
 
     private static SparseVectorFieldMapper toType(FieldMapper in) {
         return (SparseVectorFieldMapper) in;
     }
 
     public static class Builder extends FieldMapper.Builder {
-        private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType().isStored(), false);
+        private final IndexVersion indexVersionCreated;
+        private final Parameter<Boolean> stored;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<SparseVectorIndexOptions> indexOptions = new Parameter<>(
+            SPARSE_VECTOR_INDEX_OPTIONS,
+            true,
+            () -> null,
+            (n, c, o) -> parseIndexOptions(c, o),
+            m -> toType(m).fieldType().indexOptions,
+            XContentBuilder::field,
+            Objects::toString
+        ).acceptsNull().setSerializerCheck(this::indexOptionsSerializerCheck);
 
-        public Builder(String name) {
+        private final boolean isExcludeSourceVectors;
+
+        public Builder(String name, IndexVersion indexVersionCreated, boolean isExcludeSourceVectors) {
             super(name);
+            this.stored = Parameter.boolParam("store", false, m -> toType(m).fieldType().isStored(), () -> isExcludeSourceVectors);
+            this.indexVersionCreated = indexVersionCreated;
+            this.isExcludeSourceVectors = isExcludeSourceVectors;
         }
 
         public Builder setStored(boolean value) {
@@ -85,16 +122,76 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { stored, meta };
+            return new Parameter<?>[] { stored, meta, indexOptions };
         }
 
         @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
+            SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
+            if (builderIndexOptions == null) {
+                builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
+            }
+
+            final boolean isExcludeSourceVectorsFinal = isExcludeSourceVectors && context.isSourceSynthetic() == false && stored.get();
             return new SparseVectorFieldMapper(
                 leafName(),
-                new SparseVectorFieldType(context.buildFullName(leafName()), stored.getValue(), meta.getValue()),
-                builderParams(this, context)
+                new SparseVectorFieldType(
+                    indexVersionCreated,
+                    context.buildFullName(leafName()),
+                    stored.get(),
+                    meta.getValue(),
+                    builderIndexOptions
+                ),
+                builderParams(this, context),
+                isExcludeSourceVectorsFinal
             );
+        }
+
+        private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, SparseVectorIndexOptions value) {
+            return includeDefaults || (SparseVectorIndexOptions.isDefaultOptions(value, indexVersionCreated) == false);
+        }
+
+        public void setIndexOptions(SparseVectorIndexOptions sparseVectorIndexOptions) {
+            indexOptions.setValue(sparseVectorIndexOptions);
+        }
+    }
+
+    public SparseVectorIndexOptions getIndexOptions() {
+        return fieldType().getIndexOptions();
+    }
+
+    private static final ConstructingObjectParser<SparseVectorIndexOptions, Void> INDEX_OPTIONS_PARSER = new ConstructingObjectParser<>(
+        SPARSE_VECTOR_INDEX_OPTIONS,
+        args -> new SparseVectorIndexOptions((Boolean) args[0], (TokenPruningConfig) args[1])
+    );
+
+    static {
+        INDEX_OPTIONS_PARSER.declareBoolean(optionalConstructorArg(), SparseVectorIndexOptions.PRUNE_FIELD_NAME);
+        INDEX_OPTIONS_PARSER.declareObject(
+            optionalConstructorArg(),
+            TokenPruningConfig.PARSER,
+            SparseVectorIndexOptions.PRUNING_CONFIG_FIELD_NAME
+        );
+    }
+
+    private static SparseVectorIndexOptions parseIndexOptions(MappingParserContext context, Object propNode) {
+        if (propNode == null) {
+            return null;
+        }
+
+        Map<String, Object> indexOptionsMap = XContentMapValues.nodeMapValue(propNode, SPARSE_VECTOR_INDEX_OPTIONS);
+
+        XContentParser parser = new MapXContentParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.IGNORE_DEPRECATIONS,
+            indexOptionsMap,
+            XContentType.JSON
+        );
+
+        try {
+            return INDEX_OPTIONS_PARSER.parse(parser, null);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -105,18 +202,45 @@ public class SparseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(ERROR_MESSAGE_8X);
         }
 
-        return new Builder(n);
+        return new Builder(
+            n,
+            c.indexVersionCreated(),
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+        );
     }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
+        private final IndexVersion indexVersionCreated;
+        private final SparseVectorIndexOptions indexOptions;
 
-        public SparseVectorFieldType(String name, boolean isStored, Map<String, String> meta) {
+        public SparseVectorFieldType(IndexVersion indexVersionCreated, String name, boolean isStored, Map<String, String> meta) {
+            this(indexVersionCreated, name, isStored, meta, null);
+        }
+
+        public SparseVectorFieldType(
+            IndexVersion indexVersionCreated,
+            String name,
+            boolean isStored,
+            Map<String, String> meta,
+            @Nullable SparseVectorIndexOptions indexOptions
+        ) {
             super(name, true, isStored, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+            this.indexVersionCreated = indexVersionCreated;
+            this.indexOptions = indexOptions;
+        }
+
+        public SparseVectorIndexOptions getIndexOptions() {
+            return indexOptions;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isVectorEmbedding() {
+            return true;
         }
 
         @Override
@@ -126,9 +250,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            if (isStored()) {
-                return new SparseVectorValueFetcher(name());
-            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -149,6 +270,37 @@ public class SparseVectorFieldMapper extends FieldMapper {
             return super.existsQuery(context);
         }
 
+        public Query finalizeSparseVectorQuery(
+            SearchExecutionContext context,
+            String fieldName,
+            List<WeightedToken> queryVectors,
+            Boolean shouldPruneTokensFromQuery,
+            TokenPruningConfig tokenPruningConfigFromQuery
+        ) throws IOException {
+            Boolean shouldPruneTokens = shouldPruneTokensFromQuery;
+            TokenPruningConfig tokenPruningConfig = tokenPruningConfigFromQuery;
+
+            if (indexOptions != null) {
+                if (shouldPruneTokens == null && indexOptions.prune != null) {
+                    shouldPruneTokens = indexOptions.prune;
+                }
+
+                if (tokenPruningConfig == null && indexOptions.pruningConfig != null) {
+                    tokenPruningConfig = indexOptions.pruningConfig;
+                }
+            }
+
+            return (shouldPruneTokens != null && shouldPruneTokens)
+                ? WeightedTokensUtils.queryBuilderWithPrunedTokens(
+                    fieldName,
+                    tokenPruningConfig == null ? new TokenPruningConfig() : tokenPruningConfig,
+                    queryVectors,
+                    this,
+                    context
+                )
+                : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, this, context);
+        }
+
         private static String indexedValueForSearch(Object value) {
             if (value instanceof BytesRef) {
                 return ((BytesRef) value).utf8ToString();
@@ -157,8 +309,17 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    private SparseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+    private final boolean isExcludeSourceVectors;
+
+    private SparseVectorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        BuilderParams builderParams,
+        boolean isExcludeSourceVectors
+    ) {
         super(simpleName, mappedFieldType, builderParams);
+        assert isExcludeSourceVectors == false || fieldType().isStored();
+        this.isExcludeSourceVectors = isExcludeSourceVectors;
     }
 
     @Override
@@ -170,13 +331,25 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
+        if (isExcludeSourceVectors) {
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
+                SparseVectorSyntheticFieldLoader::copyAsMap
+            );
+        }
+        return null;
+    }
+
+    @Override
     public Map<String, NamedAnalyzer> indexAnalyzers() {
         return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), this.fieldType().indexVersionCreated, this.isExcludeSourceVectors).init(this);
     }
 
     @Override
@@ -224,9 +397,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                     // based on recommendations from this paper: https://arxiv.org/pdf/2305.18494.pdf
                     IndexableField currentField = context.doc().getByKey(key);
                     if (currentField == null) {
-                        context.doc().addWithKey(key, new XFeatureField(fullPath(), feature, value, fieldType().isStored()));
-                    } else if (currentField instanceof XFeatureField && ((XFeatureField) currentField).getFeatureValue() < value) {
-                        ((XFeatureField) currentField).setFeatureValue(value);
+                        context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value, fieldType().isStored()));
+                    } else if (currentField instanceof FeatureField ff && ff.getFeatureValue() < value) {
+                        ff.setFeatureValue(value);
                     }
                 } else {
                     throw new IllegalArgumentException(
@@ -254,49 +427,10 @@ public class SparseVectorFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
-    private static class SparseVectorValueFetcher implements ValueFetcher {
-        private final String fieldName;
-        private TermVectors termVectors;
-
-        private SparseVectorValueFetcher(String fieldName) {
-            this.fieldName = fieldName;
-        }
-
-        @Override
-        public void setNextReader(LeafReaderContext context) {
-            try {
-                termVectors = context.reader().termVectors();
-            } catch (IOException exc) {
-                throw new UncheckedIOException(exc);
-            }
-        }
-
-        @Override
-        public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-            if (termVectors == null) {
-                return List.of();
-            }
-            var terms = termVectors.get(doc, fieldName);
-            if (terms == null) {
-                return List.of();
-            }
-
-            var termsEnum = terms.iterator();
-            PostingsEnum postingsScratch = null;
-            Map<String, Float> result = new LinkedHashMap<>();
-            while (termsEnum.next() != null) {
-                postingsScratch = termsEnum.postings(postingsScratch);
-                postingsScratch.nextDoc();
-                result.put(termsEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(postingsScratch.freq()));
-                assert postingsScratch.nextDoc() == DocIdSetIterator.NO_MORE_DOCS;
-            }
-            return List.of(result);
-        }
-
-        @Override
-        public StoredFieldsSpec storedFieldsSpec() {
-            return StoredFieldsSpec.NO_REQUIREMENTS;
-        }
+    private static boolean indexVersionSupportsDefaultPruningConfig(IndexVersion indexVersion) {
+        // default pruning for 9.1.0+ or 8.19.0+ is true for this index
+        return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
+            || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0));
     }
 
     private static class SparseVectorSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -304,6 +438,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         private final String leafName;
 
         private TermsEnum termsDocEnum;
+        private boolean hasValue;
 
         private SparseVectorSyntheticFieldLoader(String fullPath, String leafName) {
             this.fullPath = fullPath;
@@ -317,45 +452,86 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            var fieldInfos = leafReader.getFieldInfos().fieldInfo(fullPath);
-            if (fieldInfos == null || fieldInfos.hasTermVectors() == false) {
-                return null;
+            // Use an exists query on _field_names to distinguish documents with no value
+            // from those containing an empty map.
+            var existsQuery = new TermQuery(new Term(FieldNamesFieldMapper.NAME, fullPath));
+            var searcher = new IndexSearcher(leafReader);
+            searcher.setQueryCache(null);
+            var scorer = searcher.createWeight(existsQuery, ScoreMode.COMPLETE_NO_SCORES, 0).scorer(searcher.getLeafContexts().getFirst());
+            if (scorer == null) {
+                return docId -> false;
             }
+
+            var fieldInfos = leafReader.getFieldInfos().fieldInfo(fullPath);
+            boolean hasTermVectors = fieldInfos != null && fieldInfos.hasTermVectors();
             return docId -> {
+                termsDocEnum = null;
+
+                if (scorer.iterator().docID() < docId) {
+                    scorer.iterator().advance(docId);
+                }
+                if (scorer.iterator().docID() != docId) {
+                    return hasValue = false;
+                }
+
+                if (hasTermVectors == false) {
+                    return hasValue = true;
+                }
+
                 var terms = leafReader.termVectors().get(docId, fullPath);
-                if (terms == null) {
-                    return false;
+                if (terms != null) {
+                    termsDocEnum = terms.iterator();
+                    if (termsDocEnum.next() == null) {
+                        termsDocEnum = null;
+                    }
                 }
-                termsDocEnum = terms.iterator();
-                if (termsDocEnum.next() == null) {
-                    termsDocEnum = null;
-                    return false;
-                }
-                return true;
+                return hasValue = true;
             };
         }
 
         @Override
         public boolean hasValue() {
-            return termsDocEnum != null;
+            return hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            assert termsDocEnum != null;
-            PostingsEnum reuse = null;
+            assert hasValue;
             b.startObject(leafName);
+            if (termsDocEnum != null) {
+                PostingsEnum reuse = null;
+                do {
+                    reuse = termsDocEnum.postings(reuse);
+                    reuse.nextDoc();
+                    b.field(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
+                } while (termsDocEnum.next() != null);
+            }
+            b.endObject();
+        }
+
+        /**
+         * Returns a deep-copied tokens map for the current document.
+         *
+         * @throws IOException if reading fails
+         */
+        private Map<String, Float> copyAsMap() throws IOException {
+            assert hasValue;
+            if (termsDocEnum == null) {
+                return Map.of();
+            }
+            Map<String, Float> tokenMap = new LinkedHashMap<>();
+            PostingsEnum reuse = null;
             do {
                 reuse = termsDocEnum.postings(reuse);
                 reuse.nextDoc();
-                b.field(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
+                tokenMap.put(termsDocEnum.term().utf8ToString(), XFeatureField.decodeFeatureValue(reuse.freq()));
             } while (termsDocEnum.next() != null);
-            b.endObject();
+            return tokenMap;
         }
 
         @Override
         public String fieldName() {
-            return leafName;
+            return fullPath;
         }
 
         @Override
@@ -364,4 +540,105 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
     }
 
+    public static class SparseVectorIndexOptions implements IndexOptions {
+        public static final ParseField PRUNE_FIELD_NAME = new ParseField("prune");
+        public static final ParseField PRUNING_CONFIG_FIELD_NAME = new ParseField("pruning_config");
+        public static final SparseVectorIndexOptions DEFAULT_PRUNING_INDEX_OPTIONS = new SparseVectorIndexOptions(
+            true,
+            new TokenPruningConfig()
+        );
+
+        final Boolean prune;
+        final TokenPruningConfig pruningConfig;
+
+        public SparseVectorIndexOptions(@Nullable Boolean prune, @Nullable TokenPruningConfig pruningConfig) {
+            if (pruningConfig != null && (prune == null || prune == false)) {
+                throw new IllegalArgumentException(
+                    "["
+                        + SPARSE_VECTOR_INDEX_OPTIONS
+                        + "] field ["
+                        + PRUNING_CONFIG_FIELD_NAME.getPreferredName()
+                        + "] should only be set if ["
+                        + PRUNE_FIELD_NAME.getPreferredName()
+                        + "] is set to true"
+                );
+            }
+
+            this.prune = prune;
+            this.pruningConfig = pruningConfig;
+        }
+
+        public static boolean isDefaultOptions(SparseVectorIndexOptions indexOptions, IndexVersion indexVersion) {
+            SparseVectorIndexOptions defaultIndexOptions = indexVersionSupportsDefaultPruningConfig(indexVersion)
+                ? DEFAULT_PRUNING_INDEX_OPTIONS
+                : null;
+
+            return Objects.equals(indexOptions, defaultIndexOptions);
+        }
+
+        public static SparseVectorIndexOptions getDefaultIndexOptions(IndexVersion indexVersion) {
+            return indexVersionSupportsDefaultPruningConfig(indexVersion) ? DEFAULT_PRUNING_INDEX_OPTIONS : null;
+        }
+
+        public static SparseVectorIndexOptions parseFromMap(Map<String, Object> map) {
+            if (map == null) {
+                return null;
+            }
+
+            try {
+                XContentParser parser = new MapXContentParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    map,
+                    XContentType.JSON
+                );
+
+                return INDEX_OPTIONS_PARSER.parse(parser, null);
+            } catch (IOException ioEx) {
+                throw new UncheckedIOException(ioEx);
+            }
+        }
+
+        public Boolean getPrune() {
+            return prune;
+        }
+
+        public TokenPruningConfig getPruningConfig() {
+            return pruningConfig;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            if (prune != null) {
+                builder.field(PRUNE_FIELD_NAME.getPreferredName(), prune);
+            }
+            if (pruningConfig != null) {
+                builder.field(PRUNING_CONFIG_FIELD_NAME.getPreferredName(), pruningConfig);
+            }
+
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public final boolean equals(Object other) {
+            if (other == this) {
+                return true;
+            }
+
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            SparseVectorIndexOptions otherAsIndexOptions = (SparseVectorIndexOptions) other;
+            return Objects.equals(prune, otherAsIndexOptions.prune) && Objects.equals(pruningConfig, otherAsIndexOptions.pruningConfig);
+        }
+
+        @Override
+        public final int hashCode() {
+            return Objects.hash(prune, pruningConfig);
+        }
+    }
 }

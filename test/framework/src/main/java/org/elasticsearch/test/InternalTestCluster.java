@@ -176,8 +176,30 @@ import static org.junit.Assert.fail;
  * to the async nature of Elasticsearch in combination with randomized testing. Once Threads and asynchronous calls
  * are involved reproducibility is very limited. This class should only be used through {@link ESIntegTestCase}.
  * </p>
+ * <h2>{@link NodeConfigurationSource#nodeSettings} ordinals</h2>
+ * The supplied node ordinal for this node settings getter is generated as follows:
+ * <ol>
+ *     <li>
+ *         The first indices correspond to the dedicated master nodes, enabled with the {@code randomlyAddDedicatedMasters} setting.
+ *         Its amount can't currently be configured.
+ *     </li>
+ *     <li>
+ *         Then, the data nodes, controlled by the @{code minNumDataNodes} and @{code maxNumDataNodes} settings.
+ *     </li>
+ *     <li>
+ *         Finally, the coordinating-only, configured with the {@code numClientNodes} setting.
+ *     </li>
+ * </ol>
  */
 public final class InternalTestCluster extends TestCluster {
+
+    /**
+     * Temporarily adds node paths based entitlements based on a node's {@code settings} and {@code configPath}
+     * until the returned handle is closed.
+     */
+    public interface EntitledNodePathsProvider {
+        Closeable addEntitledNodePaths(Settings settings, Path configPath);
+    }
 
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
 
@@ -278,6 +300,8 @@ public final class InternalTestCluster extends TestCluster {
     // index of node to bootstrap as master, or BOOTSTRAP_MASTER_NODE_INDEX_AUTO or BOOTSTRAP_MASTER_NODE_INDEX_DONE
     private int bootstrapMasterNodeIndex = BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
 
+    private final EntitledNodePathsProvider entitledNodePathsProvider;
+
     public InternalTestCluster(
         final long clusterSeed,
         final Path baseDir,
@@ -290,7 +314,8 @@ public final class InternalTestCluster extends TestCluster {
         final int numClientNodes,
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
-        final Function<Client, Client> clientWrapper
+        final Function<Client, Client> clientWrapper,
+        EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         this(
             clusterSeed,
@@ -307,7 +332,8 @@ public final class InternalTestCluster extends TestCluster {
             clientWrapper,
             true,
             false,
-            true
+            true,
+            entitledNodePathsProvider
         );
     }
 
@@ -326,7 +352,8 @@ public final class InternalTestCluster extends TestCluster {
         final Function<Client, Client> clientWrapper,
         final boolean forbidPrivateIndexSettings,
         final boolean forceSingleDataPath,
-        final boolean autoManageVotingExclusions
+        final boolean autoManageVotingExclusions,
+        final EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
@@ -335,6 +362,7 @@ public final class InternalTestCluster extends TestCluster {
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         this.autoManageVotingExclusions = autoManageVotingExclusions;
+        this.entitledNodePathsProvider = entitledNodePathsProvider;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -783,7 +811,14 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
-        MockNode node = new MockNode(settings, plugins, nodeConfigurationSource.nodeConfigPath(nodeId), forbidPrivateIndexSettings);
+        Path configPath = nodeConfigurationSource.nodeConfigPath(nodeId);
+        MockNode node = new MockNode(
+            settings,
+            plugins,
+            configPath,
+            forbidPrivateIndexSettings,
+            entitledNodePathsProvider.addEntitledNodePaths(settings, configPath)
+        );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
@@ -831,14 +866,11 @@ public final class InternalTestCluster extends TestCluster {
     public Client client() {
         /* Randomly return a client to one of the nodes in the cluster */
         NodeAndClient c = getRandomNodeAndClient();
-        ensureOpen();
         if (c == null) {
-            synchronized (this) {
-                return getOrBuildRandomNode().client();
-            }
-        } else {
-            return c.client();
+            throw new AssertionError("Unable to get client, no node found");
         }
+        ensureOpen();
+        return c.client();
     }
 
     /**
@@ -1061,7 +1093,12 @@ public final class InternalTestCluster extends TestCluster {
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins, forbidPrivateIndexSettings);
+            node = new MockNode(
+                finalSettings,
+                plugins,
+                forbidPrivateIndexSettings,
+                entitledNodePathsProvider.addEntitledNodePaths(finalSettings, null)
+            );
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {
@@ -2036,13 +2073,37 @@ public final class InternalTestCluster extends TestCluster {
      * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
      */
     public String getMasterName(@Nullable String viaNode) {
+        viaNode = viaNode != null ? viaNode : getRandomNodeName();
+        if (viaNode == null) {
+            throw new AssertionError("Unable to get master name, no node found");
+        }
         try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName();
+            ClusterServiceUtils.awaitClusterState(state -> state.nodes().getMasterNode() != null, clusterService(viaNode));
+            final ClusterState state = client(viaNode).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setBlocks(true)
+                .setNodes(true)
+                .get()
+                .getState();
+            final DiscoveryNode masterNode = state.nodes().getMasterNode();
+            if (masterNode == null) {
+                throw new AssertionError("Master is not stable but the method expects a stable master node");
+            }
+            return masterNode.getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);
         }
+    }
+
+    public String getNonMasterNodeName() {
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new NodeNamePredicate(getMasterName()).negate());
+        if (randomNodeAndClient != null) {
+            return randomNodeAndClient.getName();
+        }
+        throw new AssertionError("No non-master node found");
     }
 
     /**
@@ -2302,6 +2363,11 @@ public final class InternalTestCluster extends TestCluster {
 
     public int numMasterNodes() {
         return filterNodes(nodes, NodeAndClient::isMasterEligible).size();
+    }
+
+    public Set<String> masterEligibleNodeNames() {
+        var masterEligibleNodes = filterNodes(nodes, NodeAndClient::isMasterEligible);
+        return masterEligibleNodes.stream().map(nodeAndClient -> nodeAndClient.name).collect(Collectors.toSet());
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {

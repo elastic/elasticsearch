@@ -571,20 +571,24 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     }
 
                     @Override
-                    public Block read(BlockFactory factory, Docs docs) throws IOException {
-                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count())) {
-                            copyDoubleValuesToBuilder(docs, builder.min(), minValues);
-                            copyDoubleValuesToBuilder(docs, builder.max(), maxValues);
-                            copyDoubleValuesToBuilder(docs, builder.sum(), sumValues);
-                            copyIntValuesToBuilder(docs, builder.count(), valueCountValues);
+                    public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                        try (var builder = factory.aggregateMetricDoubleBuilder(docs.count() - offset)) {
+                            copyDoubleValuesToBuilder(docs, offset, builder.min(), minValues);
+                            copyDoubleValuesToBuilder(docs, offset, builder.max(), maxValues);
+                            copyDoubleValuesToBuilder(docs, offset, builder.sum(), sumValues);
+                            copyIntValuesToBuilder(docs, offset, builder.count(), valueCountValues);
                             return builder.build();
                         }
                     }
 
-                    private void copyDoubleValuesToBuilder(Docs docs, BlockLoader.DoubleBuilder builder, NumericDocValues values)
-                        throws IOException {
+                    private void copyDoubleValuesToBuilder(
+                        Docs docs,
+                        int offset,
+                        BlockLoader.DoubleBuilder builder,
+                        NumericDocValues values
+                    ) throws IOException {
                         int lastDoc = -1;
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             int doc = docs.get(i);
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");
@@ -600,10 +604,10 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                         }
                     }
 
-                    private void copyIntValuesToBuilder(Docs docs, BlockLoader.IntBuilder builder, NumericDocValues values)
+                    private void copyIntValuesToBuilder(Docs docs, int offset, BlockLoader.IntBuilder builder, NumericDocValues values)
                         throws IOException {
                         int lastDoc = -1;
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             int doc = docs.get(i);
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");
@@ -851,6 +855,7 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
             // by its FieldMapper#parse()
             throw e;
         }
+
         for (Map.Entry<Metric, Number> parsed : metricsParsed.entrySet()) {
             NumberFieldMapper delegateFieldMapper = metricFieldMappers.get(parsed.getKey());
             delegateFieldMapper.indexValue(context, parsed.getValue());

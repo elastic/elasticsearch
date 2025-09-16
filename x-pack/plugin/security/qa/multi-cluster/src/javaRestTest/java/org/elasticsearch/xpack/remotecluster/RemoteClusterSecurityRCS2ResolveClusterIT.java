@@ -376,19 +376,15 @@ public class RemoteClusterSecurityRCS2ResolveClusterIT extends AbstractRemoteClu
             );
             assertThat(exc.getMessage(), containsString(indexOptionTuple.v1()));
         }
-        // TODO: fix this in a follow-on PR
-        // {
-        // // TEST CASE 13: Resolution against wildcarded remote cluster expression that matches no remotes
-        // final Request remoteOnly1 = new Request("GET", "_resolve/cluster/no_such_remote*:*");
-        // Response response = performRequestWithRemoteSearchUser(remoteOnly1);
-        // assertOK(response);
-        // Map<String, Object> responseMap = responseAsMap(response);
-        // assertThat(responseMap.get(LOCAL_CLUSTER_NAME_REPRESENTATION), nullValue());
-        // Map<String, Object> remoteMap = (Map<String, Object>) responseMap.get("my_remote_cluster");
-        // assertThat((Boolean) remoteMap.get("connected"), equalTo(true));
-        // assertThat((Boolean) remoteMap.get("matching_indices"), equalTo(false));
-        // assertThat(remoteMap.get("version"), notNullValue());
-        // }
+        {
+            // TEST CASE 13: Resolution against wildcarded remote cluster expression that matches no remotes should result in an
+            // empty response and not fall back to the local cluster.
+            final Request remoteOnly1 = new Request("GET", "_resolve/cluster/no_such_remote*:*");
+            Response response = performRequestWithRemoteSearchUser(remoteOnly1);
+            assertOK(response);
+            Map<String, Object> responseMap = responseAsMap(response);
+            assertThat(responseMap.isEmpty(), is(true));
+        }
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

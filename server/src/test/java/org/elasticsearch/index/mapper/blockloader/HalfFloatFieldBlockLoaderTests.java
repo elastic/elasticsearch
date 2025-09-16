@@ -10,8 +10,8 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.Map;
 

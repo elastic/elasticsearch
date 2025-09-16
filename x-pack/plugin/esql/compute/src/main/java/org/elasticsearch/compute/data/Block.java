@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -52,9 +54,10 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      *
      * The exact overhead per block would be (more correctly) {@link RamUsageEstimator#NUM_BYTES_OBJECT_REF},
      * but we approximate it with {@link RamUsageEstimator#NUM_BYTES_OBJECT_ALIGNMENT} to avoid further alignments
-     * to object size (at the end of the alignment, it would make no practical difference).
+     * to object size (at the end of the alignment, it would make no practical difference). We uplift it {@code * 4}
+     * based on experiments with many small pages.
      */
-    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
+    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT * 4;
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -256,6 +259,12 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
     }
 
     /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    Block deepCopy(BlockFactory blockFactory);
+
+    /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
      * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
@@ -343,6 +352,9 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
      */
     static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
+        if (false == supportsAggregateMetricDoubleBlock(out.getTransportVersion()) && block instanceof AggregateMetricDoubleArrayBlock a) {
+            block = a.asCompositeBlock();
+        }
         block.elementType().writeTo(out);
         block.writeTo(out);
     }
@@ -353,7 +365,16 @@ public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCou
      */
     static Block readTypedBlock(BlockStreamInput in) throws IOException {
         ElementType elementType = ElementType.readFrom(in);
-        return elementType.reader.readBlock(in);
+        Block block = elementType.reader.readBlock(in);
+        if (false == supportsAggregateMetricDoubleBlock(in.getTransportVersion()) && block instanceof CompositeBlock compositeBlock) {
+            block = AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock);
+        }
+        return block;
+    }
+
+    static boolean supportsAggregateMetricDoubleBlock(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.AGGREGATE_METRIC_DOUBLE_BLOCK)
+            || version.isPatchFrom(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19);
     }
 
     /**

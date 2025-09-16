@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.test;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -37,7 +39,9 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomFloat;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLong;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfCodepointLengthBetween;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -54,7 +58,17 @@ public class BlockTestUtils {
             case DOUBLE -> randomDouble();
             case BYTES_REF -> new BytesRef(randomRealisticUnicodeOfCodepointLengthBetween(0, 5));   // TODO: also test spatial WKB
             case BOOLEAN -> randomBoolean();
-            case DOC -> new BlockUtils.Doc(randomInt(), randomInt(), between(0, Integer.MAX_VALUE));
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDouble(),
+                randomDouble(),
+                randomDouble(),
+                randomNonNegativeInt()
+            );
+            case DOC -> new BlockUtils.Doc(
+                randomIntBetween(0, 255), // Shard ID should be small and non-negative.
+                randomInt(),
+                between(0, Integer.MAX_VALUE)
+            );
             case NULL -> null;
             case COMPOSITE -> throw new IllegalArgumentException("can't make random values for composite");
             case UNKNOWN -> throw new IllegalArgumentException("can't make random values for [" + e + "]");
@@ -190,6 +204,14 @@ public class BlockTestUtils {
                 return;
             }
         }
+        if (builder instanceof AggregateMetricDoubleBlockBuilder b
+            && value instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral aggMetric) {
+            b.min().appendDouble(aggMetric.min());
+            b.max().appendDouble(aggMetric.max());
+            b.sum().appendDouble(aggMetric.sum());
+            b.count().appendInt(aggMetric.count());
+            return;
+        }
         if (builder instanceof DocBlock.Builder b && value instanceof BlockUtils.Doc v) {
             b.appendShard(v.shard()).appendSegment(v.segment()).appendDoc(v.doc());
             return;
@@ -239,7 +261,7 @@ public class BlockTestUtils {
     public static Page deepCopyOf(Page page, BlockFactory blockFactory) {
         Block[] blockCopies = new Block[page.getBlockCount()];
         for (int i = 0; i < blockCopies.length; i++) {
-            blockCopies[i] = BlockUtils.deepCopyOf(page.getBlock(i), blockFactory);
+            blockCopies[i] = page.getBlock(i).deepCopy(blockFactory);
         }
         return new Page(blockCopies);
     }
@@ -266,6 +288,19 @@ public class BlockTestUtils {
                     case DOUBLE -> ((DoubleBlock) block).getDouble(i++);
                     case BYTES_REF -> ((BytesRefBlock) block).getBytesRef(i++, new BytesRef());
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
+                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
+                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                                b.minBlock().getDouble(i),
+                                b.maxBlock().getDouble(i),
+                                b.sumBlock().getDouble(i),
+                                b.countBlock().getInt(i)
+                            );
+                        i += 1;
+                        yield literal;
+
+                    }
                     default -> throw new IllegalArgumentException("unsupported element type [" + block.elementType() + "]");
                 });
             }

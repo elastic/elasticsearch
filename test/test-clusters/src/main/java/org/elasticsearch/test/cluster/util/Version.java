@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -94,6 +95,23 @@ public class Version implements Comparable<Version>, Serializable {
         String qualifier = matcher.group(4);
 
         return new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier);
+    }
+
+    public static Optional<Version> tryParse(final String s) {
+        Objects.requireNonNull(s);
+        Matcher matcher = pattern.matcher(s);
+        if (matcher.matches() == false) {
+            return Optional.empty();
+        }
+
+        String major = matcher.group(1);
+        String minor = matcher.group(2);
+        String revision = matcher.group(3);
+        String qualifier = matcher.group(4);
+
+        return Optional.of(
+            new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier)
+        );
     }
 
     @Override

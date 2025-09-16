@@ -29,8 +29,14 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutComponentTemplateAction extends BaseRestHandler {
 
+    public static final String SUPPORTS_FAILURE_STORE_LIFECYCLE = "data_stream_options.failure_store.lifecycle";
     public static final String SUPPORTS_FAILURE_STORE = "data_stream_options.failure_store";
-    private static final Set<String> capabilities = Set.of(SUPPORTS_FAILURE_STORE);
+    private static final String COMPONENT_TEMPLATE_TRACKING_INFO = "component_template_tracking_info";
+    private static final Set<String> CAPABILITIES = Set.of(
+        SUPPORTS_FAILURE_STORE,
+        SUPPORTS_FAILURE_STORE_LIFECYCLE,
+        COMPONENT_TEMPLATE_TRACKING_INFO
+    );
 
     @Override
     public List<Route> routes() {
@@ -58,6 +64,6 @@ public class RestPutComponentTemplateAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return capabilities;
+        return CAPABILITIES;
     }
 }

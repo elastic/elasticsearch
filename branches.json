@@ -1,23 +1,29 @@
 {
-  "notice": "This file is not maintained outside of the main branch and should only be used for tooling.",
-  "branches": [
+  "notice" : "This file is not maintained outside of the main branch and should only be used for tooling.",
+  "branches" : [
     {
-      "branch": "main"
+      "branch" : "main",
+      "version" : "9.2.0"
     },
     {
-      "branch": "9.0"
+      "branch" : "9.1",
+      "version" : "9.1.4"
     },
     {
-      "branch": "8.18"
+      "branch" : "9.0",
+      "version" : "9.0.7"
     },
     {
-      "branch": "8.17"
+      "branch" : "8.19",
+      "version" : "8.19.4"
     },
     {
-      "branch": "8.x"
+      "branch" : "8.18",
+      "version" : "8.18.7"
     },
     {
-      "branch": "7.17"
+      "branch" : "7.17",
+      "version" : "7.17.30"
     }
   ]
 }

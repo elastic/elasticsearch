@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,7 +50,8 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -84,6 +86,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final UsageService usageService;
     private final TransportActionServices services;
     private volatile boolean defaultAllowPartialResults;
+    private volatile int resultTruncationMaxSize;
+    private volatile int resultTruncationDefaultSize;
+    private volatile int timeseriesResultTruncationMaxSize;
+    private volatile int timeseriesResultTruncationDefaultSize;
 
     @Inject
     @SuppressWarnings("this-escape")
@@ -94,6 +100,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         SearchService searchService,
         ExchangeService exchangeService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         ThreadPool threadPool,
         BigArrays bigArrays,
         BlockFactoryProvider blockFactoryProvider,
@@ -110,22 +117,33 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.requestExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
         exchangeService.registerTransportHandler(transportService);
         this.exchangeService = exchangeService;
-        this.enrichPolicyResolver = new EnrichPolicyResolver(clusterService, transportService, planExecutor.indexResolver());
+        this.enrichPolicyResolver = new EnrichPolicyResolver(
+            clusterService,
+            transportService,
+            planExecutor.indexResolver(),
+            projectResolver
+        );
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
-            blockFactoryProvider.blockFactory()
+            blockFactoryProvider.blockFactory(),
+            projectResolver
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
+            searchService.getIndicesService(),
             lookupLookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
-            blockFactoryProvider.blockFactory()
+            blockFactoryProvider.blockFactory(),
+            projectResolver
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
@@ -149,9 +167,10 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             searchService,
             exchangeService,
             clusterService,
+            projectResolver,
             indexNameExpressionResolver,
             usageService,
-            new InferenceRunner(client)
+            new InferenceService(client)
         );
 
         this.computeService = new ComputeService(
@@ -166,6 +185,24 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS, v -> defaultAllowPartialResults = v);
+        resultTruncationMaxSize = EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
+        resultTruncationDefaultSize = EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(clusterService.getSettings());
+        timeseriesResultTruncationMaxSize = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE.get(clusterService.getSettings());
+        timeseriesResultTruncationDefaultSize = EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE.get(
+            clusterService.getSettings()
+        );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE, v -> {
+            resultTruncationMaxSize = v;
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
+            resultTruncationDefaultSize = v;
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE, v -> {
+            timeseriesResultTruncationMaxSize = v;
+        });
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EsqlPlugin.QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE, v -> {
+            timeseriesResultTruncationDefaultSize = v;
+        });
     }
 
     @Override
@@ -205,6 +242,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.allowPartialResults() == null) {
             request.allowPartialResults(defaultAllowPartialResults);
         }
+        EsqlFlags flags = computeService.createFlags();
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -212,13 +250,15 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             null,
             clusterService.getClusterName().value(),
             request.pragmas(),
-            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE),
-            clusterService.getClusterSettings().get(EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE),
+            resultTruncationMaxSize,
+            resultTruncationDefaultSize,
             request.query(),
             request.profile(),
             request.tables(),
             System.nanoTime(),
-            request.allowPartialResults()
+            request.allowPartialResults(),
+            timeseriesResultTruncationMaxSize,
+            timeseriesResultTruncationDefaultSize
         );
         String sessionId = sessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
@@ -228,6 +268,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
+            flags,
             plan,
             configuration,
             foldCtx,
@@ -315,23 +356,26 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
-        return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias), request.includeCCSMetadata());
+        return new EsqlExecutionInfo(
+            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true),
+            request.includeCCSMetadata()
+        );
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
         List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
             List<String> originalTypes;
-            if (c.originalTypes() == null) {
-                originalTypes = null;
-            } else {
+            if (c instanceof UnsupportedAttribute ua) {
                 // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(c.originalTypes());
+                originalTypes = new ArrayList<>(ua.originalTypes());
                 Collections.sort(originalTypes);
+            } else {
+                originalTypes = null;
             }
             return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
         }).toList();
         EsqlQueryResponse.Profile profile = configuration.profile()
-            ? new EsqlQueryResponse.Profile(result.completionInfo().collectedProfiles())
+            ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
             : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
@@ -341,7 +385,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 columns,
                 result.pages(),
                 result.completionInfo().documentsFound(),
-                result.completionInfo().documentsFound(),
+                result.completionInfo().valuesLoaded(),
                 profile,
                 request.columnar(),
                 asyncExecutionId,
@@ -400,7 +444,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             originHeaders,
             asyncExecutionId,
             request.keepAlive()
-        );
+        ) {
+            @Override
+            public Status getStatus() {
+                return new EsqlQueryStatus(asyncExecutionId);
+            }
+        };
     }
 
     @Override

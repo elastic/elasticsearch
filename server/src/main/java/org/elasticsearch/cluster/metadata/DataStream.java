@@ -29,11 +29,14 @@ import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -42,8 +45,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -65,8 +72,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
+import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.collectV2Mappings;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
@@ -74,6 +85,8 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
     private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
+
+    private static final TransportVersion MAPPINGS_IN_DATA_STREAMS = TransportVersion.fromName("mappings_in_data_streams");
 
     public static final NodeFeature DATA_STREAM_FAILURE_STORE_FEATURE = new NodeFeature("data_stream.failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
@@ -84,6 +97,34 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+
+    private static final int MAX_LENGTH = 100;
+    private static final String REPLACEMENT = "_";
+    private static final Pattern DISALLOWED_IN_TYPE = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
+    private static final Pattern DISALLOWED_IN_DATASET = Pattern.compile("[\\\\/*?\"<>| ,#:-]");
+    private static final Pattern DISALLOWED_IN_NAMESPACE = Pattern.compile("[\\\\/*?\"<>| ,#:]");
+
+    public static String sanitizeType(String type) {
+        return sanitizeDataStreamField(type, DISALLOWED_IN_TYPE);
+    }
+
+    public static String sanitizeDataset(String dataset) {
+        return sanitizeDataStreamField(dataset, DISALLOWED_IN_DATASET);
+    }
+
+    public static String sanitizeNamespace(String namespace) {
+        return sanitizeDataStreamField(namespace, DISALLOWED_IN_NAMESPACE);
+    }
+
+    private static String sanitizeDataStreamField(String s, Pattern disallowedInDataset) {
+        if (s == null) {
+            return null;
+        }
+        s = s.toLowerCase(Locale.ROOT);
+        s = s.substring(0, Math.min(s.length(), MAX_LENGTH));
+        return disallowedInDataset.matcher(s).replaceAll(REPLACEMENT);
+    }
+
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
@@ -114,6 +155,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final long generation;
     @Nullable
     private final Map<String, Object> metadata;
+    private final Settings settings;
+    private final CompressedXContent mappings; // always stored with json content type
     private final boolean hidden;
     private final boolean replicated;
     private final boolean system;
@@ -146,8 +189,49 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         this(
             name,
+            indices,
             generation,
             metadata,
+            Settings.EMPTY,
+            EMPTY_MAPPINGS,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting,
+            indexMode,
+            lifecycle,
+            dataStreamOptions,
+            failureIndices,
+            rolloverOnWrite,
+            autoShardingEvent
+        );
+    }
+
+    // visible for testing
+    public DataStream(
+        String name,
+        List<Index> indices,
+        long generation,
+        Map<String, Object> metadata,
+        Settings settings,
+        CompressedXContent mappings,
+        boolean hidden,
+        boolean replicated,
+        boolean system,
+        boolean allowCustomRouting,
+        IndexMode indexMode,
+        DataStreamLifecycle lifecycle,
+        @Nullable DataStreamOptions dataStreamOptions,
+        List<Index> failureIndices,
+        boolean rolloverOnWrite,
+        @Nullable DataStreamAutoShardingEvent autoShardingEvent
+    ) {
+        this(
+            name,
+            generation,
+            metadata,
+            settings,
+            mappings,
             hidden,
             replicated,
             system,
@@ -157,7 +241,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             lifecycle,
             dataStreamOptions,
             new DataStreamIndices(BACKING_INDEX_PREFIX, List.copyOf(indices), rolloverOnWrite, autoShardingEvent),
-            new DataStreamIndices(FAILURE_STORE_PREFIX, List.copyOf(failureIndices), false, null)
+            new DataStreamIndices(
+                FAILURE_STORE_PREFIX,
+                List.copyOf(failureIndices),
+                (replicated == false && failureIndices.isEmpty()),
+                null
+            )
         );
     }
 
@@ -165,6 +254,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         String name,
         long generation,
         Map<String, Object> metadata,
+        Settings settings,
+        CompressedXContent mappings,
         boolean hidden,
         boolean replicated,
         boolean system,
@@ -179,6 +270,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.name = name;
         this.generation = generation;
         this.metadata = metadata;
+        this.settings = Objects.requireNonNull(settings);
+        this.mappings = Objects.requireNonNull(mappings);
         assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
@@ -186,6 +279,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.system = system;
         this.allowCustomRouting = allowCustomRouting;
         this.indexMode = indexMode;
+        assert lifecycle == null || lifecycle.targetsFailureStore() == false : "Invalid lifecycle type for data lifecycle";
+
         this.lifecycle = lifecycle;
         this.dataStreamOptions = dataStreamOptions == null ? DataStreamOptions.EMPTY : dataStreamOptions;
         assert backingIndices.indices.isEmpty() == false;
@@ -220,8 +315,15 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             backingIndicesBuilder.setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            failureIndicesBuilder.setRolloverOnWrite(in.readBoolean())
+            // Read the rollover on write flag from the stream, but force it on if the failure indices are empty and we're not replicating
+            boolean failureStoreRolloverOnWrite = in.readBoolean() || (replicated == false && failureIndices.isEmpty());
+            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite)
                 .setAutoShardingEvent(in.readOptionalWriteable(DataStreamAutoShardingEvent::new));
+        } else {
+            // If we are reading from an older version that does not have these fields, just default
+            // to a reasonable value for rollover on write for the failure store
+            boolean failureStoreRolloverOnWrite = replicated == false && failureIndices.isEmpty();
+            failureIndicesBuilder.setRolloverOnWrite(failureStoreRolloverOnWrite);
         }
         DataStreamOptions dataStreamOptions;
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
@@ -231,10 +333,25 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
             dataStreamOptions = failureStoreEnabled ? DataStreamOptions.FAILURE_STORE_ENABLED : null;
         }
+        final Settings settings;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+            settings = Settings.readSettingsFromStream(in);
+        } else {
+            settings = Settings.EMPTY;
+        }
+        CompressedXContent mappings;
+        if (in.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {
+            mappings = CompressedXContent.readCompressedString(in);
+        } else {
+            mappings = EMPTY_MAPPINGS;
+        }
         return new DataStream(
             name,
             generation,
             metadata,
+            settings,
+            mappings,
             hidden,
             replicated,
             system,
@@ -323,6 +440,84 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     public boolean rolloverOnWrite() {
         return backingIndices.rolloverOnWrite;
+    }
+
+    public ComposableIndexTemplate getEffectiveIndexTemplate(ProjectMetadata projectMetadata) throws IOException {
+        return getMatchingIndexTemplate(projectMetadata).mergeSettings(settings).mergeMappings(mappings);
+    }
+
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata) {
+        ComposableIndexTemplate template = getMatchingIndexTemplate(projectMetadata);
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        return templateSettings.merge(settings);
+    }
+
+    /**
+     * Returns the mappings that would be used to create the write index if this data stream were rolled over right now. This includes
+     * the mapping overrides on this data stream, the mapping from the matching composable template, and the mappings from all component
+     * templates in the matching composable template.
+     * @param projectMetadata
+     * @param indicesService  Used in the logic that merges all mappings together into one mapping
+     * @return A JSON CompressedXContent representation of the effective mappings of this data stream
+     * @throws IOException
+     */
+    public CompressedXContent getEffectiveMappings(ProjectMetadata projectMetadata, IndicesService indicesService) throws IOException {
+        return getEffectiveMappings(projectMetadata, getMatchingIndexTemplate(projectMetadata), mappings, getWriteIndex(), indicesService);
+    }
+
+    /**
+     * Returns the mappings that would be used to create the write index if a data stream with composableTemplate and mappingsOverrides were
+     * rolled over right now. This includes the mapping overrides, the mapping from the composable template, and the mappings from all
+     * component templates in the composable template.
+     * @param projectMetadata
+     * @param composableTemplate The composable template that matches the data stream's name
+     * @param mappingsOverrides  The mapping overrides to be applied
+     * @param writeIndex The write index of the data stream whose effective mappings are to be returned. This is used only to determine
+     *                   whether data stream mappings ought to be added when calling collectV2Mappings, and to create an IndexService
+     *                   object. The mappings that will be used come from templateWithMergedMappings and from the component templates, not
+     *                   from this writeIndex.
+     * @param indicesService
+     * @return A JSON CompressedXContent representation of the effective mappings for the composableTemplate plus mappingsOverrides
+     * @throws IOException
+     */
+    @SuppressWarnings("unchecked")
+    public static CompressedXContent getEffectiveMappings(
+        ProjectMetadata projectMetadata,
+        ComposableIndexTemplate composableTemplate,
+        CompressedXContent mappingsOverrides,
+        Index writeIndex,
+        IndicesService indicesService
+    ) throws IOException {
+        ComposableIndexTemplate mergedTemplate = composableTemplate.mergeMappings(mappingsOverrides);
+        final String requestMappings = null; // We are not using any request mappings
+        final NamedXContentRegistry xContentRegistry = null; // This is only used to parse requestMappings if they are not null
+        final List<CompressedXContent> mappings = collectV2Mappings(
+            requestMappings,
+            projectMetadata,
+            mergedTemplate,
+            xContentRegistry,
+            writeIndex.getName()
+        );
+        return indicesService.withTempIndexService(projectMetadata.index(writeIndex), indexService -> {
+            CompressedXContent mergedMapping = indexService.mapperService()
+                .merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE)
+                .mappingSource();
+            /*
+             * If the merged mapping contains the old "_doc" type placeholder, we remove it to make things more straightforward for the
+             * client:
+             */
+            Map<String, Object> mergedMappingMap = XContentHelper.convertToMap(mergedMapping.uncompressed(), true, XContentType.JSON).v2();
+            if (mergedMappingMap.containsKey(MapperService.SINGLE_MAPPING_NAME)) {
+                mergedMapping = ComposableIndexTemplate.convertMappingMapToXContent(
+                    (Map<String, ?>) mergedMappingMap.get(MapperService.SINGLE_MAPPING_NAME)
+                );
+            }
+            return mergedMapping;
+        });
+    }
+
+    private ComposableIndexTemplate getMatchingIndexTemplate(ProjectMetadata projectMetadata) {
+        return lookupTemplateForDataStream(name, projectMetadata);
     }
 
     /**
@@ -436,6 +631,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return metadata;
     }
 
+    public Settings getSettings() {
+        return settings;
+    }
+
+    public CompressedXContent getMappings() {
+        return mappings;
+    }
+
     @Override
     public boolean isHidden() {
         return hidden;
@@ -526,12 +729,31 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Retrieves the lifecycle configuration meant for the failure store. Currently, it's the same with {@link #getDataLifecycle()}
-     * but it will change.
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices. NOTE: this does not take into consideration if the
+     * failure store is enabled by a cluster setting, please use {@link DataStream#getFailuresLifecycle(Boolean)}.
      */
     @Nullable
     public DataStreamLifecycle getFailuresLifecycle() {
-        return lifecycle;
+        return getFailuresLifecycle(
+            dataStreamOptions != null && dataStreamOptions.failureStore() != null ? dataStreamOptions.failureStore().enabled() : null
+        );
+    }
+
+    /**
+     * Retrieves the effective lifecycle configuration for the failure store. This can be either the configuration provided
+     * by a user or the default lifecycle if there are failure indices or if the failure store is enabled by a cluster setting.
+     */
+    @Nullable
+    public DataStreamLifecycle getFailuresLifecycle(Boolean effectivelyEnabledFailureStore) {
+        // When there is a lifecycle configured by the user we return it.
+        if (dataStreamOptions.failureStore() != null && dataStreamOptions.failureStore().lifecycle() != null) {
+            return dataStreamOptions.failureStore().lifecycle();
+        }
+        // If there are failure indices we always provide the default lifecycle as a default
+        return Boolean.TRUE.equals(effectivelyEnabledFailureStore) || getFailureIndices().isEmpty() == false
+            ? DataStreamLifecycle.DEFAULT_FAILURE_LIFECYCLE
+            : null;
     }
 
     /**
@@ -921,7 +1143,28 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *         given indices
      */
     @Nullable
+    @Deprecated
     public DataStream snapshot(Set<String> indicesInSnapshot, Metadata.Builder snapshotMetadataBuilder) {
+        @FixForMultiProject
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder project = snapshotMetadataBuilder.getProject(projectId);
+        if (project == null) {
+            project = ProjectMetadata.builder(projectId);
+            snapshotMetadataBuilder.put(project);
+        }
+        return snapshot(indicesInSnapshot, project);
+    }
+
+    /**
+     * Reconciles this data stream with a list of indices available in a snapshot. Allows snapshots to store accurate data
+     * stream definitions that do not reference backing indices and failure indices not contained in the snapshot.
+     *
+     * @param indicesInSnapshot List of indices in the snapshot
+     * @param snapshotMetadataBuilder a project metadata builder with the current view of the snapshot metadata
+     * @return Reconciled {@link DataStream} instance or {@code null} if no reconciled version of this data stream could be built from the
+     *         given indices
+     */
+    public DataStream snapshot(Set<String> indicesInSnapshot, ProjectMetadata.Builder snapshotMetadataBuilder) {
         boolean backingIndicesChanged = false;
         boolean failureIndicesChanged = false;
 
@@ -955,7 +1198,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return builder.setMetadata(metadata == null ? null : new HashMap<>(metadata)).build();
     }
 
-    private static boolean isAnyIndexMissing(List<Index> indices, Metadata.Builder builder, Set<String> indicesInSnapshot) {
+    private static boolean isAnyIndexMissing(List<Index> indices, ProjectMetadata.Builder builder, Set<String> indicesInSnapshot) {
         for (Index index : indices) {
             final String indexName = index.getName();
             if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
@@ -966,52 +1209,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the
-     * configured retention in their lifecycle.
+     * Iterate over the backing or failure indices depending on <code>failureStore</code> and return the ones that are managed by the
+     * data stream lifecycle and past the configured retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getBackingIndicesPastRetention(
+    public List<Index> getIndicesPastRetention(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
-        DataStreamGlobalRetention globalRetention
+        TimeValue effectiveRetention,
+        boolean failureStore
     ) {
-        if (getDataLifecycle() == null
-            || getDataLifecycle().enabled() == false
-            || getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
+        if (effectiveRetention == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getIndices(),
-            getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
-            indexMetadataSupplier,
-            this::isIndexManagedByDataStreamLifecycle,
-            nowSupplier
-        );
-        return indicesPastRetention;
-    }
-
-    /**
-     * Iterate over the failure indices and return the ones that are managed by the data stream lifecycle and past the
-     * configured retention in their lifecycle.
-     * NOTE that this specifically does not return the write index of the data stream as usually retention
-     * is treated differently for the write index (i.e. they first need to be rolled over)
-     */
-    public List<Index> getFailureIndicesPastRetention(
-        Function<String, IndexMetadata> indexMetadataSupplier,
-        LongSupplier nowSupplier,
-        DataStreamGlobalRetention globalRetention
-    ) {
-        if (getFailuresLifecycle() == null
-            || getFailuresLifecycle().enabled() == false
-            || getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
-            return List.of();
-        }
-
-        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            getFailureIndices(),
-            getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
+            getDataStreamIndices(failureStore).getIndices(),
+            effectiveRetention,
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -1126,6 +1341,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
+        var lifecycle = getDataLifecycleForIndex(indexMetadata.getIndex());
         if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
@@ -1263,6 +1479,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (out.getTransportVersion().onOrAfter(DataStream.ADD_DATA_STREAM_OPTIONS_VERSION)) {
             out.writeOptionalWriteable(dataStreamOptions.isEmpty() ? null : dataStreamOptions);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SETTINGS_IN_DATA_STREAMS)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.SETTINGS_IN_DATA_STREAMS_8_19)) {
+            settings.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(MAPPINGS_IN_DATA_STREAMS)) {
+            mappings.writeTo(out);
+        }
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
@@ -1284,6 +1507,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final ParseField FAILURE_ROLLOVER_ON_WRITE_FIELD = new ParseField("failure_rollover_on_write");
     public static final ParseField FAILURE_AUTO_SHARDING_FIELD = new ParseField("failure_auto_sharding");
     public static final ParseField DATA_STREAM_OPTIONS_FIELD = new ParseField("options");
+    public static final ParseField SETTINGS_FIELD = new ParseField("settings");
+    public static final ParseField MAPPINGS_FIELD = new ParseField("mappings");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>(
@@ -1292,6 +1517,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             (String) args[0],
             (Long) args[2],
             (Map<String, Object>) args[3],
+            args[17] == null ? Settings.EMPTY : (Settings) args[17],
+            args[18] == null ? EMPTY_MAPPINGS : (CompressedXContent) args[18],
             args[4] != null && (boolean) args[4],
             args[5] != null && (boolean) args[5],
             args[6] != null && (boolean) args[6],
@@ -1309,7 +1536,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             new DataStreamIndices(
                 FAILURE_STORE_PREFIX,
                 args[13] != null ? (List<Index>) args[13] : List.of(),
-                args[14] != null && (boolean) args[14],
+                // If replicated (args[5]) is null or exists and is false, and the failure index list (args[13]) is null or
+                // exists and is empty, then force the rollover on write field to true. If none of those conditions are met,
+                // then use the rollover on write value (args[14]) present in the parser.
+                ((args[5] == null || ((boolean) args[5] == false)) && (args[13] == null || ((List<Index>) args[13]).isEmpty()))
+                    || (args[14] != null && (boolean) args[14]),
                 (DataStreamAutoShardingEvent) args[15]
             )
         )
@@ -1333,7 +1564,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_MODE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> DataStreamLifecycle.dataLifecycleFromXContent(p),
+            LIFECYCLE
+        );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ROLLOVER_ON_WRITE_FIELD);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
@@ -1357,6 +1592,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> DataStreamOptions.fromXContent(p),
             DATA_STREAM_OPTIONS_FIELD
+        );
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS_FIELD);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> { return Template.parseMappings(p); },
+            MAPPINGS_FIELD,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
         );
     }
 
@@ -1419,6 +1661,23 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             backingIndices.autoShardingEvent.toXContent(builder, params);
             builder.endObject();
         }
+        builder.startObject(SETTINGS_FIELD.getPreferredName());
+        this.settings.toXContent(builder, params);
+        builder.endObject();
+
+        String context = params.param(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
+        boolean binary = params.paramAsBoolean("binary", false);
+        if (Metadata.CONTEXT_MODE_API.equals(context) || binary == false) {
+            Map<String, Object> uncompressedMapping = XContentHelper.convertToMap(this.mappings.uncompressed(), true, XContentType.JSON)
+                .v2();
+            if (uncompressedMapping.isEmpty() == false) {
+                builder.field(MAPPINGS_FIELD.getPreferredName());
+                builder.map(uncompressedMapping);
+            }
+        } else {
+            builder.field(MAPPINGS_FIELD.getPreferredName(), mappings.compressed());
+        }
+
         builder.endObject();
         return builder;
     }
@@ -1431,6 +1690,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return name.equals(that.name)
             && generation == that.generation
             && Objects.equals(metadata, that.metadata)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(mappings, that.mappings)
             && hidden == that.hidden
             && system == that.system
             && replicated == that.replicated
@@ -1448,6 +1709,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name,
             generation,
             metadata,
+            settings,
+            mappings,
             hidden,
             system,
             replicated,
@@ -1760,6 +2023,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private long generation = 1;
         @Nullable
         private Map<String, Object> metadata = null;
+        private Settings settings = Settings.EMPTY;
+        private CompressedXContent mappings = EMPTY_MAPPINGS;
         private boolean hidden = false;
         private boolean replicated = false;
         private boolean system = false;
@@ -1787,6 +2052,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             name = dataStream.name;
             generation = dataStream.generation;
             metadata = dataStream.metadata;
+            settings = dataStream.settings;
+            mappings = dataStream.mappings;
             hidden = dataStream.hidden;
             replicated = dataStream.replicated;
             system = dataStream.system;
@@ -1815,6 +2082,16 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         public Builder setMetadata(Map<String, Object> metadata) {
             this.metadata = metadata;
+            return this;
+        }
+
+        public Builder setSettings(Settings settings) {
+            this.settings = settings;
+            return this;
+        }
+
+        public Builder setMappings(CompressedXContent mappings) {
+            this.mappings = mappings;
             return this;
         }
 
@@ -1878,6 +2155,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 name,
                 generation,
                 metadata,
+                settings,
+                mappings,
                 hidden,
                 replicated,
                 system,

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
@@ -20,23 +21,28 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -44,10 +50,11 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
-import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
@@ -58,13 +65,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
+import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
 import static org.elasticsearch.xpack.esql.core.util.Queries.Clause.FILTER;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 public class PlannerUtils {
@@ -81,16 +89,12 @@ public class PlannerUtils {
     public static Tuple<List<PhysicalPlan>, PhysicalPlan> breakPlanIntoSubPlansAndMainPlan(PhysicalPlan plan) {
         var subplans = new Holder<List<PhysicalPlan>>();
         PhysicalPlan mainPlan = plan.transformUp(MergeExec.class, me -> {
-            subplans.set(me.children().stream().map(child -> {
-                // TODO: we are adding a Project plan to force InsertFieldExtraction - we should remove this transformation
-                child = child.transformUp(FragmentExec.class, f -> {
-                    var logicalFragment = f.fragment();
-                    logicalFragment = new Project(logicalFragment.source(), logicalFragment, logicalFragment.output());
-                    return new FragmentExec(logicalFragment);
-                });
-
-                return (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child);
-            }).toList());
+            subplans.set(
+                me.children()
+                    .stream()
+                    .map(child -> (PhysicalPlan) new ExchangeSinkExec(child.source(), child.output(), false, child))
+                    .toList()
+            );
             return new ExchangeSourceExec(me.source(), me.output(), false);
         });
 
@@ -119,7 +123,9 @@ public class PlannerUtils {
         }
         final FragmentExec fragment = (FragmentExec) fragments.getFirst();
 
-        final var pipelineBreakers = fragment.fragment().collectFirstChildren(Mapper::isPipelineBreaker);
+        // Though FORK is technically a pipeline breaker, it should never show up here.
+        // See also: https://github.com/elastic/elasticsearch/pull/131945/files#r2235572935
+        final var pipelineBreakers = fragment.fragment().collectFirstChildren(p -> p instanceof PipelineBreaker);
         if (pipelineBreakers.isEmpty()) {
             return null;
         }
@@ -127,7 +133,7 @@ public class PlannerUtils {
         final LocalMapper mapper = new LocalMapper();
         PhysicalPlan reducePlan = mapper.map(pipelineBreaker);
         if (reducePlan instanceof AggregateExec agg) {
-            reducePlan = agg.withMode(AggregatorMode.INITIAL); // force to emit intermediate outputs
+            reducePlan = agg.withMode(AggregatorMode.INTERMEDIATE);
         }
         return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), reducePlan);
     }
@@ -156,6 +162,15 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
+    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
+        return plan.anyMatch(e -> {
+            if (e instanceof FragmentExec f) {
+                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
+            }
+            return false;
+        });
+    }
+
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
@@ -165,17 +180,26 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(
+        EsqlFlags flags,
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan
     ) {
-        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
     }
 
-    public static PhysicalPlan localPlan(Configuration configuration, FoldContext foldCtx, PhysicalPlan plan, SearchStats searchStats) {
+    public static PhysicalPlan localPlan(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats
+    ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
-        var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, searchStats)
+        );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
     }
@@ -187,12 +211,22 @@ public class PlannerUtils {
     ) {
         final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
+            .stream()
+            .map(x -> ((LookupJoinExec) x).right())
+            .collect(Collectors.toSet());
 
-        var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+        PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+            if (lookupJoinExecRightChildren.contains(f)) {
+                // Do not optimize the right child of a lookup join exec
+                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
+                // Also we only ship logical plans across the network, so the plan needs to remain logical
+                return f;
+            }
             isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            var physicalFragment = localMapper.map(optimizedFragment);
-            var filter = f.esFilter();
+            LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            PhysicalPlan physicalFragment = localMapper.map(optimizedFragment);
+            QueryBuilder filter = f.esFilter();
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
@@ -215,8 +249,13 @@ public class PlannerUtils {
     /**
      * Extracts a filter that can be used to skip unmatched shards on the coordinator.
      */
-    public static QueryBuilder canMatchFilter(PhysicalPlan plan) {
-        return detectFilter(plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
+    public static QueryBuilder canMatchFilter(
+        EsqlFlags flags,
+        Configuration configuration,
+        TransportVersion minTransportVersion,
+        PhysicalPlan plan
+    ) {
+        return detectFilter(flags, configuration, minTransportVersion, plan, CoordinatorRewriteContext.SUPPORTED_FIELDS::contains);
     }
 
     /**
@@ -224,11 +263,20 @@ public class PlannerUtils {
      * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
      * take care to not use it with TEXT fields.
      */
-    static QueryBuilder detectFilter(PhysicalPlan plan, Predicate<String> fieldName) {
+    static QueryBuilder detectFilter(
+        EsqlFlags flags,
+        Configuration configuration,
+        TransportVersion minTransportVersion,
+        PhysicalPlan plan,
+        Predicate<String> fieldName
+    ) {
         // first position is the REST filter, the second the query filter
         final List<QueryBuilder> requestFilters = new ArrayList<>();
+        final LucenePushdownPredicates ctx = LucenePushdownPredicates.forCanMatch(minTransportVersion, flags);
         plan.forEachDown(FragmentExec.class, fe -> {
-            requestFilters.add(fe.esFilter());
+            if (fe.esFilter() != null && fe.esFilter().supportsVersion(minTransportVersion)) {
+                requestFilters.add(fe.esFilter());
+            }
             // detect filter inside the query
             fe.fragment().forEachUp(Filter.class, f -> {
                 // the only filter that can be pushed down is that on top of the relation
@@ -244,13 +292,20 @@ public class PlannerUtils {
                         boolean matchesField = refsBuilder.removeIf(e -> fieldName.test(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refsBuilder.isEmpty() && canPushToSource(exp)) {
+                        if (matchesField
+                            && refsBuilder.isEmpty()
+                            && translatable(exp, ctx).finish() == TranslationAware.FinishedTranslatable.YES) {
                             matches.add(exp);
                         }
                     }
                 }
                 if (matches.isEmpty() == false) {
-                    requestFilters.add(TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).toQueryBuilder());
+                    Query qlQuery = TRANSLATOR_HANDLER.asQuery(ctx, Predicates.combineAnd(matches));
+                    QueryBuilder builder = qlQuery.toQueryBuilder();
+                    if (qlQuery.containsPlan()) {
+                        builder = new PlanStreamWrapperQueryBuilder(configuration, builder);
+                    }
+                    requestFilters.add(builder);
                 }
             });
         });
@@ -263,7 +318,7 @@ public class PlannerUtils {
      * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
-        if (DataType.isSpatial(dataType)) {
+        if (DataType.isSpatialOrGrid(dataType)) {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);
@@ -284,7 +339,7 @@ public class PlannerUtils {
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
 
         return switch (dataType) {
-            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG, GEOHASH, GEOTILE, GEOHEX -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef
@@ -295,7 +350,9 @@ public class PlannerUtils {
             case TSID_DATA_TYPE -> ElementType.BYTES_REF;
             case GEO_POINT, CARTESIAN_POINT -> fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;
             case GEO_SHAPE, CARTESIAN_SHAPE -> fieldExtractPreference == EXTRACT_SPATIAL_BOUNDS ? ElementType.INT : ElementType.BYTES_REF;
-            case PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE -> ElementType.COMPOSITE;
+            case PARTIAL_AGG -> ElementType.COMPOSITE;
+            case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
+            case DENSE_VECTOR -> ElementType.FLOAT;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

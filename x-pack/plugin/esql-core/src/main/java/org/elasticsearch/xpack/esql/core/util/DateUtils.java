@@ -65,7 +65,7 @@ public class DateUtils {
         .appendValue(MINUTE_OF_HOUR, 2)
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2)
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 0, 9, true)
         .appendOffsetId()
         .toFormatter(Locale.ROOT);
 

@@ -49,7 +49,11 @@ public class EsqlPartitioningIT extends ESRestTestCase {
     private static final long BASE_TIME = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01T00:00:00Z");
     private static final int BULK_CHARS = Math.toIntExact(ByteSizeValue.ofMb(1).getBytes());
 
-    record Case(String suffix, String idxPartition) {}
+    record Case(String suffix, String idxPartition, boolean score) {
+        Case(String suffix, String idxPartition) {
+            this(suffix, idxPartition, false);
+        }
+    }
 
     @ParametersFactory(argumentFormatting = "[%1$s] %3$s -> %4$s")
     public static Iterable<Object[]> parameters() {
@@ -64,12 +68,22 @@ public class EsqlPartitioningIT extends ESRestTestCase {
                     new Case("| STATS SUM(a)", "DOC"),
                     new Case("| MV_EXPAND a | STATS SUM(a)", "DOC"),
                     new Case("| WHERE a == 1 | STATS SUM(a)", "SEGMENT"),
-                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"), }) {
+                    new Case("| WHERE a == 1 | MV_EXPAND a | STATS SUM(a)", "SEGMENT"),
+                    new Case("| WHERE MATCH(a, \"1\")", "SHARD"),
+                    new Case("| WHERE QSTR(\"a:1\")", "SHARD"),
+                    new Case("| WHERE KQL(\"a:1\")", "SHARD"),
+                    new Case("| WHERE a:\"1\"", "SHARD"),
+                    new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE MATCH(a, \"3\") | SORT _score DESC | LIMIT 10", "SHARD", true),
+                    new Case("| WHERE MATCH(a, \"3\") OR MATCH(a, \"4\") | SORT _score DESC | LIMIT 10", "SHARD", true),
+                    new Case("| WHERE a:\"3\" | WHERE a:\"4\" | SORT _score DESC | LIMIT 10", "SHARD", true), }) {
                     params.add(
                         new Object[] {
                             defaultDataPartitioning,
                             index,
-                            "FROM " + index + " " + c.suffix,
+                            "FROM " + index + (c.score ? " METADATA _score " : " ") + c.suffix,
                             expectedPartition(defaultDataPartitioning, index, c.idxPartition) }
                     );
                 }

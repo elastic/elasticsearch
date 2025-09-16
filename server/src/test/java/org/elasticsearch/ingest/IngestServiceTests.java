@@ -246,11 +246,18 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(status, equalTo(fsStatus));
         };
 
+        // This is due to a quirk of IngestService. It uses a cluster state from the most recent cluster change event:
+        ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
+
         @SuppressWarnings("unchecked")
         final ActionListener<Void> listener = mock(ActionListener.class);
 
         ingestService.executeBulkRequest(
-            randomProjectIdOrDefault(),
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},

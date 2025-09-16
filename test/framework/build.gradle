@@ -11,10 +11,10 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 configurations {
-  // we do not wanto expose the inheritedly conflict in transitive dependencies by
-  // bringing in different versions of junit, hamcrest and randomizedtesting
-  // so we exclude them here and re-declare the versions we want below
-  // to keep the example build happy that does not align transitive dependencies.
+  // we do not want to expose a version conflict in transitive dependencies by
+  // bringing in different versions of hamcrest.
+  // Therefore we exclude transitive deps on hamcrest here as we have a direct
+  // dependency on a newer version.
   runtimeElements {
     exclude group: 'org.hamcrest'
   }
@@ -27,7 +27,7 @@ dependencies {
   api project(":libs:cli")
   api project(":libs:entitlement:bridge")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api("junit:junit:${versions.junit}") 
+  api("junit:junit:${versions.junit}")
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
   api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"

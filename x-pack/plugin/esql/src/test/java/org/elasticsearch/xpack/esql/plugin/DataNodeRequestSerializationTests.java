@@ -97,7 +97,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             physicalPlan,
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
-            randomEnum(ComputeService.ReductionPlanFeatures.class)
+            randomFrom(ComputeService.ReductionPlanFeatures.values())
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;

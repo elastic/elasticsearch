@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-// Verifies that the value source reader operator is optimized into the reduce driver instead of the data driver.
+/** Verifies that the value source reader operator is optimized into the reduce driver instead of the data driver. */
 public abstract class EsqlTopNFetchPhaseOptimizationIT extends AbstractEsqlIntegTestCase {
     private final int shardCount;
     private final int maxConcurrentNodes;

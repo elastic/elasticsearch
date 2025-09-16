@@ -27,6 +27,10 @@ class ComputeSearchContext implements Releasable {
         this.searchContext = searchContext;
     }
 
+    public int index() {
+        return index;
+    }
+
     ShardContext shardContext() {
         if (shardContext.get() == null) {
             shardContext.set(createShardContext());

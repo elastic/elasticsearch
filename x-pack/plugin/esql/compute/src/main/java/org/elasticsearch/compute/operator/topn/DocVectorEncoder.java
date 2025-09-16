@@ -20,4 +20,9 @@ public class DocVectorEncoder extends DefaultUnsortableTopNEncoder {
     public IndexedByShardId<? extends RefCounted> refCounteds() {
         return refCounteds;
     }
+
+    @Override
+    public String toString() {
+        return "DocVectorEncoder";
+    }
 }

@@ -336,7 +336,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                     "data",
                                     clusterAlias,
                                     flags,
-                                    new IndexedByShardIdFromSingleton<>(searchContext),
+                                    new IndexedByShardIdFromSingleton<>(searchContext, searchContext.index()),
                                     configuration,
                                     configuration.newFoldContext(),
                                     null,

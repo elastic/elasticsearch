@@ -13,14 +13,20 @@ import java.util.List;
 /** A simple implementation when there's only a single value being used. */
 public class IndexedByShardIdFromSingleton<T> implements IndexedByShardId<T> {
     private final T value;
+    private final int shardId;
 
     public IndexedByShardIdFromSingleton(T value) {
+        this(value, 0);
+    }
+
+    public IndexedByShardIdFromSingleton(T value, int shardId) {
         this.value = value;
+        this.shardId = shardId;
     }
 
     @Override
     public T get(int shardId) {
-        if (shardId != 0) {
+        if (shardId != this.shardId) {
             throw new IndexOutOfBoundsException("shardId should be 0 for a singleton, got: " + shardId);
         }
         return value;
@@ -33,6 +39,6 @@ public class IndexedByShardIdFromSingleton<T> implements IndexedByShardId<T> {
 
     @Override
     public <S> IndexedByShardId<S> map(java.util.function.Function<T, S> mapper) {
-        return new IndexedByShardIdFromSingleton<>(mapper.apply(value));
+        return new IndexedByShardIdFromSingleton<>(mapper.apply(value), shardId);
     }
 }

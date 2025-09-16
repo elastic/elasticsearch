@@ -167,13 +167,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancingWeights,
             nonPreferredShardIteratorFactory
         );
-        balancer.allocateUnassigned();
-        balancer.moveShards();
-        balancer.moveNonPreferred();
-        balancer.balance();
 
-        // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
-        collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
+        try {
+            balancer.allocateUnassigned();
+            if (balancer.moveNonPreferred()) {
+                return;
+            }
+            balancer.moveShards();
+            balancer.balance();
+        } finally {
+            // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
+            collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
+        }
     }
 
     private void collectAndRecordNodeWeightStats(Balancer balancer, BalancingWeights balancingWeights, RoutingAllocation allocation) {
@@ -731,16 +736,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Move started shards that are in non-preferred allocations
+         * Move a started shard in a non-preferred allocation
+         *
+         * @return true if a shard was moved, false otherwise
          */
-        public void moveNonPreferred() {
-            while (moveASingleNonPreferredShard()) {
-                // keep trying until we're unable to move any more
-                // TODO: Update cluster info
-            }
-        }
-
-        private boolean moveASingleNonPreferredShard() {
+        private boolean moveNonPreferred() {
             for (ShardRouting shardRouting : nonPreferredShardIteratorFactory.createNonPreferredShardIterator(allocation)) {
                 if (tryMoveShardIfNonPreferred(shardRouting)) {
                     return true;

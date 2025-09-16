@@ -22,6 +22,17 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ *
+ * Updates the score column in two stages:
+ * 1. Normalizes the scores using the normalization method specified in the config. Each row belongs
+ * to a result group that is specified by the discriminator column. Scores are normalized for each result group.
+ * 2. Multiplies the normalized score by the weight specified in the config. The config contains the weights that
+ * we need to apply for each result group.
+ *
+ * Grouping by _id and _index and summing up the scores for rows that have the same _id and _index does not
+ * happen here.
+ */
 public class LinearScoreEvalOperator implements Operator {
     public record Factory(int discriminatorPosition, int scorePosition, LinearConfig linearConfig) implements OperatorFactory {
 
@@ -32,13 +43,19 @@ public class LinearScoreEvalOperator implements Operator {
 
         @Override
         public String describe() {
-            return "LinearScoreEvalOperator";
+            return "LinearScoreEvalOperator[discriminatorPosition="
+                + discriminatorPosition
+                + ", scorePosition="
+                + scorePosition
+                + ", config="
+                + linearConfig
+                + "]";
         }
     }
 
     private final int scorePosition;
     private final int discriminatorPosition;
-    private final Map<String, Double> weights;
+    private final LinearConfig config;
     private final Normalizer normalizer;
 
     private final Deque<Page> inputPages;
@@ -48,7 +65,7 @@ public class LinearScoreEvalOperator implements Operator {
     public LinearScoreEvalOperator(int discriminatorPosition, int scorePosition, LinearConfig config) {
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
-        this.weights = config.weights();
+        this.config = config;
         this.normalizer = createNormalizer(config.normalizer());
 
         finished = false;
@@ -88,7 +105,7 @@ public class LinearScoreEvalOperator implements Operator {
             for (int i = 0; i < inputPage.getPositionCount(); i++) {
                 String discriminator = discriminatorBlock.getBytesRef(i, new BytesRef()).utf8ToString();
 
-                var weight = weights.get(discriminator) == null ? 1.0 : weights.get(discriminator);
+                var weight = config.weights().get(discriminator) == null ? 1.0 : config.weights().get(discriminator);
 
                 Double score = initialScoreBlock.getDouble(i);
                 scores.appendDouble(weight * normalizer.normalize(score, discriminator));
@@ -132,7 +149,13 @@ public class LinearScoreEvalOperator implements Operator {
 
     @Override
     public String toString() {
-        return "LinearScoreEvalOperator[" + scorePosition + ", " + discriminatorPosition + "]";
+        return "LinearScoreEvalOperator[discriminatorPosition="
+            + discriminatorPosition
+            + ", scorePosition="
+            + scorePosition
+            + ", config="
+            + config
+            + "]";
     }
 
     private Normalizer createNormalizer(LinearConfig.Normalizer normalizer) {

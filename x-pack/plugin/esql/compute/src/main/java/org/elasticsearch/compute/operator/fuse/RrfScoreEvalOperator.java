@@ -20,39 +20,45 @@ import java.util.HashMap;
 
 /**
  * Updates the score column with new scores using the RRF formula.
- * Receives the position of the score and fork columns.
+ * Receives the position of the score and discriminator columns.
  * The new score we assign to each row is equal to {@code 1 / (rank_constant + row_number)}.
- * We use the fork discriminator column to determine the {@code row_number} for each row.
+ * We use the discriminator column to determine the {@code row_number} for each row.
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(int forkPosition, int scorePosition, RrfConfig rrfConfig) implements OperatorFactory {
+    public record Factory(int discriminatorPosition, int scorePosition, RrfConfig rrfConfig) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(forkPosition, scorePosition, rrfConfig);
+            return new RrfScoreEvalOperator(discriminatorPosition, scorePosition, rrfConfig);
         }
 
         @Override
         public String describe() {
-            return "RrfScoreEvalOperator";
+            return "RrfScoreEvalOperator[discriminatorPosition="
+                + discriminatorPosition
+                + ", scorePosition="
+                + scorePosition
+                + ", rrfConfig="
+                + rrfConfig
+                + "]";
         }
     }
 
     private final int scorePosition;
-    private final int forkPosition;
+    private final int discriminatorPosition;
     private final RrfConfig config;
 
     private HashMap<String, Integer> counters = new HashMap<>();
 
-    public RrfScoreEvalOperator(int forkPosition, int scorePosition, RrfConfig config) {
+    public RrfScoreEvalOperator(int discriminatorPosition, int scorePosition, RrfConfig config) {
         this.scorePosition = scorePosition;
-        this.forkPosition = forkPosition;
+        this.discriminatorPosition = discriminatorPosition;
         this.config = config;
     }
 
     @Override
     protected Page process(Page page) {
-        BytesRefBlock discriminatorBlock = (BytesRefBlock) page.getBlock(forkPosition);
+        BytesRefBlock discriminatorBlock = (BytesRefBlock) page.getBlock(discriminatorPosition);
 
         DoubleVector.Builder scores = discriminatorBlock.blockFactory().newDoubleVectorBuilder(discriminatorBlock.getPositionCount());
 

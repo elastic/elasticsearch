@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -18,6 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FuseIT extends AbstractEsqlIntegTestCase {
@@ -110,6 +112,32 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFuseSimpleLinear() {
+        var query = """
+            FROM test METADATA _score, _id, _index
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | SORT _score, _id DESC )
+               ( WHERE content:"dog" | SORT _score, _id DESC )
+            | FUSE linear
+            | SORT _score DESC
+            | EVAL _fork = mv_sort(_fork)
+            | EVAL _score = round(_score, 4)
+            | KEEP id, content, _score, _fork
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
+            assertThat(getValuesList(resp.values()).size(), equalTo(3));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(6, "The quick brown fox jumps over the lazy dog", 1.3025, List.of("fork1", "fork2")),
+                List.of(3, "This dog is really brown", 0.4963, "fork2"),
+                List.of(4, "The dog is brown but this document is very very long", 0.3536, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testFuseLinearWithWeightsAndNormalizer() {
         var query = """
             FROM test METADATA _score, _id, _index
@@ -134,6 +162,48 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
             );
             assertValues(resp.values(), expectedValues);
         }
+    }
+
+    public void testLinearInvalidOptions() {
+        var e = expectThrows(VerificationException.class, () -> run("""
+            FROM test METADATA _score, _id, _index
+            | FORK (WHERE true) (WHERE true)
+            | FUSE linear WITH { "abc": {} }
+            """));
+
+        assertThat(e.getMessage(), containsString("unknown option [abc] in [FUSE linear WITH { \"abc\": {} }]"));
+
+        e = expectThrows(VerificationException.class, () -> run("""
+            FROM test METADATA _score, _id, _index
+            | FORK (WHERE true) (WHERE true)
+            | FUSE linear WITH { "normalizer": 123 }
+            """));
+
+        assertThat(e.getMessage(), containsString("expected normalizer to be a string, got [123]"));
+
+        e = expectThrows(VerificationException.class, () -> run("""
+            FROM test METADATA _score, _id, _index
+            | FORK (WHERE true) (WHERE true)
+            | FUSE linear WITH { "normalizer": { "a": 1 } }
+            """));
+
+        assertThat(e.getMessage(), containsString("expected normalizer to be a literal, got [{ \"a\": 1 }]"));
+
+        e = expectThrows(VerificationException.class, () -> run("""
+            FROM test METADATA _score, _id, _index
+            | FORK (WHERE true) (WHERE true)
+            | FUSE linear WITH { "weights": "abc" }
+            """));
+
+        assertThat(e.getMessage(), containsString("expected weights to be a MapExpression, got [\"abc\"]"));
+
+        e = expectThrows(VerificationException.class, () -> run("""
+            FROM test METADATA _score, _id, _index
+            | FORK (WHERE true) (WHERE true)
+            | FUSE linear WITH { "weights": { "fork1": - 1 } }
+            """));
+
+        assertThat(e.getMessage(), containsString("expected weight to be positive, got [- 1]"));
     }
 
     private void createAndPopulateIndex() {

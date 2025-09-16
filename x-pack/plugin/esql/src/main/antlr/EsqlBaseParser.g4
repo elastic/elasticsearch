@@ -66,7 +66,7 @@ processingCommand
     | forkCommand
     | rerankCommand
     // in development
-    | {this.isDevVersion()}? inlinestatsCommand
+    | {this.isDevVersion()}? inlineStatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? fuseCommand
@@ -327,8 +327,8 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+inlineStatsCommand
+    : DEV_INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
     ;
 
 insistCommand

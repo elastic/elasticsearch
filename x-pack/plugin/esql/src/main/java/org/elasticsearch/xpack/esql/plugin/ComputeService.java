@@ -385,7 +385,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINE STATS improvements
                     l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
@@ -534,7 +534,7 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINE STATS improvements
         if (execInfo.isCrossClusterSearch()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {

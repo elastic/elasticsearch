@@ -95,7 +95,7 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
         return lazyOutput;
     }
 
-    // TODO: in case of inlinestats, the join key is always the grouping
+    // TODO: in case of INLINE STATS, the join key is always the grouping
     private JoinConfig joinConfig() {
         List<Expression> groupings = aggregate.groupings();
         List<Attribute> namedGroupings = new ArrayList<>(groupings.size());

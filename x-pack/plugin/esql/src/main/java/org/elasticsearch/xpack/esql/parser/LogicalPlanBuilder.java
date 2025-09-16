@@ -402,16 +402,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public PlanFactory visitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) {
-        if (false == EsqlPlugin.INLINESTATS_FEATURE_FLAG) {
-            throw new ParsingException(source(ctx), "INLINESTATS command currently requires a snapshot build");
+    public PlanFactory visitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) {
+        var source = source(ctx);
+        if (false == EsqlPlugin.INLINE_STATS_FEATURE_FLAG) {
+            throw new ParsingException(source, "INLINE STATS command currently requires a snapshot build");
         }
         List<Alias> aggFields = visitAggFields(ctx.stats);
         List<NamedExpression> aggregates = new ArrayList<>(aggFields);
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
-        // TODO: add support for filters
-        return input -> new InlineStats(source(ctx), new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates));
+        return input -> new InlineStats(source, new Aggregate(source, input, new ArrayList<>(groupings), aggregates));
     }
 
     @Override

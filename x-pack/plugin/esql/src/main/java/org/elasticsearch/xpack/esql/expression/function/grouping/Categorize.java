@@ -266,7 +266,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                         failures.add(
                             fail(
                                 categorize,
-                                "CATEGORIZE [{}] is not yet supported with INLINESTATS [{}]",
+                                "CATEGORIZE [{}] is not yet supported with INLINE STATS [{}]",
                                 categorize.sourceText(),
                                 inlineStats.sourceText()
                             )

@@ -49,7 +49,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
         // while going top-to-bottom (upstream)
         return plan.transformDown(p -> {
-            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINESTATS. It is perfectly fine that
+            // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINE STATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
             // that is used in the left hand side must have been created in the left side as well. Even field attributes belonging to the

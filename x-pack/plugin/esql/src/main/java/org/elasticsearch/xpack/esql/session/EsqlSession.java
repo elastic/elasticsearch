@@ -212,7 +212,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
+        if (explainMode) {// TODO: INLINE STATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
@@ -281,7 +281,7 @@ public class EsqlSession {
                     // and equals would have ignored name IDs anyway
                     ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
                 );
-                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+                // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
                 LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
                 // look for the next inlinejoin plan

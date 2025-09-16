@@ -395,13 +395,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        var query = "inlinestats b = min(a) by c, d.e";
-        if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
-                () -> processingCommand(query)
-            );
+        var query = "inline stats b = min(a) by c, d.e";
+        if (inlineStatsNotReleased(query)) {
             return;
         }
         assertEquals(
@@ -422,14 +417,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testInlineStatsWithoutGroups() {
-        var query = "inlinestats min(a), c = 1";
+    private boolean inlineStatsNotReleased(String query) {
         if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
-                () -> processingCommand(query)
-            );
+            if (query != null) {
+                expectThrows(
+                    ParsingException.class,
+                    containsString("line 1:13: mismatched input 'inline' expecting {"),
+                    () -> processingCommand(query)
+                );
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public void testInlineStatsWithoutGroups() {
+        var query = "inline stats min(a), c = 1";
+        if (inlineStatsNotReleased(query)) {
             return;
         }
         assertEquals(
@@ -447,6 +451,86 @@ public class StatementParserTests extends AbstractStatementParserTests {
             ),
             processingCommand(query)
         );
+    }
+
+    public void testInlineStatsParsing() {
+        if (inlineStatsNotReleased(null)) {
+            return;
+        }
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:19: token recognition error at: 'I'"),
+            () -> statement("FROM foo | INLINE INLINE STATS COUNT(*)")
+        );
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:19: token recognition error at: 'F'"),
+            () -> statement("FROM foo | INLINE FOO COUNT(*)")
+        );
+    }
+
+    /*
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     * | \_Limit[11[INTEGER],false]
+     * |   \_Filter[:(?a,baz[KEYWORD])]
+     * |     \_UnresolvedRelation[foo*]
+     * |_Eval[[fork2[KEYWORD] AS _fork#3]]
+     * | \_Aggregate[[],[?COUNT[*] AS COUNT(*)#4]]
+     * |   \_UnresolvedRelation[foo*]
+     * \_Eval[[fork3[KEYWORD] AS _fork#3]]
+     *   \_InlineStats[]
+     *     \_Aggregate[[],[?COUNT[*] AS COUNT(*)#5]]
+     *       \_UnresolvedRelation[foo*]
+     */
+    public void testInlineStatsWithinFork() {
+        if (inlineStatsNotReleased(null)) {
+            return;
+        }
+        var query = """
+            FROM foo*
+            | FORK ( WHERE a:"baz" | LIMIT 11 )
+                   ( STATS COUNT(*) )
+                   ( INLINE STATS COUNT(*) )
+            """;
+        var plan = statement(query);
+        var fork = as(plan, Fork.class);
+        var subPlans = fork.children();
+
+        // first subplan
+        var eval = as(subPlans.get(0), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        var filter = as(limit.child(), Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("a"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+
+        // second subplan
+        eval = as(subPlans.get(1), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+        var aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        var alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("COUNT(*)"));
+        var countFn = as(alias.child(), UnresolvedFunction.class);
+        assertThat(countFn.children().get(0), instanceOf(Literal.class));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+
+        // third subplan
+        eval = as(subPlans.get(2), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+        var inlineStats = as(eval.child(), InlineStats.class);
+        aggregate = as(inlineStats.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("COUNT(*)"));
+        countFn = as(alias.child(), UnresolvedFunction.class);
+        assertThat(countFn.children().get(0), instanceOf(Literal.class));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1080,7 +1164,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'eval'"),
-                    containsString("'stats'"),
+                    containsString("'limit'"),
                     containsString("'where'")
                 ),
                 () -> statement(queryWithUnexpectedCmd.v1())
@@ -3599,7 +3683,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query = """
             FROM foo*
             | FORK
-               ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
+               ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a

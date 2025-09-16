@@ -4394,12 +4394,20 @@ public class AnalyzerTests extends ESTestCase {
             """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
     }
 
-    public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testGroupingOverridesInInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         verifyUnsupported("""
             from test
-            | inlinestats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
+            | inline stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testInlineStatsStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inline stats stats
+            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {

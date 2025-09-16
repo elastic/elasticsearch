@@ -1212,7 +1212,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     /**
-     * INLINESTATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
+     * INLINE STATS <strong>can</strong> group on {@code NOW()}. It's a little silly, but
      * doing something like {@code DATE_TRUNC(1 YEAR, NOW() - 1970-01-01T00:00:00Z)} is
      * much more sensible. But just grouping on {@code NOW()} is enough to test this.
      * <p>
@@ -1221,11 +1221,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      * </p>
      */
     public void testInlineStatsNow() throws IOException {
-        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("INLINE STATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
 
         RequestObjectBuilder builder = requestObjectBuilder().query(
-            fromIndex() + " | EVAL now=NOW() | INLINESTATS AVG(value) BY now | SORT value ASC"
+            fromIndex() + " | EVAL now=NOW() | INLINE STATS AVG(value) BY now | SORT value ASC"
         );
         Map<String, Object> result = runEsql(builder);
         ListMatcher values = matchesList();

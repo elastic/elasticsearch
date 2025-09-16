@@ -1418,7 +1418,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             b.set(LIMIT.ordinal());
         }
 
-        // count only the Aggregate (STATS command) that is "standalone" not also the one that is part of an INLINESTATS command
+        // count only the Aggregate (STATS command) that is "standalone" not also the one that is part of an INLINE STATS command
         if (plan instanceof Aggregate) {
             b.set(STATS.ordinal());
         } else {

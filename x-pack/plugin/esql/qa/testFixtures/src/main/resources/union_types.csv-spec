@@ -1398,7 +1398,7 @@ event_duration:long | _index:keyword       | ts:date                   | ts_str:
 ;
 
 multiIndexInlinestatsOfMultiTypedField
-required_capability: inlinestats_v11
+required_capability: inline_stats
 required_capability: fork_union_types
 // https://github.com/elastic/elasticsearch/issues/133973
 FROM apps, apps_short

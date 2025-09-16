@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.not;
 public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
     public void testDevelopmentInline() throws Exception {
-        parse("row a = 1 | inlinestats b = min(a) by c, d.e", "inlinestats");
+        parse("row a = 1 | inline stats b = min(a) by c, d.e", "inline");
     }
 
     public void testDevelopmentLookup() throws Exception {

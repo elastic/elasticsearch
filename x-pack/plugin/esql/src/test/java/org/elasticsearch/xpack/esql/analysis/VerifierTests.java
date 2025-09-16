@@ -179,15 +179,15 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats count(1) by multi_typed", analyzer)
         );
-        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             assertEquals(
-                "1:38: Cannot use field [unsupported] with unsupported type [flattened]",
-                error("from test* | inlinestats count(1) by unsupported", analyzer)
+                "1:39: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inline stats count(1) by unsupported", analyzer)
             );
             assertEquals(
-                "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                "1:39: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
-                error("from test* | inlinestats count(1) by multi_typed", analyzer)
+                error("from test* | inline stats count(1) by multi_typed", analyzer)
             );
         }
 
@@ -200,15 +200,15 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
-        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             assertEquals(
-                "1:33: Cannot use field [unsupported] with unsupported type [flattened]",
-                error("from test* | inlinestats values(unsupported)", analyzer)
+                "1:34: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inline stats values(unsupported)", analyzer)
             );
             assertEquals(
-                "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                "1:34: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
-                error("from test* | inlinestats values(multi_typed)", analyzer)
+                error("from test* | inline stats values(multi_typed)", analyzer)
             );
         }
 
@@ -2070,23 +2070,23 @@ public class VerifierTests extends ESTestCase {
 
     public void testCategorizeWithInlineStats() {
         assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
-        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertEquals(
-            "1:37: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
-                + "INLINESTATS [INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
-            error("FROM test | INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
+            "1:38: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
+                + "INLINE STATS [INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
+            error("FROM test | INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
         );
 
         assertEquals("""
-            3:35: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
-            INLINESTATS [INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)]
-            line 2:91: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
-            line 2:32: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
-            INLINESTATS [INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
+            3:36: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
+            INLINE STATS [INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)]
+            line 2:92: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
+            line 2:33: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
+            INLINE STATS [INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
             c2 = CATEGORIZE(first_name)]""", error("""
             FROM test
-            | INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
-            | INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)
+            | INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
+            | INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)
             """));
     }
 

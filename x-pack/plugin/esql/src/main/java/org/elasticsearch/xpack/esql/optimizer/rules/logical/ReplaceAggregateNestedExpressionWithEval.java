@@ -30,9 +30,9 @@ import java.util.Map;
  * becomes
  * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | STATS SUM(`a+1`_ref) BY `x % 2`_ref}
  * and
- * {@code INLINESTATS SUM(a + 1) BY x % 2}
+ * {@code INLINE STATS SUM(a + 1) BY x % 2}
  * becomes
- * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINESTATS SUM(`a+1`_ref) BY `x % 2`_ref}
+ * {@code EVAL `a + 1` = a + 1, `x % 2` = x % 2 | INLINE STATS SUM(`a+1`_ref) BY `x % 2`_ref}
  */
 public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
 

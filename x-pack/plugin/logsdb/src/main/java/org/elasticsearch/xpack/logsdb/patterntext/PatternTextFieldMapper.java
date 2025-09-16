@@ -101,13 +101,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         private PatternTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer analyzer = this.analyzer.get();
             TextSearchInfo tsi = new TextSearchInfo(fieldType, null, analyzer, analyzer);
-            return new PatternTextFieldType(
-                context.buildFullName(leafName()),
-                tsi,
-                analyzer,
-                context.isSourceSynthetic(),
-                meta.getValue()
-            );
+            return new PatternTextFieldType(context.buildFullName(leafName()), tsi, analyzer, context.isSourceSynthetic(), meta.getValue());
         }
 
         private static FieldType buildLuceneFieldType(Supplier<String> indexOptionSupplier) {

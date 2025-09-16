@@ -1503,6 +1503,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return false;
     }
 
+    protected boolean supportsBulkIntBlockReading() {
+        return false;
+    }
+
     protected boolean supportsBulkDoubleBlockReading() {
         return false;
     }
@@ -1515,6 +1519,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return getThreeSampleValues();
     }
 
+    public void testSingletonIntBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonInts) columnAtATimeReader);
+    }
+
     public void testSingletonLongBulkBlockReading() throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
         testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonLongs) columnAtATimeReader);
@@ -1525,7 +1534,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonDoubles) columnAtATimeReader);
     }
 
-    protected void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
+    private void testSingletonBulkBlockReading(Function<BlockLoader.ColumnAtATimeReader, BlockDocValuesReader> readerCast)
         throws IOException {
         assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
         var settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();

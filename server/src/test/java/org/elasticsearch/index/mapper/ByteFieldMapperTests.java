@@ -53,12 +53,7 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
         throw new AssumptionViolatedException("not supported");
     }
 
-    public void testSingletonLongBulkBlockReading() throws IOException {
-        assumeTrue("field type supports bulk singleton long reading", supportsBulkLongBlockReading());
-        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonInts) columnAtATimeReader);
-    }
-
-    protected boolean supportsBulkLongBlockReading() {
+    protected boolean supportsBulkIntBlockReading() {
         return true;
     }
 

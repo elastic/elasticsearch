@@ -98,14 +98,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
-            if (thinRead) {
-                this.reshardSplitShardCount = reshardSplitShardCount;
-            } else {
-                this.reshardSplitShardCount = in.readInt();
-            }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
+            this.reshardSplitShardCount = in.readInt();
         } else {
-            this.reshardSplitShardCount = 0;
+            this.reshardSplitShardCount = reshardSplitShardCount;
         }
     }
 

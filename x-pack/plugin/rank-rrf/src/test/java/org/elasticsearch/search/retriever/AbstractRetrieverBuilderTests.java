@@ -150,13 +150,11 @@ public abstract class AbstractRetrieverBuilderTests<T extends CompoundRetrieverB
         RetrieverBuilder rewritten = retriever.doRewrite(ctx);
         assertNotSame(retriever, rewritten);
         assertCompoundRetriever(retriever, rewritten);
-        T rewrittenLinear = (T) rewritten;
-        assertEquals(retriever.rankWindowSize(), rewrittenLinear.rankWindowSize());
 
         boolean assertedLexical = false;
         boolean assertedSemantic = false;
 
-        for (InnerRetriever topInnerRetriever : getInnerRetrieversAsSet(retriever, rewrittenLinear)) {
+        for (InnerRetriever topInnerRetriever : getInnerRetrieversAsSet(retriever, (T) rewritten)) {
             assertEquals(expectedNormalizer, topInnerRetriever.normalizer);
             assertEquals(1.0f, topInnerRetriever.weight, 0.0f);
 

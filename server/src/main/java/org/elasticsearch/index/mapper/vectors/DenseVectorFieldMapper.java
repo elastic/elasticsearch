@@ -2903,12 +2903,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
-        private final Thread creationThread;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
-            this.creationThread = Thread.currentThread();
         }
 
         @Override
@@ -2935,8 +2933,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
             return docId -> {
-                assert creationThread == Thread.currentThread()
-                    : "Thread mismatch: created by [" + creationThread + "], but accessed by [" + Thread.currentThread() + "]";
                 if (iterator.docID() > docId) {
                     return hasValue = false;
                 }

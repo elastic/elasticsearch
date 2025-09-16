@@ -32,8 +32,8 @@ import java.util.List;
  *
  * @param original the original index expression, as provided by the user
  * @param localExpressions the resolved local part of the expression
- * @param remoteExpressions the resolved remote part of the expression, each entry in "canonical" CCS form,
- *        e.g. "remote:index". This is a list instead of a record since remote expressions are not expanded,
+ * @param remoteExpressions the remote part of the expression, each entry in "canonical" CCS form,
+ *        e.g. "remote:my-index-*". This is a list instead of a record since remote expressions are not expanded,
  *        and we therefore don't need to track expansion results or errors.
  */
 public record ReplacedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {

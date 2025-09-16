@@ -10,6 +10,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -22,6 +24,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
@@ -36,13 +39,16 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -62,6 +68,16 @@ public final class IngestDocument {
 
     // a 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get
     private static final Object NOT_FOUND = new Object();
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    private static final Map<String, Function<Object, Object>> DEPRECATION_FUNCTIONS = Map.of("_type", value -> {
+        deprecationLogger.warn(
+            DeprecationCategory.INDICES,
+            "conditional-processor__type",
+            "[types removal] Looking up doc types [_type] in scripts is deprecated."
+        );
+        return value;
+    });
 
     private final IngestCtxMap ctxMap;
     private final Map<String, Object> ingestMetadata;
@@ -1006,6 +1022,10 @@ public final class IngestDocument {
         return ctxMap;
     }
 
+    public Map<String, Object> getUnmodifiableSourceAndMetadata() {
+        return new UnmodifiableIngestData(new DynamicMap(ctxMap, DEPRECATION_FUNCTIONS));
+    }
+
     /**
      * Get the CtxMap
      */
@@ -1555,6 +1575,322 @@ public final class IngestDocument {
 
         private static String invalidPath(String fullPath) {
             return "path [" + fullPath + "] is not valid";
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object wrapUnmodifiable(Object raw) {
+        // Wraps all mutable types that the JSON parser can create by immutable wrappers.
+        // Any inputs not wrapped are assumed to be immutable
+        if (raw instanceof Map<?, ?> rawMap) {
+            return new UnmodifiableIngestData((Map<String, Object>) rawMap);
+        } else if (raw instanceof List) {
+            return new UnmodifiableIngestList((List<Object>) raw);
+        } else if (raw instanceof byte[] bytes) {
+            return bytes.clone();
+        }
+        return raw;
+    }
+
+    private static UnsupportedOperationException unmodifiableException() {
+        return new UnsupportedOperationException("Mutating ingest documents in conditionals is not supported");
+    }
+
+    private static final class UnmodifiableIngestData implements Map<String, Object> {
+
+        private final Map<String, Object> data;
+
+        UnmodifiableIngestData(Map<String, Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(final Object key) {
+            return data.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(final Object value) {
+            return data.containsValue(value);
+        }
+
+        @Override
+        public Object get(final Object key) {
+            return wrapUnmodifiable(data.get(key));
+        }
+
+        @Override
+        public Object put(final String key, final Object value) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Object remove(final Object key) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void putAll(final Map<? extends String, ?> m) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return Collections.unmodifiableSet(data.keySet());
+        }
+
+        @Override
+        public Collection<Object> values() {
+            return new UnmodifiableIngestList(new ArrayList<>(data.values()));
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            return data.entrySet().stream().map(entry -> new Entry<String, Object>() {
+                @Override
+                public String getKey() {
+                    return entry.getKey();
+                }
+
+                @Override
+                public Object getValue() {
+                    return wrapUnmodifiable(entry.getValue());
+                }
+
+                @Override
+                public Object setValue(final Object value) {
+                    throw unmodifiableException();
+                }
+
+                @Override
+                public boolean equals(final Object o) {
+                    return entry.equals(o);
+                }
+
+                @Override
+                public int hashCode() {
+                    return entry.hashCode();
+                }
+            }).collect(Collectors.toSet());
+        }
+    }
+
+    private static final class UnmodifiableIngestList implements List<Object> {
+
+        private final List<Object> data;
+
+        UnmodifiableIngestList(List<Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean contains(final Object o) {
+            return data.contains(o);
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+            Iterator<Object> wrapped = data.iterator();
+            return new Iterator<Object>() {
+                @Override
+                public boolean hasNext() {
+                    return wrapped.hasNext();
+                }
+
+                @Override
+                public Object next() {
+                    return wrapped.next();
+                }
+
+                @Override
+                public void remove() {
+                    throw unmodifiableException();
+                }
+            };
+        }
+
+        @Override
+        public Object[] toArray() {
+            Object[] wrapped = data.toArray(new Object[0]);
+            for (int i = 0; i < wrapped.length; i++) {
+                wrapped[i] = wrapUnmodifiable(wrapped[i]);
+            }
+            return wrapped;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T[] toArray(final T[] a) {
+            Object[] raw = data.toArray(new Object[0]);
+            T[] wrapped = (T[]) Arrays.copyOf(raw, a.length, a.getClass());
+            for (int i = 0; i < wrapped.length; i++) {
+                wrapped[i] = (T) wrapUnmodifiable(wrapped[i]);
+            }
+            return wrapped;
+        }
+
+        @Override
+        public boolean add(final Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean remove(final Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean containsAll(final Collection<?> c) {
+            return data.contains(c);
+        }
+
+        @Override
+        public boolean addAll(final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean addAll(final int index, final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean removeAll(final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean retainAll(final Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Object get(final int index) {
+            return wrapUnmodifiable(data.get(index));
+        }
+
+        @Override
+        public Object set(final int index, final Object element) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void add(final int index, final Object element) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public Object remove(final int index) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public int indexOf(final Object o) {
+            return data.indexOf(o);
+        }
+
+        @Override
+        public int lastIndexOf(final Object o) {
+            return data.lastIndexOf(o);
+        }
+
+        @Override
+        public ListIterator<Object> listIterator() {
+            return new UnmodifiableListIterator(data.listIterator());
+        }
+
+        @Override
+        public ListIterator<Object> listIterator(final int index) {
+            return new UnmodifiableListIterator(data.listIterator(index));
+        }
+
+        @Override
+        public List<Object> subList(final int fromIndex, final int toIndex) {
+            return new UnmodifiableIngestList(data.subList(fromIndex, toIndex));
+        }
+
+        private static final class UnmodifiableListIterator implements ListIterator<Object> {
+
+            private final ListIterator<Object> data;
+
+            UnmodifiableListIterator(ListIterator<Object> data) {
+                this.data = data;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return data.hasNext();
+            }
+
+            @Override
+            public Object next() {
+                return wrapUnmodifiable(data.next());
+            }
+
+            @Override
+            public boolean hasPrevious() {
+                return data.hasPrevious();
+            }
+
+            @Override
+            public Object previous() {
+                return wrapUnmodifiable(data.previous());
+            }
+
+            @Override
+            public int nextIndex() {
+                return data.nextIndex();
+            }
+
+            @Override
+            public int previousIndex() {
+                return data.previousIndex();
+            }
+
+            @Override
+            public void remove() {
+                throw unmodifiableException();
+            }
+
+            @Override
+            public void set(final Object o) {
+                throw unmodifiableException();
+            }
+
+            @Override
+            public void add(final Object o) {
+                throw unmodifiableException();
+            }
         }
     }
 }

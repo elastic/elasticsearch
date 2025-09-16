@@ -275,10 +275,6 @@ public class ConditionalProcessorTests extends ESTestCase {
         assertThat(e, instanceOf(UnsupportedOperationException.class));
         assertEquals("Mutating ingest documents in conditionals is not supported", e.getMessage());
         assertStats(processor, 0, 0, 0);
-
-        Map<String, Object> unmodifiableDocument = ConditionalProcessor.wrapUnmodifiableMap(document);
-        assertThrows(UnsupportedOperationException.class, () -> mutation.accept(unmodifiableDocument));
-        mutation.accept(document); // no exception expected
     }
 
     private static void assertStats(ConditionalProcessor conditionalProcessor, long count, long failed, long time) {

@@ -324,6 +324,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_API_EIS_DIAGNOSTICS = def(9_156_0_00);
     public static final TransportVersion ML_INFERENCE_ENDPOINT_CACHE = def(9_157_0_00);
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
+    public static final TransportVersion SAMPLING_CONFIGURATION = def(9_159_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

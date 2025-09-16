@@ -120,7 +120,7 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersions.SAMPLING_CONFIGURATION;
     }
 
     @Override
@@ -174,7 +174,7 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersions.SAMPLING_CONFIGURATION;
         }
     }
 

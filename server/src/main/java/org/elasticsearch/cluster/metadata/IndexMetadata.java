@@ -1155,6 +1155,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * to both source and target shards. Requests are routed to both source and target shards
      * once the target shards are ready for an operation.
      * @param shardId  Input shardId for which we want to calculate the effective shard count
+     * @param minShardState Minimum target shard state required for
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
     public int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {

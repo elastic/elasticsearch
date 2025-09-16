@@ -70,7 +70,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        List<Alias> evals = new ArrayList<>();
+        List<Alias> evalsBeforeAgg = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
@@ -78,7 +78,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         Map<NamedExpression, Attribute> referenceAttributes = new HashMap<>();
         boolean groupingChanged = false;
 
-        List<Alias> newEvals = new ArrayList<>();
+        List<Alias> evalsAfterAgg = new ArrayList<>();
         int[] counter = new int[] { 0 };
 
         // Count DateFormat occurrences to avoid incorrect grouping when replacing multiple DATE_FORMAT with DATE_TRUNC
@@ -97,7 +97,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 // for non-evaluable grouping functions, replace their nested expressions with attributes and extract the expression out
                 // into an eval (added later below)
                 if (asChild instanceof GroupingFunction.NonEvaluatableGroupingFunction gf) {
-                    Expression newGroupingFunction = transformNonEvaluatableGroupingFunction(gf, evals);
+                    Expression newGroupingFunction = transformNonEvaluatableGroupingFunction(gf, evalsBeforeAgg);
                     if (newGroupingFunction != gf) {
                         groupingChanged = true;
                         newGroupings.set(i, as.replaceChild(newGroupingFunction));
@@ -108,8 +108,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     var attr = as.toAttribute();
                     if (asChild instanceof DateFormat df && dateFormatCount[0] == 1) {
                         // Extract the format pattern and field from DateFormat
-                        Literal format = (Literal) df.children().getFirst();
-                        Expression field = df.children().get(1);
+
+                        Literal format = (Literal) df.format();
+                        Expression field = df.field();
 
                         // Try to convert the format pattern to a minimal time interval
                         // This optimization attempts to simplify date formatting to DATE_TRUNC operations
@@ -125,14 +126,14 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                             Expression expression = df.replaceChildren(List.of(format, attr));
                             // Create a new eval alias for the optimized expression
                             Alias newEval = as.replaceChild(expression);
-                            newEvals.add(newEval);
+                            evalsAfterAgg.add(newEval);
                             referenceAttributes.put(attr, newEval.toAttribute());
                             evalNames.put(as.name(), attr);
                             as = alias;
                         }
                     }
 
-                    evals.add(as);
+                    evalsBeforeAgg.add(as);
                     evalNames.put(as.name(), attr);
                     newGroupings.set(i, attr);
                     if (asChild instanceof GroupingFunction.EvaluatableGroupingFunction gf) {
@@ -148,7 +149,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
         // map to track common expressions
         Map<Expression, Attribute> expToAttribute = new HashMap<>();
-        for (Alias a : evals) {
+        for (Alias a : evalsBeforeAgg) {
             expToAttribute.put(a.child().canonical(), a.toAttribute());
         }
 
@@ -172,7 +173,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 // look for the aggregate function
                 var replaced = child.transformUp(
                     AggregateFunction.class,
-                    af -> transformAggregateFunction(af, expToAttribute, evals, counter, aggsChanged)
+                    af -> transformAggregateFunction(af, expToAttribute, evalsBeforeAgg, counter, aggsChanged)
                 );
                 // replace any evaluatable grouping functions with their references pointing to the added synthetic eval
                 replaced = replaced.transformDown(GroupingFunction.EvaluatableGroupingFunction.class, gf -> {
@@ -197,15 +198,15 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             newProjections.add(a.toAttribute());
         }
 
-        if (evals.size() > 0) {
+        if (evalsBeforeAgg.size() > 0) {
             var groupings = groupingChanged ? newGroupings : aggregate.groupings();
             var aggregates = aggsChanged.get() ? newAggs : aggregate.aggregates();
 
-            var newEval = new Eval(aggregate.source(), aggregate.child(), evals);
+            var newEval = new Eval(aggregate.source(), aggregate.child(), evalsBeforeAgg);
             aggregate = aggregate.with(newEval, groupings, aggregates);
         }
-        if (newEvals.size() > 0) {
-            Eval eval = new Eval(aggregate.source(), aggregate, newEvals);
+        if (evalsAfterAgg.size() > 0) {
+            Eval eval = new Eval(aggregate.source(), aggregate, evalsAfterAgg);
             return new Project(aggregate.source(), eval, newProjections);
         }
 

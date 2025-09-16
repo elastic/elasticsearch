@@ -8567,11 +8567,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Project[[avg{r}#7, date{r}#4]]
-     * \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#7]]
+     * \_Eval[[$$SUM$avg$0{r$}#21 / $$COUNT$avg$1{r$}#22 AS avg#7, DATEFORMAT(yyyy[KEYWORD],$$DATE_FORMAT("yy>$date$0{r$}#20
+     * ) AS date#4]]
      *   \_Limit[1000[INTEGER],false]
-     *     \_Aggregate[[date{r}#4],[SUM(salary{f}#14,true[BOOLEAN]) AS $$SUM$avg$0#20, COUNT(salary{f}#14,true[BOOLEAN]) AS $$COUNT$av
-     * g$1#21, date{r}#4]]
-     *       \_Eval[[DATEFORMAT([79 79 79 79][KEYWORD],hire_date{f}#16) AS date#4]]
+     *     \_Aggregate[[$$DATE_FORMAT("yy>$date$0{r$}#20],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#21, COU
+     * NT(salary{f}#14,true[BOOLEAN]) AS $$COUNT$avg$1#22, $$DATE_FORMAT("yy>$date$0{r$}#20]]
+     *       \_Eval[[DATETRUNC(P1Y[DATE_PERIOD],hire_date{f}#16) AS $$DATE_FORMAT("yy>$date$0#20]]
      *         \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      */
     public void testReplaceGroupingByDateFormatWithDateTrunc() {

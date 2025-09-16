@@ -1502,7 +1502,13 @@ public class EsqlCapabilities {
         /**
          * Support absent_over_time aggregation that gets evaluated per time-series
          */
-        ABSENT_OVER_TIME(Build.current().isSnapshot());
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Fix management of plans with no columns
+         * https://github.com/elastic/elasticsearch/issues/120272
+         */
+        FIX_NO_COLUMNS;
 
         private final boolean enabled;
 

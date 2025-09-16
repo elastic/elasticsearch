@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongVectorBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -56,10 +56,10 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var project = as(plan, Limit.class);
         var source = as(project.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("sum(salary) where false"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        assertThat(blocks[0].getPositionCount(), is(1));
-        assertTrue(blocks[0].areAllValuesNull());
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getBlock(0).getPositionCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
     }
 
     /**
@@ -90,10 +90,10 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), LocalRelation.class);
 
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        assertThat(blocks[0].getPositionCount(), is(1));
-        assertTrue(blocks[0].areAllValuesNull());
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        assertThat(page.getBlock(0).getPositionCount(), is(1));
+        assertTrue(page.getBlock(0).areAllValuesNull());
     }
 
     /**
@@ -200,9 +200,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -242,9 +242,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -277,9 +277,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(eval.child(), Limit.class);
         var source = as(limit.child(), LocalRelation.class);
 
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }
@@ -344,9 +344,9 @@ public class ReplaceStatsFilteredAggWithEvalTests extends AbstractLogicalPlanOpt
         var limit = as(plan, Limit.class);
         var source = as(limit.child(), LocalRelation.class);
         assertThat(Expressions.names(source.output()), contains("count"));
-        Block[] blocks = source.supplier().get();
-        assertThat(blocks.length, is(1));
-        var block = as(blocks[0], LongVectorBlock.class);
+        Page page = source.supplier().get();
+        assertThat(page.getBlockCount(), is(1));
+        var block = as(page.getBlock(0), LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
     }

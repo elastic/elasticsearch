@@ -37,7 +37,7 @@ The command requires two parameters:
 * The field(s) to join on. Can be either:
   * A single field name
   * A comma-separated list of field names {applies_to}`stack: ga 9.2`
-  
+
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field
 LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Join on multiple fields
@@ -48,6 +48,14 @@ LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Joi
 :::
 
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
+
+### Cross-cluster support
+
+{applies_to}`stack: ga 9.2.0` Remote lookup joins are supported in [cross-cluster queries](/reference/query-languages/esql/esql-cross-clusters.md). The lookup index must exist on _all_ remote clusters being queried, because each cluster uses its local lookup index data. This follows the same pattern as [remote mode Enrich](/reference/query-languages/esql/esql-cross-clusters.md#esql-enrich-remote).
+
+```esql
+FROM log-cluster-*:logs-* | LOOKUP JOIN hosts ON source.ip
+```
 
 ## Example
 
@@ -201,9 +209,10 @@ any `LOOKUP JOIN`s.
 The following are the current limitations with `LOOKUP JOIN`:
 
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
-* Cross cluster search is unsupported initially. Both source and lookup indices must be local.
+* Cross cluster search is unsupported in versions prior to `9.2.0`. Both source and lookup indices must be local for these versions.
 * Currently, only matching on equality is supported.
 * In Stack versions `9.0-9.1`,`LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.
+* Cross-cluster `LOOKUP JOIN` can not be used after aggregations (`STATS`), `SORT` and `LIMIT` commands, and coordinator-side `ENRICH` commands.

@@ -1533,9 +1533,13 @@ public class Stateless extends Plugin
                 // in the HollowShardService, and we want to use (or reset the engine to) the HollowIndexEngine. When unhollowing
                 // a hollow shard, the shard is marked hollow in the HollowShardService and we would like to reset the engine to
                 // the IndexEngine in order to flush a new blob and complete unhollowing.
+                // If the shard does not have an existing blob container, e.g., when restoring a snapshot, we need to unhollow by
+                // using the IndexEngine that flushes and uploads a new commit.
+                boolean existingBlobContainer = commitService.get().getLatestUploadedBcc(config.getShardId()) != null;
                 if (hollowShardsService.get().isFeatureEnabled()
                     && hollowShardsService.get().isHollowShard(config.getShardId()) == false
-                    && IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
+                    && IndexEngine.isLastCommitHollow(segmentCommitInfos)
+                    && existingBlobContainer) {
                     logger.debug(
                         () -> config.getShardId()
                             + " using hollow engine for shard [generation: "

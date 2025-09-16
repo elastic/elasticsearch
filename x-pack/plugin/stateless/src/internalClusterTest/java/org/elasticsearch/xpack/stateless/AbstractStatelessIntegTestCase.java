@@ -66,17 +66,21 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -117,6 +121,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -530,6 +536,127 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     protected void setNodeRepositoryStrategy(String nodeName, StatelessMockRepositoryStrategy strategy) {
         ObjectStoreService objectStoreService = getObjectStoreService(nodeName);
         ObjectStoreTestUtils.getObjectStoreStatelessMockRepository(objectStoreService).setStrategy(strategy);
+    }
+
+    /**
+     * Modifies the object store strategy on the given node to throw IOExceptions on reads and/or writes, depending on the parameters.
+     * The filePatternPerPurposeToFail map can be used to specify regex patterns for blob names per OperationPurpose that should fail.
+     * If a purpose is not in the map, no failures will be thrown for that purpose.
+     */
+    protected void setNodeRepositoryFailureStrategy(
+        String node,
+        boolean failReads,
+        boolean failWrites,
+        Map<OperationPurpose, String> filePatternPerPurposeToFail
+    ) {
+        setNodeRepositoryStrategy(node, new StatelessMockRepositoryStrategy() {
+            private void failIfNeeded(OperationPurpose purpose, String blobName) throws IOException {
+                String filePattern = filePatternPerPurposeToFail.get(purpose);
+                if (filePattern != null && blobName.matches(filePattern)) {
+                    throw new IOException("Random IOException");
+                }
+            }
+
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName
+            ) throws IOException {
+                if (failReads) {
+                    failIfNeeded(purpose, blobName);
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName);
+            }
+
+            @Override
+            public InputStream blobContainerReadBlob(
+                CheckedSupplier<InputStream, IOException> originalSupplier,
+                OperationPurpose purpose,
+                String blobName,
+                long position,
+                long length
+            ) throws IOException {
+                if (failReads) {
+                    failIfNeeded(purpose, blobName);
+                }
+                return super.blobContainerReadBlob(originalSupplier, purpose, blobName, position, length);
+            }
+
+            @Override
+            public void blobContainerWriteBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (failWrites) {
+                    failIfNeeded(purpose, blobName);
+                }
+                super.blobContainerWriteBlob(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+
+            @Override
+            public void blobContainerWriteBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                BytesReference bytes,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (failWrites) {
+                    failIfNeeded(purpose, blobName);
+                }
+                super.blobContainerWriteBlob(originalRunnable, purpose, blobName, bytes, failIfAlreadyExists);
+            }
+
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                long blobSize,
+                BlobContainer.BlobMultiPartInputStreamProvider provider,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (failWrites) {
+                    failIfNeeded(purpose, blobName);
+                }
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, blobSize, provider, failIfAlreadyExists);
+            }
+
+            @Override
+            public void blobContainerWriteMetadataBlob(
+                CheckedRunnable<IOException> original,
+                OperationPurpose purpose,
+                String blobName,
+                boolean failIfAlreadyExists,
+                boolean atomic,
+                CheckedConsumer<OutputStream, IOException> writer
+            ) throws IOException {
+                if (failWrites) {
+                    failIfNeeded(purpose, blobName);
+                }
+                super.blobContainerWriteMetadataBlob(original, purpose, blobName, failIfAlreadyExists, atomic, writer);
+            }
+
+            @Override
+            public void blobContainerWriteBlobAtomic(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
+            ) throws IOException {
+                if (failWrites) {
+                    failIfNeeded(purpose, blobName);
+                }
+                super.blobContainerWriteBlobAtomic(originalRunnable, purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
+        });
     }
 
     protected StatelessMockRepositoryStrategy getNodeRepositoryStrategy(String nodeName) {

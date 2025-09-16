@@ -236,7 +236,7 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
         );
     }
 
-        public void testMultiIndexMultiFieldsParamsRewrite() {
+    public void testMultiIndexMultiFieldsParamsRewrite() {
         String indexName = "test-index";
         String anotherIndexName = "test-another-index";
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(

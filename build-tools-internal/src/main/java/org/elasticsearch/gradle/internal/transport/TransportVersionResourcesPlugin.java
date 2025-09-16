@@ -23,6 +23,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
@@ -82,15 +83,27 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
 
+        Consumer<GenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
+            t.setGroup(taskGroup);
+            t.getReferencesFiles().setFrom(tvReferencesConfig);
+            t.getIncrement().convention(1000);
+            t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
+        };
+
         var generateDefinitionsTask = project.getTasks()
             .register("generateTransportVersion", GenerateTransportVersionDefinitionTask.class, t -> {
-                t.setGroup(taskGroup);
+                generationConfiguration.accept(t);
                 t.setDescription("(Re)generates a transport version definition file");
-                t.getReferencesFiles().setFrom(tvReferencesConfig);
-                t.getIncrement().convention(1000);
-                t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
             });
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
+
+        var resolveConflictTask = project.getTasks()
+            .register("resolveTransportVersionConflict", GenerateTransportVersionDefinitionTask.class, t -> {
+                generationConfiguration.accept(t);
+                t.setDescription("Resolve merge conflicts in transport version internal state files");
+                t.getResolveConflict().set(true);
+            });
+        validateTask.configure(t -> t.mustRunAfter(resolveConflictTask));
 
         var generateInitialTask = project.getTasks()
             .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {

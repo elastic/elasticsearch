@@ -1266,7 +1266,7 @@ public class Security extends Plugin
             this.remoteClusterSecurityExtension.set(new CrossClusterAccessSecurityExtension());
         }
         RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtension.get();
-        if (false == isInternalExtension(rcsExtension)) {
+        if (false == isInternalRemoteClusterSecurityExtension(rcsExtension)) {
             throw new IllegalStateException(
                 "The ["
                     + rcsExtension.getClass().getCanonicalName()
@@ -1384,15 +1384,15 @@ public class Security extends Plugin
     }
 
     private static boolean isInternalExtension(SecurityExtension extension) {
-        final String canonicalName = extension.getClass().getCanonicalName();
-        if (canonicalName == null) {
-            return false;
-        }
-        return canonicalName.startsWith("org.elasticsearch.xpack.") || canonicalName.startsWith("co.elastic.elasticsearch.");
+        return isInternalExtension(extension.getClass());
     }
 
-    private static boolean isInternalExtension(RemoteClusterSecurityExtension extension) {
-        final String canonicalName = extension.getClass().getCanonicalName();
+    private static boolean isInternalRemoteClusterSecurityExtension(RemoteClusterSecurityExtension extension) {
+        return isInternalExtension(extension.getClass());
+    }
+
+    private static boolean isInternalExtension(Class<?> extensionClass) {
+        final String canonicalName = extensionClass.getCanonicalName();
         if (canonicalName == null) {
             return false;
         }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -58,11 +59,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -78,7 +81,8 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
     public void testDataStreamDownsample() throws ExecutionException, InterruptedException, IOException {
         // GIVEN
         final String dataStreamName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        putComposableIndexTemplate("1", List.of(dataStreamName));
+        boolean manuallyAddedRoutingPath = randomBoolean();
+        putComposableIndexTemplate("1", List.of(dataStreamName), manuallyAddedRoutingPath ? List.of("routing_field") : List.of());
         client().execute(
             CreateDataStreamAction.INSTANCE,
             new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
@@ -186,14 +190,33 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                 equalTo(10L)
             );
         });
+
+        assertResponse(indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(dataStreamName)), resp -> {
+            assertThat(resp.getIndexToSettings().keySet(), equalTo(Set.copyOf(backingIndices)));
+            resp.getIndexToSettings().values().forEach(setting -> {
+                if (manuallyAddedRoutingPath) {
+                    assertThat(setting.hasValue(IndexMetadata.INDEX_DIMENSIONS.getKey()), equalTo(false));
+                    assertThat(setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()), containsInAnyOrder("routing_field"));
+                } else {
+                    assertThat(
+                        setting.getAsList(IndexMetadata.INDEX_DIMENSIONS.getKey()),
+                        containsInAnyOrder("routing_field", "dimension")
+                    );
+                    assertThat(
+                        setting.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
+                        containsInAnyOrder("routing_field", "dimension")
+                    );
+                }
+            });
+        });
+
     }
 
-    private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
+    private void putComposableIndexTemplate(final String id, final List<String> patterns, List<String> routingField) throws IOException {
         final TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES);
-        boolean manuallyAddedRoutingPathSetting = randomBoolean();
-        if (manuallyAddedRoutingPathSetting) {
-            settings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"));
+        if (routingField.isEmpty() == false) {
+            settings.putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingField);
         }
         final Template template = new Template(settings.build(), new CompressedXContent("""
             {
@@ -202,6 +225,10 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                         "type": "date"
                     },
                     "routing_field": {
+                        "type": "keyword",
+                        "time_series_dimension": true
+                    },
+                    "dimension": {
                         "type": "keyword",
                         "time_series_dimension": true
                     },
@@ -227,7 +254,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         ComposableIndexTemplate composableIndexTemplate = getTemplateResponse.indexTemplates().values().iterator().next();
         assertThat(
             composableIndexTemplate.template().settings().hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()),
-            equalTo(manuallyAddedRoutingPathSetting)
+            equalTo(routingField.isEmpty() == false)
         );
         // the index.dimensions setting will not be present in the template settings, it is added at index creation time
         assertThat(composableIndexTemplate.template().settings().get(IndexMetadata.INDEX_DIMENSIONS.getKey()), nullValue());

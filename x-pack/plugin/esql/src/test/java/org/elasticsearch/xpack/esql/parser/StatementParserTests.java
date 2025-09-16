@@ -3169,8 +3169,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
+    public void testExpressionJoinNonSnapshotBuild() {
+        assumeFalse("LOOKUP JOIN is not yet in non-snapshot builds", Build.current().isSnapshot());
+        expectThrows(
+            ParsingException.class,
+            startsWith("line 1:31: JOIN ON clause only supports fields at the moment."),
+            () -> statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field")
+        );
+    }
+
     public void testValidJoinPatternExpressionJoin() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
 
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
         var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
@@ -3200,7 +3209,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
         }
 
-        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString);
+        // add a check that the feature is disabled on non-snaphsot build
+        String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
+        var plan = statement(query);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
@@ -3356,6 +3367,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPatternWithRemoteExpressionJoin() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         testValidJoinPatternWithRemote(singleExpressionJoinClause());
     }
 
@@ -3394,6 +3409,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidLookupJoinOnClause() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         expectError(
             "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " , " + singleExpressionJoinClause(),
             "JOIN ON clause must be a comma separated list of fields or a single expression, found"
@@ -3699,7 +3718,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
                ( LOOKUP JOIN idx2 ON f1 )
-               ( LOOKUP JOIN idx2 ON f2 >= f3 )
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
@@ -4154,6 +4172,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testDoubleParamsForIdentifier() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         // There are three variations of double parameters - named, positional or anonymous, e.g. ??n, ??1 or ??, covered.
         // Each query is executed three times with the three variations.
 
@@ -4656,6 +4678,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMixedSingleDoubleParams() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         // This is a subset of testDoubleParamsForIdentifier, with single and double parameter markers mixed in the queries
         // Single parameter markers represent a constant value or pattern
         // double parameter markers represent identifiers - field or function names
@@ -4959,7 +4985,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from te()st", "line 1:8: token recognition error at: '('");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
-        expectError("from test | lookup join foo) on bar1 > bar2", "line 1:28: token recognition error at: ')'");
+        if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+            expectError("from test | lookup join foo) on bar1 > bar2", "line 1:28: token recognition error at: ')'");
+        }
     }
 
     private void expectErrorForBracketsWithoutQuotes(String pattern) {
@@ -5001,11 +5029,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin lookup = as(plan, LookupJoin.class);
             UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
             assertThat(right.indexPattern().indexPattern(), is(indexName));
-
-            plan = statement("from test | lookup join \"" + indexName + "\" on bar1 <= bar2");
-            lookup = as(plan, LookupJoin.class);
-            right = as(lookup.right(), UnresolvedRelation.class);
-            assertThat(right.indexPattern().indexPattern(), is(indexName));
+            if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+                plan = statement("from test | lookup join \"" + indexName + "\" on bar1 <= bar2");
+                lookup = as(plan, LookupJoin.class);
+                right = as(lookup.right(), UnresolvedRelation.class);
+                assertThat(right.indexPattern().indexPattern(), is(indexName));
+            }
         }
     }
 }

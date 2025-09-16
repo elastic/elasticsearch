@@ -2220,6 +2220,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testLookupJoinExpressionAmbiguousRight() {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         String queryString = """
             from test
             | rename languages as language_code
@@ -2234,6 +2238,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testLookupJoinExpressionAmbiguousLeft() {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         String queryString = """
              from test
             | rename languages as language_name
@@ -2248,6 +2256,10 @@ public class VerifierTests extends ESTestCase {
 
     public void testLookupJoinExpressionAmbiguousBoth() {
         assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         String queryString = """
             from test
             | rename languages as language_code

@@ -250,6 +250,10 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      */
     public void testShadowingAfterPushdownExpressionJoin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
 
         String query = """
             FROM test_lookup
@@ -295,6 +299,10 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      */
     public void testShadowingAfterPushdownExpressionJoinKeepOrig() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
 
         String query = """
             FROM test_lookup
@@ -344,6 +352,10 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      */
     public void testShadowingAfterPushdownRenameExpressionJoin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
 
         String query = """
             FROM test_lookup
@@ -387,6 +399,10 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
      */
     public void testShadowingAfterPushdownEvalExpressionJoin() {
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
 
         String query = """
             FROM test_lookup

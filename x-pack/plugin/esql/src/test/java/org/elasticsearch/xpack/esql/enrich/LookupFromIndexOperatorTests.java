@@ -63,6 +63,7 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -114,10 +115,12 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     public static Iterable<Object[]> parametersFactory() {
         List<Object[]> operations = new ArrayList<>();
         operations.add(new Object[] { null });
-        for (EsqlBinaryComparison.BinaryComparisonOperation operation : EsqlBinaryComparison.BinaryComparisonOperation.values()) {
-            // we skip NEQ because there are too many matches and the test can timeout
-            if (operation != EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
-                operations.add(new Object[] { operation });
+        if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+            for (EsqlBinaryComparison.BinaryComparisonOperation operation : EsqlBinaryComparison.BinaryComparisonOperation.values()) {
+                // we skip NEQ because there are too many matches and the test can timeout
+                if (operation != EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
+                    operations.add(new Object[] { operation });
+                }
             }
         }
         return operations;

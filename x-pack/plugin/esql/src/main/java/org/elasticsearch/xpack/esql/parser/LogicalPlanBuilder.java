@@ -744,7 +744,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     private JoinInfo processExpressionBasedJoin(List<Expression> expressions, EsqlBaseParser.JoinConditionContext ctx) {
         if (LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() == false) {
-            throw new ParsingException(ctx.getText(), "JOIN ON clause only supports fields at the moment, found [{}]", ctx.getText());
+            throw new ParsingException(source(ctx), "JOIN ON clause only supports fields at the moment.");
         }
         List<Attribute> joinFields = new ArrayList<>();
         List<Expression> joinExpressions = new ArrayList<>();

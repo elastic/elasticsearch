@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -931,6 +932,10 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *
      */
     public void testDoNotPushDownIsNullFilterPastLookupJoinExpression() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         var plan = plan("""
             FROM test
             | LOOKUP JOIN languages_lookup ON languages > language_code
@@ -955,6 +960,10 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
      *       \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
      */
     public void testPushDownLookupJoinExpressionMultipleWhere() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         var plan = plan("""
             FROM test
             | LOOKUP JOIN languages_lookup ON languages <= language_code

@@ -2520,6 +2520,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneJoinOnNullMatchingFieldExpressionJoin() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         var plan = optimizedPlan("""
             from test
             | eval language_code_left = null::integer
@@ -2571,6 +2575,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * }</pre>
      */
     public void testPruneJoinOnNullAssignedMatchingFieldExpr() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         var plan = optimizedPlan("""
             from test
             | eval my_null = null::integer
@@ -9150,6 +9158,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      */
     public void testLookupJoinExpressionSwapped() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         LogicalPlan plan = optimizedPlan("""
             from test
             | keep languages
@@ -9183,6 +9195,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *
      */
     public void testLookupJoinExpressionSameAttrsDifferentConditions() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         String query = """
             from test
             | rename languages as language_code_left

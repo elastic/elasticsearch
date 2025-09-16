@@ -22,7 +22,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_API_OPENAI_HEADERS;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 public class OpenAiChatCompletionTaskSettings implements TaskSettings {
@@ -33,27 +37,38 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
         ValidationException validationException = new ValidationException();
 
         String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
+        var headers = extractOptionalMapRemoveNulls(map, HEADERS, validationException);
+        var stringHeaders = validateMapStringValues(headers, HEADERS, validationException, false, null);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new OpenAiChatCompletionTaskSettings(user);
+        return new OpenAiChatCompletionTaskSettings(user, stringHeaders);
     }
 
     private final String user;
+    @Nullable
+    private final Map<String, String> headers;
 
-    public OpenAiChatCompletionTaskSettings(@Nullable String user) {
+    public OpenAiChatCompletionTaskSettings(@Nullable String user, @Nullable Map<String, String> headers) {
         this.user = user;
+        this.headers = headers;
     }
 
     public OpenAiChatCompletionTaskSettings(StreamInput in) throws IOException {
         this.user = in.readOptionalString();
+
+        if (in.getTransportVersion().onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
+            headers = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
+        } else {
+            headers = null;
+        }
     }
 
     @Override
     public boolean isEmpty() {
-        return user == null;
+        return user == null && (headers == null || headers.isEmpty());
     }
 
     public static OpenAiChatCompletionTaskSettings of(
@@ -61,11 +76,16 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
         OpenAiChatCompletionRequestTaskSettings requestSettings
     ) {
         var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
-        return new OpenAiChatCompletionTaskSettings(userToUse);
+        var headersToUse = requestSettings.headers() == null ? originalSettings.headers : requestSettings.headers();
+        return new OpenAiChatCompletionTaskSettings(userToUse, headersToUse);
     }
 
     public String user() {
         return user;
+    }
+
+    public Map<String, String> headers() {
+        return headers;
     }
 
     @Override
@@ -74,6 +94,10 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
 
         if (user != null) {
             builder.field(USER, user);
+        }
+
+        if (headers != null && headers.isEmpty() == false) {
+            builder.field(HEADERS, headers);
         }
 
         builder.endObject();
@@ -94,6 +118,9 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(user);
+        if (out.getTransportVersion().onOrAfter(INFERENCE_API_OPENAI_HEADERS)) {
+            out.writeOptionalMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        }
     }
 
     @Override
@@ -101,12 +128,12 @@ public class OpenAiChatCompletionTaskSettings implements TaskSettings {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         OpenAiChatCompletionTaskSettings that = (OpenAiChatCompletionTaskSettings) object;
-        return Objects.equals(user, that.user);
+        return Objects.equals(user, that.user) && Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(user);
+        return Objects.hash(user, headers);
     }
 
     @Override

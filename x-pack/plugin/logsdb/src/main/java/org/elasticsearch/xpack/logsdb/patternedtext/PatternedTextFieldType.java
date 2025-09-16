@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -53,6 +52,7 @@ import java.util.Objects;
 
 public class PatternedTextFieldType extends StringFieldType {
 
+    private static final String STORED_SUFFIX = ".stored";
     private static final String TEMPLATE_SUFFIX = ".template";
     private static final String TEMPLATE_ID_SUFFIX = ".template_id";
     private static final String ARGS_SUFFIX = ".args";
@@ -80,10 +80,10 @@ public class PatternedTextFieldType extends StringFieldType {
             new TextSearchInfo(
                 hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
                 null,
-                Lucene.STANDARD_ANALYZER,
-                Lucene.STANDARD_ANALYZER
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
             ),
-            Lucene.STANDARD_ANALYZER,
+            DelimiterAnalyzer.INSTANCE,
             syntheticSource,
             Collections.emptyMap()
         );
@@ -251,7 +251,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new PatternedTextBlockLoader(templateFieldName(), argsFieldName(), argsInfoFieldName());
+        return new PatternedTextBlockLoader((leafReader -> PatternedTextCompositeValues.from(leafReader, this)));
     }
 
     @Override
@@ -280,12 +280,20 @@ public class PatternedTextFieldType extends StringFieldType {
         return name() + TEMPLATE_ID_SUFFIX;
     }
 
+    String templateIdFieldName(String leafName) {
+        return leafName + TEMPLATE_ID_SUFFIX;
+    }
+
     String argsFieldName() {
         return name() + ARGS_SUFFIX;
     }
 
     String argsInfoFieldName() {
         return name() + ARGS_INFO_SUFFIX;
+    }
+
+    String storedNamed() {
+        return name() + STORED_SUFFIX;
     }
 
 }

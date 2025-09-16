@@ -220,6 +220,17 @@ final class RequestXContent {
                     }
                 }
             }
+        } else {
+            errors.add(
+                new XContentParseException(
+                    "Unexpected token "
+                        + token
+                        + " at "
+                        + p.getTokenLocation()
+                        + ", expected [START_ARRAY]."
+                        + "Please check documentation for the correct format of the 'params' field."
+                )
+            );
         }
         // don't allow mixed named and unnamed parameters
         if (namedParams.isEmpty() == false && unNamedParams.isEmpty() == false) {

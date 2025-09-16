@@ -10,6 +10,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collection;
@@ -49,8 +50,18 @@ public interface IndicesRequest {
         IndicesRequest indices(String... indices);
 
         /**
+         * Sets the resolved index expressions, both local and remote, for this request.
+         */
+        default void setReplacedIndexExpressions(ReplacedIndexExpressions expressions) {}
+
+        @Nullable
+        default ReplacedIndexExpressions getReplacedIndexExpressions() {
+            return null;
+        }
+
+        /**
          * Determines whether the request can contain indices on a remote cluster.
-         *
+         * <p>
          * NOTE in theory this method can belong to the {@link IndicesRequest} interface because whether a request
          * allowing remote indices has no inherent relationship to whether it is {@link Replaceable} or not.
          * However, we don't have an existing request that is non-replaceable but allows remote indices.

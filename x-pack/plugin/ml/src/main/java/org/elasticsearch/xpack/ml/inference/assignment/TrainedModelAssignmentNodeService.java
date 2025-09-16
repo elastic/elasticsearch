@@ -523,7 +523,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (task == null) {
             logger.debug(
                 () -> format(
-                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exit",
+                    "[%s] Unable to gracefully stop deployment for shutting down node %s because task does not exist",
                     deploymentId,
                     currentNode
                 )
@@ -575,7 +575,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (task == null) {
             logger.debug(
                 () -> format(
-                    "[%s] Unable to stop unreferenced deployment for node %s because task does not exit",
+                    "[%s] Unable to stop unreferenced deployment for node %s because task does not exist",
                     deploymentId,
                     currentNode
                 )

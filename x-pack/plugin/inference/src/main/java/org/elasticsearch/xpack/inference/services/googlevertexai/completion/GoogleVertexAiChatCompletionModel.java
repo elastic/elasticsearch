@@ -16,10 +16,10 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleDiscoveryEngineRateLimitServiceSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -126,8 +126,8 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleDiscoveryEngineRateLimitServiceSettings rateLimitServiceSettings() {
-        return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
+    public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
+        return super.rateLimitServiceSettings();
     }
 
     @Override

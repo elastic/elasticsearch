@@ -1,0 +1,224 @@
+# Elasticsearch Cursor Rules
+
+You are an AI assistant helping with Elasticsearch development. Follow these specific guidelines for the Elasticsearch codebase.
+
+## Project Structure and Organization
+
+### Main Directories
+- `server/`: Core Elasticsearch server components
+- `libs/`: Internal libraries (not general purpose)  
+- `modules/`: Default-shipped features requiring special permissions or dependencies
+- `plugins/`: Officially supported plugins for subset of users
+- `x-pack/`: Commercially licensed code with Elastic License
+- `test/`: Test framework and fixtures
+- `qa/`: Multi-module tests, version compatibility tests, integration tests
+- `docs/`: Project documentation
+- `distribution/`: Build artifacts and packages
+
+### Module Structure
+- Modules are in `modules/` directory, each with their own `build.gradle`
+- Plugins are in `plugins/` directory
+- Use `esplugin` configuration in build.gradle for ES plugins
+- Group modules under `org.elasticsearch.plugin`
+
+## Java Coding Standards
+
+### Formatting (Spotless/Eclipse)
+- **Indentation**: 4 spaces (never tabs)
+- **Line width**: 140 characters
+- **Documentation code blocks**: Max 76 characters (between `// tag::NAME` and `// end::NAME`)
+- Use `./gradlew spotlessApply` to format code
+- Use `./gradlew spotlessJavaCheck` to check formatting
+
+### Imports and Dependencies
+- **Forbidden**: Wildcard imports (`import foo.bar.baz.*`) - will cause build failure
+- Prefer specific imports
+- Use project dependencies like `project(":server")` for internal modules
+
+### Code Style
+- **Boolean expressions**: Use `foo == false` instead of `!foo` for readability
+- Avoid `foo == true`, just use `if (foo)`
+- Use `@SuppressWarnings` sparingly and with minimal scope
+- Use `Types.forciblyCast` utility only as last resort for type coercion
+
+### License Headers
+For server/libs/modules (non-x-pack):
+```java
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+```
+
+For x-pack:
+```java
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+```
+
+## Package Naming Conventions
+
+### Plugin APIs
+- Root package: `org.elasticsearch.plugin`
+- Specialized APIs: `org.elasticsearch.plugin.analysis`
+- Internal packages: `org.elasticsearch.plugin.analysis.internal`
+
+### General Guidelines
+- Follow existing package structures in the codebase
+- Keep internal implementation details in `internal` subpackages
+- Use consistent naming across similar components
+
+## Testing Framework and Conventions
+
+### Test Base Classes (Prefer in this order)
+1. **Unit Tests**: `ESTestCase` - Base class for all tests, prefer for pure unit testing
+2. **Single Node**: `ESSingleNodeTestCase` - Lightweight single node cluster
+3. **Integration**: `ESRestTestCase` - REST API integration tests (preferred for integration)
+4. **Internal Integration**: `ESIntegTestCase` - Internal state verification (use sparingly)
+5. **YAML Tests**: `ESClientYamlSuiteTestCase` - For YAML-based REST tests
+
+### Test Guidelines
+- **Prefer unit tests** over integration tests when possible
+- Use REST tests for integration testing in realistic setups
+- Write tests that are easy to reproduce and understand
+- Use randomized testing for parameters that don't affect behavior
+- **Don't use randomization for coverage** - write explicit tests for different code paths
+
+### Test Commands
+- Run all tests: `./gradlew check`
+- Run specific test: `./gradlew :server:test --tests org.elasticsearch.package.ClassName`
+- Run with seed: `./gradlew test -Dtests.seed=DEADBEEF`
+- Debug tests: `./gradlew :server:test --debug-jvm`
+- REST tests: `./gradlew :rest-api-spec:yamlRestTest`
+
+### FIPS Mode Testing
+Use this pattern to skip tests in FIPS mode:
+```java
+assumeFalse("Justification why this cannot be run in FIPS mode", inFipsJvm());
+```
+
+## Documentation and Javadoc
+
+### Javadoc Requirements
+- **Always add Javadoc to new code**
+- **New classes and interfaces** must have class-level Javadoc
+- **Public methods** must have Javadoc
+- **Abstract methods** must have Javadoc
+- Document the "why", not the "how"
+- Don't document trivial/obvious functionality
+- Use `@link` for references, prefer over `@see`
+- Add examples when reasonably possible
+
+### Package Documentation
+- Add `package-info.java` for new packages with explanation
+- Reference parent packages when appropriate
+- Document purpose, caveats, and usage examples
+
+## Gradle Build System
+
+### Dependencies
+- `implementation`: Internal dependencies not exposed to dependent projects
+- `api`: External API dependencies
+- `compileOnly`: Provided at runtime (e.g., server for plugins)
+- `testImplementation`: Test-only dependencies
+
+### Plugin Development
+```gradle
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+    name = project.name
+}
+```
+
+## REST API Conventions
+
+### URL Design
+- **Use singular nouns** (not plurals): `/_ingest/pipeline/{id}` not `/_ingest/pipelines/{id}`
+- Follow existing patterns in the codebase
+- Maintain consistency with established endpoints
+
+## Logging Guidelines
+
+### Logger Setup
+```java
+private static final Logger logger = LogManager.getLogger(ClassName.class);
+```
+
+### Logging Levels
+- **TRACE**: Very verbose, development debugging
+- **DEBUG**: Production debugging, limited volume
+- **INFO**: Important events, user-facing terminology, factual language
+- **WARN**: Problems requiring investigation, actionable items
+- **ERROR**: Critical failures, very rare usage
+
+### Log Message Format
+```java
+logger.debug("operation failed [{}] times in [{}]ms", failureCount, elapsedMillis);
+logger.debug(() -> "expensive computation [" + expensiveMethod() + "]");
+```
+
+## Performance and Security
+
+### Performance Considerations
+- Use appropriate data structures
+- Consider memory usage in high-throughput paths
+- Profile performance-critical changes with Rally
+- Document unexpected performance characteristics in Javadoc
+
+### Security
+- Validate all inputs
+- Use appropriate authentication/authorization
+- Follow security best practices for REST endpoints
+- Consider FIPS 140-2 compliance requirements
+
+## Build and Development Workflow
+
+### Running Elasticsearch
+- Development: `./gradlew run`
+- With debug: `./gradlew run --debug-jvm`
+- Different distribution: `./gradlew run -Drun.distribution=oss`
+- Multiple nodes: Configure `numberOfNodes` in build script
+
+### Common Commands
+- Format code: `./gradlew spotlessApply`
+- Check formatting: `./gradlew spotlessJavaCheck`
+- Run precommit: `./gradlew precommit`
+- Build distributions: `./gradlew assemble`
+- Clean: `./gradlew clean`
+
+## Metrics and Monitoring
+
+### Naming Guidelines
+- Use hierarchical naming with dots as separators: `es.indices.docs.deleted.total`
+- Elements in lowercase with underscores: `blob_cache`
+- Start with `es` root prefix
+- Follow existing prefixes and naming patterns
+- Build names that make sense when truncated at any segment
+
+## Version Compatibility
+
+### BWC Testing
+- Test against compatible versions
+- Use `./gradlew bwcTest` for backward compatibility tests
+- Consider version compatibility when making changes
+- Update version constants appropriately
+
+## Error Handling
+
+### Exception Handling
+- Provide meaningful error messages
+- Log appropriate context for debugging
+- Use specific exception types
+- Handle errors gracefully in user-facing code
+- Include relevant metadata in log messages
+
+Remember to follow the existing patterns in the codebase and maintain consistency with established conventions. When in doubt, look for similar implementations in the existing code for guidance.

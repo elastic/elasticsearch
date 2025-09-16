@@ -21,6 +21,8 @@ public enum QuerySettings {
         "project_routing",
         DataType.KEYWORD,
         true,
+        false,
+        true,
         "A project routing expression, "
             + "used to define which projects to route the query to. "
             + "Only supported if Cross-Project Search is enabled."
@@ -29,19 +31,31 @@ public enum QuerySettings {
     private String settingName;
     private DataType type;
     private final boolean serverlessOnly;
+    private final boolean snapshotOnly;
+    private final boolean preview;
     private final String description;
     private final Predicate<RemoteClusterService> validator;
 
-    QuerySettings(String name, DataType type, boolean serverlessOnly, String description, Predicate<RemoteClusterService> validator) {
+    QuerySettings(
+        String name,
+        DataType type,
+        boolean serverlessOnly,
+        boolean preview,
+        boolean snapshotOnly,
+        String description,
+        Predicate<RemoteClusterService> validator
+    ) {
         this.settingName = name;
         this.type = type;
         this.serverlessOnly = serverlessOnly;
+        this.preview = preview;
+        this.snapshotOnly = snapshotOnly;
         this.description = description;
         this.validator = validator;
     }
 
-    QuerySettings(String name, DataType type, boolean serverlessOnly, String description) {
-        this(name, type, serverlessOnly, description, state -> true);
+    QuerySettings(String name, DataType type, boolean serverlessOnly, boolean preview, boolean snapshotOnly, String description) {
+        this(name, type, serverlessOnly, preview, snapshotOnly, description, state -> true);
     }
 
     public String settingName() {
@@ -54,6 +68,14 @@ public enum QuerySettings {
 
     public boolean serverlessOnly() {
         return serverlessOnly;
+    }
+
+    public boolean snapshotOnly() {
+        return snapshotOnly;
+    }
+
+    public boolean preview() {
+        return preview;
     }
 
     public String description() {

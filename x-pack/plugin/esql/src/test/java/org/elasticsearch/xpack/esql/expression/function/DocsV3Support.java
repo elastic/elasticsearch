@@ -1108,6 +1108,8 @@ public abstract class DocsV3Support {
                 builder.field("name", name);
                 builder.field("type", setting.type().typeName());
                 builder.field("serverlessOnly", setting.serverlessOnly());
+                builder.field("preview", setting.preview());
+                builder.field("snapshot_only", setting.snapshotOnly());
                 builder.field("description", setting.description());
                 String rendered = Strings.toString(builder.endObject());
                 logger.info("Writing kibana setting definition for [{}]:\n{}", name, rendered);

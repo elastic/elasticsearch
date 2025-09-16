@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.DIFFERENT_NODE;
 import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.DISABLED;
+import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.REMOTE_CLUSTER;
 import static org.elasticsearch.xpack.esql.plugin.ComputeService.ReductionPlanFeatures.SAME_NODE;
 
 public class DataNodeRequestSerializationTests extends AbstractWireSerializingTestCase<DataNodeRequest> {
@@ -283,7 +284,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     switch (in.reductionPlanFeatures()) {
                         case DIFFERENT_NODE -> SAME_NODE;
                         case SAME_NODE -> DISABLED;
-                        case DISABLED -> DIFFERENT_NODE;
+                        case DISABLED -> REMOTE_CLUSTER;
+                        case REMOTE_CLUSTER -> DIFFERENT_NODE;
                     }
                 );
                 request.setParentTask(request.getParentTask());

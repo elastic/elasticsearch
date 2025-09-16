@@ -255,7 +255,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             configuration,
             configuration.newFoldContext(),
             plan,
-            ComputeService.ReductionPlanFeatures.DIFFERENT_NODE
+            ComputeService.ReductionPlanFeatures.REMOTE_CLUSTER
         );
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final EsqlFlags flags = computeService.createFlags();
@@ -286,7 +286,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         () -> exchangeSink.createExchangeSink(() -> {})
                     ),
                     coordinatorPlan,
-                    SplitPlanAfterTopN.SPLIT,
+                    SplitPlanAfterTopN.NO_SPLIT,
                     computeListener.acquireCompute()
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(

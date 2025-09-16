@@ -599,7 +599,10 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
     }
 
     private static SplitPlanAfterTopN splitPlanAfterTopN(DataNodeRequest request) {
-        return request.reductionPlanFeatures() != ReductionPlanFeatures.DISABLED ? SplitPlanAfterTopN.SPLIT : SplitPlanAfterTopN.NO_SPLIT;
+        return switch (request.reductionPlanFeatures()) {
+            case SAME_NODE, DIFFERENT_NODE -> SplitPlanAfterTopN.SPLIT;
+            case REMOTE_CLUSTER, DISABLED -> SplitPlanAfterTopN.NO_SPLIT;
+        };
     }
 
     static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {

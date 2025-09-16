@@ -36,9 +36,8 @@ import java.util.List;
  * the compute engine)
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
-
-    private static final List<Batch<PhysicalPlan>> RULES_REMOVE_PROJECT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.SPLIT);
-    private static final List<Batch<PhysicalPlan>> RULES_KEEP_PROJECT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.NO_SPLIT);
+    private static final List<Batch<PhysicalPlan>> SPLIT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.SPLIT);
+    private static final List<Batch<PhysicalPlan>> NO_SPLIT_AFTER_TOP_N = rules(true, SplitPlanAfterTopN.NO_SPLIT);
 
     private final PostOptimizationPhasePlanVerifier<PhysicalPlan> verifier;
 
@@ -83,8 +82,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
         return switch (context().splitDataDriverPlanAfterTopN()) {
-            case SPLIT -> RULES_REMOVE_PROJECT_AFTER_TOP_N;
-            case NO_SPLIT -> RULES_KEEP_PROJECT_AFTER_TOP_N;
+            case SPLIT -> SPLIT_AFTER_TOP_N;
+            case NO_SPLIT -> NO_SPLIT_AFTER_TOP_N;
         };
     }
 

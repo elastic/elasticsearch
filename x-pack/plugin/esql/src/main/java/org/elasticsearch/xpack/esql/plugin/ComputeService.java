@@ -751,6 +751,7 @@ public class ComputeService {
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
                 PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, plan)
+                    .filter(ignored -> features == ReductionPlanFeatures.DIFFERENT_NODE || features == ReductionPlanFeatures.SAME_NODE)
                     .orElseGet(() -> plan.replaceChildren(List.of(source)));
             case PlannerUtils.ReducedPlan rp -> features == ReductionPlanFeatures.DIFFERENT_NODE
                 ? rp.plan().replaceChildren(List.of(source))
@@ -763,6 +764,7 @@ public class ComputeService {
         DIFFERENT_NODE,
         SAME_NODE,
         DISABLED,
+        REMOTE_CLUSTER,
     }
 
     String newChildSession(String session) {

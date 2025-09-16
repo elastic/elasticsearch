@@ -30,6 +30,6 @@ public class IndexedByShardIdFromList<T> implements IndexedByShardId<T> {
 
     @Override
     public <S> IndexedByShardId<S> map(java.util.function.Function<T, S> mapper) {
-        throw new UnsupportedOperationException();
+        return new IndexedByShardIdFromList<>(list.stream().map(mapper).toList());
     }
 }

@@ -321,7 +321,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
             InferenceResults inferenceResults = getBwcInferenceResults(inferenceResultsMap);
             if (inferenceResults == null) {
-                inferenceResults = inferenceResultsMap.get(inferenceId);
+                inferenceResults = inferenceResultsMap.get(Tuple.tuple(searchExecutionContext.getLocalClusterAlias(), inferenceId));
             }
 
             if (inferenceResults == null) {

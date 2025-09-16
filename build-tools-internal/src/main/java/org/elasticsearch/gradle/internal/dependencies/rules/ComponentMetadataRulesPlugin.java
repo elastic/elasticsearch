@@ -283,9 +283,6 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // org.apache.directory.api:api-ldap-client-api brings in org.apache.mina:mina-core:2.0.16. We use 2.2.4
         components.withModule("org.apache.directory.server:apacheds-interceptors-authn", ExcludeAllTransitivesRule.class);
 
-        // org.apache.tika:tika-core brings in org.slf4j:slf4j-api:1.17.36. We use 2.0.6
-        components.withModule("org.apache.ftpserver:ftpserver-core", ExcludeByGroup.class, rule -> rule.params(List.of("org.slf4j")));
-
         // Hadoop dependencies
         components.withModule("org.apache.hadoop:hadoop-client-api", ExcludeAllTransitivesRule.class);
         components.withModule("org.apache.hadoop:hadoop-client-runtime", ExcludeAllTransitivesRule.class);
@@ -332,6 +329,9 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // lucene-analysis-morfologik brings in org.carrot2:morfologik-polish:2.1.9. we use none.
         // lucene-analysis-morfologik brings in ua.net.nlp:morfologik-ukrainian-search:4.9.1 we use 3.7.5.
         components.withModule("org.apache.lucene:lucene-analysis-morfologik", ExcludeOtherGroupsTransitiveRule.class);
+
+        // lucene-analysis-icu brings in com.ibm.icu:icu4j:74.2 we use 68.2.
+        components.withModule("org.apache.lucene:lucene-analysis-icu", ExcludeOtherGroupsTransitiveRule.class);
 
         // lucene-analysis-phonetic brings in commons-codec:1.17. We use 1.15
         components.withModule("org.apache.lucene:lucene-analysis-phonetic", ExcludeOtherGroupsTransitiveRule.class);
@@ -462,6 +462,10 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         components.withModule("org.testcontainers:testcontainers", ExcludeAllTransitivesRule.class);
 
         // AWS SDK dependencies
+        components.withModule("com.amazonaws:aws-java-sdk-core", ExcludeAllTransitivesRule.class);
+        components.withModule("com.amazonaws:aws-java-sdk-s3", ExcludeAllTransitivesRule.class);
+        components.withModule("software.amazon.awssdk:bedrockruntime", ExcludeAllTransitivesRule.class);
+
         components.withModule("software.amazon.awssdk:apache-client", ExcludeAllTransitivesRule.class);
         components.withModule("software.amazon.awssdk:arns", ExcludeAllTransitivesRule.class);
         components.withModule("software.amazon.awssdk:auth", ExcludeAllTransitivesRule.class);

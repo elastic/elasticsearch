@@ -47,14 +47,14 @@ public class LuceneFilesExtensionsTests extends ESTestCase {
     public void testIsLuceneExtension() {
         assertFalse(LuceneFilesExtensions.isLuceneExtension(null));
         assertFalse(LuceneFilesExtensions.isLuceneExtension("bcde"));
-        String randomStringWithLuceneExtension = randomAlphanumericOfLength(10) + "." +
-            LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length) - 1].getExtension();
+        String randomStringWithLuceneExtension = randomAlphanumericOfLength(10)
+            + "."
+            + LuceneFilesExtensions.values()[randomInt(LuceneFilesExtensions.values().length) - 1].getExtension();
         String extension = IndexFileNames.getExtension(randomStringWithLuceneExtension);
-        assertTrue(extension + " should be considered a Lucene extension",
-            LuceneFilesExtensions.isLuceneExtension(extension)
-        );
+        assertTrue(extension + " should be considered a Lucene extension", LuceneFilesExtensions.isLuceneExtension(extension));
         String upperCaseExtension = extension.toUpperCase();
-        assertFalse(upperCaseExtension + " (uppercase) should not be considered a Lucene extension",
+        assertFalse(
+            upperCaseExtension + " (uppercase) should not be considered a Lucene extension",
             LuceneFilesExtensions.isLuceneExtension(upperCaseExtension)
         );
     }

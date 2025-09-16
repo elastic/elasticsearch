@@ -203,34 +203,14 @@ public final class XmlProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    /**
-     * Determines if a value should be considered empty for filtering purposes.
-     * Used by the remove_empty_values feature to filter out empty content.
-     * <p>
-     * Considers empty:<ul>
-     *  <li>null values
-     *  <li>empty or whitespace-only strings
-     *  <li>empty Maps
-     *  <li>empty Lists
-     * </ul>
-     *
-     * @param value the value to check
-     * @return true if the value should be considered empty
-     */
-    private static boolean isEmptyValue(Object value) {
-        if (value == null) {
-            return true;
-        }
-        if (value instanceof String string) {
-            return string.isBlank();
-        }
-        if (value instanceof Map<?, ?> map) {
-            return map.isEmpty();
-        }
-        if (value instanceof List<?> list) {
-            return list.isEmpty();
-        }
-        return false;
+    // for use with remove_empty_values to filter out empty content
+    private static boolean isEmptyValue(List<?> value) {
+        return value == null || value.isEmpty();
+    }
+
+    // for use with remove_empty_values to filter out empty content
+    private static boolean isEmptyValue(String value) {
+        return value == null || value.isBlank();
     }
 
     /**

@@ -366,6 +366,16 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
     }
 
     /**
+     * Return true if the shard has moved since the time ClusterInfo was created.
+     */
+    public boolean hasShardMoved(ShardRouting shardRouting) {
+        // We use dataPath to find out whether a shard is allocated on a node.
+        // TODO: DataPath is sent with disk usages but thread pool usage is sent separately so that local shard allocation
+        // may change between the two calls.
+        return getDataPath(shardRouting) == null;
+    }
+
+    /**
      * Method that incorporates the ShardId for the shard into a string that
      * includes a 'p' or 'r' depending on whether the shard is a primary.
      */

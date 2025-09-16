@@ -511,10 +511,7 @@ public class DesiredBalanceComputer {
         final var startedShards = new ArrayList<ShardRouting>();
         for (var routingNode : routingNodes) {
             for (var shardRouting : routingNode.started()) {
-                // We use dataPath to find out whether a shard is allocated on a node.
-                // TODO: DataPath is sent with disk usages but thread pool usage is sent separately so that local shard allocation
-                // may change between the two calls.
-                if (clusterInfo.getDataPath(shardRouting) == null) {
+                if (clusterInfo.hasShardMoved(shardRouting)) {
                     startedShards.add(shardRouting);
                 }
             }

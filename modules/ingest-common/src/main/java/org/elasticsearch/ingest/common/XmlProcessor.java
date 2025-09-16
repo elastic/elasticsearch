@@ -666,7 +666,7 @@ public final class XmlProcessor extends AbstractProcessor {
             // Add to DOM text node if needed
             if (buildDom && domElementStack.isEmpty() == false) {
                 String text = new String(ch, start, length);
-                if (text.isBlank() == false || removeEmptyValues == false) {
+                if (removeEmptyValues == false || text.isBlank() == false) {
                     Text textNode = domDocument.createTextNode(text);
                     domElementStack.peek().appendChild(textNode);
                 }
@@ -722,10 +722,10 @@ public final class XmlProcessor extends AbstractProcessor {
                         }
                         elementValue = contentMap;
                     } else {
-                        if (removeEmptyValues && isEmptyValue(trimmedText)) {
-                            elementValue = null;
-                        } else {
+                        if (removeEmptyValues == false || isEmptyValue(trimmedText) == false) {
                             elementValue = trimmedText;
+                        } else {
+                            elementValue = null;
                         }
                     }
                     elementValue = applyForceArray(elementName, elementValue);

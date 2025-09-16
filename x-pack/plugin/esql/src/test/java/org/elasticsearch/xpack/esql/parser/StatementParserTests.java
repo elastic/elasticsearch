@@ -400,21 +400,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        assertEquals(
-            new InlineStats(
-                EMPTY,
-                new Aggregate(
+        assertThat(
+            processingCommand(query),
+            is(
+                new InlineStats(
                     EMPTY,
-                    PROCESSING_CMD_INPUT,
-                    List.of(attribute("c"), attribute("d.e")),
-                    List.of(
-                        new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                        attribute("c"),
-                        attribute("d.e")
+                    new Aggregate(
+                        EMPTY,
+                        PROCESSING_CMD_INPUT,
+                        List.of(attribute("c"), attribute("d.e")),
+                        List.of(
+                            new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                            attribute("c"),
+                            attribute("d.e")
+                        )
                     )
                 )
-            ),
-            processingCommand(query)
+            )
         );
     }
 
@@ -423,20 +425,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (releaseBuildForInlineStats(query)) {
             return;
         }
-        assertEquals(
-            new InlineStats(
-                EMPTY,
-                new Aggregate(
+        assertThat(
+            processingCommand(query),
+            is(
+                new InlineStats(
                     EMPTY,
-                    PROCESSING_CMD_INPUT,
-                    List.of(),
-                    List.of(
-                        new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                        new Alias(EMPTY, "c", integer(1))
+                    new Aggregate(
+                        EMPTY,
+                        PROCESSING_CMD_INPUT,
+                        List.of(),
+                        List.of(
+                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                            new Alias(EMPTY, "c", integer(1))
+                        )
                     )
                 )
-            ),
-            processingCommand(query)
+            )
         );
     }
 

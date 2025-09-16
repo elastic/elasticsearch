@@ -11,6 +11,15 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
+configurations {
+  // we do not want to expose a version conflict in transitive dependencies by
+  // bringing in different versions of hamcrest and hamcrest-core.
+  // Therefore we exclude transitive deps on hamcrest-core here as we have a direct
+  // dependency on a newer version.
+  runtimeElements {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+}
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')
@@ -18,9 +27,13 @@ dependencies {
   api project(":server")
   api project(":libs:cli")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  api "junit:junit:${versions.junit}"
+  api("junit:junit:${versions.junit}") {
+//    exclude group: 'org.hamcrest'
+  }
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
+  api("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
+//    exclude group: 'org.hamcrest'
+  }
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"

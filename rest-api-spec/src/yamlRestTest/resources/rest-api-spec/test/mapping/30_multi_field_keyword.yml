@@ -1,0 +1,45 @@
+---
+Keyword with escaped characters as multi-field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                fields:
+                  bar:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "c:\\windows\\system32\\svchost.exe"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              foo: "c:\\windows\\system32\\svchost.exe"
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              foo.bar: "c:\\windows\\system32\\svchost.exe"
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"

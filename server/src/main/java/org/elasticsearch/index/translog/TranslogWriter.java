@@ -17,7 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -82,7 +82,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
-    private TranslogStreamOutput buffer;
+    private ReleasableBytesStreamOutput buffer;
 
     private final Map<Long, Tuple<BytesReference, Exception>> seenSequenceNumbers;
 
@@ -245,7 +245,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         synchronized (this) {
             ensureOpen();
             if (buffer == null) {
-                buffer = new TranslogStreamOutput(bigArrays.bytesRefRecycler());
+                buffer = new ReleasableBytesStreamOutput(bigArrays);
             }
             assert bufferedBytes == buffer.size();
             final long offset = totalOffset;
@@ -262,48 +262,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
             operationCounter++;
 
-            // assert assertNoSeqNumberConflict(seqNo, data);
+            assert assertNoSeqNumberConflict(seqNo, data);
 
             location = new Translog.Location(generation, offset, data.length());
             operationListener.operationAdded(data, seqNo, location);
-            bufferedBytes = buffer.size();
-        }
-
-        return location;
-    }
-
-    public Translog.Location add(final Translog.WriteOp data, final long seqNo) throws IOException {
-        long bufferedBytesBeforeAdd = this.bufferedBytes;
-        if (bufferedBytesBeforeAdd >= forceWriteThreshold) {
-            writeBufferedOps(Long.MAX_VALUE, bufferedBytesBeforeAdd >= forceWriteThreshold * 4);
-        }
-
-        int bytesToAdd = data.length();
-        final Translog.Location location;
-        synchronized (this) {
-            ensureOpen();
-            if (buffer == null) {
-                buffer = new TranslogStreamOutput(bigArrays.bytesRefRecycler());
-            }
-            assert bufferedBytes == buffer.size();
-            final long offset = totalOffset;
-            totalOffset += bytesToAdd;
-            buffer.writeFullOperation(data);
-
-            assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-            assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
-
-            minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
-            maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
-
-            nonFsyncedSequenceNumbers.add(seqNo);
-
-            operationCounter++;
-
-            // assert assertNoSeqNumberConflict(seqNo, header);
-
-            location = new Translog.Location(generation, offset, bytesToAdd);
-            operationListener.operationAdded(BytesArray.EMPTY, seqNo, location);
             bufferedBytes = buffer.size();
         }
 
@@ -582,11 +544,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
         if (this.buffer != null) {
-            try (RecyclerBytesStreamOutput toWrite = this.buffer) {
-                this.buffer = null;
-                this.bufferedBytes = 0;
-                return toWrite.moveToBytesReference();
-            }
+            ReleasableBytesStreamOutput toWrite = this.buffer;
+            this.buffer = null;
+            this.bufferedBytes = 0;
+            return new ReleasableBytesReference(toWrite.bytes(), toWrite);
         } else {
             return ReleasableBytesReference.empty();
         }

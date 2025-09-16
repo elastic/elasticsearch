@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -40,6 +41,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertInferenceResultsMap;
 
 /**
  * <p>
@@ -60,7 +64,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     public static final NodeFeature NEW_SEMANTIC_QUERY_INTERCEPTORS = new NodeFeature("search.new_semantic_query_interceptors");
 
     protected final T originalQuery;
-    protected final Map<String, InferenceResults> inferenceResultsMap;
+    protected final Map<Tuple<String, String>, InferenceResults> inferenceResultsMap;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
         Objects.requireNonNull(originalQuery, "original query must not be null");
@@ -72,12 +76,23 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected InterceptedInferenceQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.originalQuery = (T) in.readNamedWriteable(QueryBuilder.class);
-        this.inferenceResultsMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)));
+        if (in.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            this.inferenceResultsMap = in.readOptional(
+                i1 -> i1.readImmutableMap(
+                    i2 -> Tuple.tuple(i2.readString(), i2.readString()),
+                    i2 -> i2.readNamedWriteable(InferenceResults.class)
+                )
+            );
+        } else {
+            this.inferenceResultsMap = convertInferenceResultsMap(
+                in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
+            );
+        }
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
@@ -122,7 +137,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param inferenceResultsMap The inference results map
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap);
+    protected abstract QueryBuilder copy(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap);
 
     /**
      * Rewrite to a {@link QueryBuilder} appropriate for a specific index's mappings. The implementation can use
@@ -168,7 +183,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(originalQuery);
-        out.writeOptional((o, v) -> o.writeMap(v, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, t) -> {
+                o2.writeString(t.v1());
+                o2.writeString(t.v2());
+            }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        } else {
+            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, t) -> {
+                if (t.v1().equals(LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    throw new IllegalArgumentException("Cannot serialize remote cluster inference results in a mixed-version cluster");
+                }
+                o2.writeString(t.v2());
+            }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        }
     }
 
     @Override
@@ -274,7 +301,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results are
         // provided by the user.
         String query = getQuery();
-        Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
         if (query != null) {
             for (String inferenceId : inferenceIds) {
                 SemanticQueryBuilder.registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
@@ -360,9 +387,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 
-    private static void inferenceResultsErrorCheck(Map<String, InferenceResults> inferenceResultsMap) {
+    private static void inferenceResultsErrorCheck(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
-            String inferenceId = entry.getKey();
+            String inferenceId = entry.getKey().v2();
             InferenceResults inferenceResults = entry.getValue();
 
             if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {

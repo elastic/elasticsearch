@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -37,7 +38,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     private InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {
         super(other, inferenceResultsMap);
     }
@@ -63,7 +64,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
+    protected QueryBuilder copy(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
         return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap);
     }
 

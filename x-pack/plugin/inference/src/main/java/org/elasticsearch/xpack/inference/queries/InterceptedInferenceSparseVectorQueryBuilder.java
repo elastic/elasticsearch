@@ -13,6 +13,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,7 +50,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
 
     public InterceptedInferenceSparseVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {
         super(other, inferenceResultsMap);
     }
@@ -96,7 +97,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
+    protected QueryBuilder copy(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
         return new InterceptedInferenceSparseVectorQueryBuilder(this, inferenceResultsMap);
     }
 
@@ -111,9 +112,9 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            rewritten = querySemanticTextField(semanticTextFieldType);
+            rewritten = querySemanticTextField(indexMetadataContext, semanticTextFieldType);
         } else {
-            rewritten = queryNonSemanticTextField();
+            rewritten = queryNonSemanticTextField(indexMetadataContext);
         }
 
         return rewritten;
@@ -138,7 +139,10 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         return originalQuery.getFieldName();
     }
 
-    private QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+    private QueryBuilder querySemanticTextField(
+        QueryRewriteContext indexMetadataContext,
+        SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType
+    ) {
         MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
@@ -154,7 +158,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
                 inferenceId = semanticTextFieldType.getSearchInferenceId();
             }
 
-            queryVector = getQueryVector(inferenceId);
+            queryVector = getQueryVector(indexMetadataContext.getLocalClusterAlias(), inferenceId);
         }
 
         SparseVectorQueryBuilder innerSparseVectorQuery = new SparseVectorQueryBuilder(
@@ -171,7 +175,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
             .queryName(originalQuery.queryName());
     }
 
-    private QueryBuilder queryNonSemanticTextField() {
+    private QueryBuilder queryNonSemanticTextField(QueryRewriteContext indexMetadataContext) {
         List<WeightedToken> queryVector = originalQuery.getQueryVectors();
         if (queryVector == null) {
             String inferenceId = originalQuery.getInferenceId();
@@ -179,7 +183,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
                 throw new IllegalArgumentException("Either query vector or inference ID must be specified");
             }
 
-            queryVector = getQueryVector(inferenceId);
+            queryVector = getQueryVector(indexMetadataContext.getLocalClusterAlias(), inferenceId);
         }
 
         return new SparseVectorQueryBuilder(
@@ -192,8 +196,8 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         ).boost(originalQuery.boost()).queryName(originalQuery.queryName());
     }
 
-    private List<WeightedToken> getQueryVector(String inferenceId) {
-        InferenceResults inferenceResults = inferenceResultsMap.get(inferenceId);
+    private List<WeightedToken> getQueryVector(String clusterAlias, String inferenceId) {
+        InferenceResults inferenceResults = inferenceResultsMap.get(Tuple.tuple(clusterAlias, inferenceId));
         if (inferenceResults == null) {
             throw new IllegalStateException("Could not find inference results from inference endpoint [" + inferenceId + "]");
         } else if (inferenceResults instanceof TextExpansionResults == false) {

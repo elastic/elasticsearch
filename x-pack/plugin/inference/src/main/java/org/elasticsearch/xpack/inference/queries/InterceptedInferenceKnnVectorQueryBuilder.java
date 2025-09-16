@@ -13,6 +13,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -50,7 +51,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     public InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {
         super(other, inferenceResultsMap);
     }
@@ -114,7 +115,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
+    protected QueryBuilder copy(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
         return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap);
     }
 
@@ -129,9 +130,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            rewritten = querySemanticTextField(semanticTextFieldType);
+            rewritten = querySemanticTextField(indexMetadataContext, semanticTextFieldType);
         } else {
-            rewritten = queryNonSemanticTextField();
+            rewritten = queryNonSemanticTextField(indexMetadataContext);
         }
 
         return rewritten;
@@ -166,7 +167,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         return modelId;
     }
 
-    private QueryBuilder querySemanticTextField(SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
+    private QueryBuilder querySemanticTextField(
+        QueryRewriteContext indexMetadataContext,
+        SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType
+    ) {
         MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
@@ -182,7 +186,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 inferenceId = semanticTextFieldType.getSearchInferenceId();
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(inferenceId);
+            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(indexMetadataContext.getLocalClusterAlias(), inferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -202,7 +206,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             .queryName(originalQuery.queryName());
     }
 
-    private QueryBuilder queryNonSemanticTextField() {
+    private QueryBuilder queryNonSemanticTextField(QueryRewriteContext indexMetadataContext) {
         VectorData queryVector = originalQuery.queryVector();
         if (queryVector == null) {
             String modelId = getQueryVectorBuilderModelId();
@@ -213,7 +217,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 throw new IllegalStateException("No query vector or query vector builder model ID specified");
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(modelId);
+            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(indexMetadataContext.getLocalClusterAlias(), modelId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -231,8 +235,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         return knnQuery;
     }
 
-    private MlTextEmbeddingResults getTextEmbeddingResults(String inferenceId) {
-        InferenceResults inferenceResults = inferenceResultsMap.get(inferenceId);
+    private MlTextEmbeddingResults getTextEmbeddingResults(String clusterAlias, String inferenceId) {
+        InferenceResults inferenceResults = inferenceResultsMap.get(Tuple.tuple(clusterAlias, inferenceId));
         if (inferenceResults == null) {
             throw new IllegalStateException("Could not find inference results from inference endpoint [" + inferenceId + "]");
         } else if (inferenceResults instanceof MlTextEmbeddingResults == false) {

@@ -65,7 +65,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV = TransportVersion.fromName(
         "semantic_query_multiple_inference_ids"
     );
-    public static TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = TransportVersion.fromName(
+    static TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = TransportVersion.fromName(
         "inference_results_map_with_cluster_alias"
     );
 
@@ -249,9 +249,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         );
     }
 
-    protected static Map<Tuple<String, String>, InferenceResults> convertInferenceResultsMap(
-        Map<String, InferenceResults> inferenceResultsMap
-    ) {
+    static Map<Tuple<String, String>, InferenceResults> convertInferenceResultsMap(Map<String, InferenceResults> inferenceResultsMap) {
         Map<Tuple<String, String>, InferenceResults> converted = null;
         if (inferenceResultsMap != null) {
             converted = Collections.unmodifiableMap(

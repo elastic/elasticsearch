@@ -39,8 +39,10 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -672,35 +674,24 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
     }
 
     private Object convertToExpectedType(Object value, DataType valueType, DataType targetType) {
-        if (targetType == INTEGER && value instanceof Integer) {
-            return value;
-        }
-        if (targetType == LONG && value instanceof Long) {
-            return value;
-        }
-        if (targetType == UNSIGNED_LONG && value instanceof Long) {
-            return value;
-        }
-        if (targetType == DOUBLE && value instanceof Double) {
+        // No conversion needed
+        if (targetType.isNumeric() == false) {
             return value;
         }
 
-        // Unsigned longs are represented using (Long.MIN_VALUE, Long.MAX_VALUE), therefore we need to convert
-        // if the targetType is not "unsigned_long"
-        if (valueType == UNSIGNED_LONG && targetType != UNSIGNED_LONG) {
+        // Conversion needed as unsigned longs are represented as signed longs
+        if (valueType == UNSIGNED_LONG) {
             value = NumericUtils.unsignedLongToDouble(((Number) value).longValue());
         }
 
-        if (value instanceof Number num) {
-            return switch (targetType) {
-                case INTEGER -> num.intValue();
-                case LONG, UNSIGNED_LONG -> num.longValue();
-                case DOUBLE -> num.doubleValue();
-                default -> value;
-            };
+        Object convertedValue = EsqlDataTypeConverter.convert(value, targetType);
+
+        // Unsigned long evaluator expects unsigned longs in signed long representation
+        if (convertedValue instanceof BigInteger valueAsBigInteger) {
+            return NumericUtils.asLongUnsigned(valueAsBigInteger);
         }
 
-        return value;
+        return convertedValue;
     }
 
 }

@@ -2874,8 +2874,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity);
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyVectorAsList);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                () -> new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity),
+                IndexedSyntheticFieldLoader::copyVectorAsList
+            );
         }
         return null;
     }
@@ -2900,10 +2903,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
         private final VectorSimilarity vectorSimilarity;
+        private final Thread creationThread;
 
         private IndexedSyntheticFieldLoader(IndexVersion indexCreatedVersion, VectorSimilarity vectorSimilarity) {
             this.indexCreatedVersion = indexCreatedVersion;
             this.vectorSimilarity = vectorSimilarity;
+            this.creationThread = Thread.currentThread();
         }
 
         @Override
@@ -2930,6 +2935,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private DocValuesLoader createLoader(KnnVectorValues.DocIndexIterator iterator, boolean checkMagnitude) {
             return docId -> {
+                assert creationThread == Thread.currentThread()
+                    : "Thread mismatch: created by [" + creationThread + "], but accessed by [" + Thread.currentThread() + "]";
                 if (iterator.docID() > docId) {
                     return hasValue = false;
                 }

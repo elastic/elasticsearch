@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +64,7 @@ public abstract class LuceneOperator extends SourceOperator {
     final Set<Query> processedQueries = new HashSet<>();
     final Set<String> processedShards = new HashSet<>();
 
-    private LuceneSlice currentSlice;
+    protected LuceneSlice currentSlice;
     private int sliceIndex;
 
     private LuceneScorer currentScorer;
@@ -375,14 +374,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                processedQueries = in.readCollectionAsSet(StreamInput::readString);
-                processedShards = in.readCollectionAsSet(StreamInput::readString);
-            } else {
-                processedQueries = Collections.emptySet();
-                processedShards = Collections.emptySet();
-            }
-            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+            processedQueries = in.readCollectionAsSet(StreamInput::readString);
+            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -402,13 +396,9 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeCollection(processedQueries, StreamOutput::writeString);
-                out.writeCollection(processedShards, StreamOutput::writeString);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeVLong(processNanos);
-            }
+            out.writeCollection(processedQueries, StreamOutput::writeString);
+            out.writeCollection(processedShards, StreamOutput::writeString);
+            out.writeVLong(processNanos);
             out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
             out.writeVInt(pagesEmitted);

@@ -137,6 +137,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_7 = def(8_840_0_09);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_8 = def(8_840_0_10);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
@@ -324,6 +325,10 @@ public class TransportVersions {
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
     public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
+    public static final TransportVersion INFERENCE_API_OPENAI_HEADERS = def(9_161_0_00);
+    public static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = def(9_162_0_00);
+    public static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = def(9_163_0_00);
+    public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = def(9_164_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

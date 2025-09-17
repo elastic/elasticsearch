@@ -49,6 +49,7 @@ public class OldRecyclerBytesStreamOutput extends BytesStream implements Releasa
         this.recycler = recycler;
         this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
+        ensureCapacityFromPosition(1);
     }
 
     @Override

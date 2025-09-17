@@ -169,14 +169,13 @@ public class MetadataAttribute extends TypedAttribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), searchable);
+    public int nonSemanticHashCode() {
+        return Objects.hash(super.nonSemanticHashCode(), searchable);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean nonSemanticEquals(Attribute o) {
         var other = (MetadataAttribute) o;
-        return super.innerEquals(other) && searchable == other.searchable;
+        return super.nonSemanticEquals(other) && searchable == other.searchable;
     }
 }

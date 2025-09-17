@@ -1504,8 +1504,15 @@ public class EsqlCapabilities {
          */
         ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
-        /** INLINESTATS supports remote indices */
-        INLINESTATS_SUPPORTS_REMOTE;
+        /**
+         * INLINESTATS supports remote indices
+         */
+        INLINESTATS_SUPPORTS_REMOTE,
+
+        /**
+         * Fix attribute equality to respect the name id of the attribute.
+         */
+        ATTRIBUTE_EQUALS_RESPECTS_NAME_ID;
 
         private final boolean enabled;
 

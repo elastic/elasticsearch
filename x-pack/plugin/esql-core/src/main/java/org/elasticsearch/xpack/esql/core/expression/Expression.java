@@ -180,10 +180,19 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return replaceChildrenSameSize(canonicalChildren);
     }
 
+    /**
+     * Whether this expression means the same as {@code other}, even if they are not exactly equal.
+     * For example, {@code a + b} and {@code b + a} are not equal, but they are semantically equivalent.
+     * <p>
+     * If two expressions are equal, they are also semantically equal, but the reverse is not true.
+     */
     public boolean semanticEquals(Expression other) {
         return canonical().equals(other.canonical());
     }
 
+    /**
+     * A hash code that is consistent with {@link #semanticEquals}.
+     */
     public int semanticHash() {
         return canonical().hashCode();
     }

@@ -33,6 +33,55 @@ import static java.util.Collections.emptyList;
  */
 public abstract class Attribute extends NamedExpression {
     /**
+     * A wrapper class where equality of the contained attribute ignores the {@link Attribute#id()}. Useful when we want to create new
+     * attributes and want to avoid duplicates - we can create a set of {@link NonSemanticAttribute}s.
+     */
+    public class NonSemanticAttribute {
+        private Attribute attribute;
+
+        public NonSemanticAttribute(Attribute attribute) {
+            if (attribute == null) {
+                throw new IllegalStateException("Attribute inside NonSemanticAttribute cannot be null");
+            }
+            this.attribute = attribute;
+        }
+
+        public Attribute get() {
+            return attribute;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            Attribute otherAttribute = ((NonSemanticAttribute) o).attribute;
+
+            if (attribute == otherAttribute) {
+                return true;
+            }
+            if (otherAttribute == null || attribute.getClass() != otherAttribute.getClass()) {
+                return false;
+            }
+
+            return attribute.nonSemanticEquals(otherAttribute);
+        }
+
+        @Override
+        public int hashCode() {
+            return attribute.nonSemanticHashCode();
+        }
+    }
+
+    public NonSemanticAttribute ignoreId() {
+        return new NonSemanticAttribute(this);
+    }
+
+    /**
      * Changing this will break bwc with 8.15, see {@link FieldAttribute#fieldName()}.
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
@@ -152,7 +201,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public boolean semanticEquals(Expression other) {
-        return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
+        return other instanceof Attribute otherAttr && id().equals(otherAttr.id());
     }
 
     @Override
@@ -160,16 +209,42 @@ public abstract class Attribute extends NamedExpression {
         return clone(Source.EMPTY, qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
-    @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
+    /**
+     * Compares all fields except the id. Useful when looking for attributes that are the same except for their origin, or when we create
+     * new attributes based on existing ones and want to avoid duplicates.
+     * <p>
+     * Does not perform the usual instance and class equality checks, those are already done in {@link NamedExpression#equals(Object)}
+     */
+    protected boolean nonSemanticEquals(Attribute other) {
+        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+    }
+
+    /**
+     * Hashcode that's consistent with {@link #nonSemanticEquals(Attribute)}. Hashes everything but the id.
+     */
+    protected int nonSemanticHashCode() {
         return Objects.hash(super.hashCode(), qualifier, nullability);
     }
 
+    /**
+     * Inheritors should generally only override {@link #nonSemanticHashCode()}.
+     */
+    @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), id(), nonSemanticHashCode());
+    }
+
+    /**
+     * Because the name alone is not sufficient to identify an attribute (two different relations can have the same attribute name),
+     * we also have an id that is used in equality checks and hashing.
+     * <p>
+     * Inheritors should generally only override {@link #nonSemanticEquals(Attribute)}.
+     */
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Attribute) o;
-        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+        return semanticEquals(other) && nonSemanticEquals(other);
     }
 
     @Override

@@ -1875,6 +1875,24 @@ type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
 ;
 
+lookupJoinOnSameFieldTwiceValues
+required_capability: join_lookup_v12
+required_capability: attribute_equals_respects_name_id
+
+ROW a = 1, b = 2
+| EVAL language_code = a
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_a
+| EVAL language_code = b
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_b
+| STATS values(language_name_a), values(language_name_b)
+;
+
+values(language_name_a):keyword | values(language_name_b):keyword
+English                         | French
+;
+
 ###############################################
 # LOOKUP JOIN on mixed numerical fields
 ###############################################

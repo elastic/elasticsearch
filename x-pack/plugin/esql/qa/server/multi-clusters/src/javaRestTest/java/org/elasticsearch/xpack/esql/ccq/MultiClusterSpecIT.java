@@ -15,7 +15,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
@@ -41,8 +40,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -55,6 +52,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FO
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_SUPPORTS_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V11;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
@@ -121,6 +119,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "LookupJoinOnTwoFieldsMultipleTimes",
         // Lookup join after LIMIT is not supported in CCS yet
         "LookupJoinAfterLimitAndRemoteEnrich",
+        "LookupJoinExpressionAfterLimitAndRemoteEnrich",
         // Lookup join after FORK is not support in CCS yet
         "ForkBeforeLookupJoin"
     );
@@ -141,9 +140,18 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
         Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName()));
+        if (testCase.requiredCapabilities.contains(INLINESTATS.capabilityName())
+            || testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName())
+            || testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName())) {
+            assumeTrue(
+                "INLINESTATS in CCS not supported for this version",
+                hasCapabilities(adminClient(), List.of(INLINESTATS_SUPPORTS_REMOTE.capabilityName()))
+            );
+            assumeTrue(
+                "INLINESTATS in CCS not supported for this version",
+                hasCapabilities(remoteClusterClient(), List.of(INLINESTATS_SUPPORTS_REMOTE.capabilityName()))
+            );
+        }
         if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",
@@ -251,7 +259,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                     return bulkClient.performRequest(request);
                 } else {
                     Request[] clones = cloneRequests(request, 2);
-                    return runInParallel(localClient, remoteClient, clones);
+                    Response resp1 = remoteClient.performRequest(clones[0]);
+                    Response resp2 = localClient.performRequest(clones[1]);
+                    assertEquals(resp1.getStatusLine().getStatusCode(), resp2.getStatusLine().getStatusCode());
+                    return resp2;
                 }
         });
         doAnswer(invocation -> {
@@ -284,44 +295,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             }
         }
         return clones;
-    }
-
-    /**
-     * Run {@link #cloneRequests cloned} requests in parallel.
-     */
-    static Response runInParallel(RestClient localClient, RestClient remoteClient, Request[] clones) throws Throwable {
-        CompletableFuture<Response> remoteResponse = new CompletableFuture<>();
-        CompletableFuture<Response> localResponse = new CompletableFuture<>();
-        remoteClient.performRequestAsync(clones[0], new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                remoteResponse.complete(response);
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                remoteResponse.completeExceptionally(exception);
-            }
-        });
-        localClient.performRequestAsync(clones[1], new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                localResponse.complete(response);
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                localResponse.completeExceptionally(exception);
-            }
-        });
-        try {
-            Response remote = remoteResponse.get();
-            Response local = localResponse.get();
-            assertEquals(remote.getStatusLine().getStatusCode(), local.getStatusLine().getStatusCode());
-            return local;
-        } catch (ExecutionException e) {
-            throw e.getCause();
-        }
     }
 
     /**

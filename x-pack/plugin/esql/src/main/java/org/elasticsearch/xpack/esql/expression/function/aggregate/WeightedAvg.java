@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -69,16 +67,9 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readNamedWriteable(Expression.class) : Literal.TRUE,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-                ? in.readNamedWriteableCollectionAsList(Expression.class).get(0)
-                : in.readNamedWriteable(Expression.class)
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class).get(0)
         );
-    }
-
-    @Override
-    protected void deprecatedWriteParams(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(weight);
     }
 
     @Override
@@ -160,9 +151,9 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return new MvAvg(s, field);
         }
         if (weight.foldable()) {
-            return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+            return new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
         } else {
-            return new Div(s, new Sum(s, new Mul(s, field, weight)), new Sum(s, weight), dataType());
+            return new Div(s, new Sum(s, new Mul(s, field, weight), filter()), new Sum(s, weight, filter()), dataType());
         }
     }
 

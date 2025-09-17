@@ -62,7 +62,7 @@ public class InlineJoin extends Join {
      * Keep the join in place or replace it with an Eval in case no grouping is necessary.
      */
     public static LogicalPlan inlineData(InlineJoin target, LocalRelation data) {
-        if (target.config().matchFields().isEmpty()) {
+        if (target.config().leftFields().isEmpty()) {
             List<Attribute> schema = data.output();
             Block[] blocks = data.supplier().get();
             List<Alias> aliases = new ArrayList<>(schema.size());
@@ -165,11 +165,10 @@ public class InlineJoin extends Join {
         LogicalPlan left,
         LogicalPlan right,
         JoinType type,
-        List<Attribute> matchFields,
         List<Attribute> leftFields,
         List<Attribute> rightFields
     ) {
-        super(source, left, right, type, matchFields, leftFields, rightFields);
+        super(source, left, right, type, leftFields, rightFields, null);
     }
 
     private static InlineJoin readFrom(StreamInput in) throws IOException {
@@ -192,16 +191,7 @@ public class InlineJoin extends Join {
         // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
         // expressions and references.
         JoinConfig config = config();
-        return NodeInfo.create(
-            this,
-            InlineJoin::new,
-            left(),
-            right(),
-            config.type(),
-            config.matchFields(),
-            config.leftFields(),
-            config.rightFields()
-        );
+        return NodeInfo.create(this, InlineJoin::new, left(), right(), config.type(), config.leftFields(), config.rightFields());
     }
 
     @Override

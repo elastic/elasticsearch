@@ -223,12 +223,13 @@ final class RequestXContent {
         } else {
             errors.add(
                 new XContentParseException(
-                    "Unexpected token "
+                    "Unexpected token ["
                         + token
-                        + " at "
+                        + "] at "
                         + p.getTokenLocation()
-                        + ", expected [START_ARRAY]."
-                        + "Please check documentation for the correct format of the 'params' field."
+                        + ", expected "
+                        + XContentParser.Token.START_ARRAY
+                        + ". Please check documentation for the correct format of the 'params' field."
                 )
             );
         }

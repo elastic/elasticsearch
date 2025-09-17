@@ -408,6 +408,26 @@ public class EsqlQueryRequestTests extends ESTestCase {
         );
     }
 
+    public void testInvalidParamsString() {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        String json1 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": {*}
+            }""", query);
+        Exception e1 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        String message1 = e1.getCause().getMessage();
+        assertThat(message1, containsString("Unexpected token [START_OBJECT]"));
+        String json2 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "params": "foo"
+            }""", query);
+        Exception e2 = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
+        String message2 = e2.getCause().getMessage();
+        assertThat(message2, containsString("Unexpected token [VALUE_STRING]"));
+    }
+
     public void testInvalidParamsForIdentifiersPatterns() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();

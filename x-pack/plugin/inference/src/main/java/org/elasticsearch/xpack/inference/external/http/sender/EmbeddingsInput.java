@@ -30,10 +30,6 @@ public class EmbeddingsInput extends InferenceInputs {
     private final Supplier<List<ChunkInferenceInput>> listSupplier;
     private final InputType inputType;
 
-    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType) {
-        this(input, inputType, false);
-    }
-
     public EmbeddingsInput(Supplier<List<ChunkInferenceInput>> inputSupplier, @Nullable InputType inputType) {
         super(false);
         this.listSupplier = Objects.requireNonNull(inputSupplier);
@@ -41,7 +37,15 @@ public class EmbeddingsInput extends InferenceInputs {
     }
 
     public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType) {
-        this(input.stream().map(i -> new ChunkInferenceInput(i, chunkingSettings)).collect(Collectors.toList()), inputType, false);
+        this(input, chunkingSettings, inputType, false);
+    }
+
+    public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType, boolean stream) {
+        this(input.stream().map(i -> new ChunkInferenceInput(i, chunkingSettings)).toList(), inputType, stream);
+    }
+
+    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType) {
+        this(input, inputType, false);
     }
 
     public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType, boolean stream) {

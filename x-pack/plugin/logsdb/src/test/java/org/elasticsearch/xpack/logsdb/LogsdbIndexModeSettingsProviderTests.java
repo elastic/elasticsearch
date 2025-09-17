@@ -30,7 +30,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapper;
+import org.elasticsearch.xpack.logsdb.patterntext.PatternTextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -959,12 +959,12 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
     }
 
-    public void testPatternedTextNotAllowedByLicense() throws Exception {
-        assumeTrue("patterned_text feature must be enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
+    public void testPatternTextNotAllowedByLicense() throws Exception {
+        assumeTrue("pattern_text feature must be enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
 
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
-        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_TEMPLATING_FEATURE))).thenReturn(false);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERN_TEXT_TEMPLATING_FEATURE))).thenReturn(false);
         logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         logsdbLicenseService.setLicenseState(licenseState);
 
@@ -973,7 +973,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
             .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
             .build();
         Settings result = generateLogsdbSettings(settings);
-        assertTrue(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(result));
+        assertTrue(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(result));
     }
 
     public void testSortAndHostNamePropagateValue() throws Exception {

@@ -34,11 +34,20 @@ public class TestUtils {
         Settings settings,
         ThreadPool threadPool
     ) {
+        return newCacheService(nodeEnvironment, settings, threadPool, null);
+    }
+
+    public static StatelessSharedBlobCacheService newCacheService(
+        NodeEnvironment nodeEnvironment,
+        Settings settings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
+    ) {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
             nodeEnvironment,
             settings,
             threadPool,
-            new BlobCacheMetrics(MeterRegistry.NOOP)
+            meterRegistry == null ? new BlobCacheMetrics(MeterRegistry.NOOP) : new BlobCacheMetrics(meterRegistry)
         );
         statelessSharedBlobCacheService.assertInvariants();
         return statelessSharedBlobCacheService;

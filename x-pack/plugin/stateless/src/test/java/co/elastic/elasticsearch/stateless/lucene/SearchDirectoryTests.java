@@ -46,6 +46,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -150,7 +151,8 @@ public class SearchDirectoryTests extends ESTestCase {
             protected StatelessSharedBlobCacheService createCacheService(
                 NodeEnvironment nodeEnvironment,
                 Settings settings,
-                ThreadPool threadPool
+                ThreadPool threadPool,
+                MeterRegistry MeterRegistry
             ) {
                 StatelessSharedBlobCacheService statelessSharedBlobCacheService = new StatelessSharedBlobCacheService(
                     nodeEnvironment,

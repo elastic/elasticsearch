@@ -42,6 +42,7 @@ import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -59,6 +60,10 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.mockito.Mockito;
@@ -81,6 +86,7 @@ import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicated
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -197,53 +203,63 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
 
         var actualRangeInputStreamPosition = new SetOnce<Long>();
         var actualRangeInputStreamLength = new SetOnce<Integer>();
+        final long primaryTerm = randomLongBetween(10, 42);
 
-        try (var fakeNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
-            @Override
-            protected Settings nodeSettings() {
-                Settings settings = super.nodeSettings();
-                return Settings.builder()
-                    .put(settings)
-                    .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
-                    .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(512))
-                    .build();
-            }
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        try (
+            var fakeNode = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                primaryTerm,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                recordingMeterRegistry
+            ) {
+                @Override
+                protected Settings nodeSettings() {
+                    Settings settings = super.nodeSettings();
+                    return Settings.builder()
+                        .put(settings)
+                        .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1))
+                        .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(512))
+                        .build();
+                }
 
-            @Override
-            protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
-                return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
-                    @Override
-                    public CacheBlobReader getCacheBlobReader(
-                        ShardId shardId,
-                        LongFunction<BlobContainer> blobContainer,
-                        BlobLocation location,
-                        MutableObjectStoreUploadTracker objectStoreUploadTracker,
-                        LongConsumer totalBytesReadFromObjectStore,
-                        LongConsumer totalBytesReadFromIndexing,
-                        BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                        Executor objectStoreFetchExecutor,
-                        String fileName
-                    ) {
-                        return new ObjectStoreCacheBlobReader(
-                            blobContainer.apply(location.primaryTerm()),
-                            location.blobName(),
-                            cacheService.getRangeSize(),
-                            objectStoreFetchExecutor
+                @Override
+                protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {
+                    return new CacheBlobReaderService(nodeSettings, cacheService, client, threadPool) {
+                        @Override
+                        public CacheBlobReader getCacheBlobReader(
+                            ShardId shardId,
+                            LongFunction<BlobContainer> blobContainer,
+                            BlobLocation location,
+                            MutableObjectStoreUploadTracker objectStoreUploadTracker,
+                            LongConsumer totalBytesReadFromObjectStore,
+                            LongConsumer totalBytesReadFromIndexing,
+                            BlobCacheMetrics.CachePopulationReason cachePopulationReason,
+                            Executor objectStoreFetchExecutor,
+                            String fileName
                         ) {
-                            @Override
-                            protected InputStream getRangeInputStream(long position, int length) throws IOException {
-                                actualRangeInputStreamPosition.set(position);
-                                actualRangeInputStreamLength.set(length);
-                                return super.getRangeInputStream(position, length);
-                            }
-                        };
-                    }
-                };
+                            return new ObjectStoreCacheBlobReader(
+                                blobContainer.apply(location.primaryTerm()),
+                                location.blobName(),
+                                cacheService.getRangeSize(),
+                                objectStoreFetchExecutor
+                            ) {
+                                @Override
+                                protected InputStream getRangeInputStream(long position, int length) throws IOException {
+                                    actualRangeInputStreamPosition.set(position);
+                                    actualRangeInputStreamLength.set(length);
+                                    return super.getRangeInputStream(position, length);
+                                }
+                            };
+                        }
+                    };
+                }
             }
-        }) {
+        ) {
             var indexCommits = fakeNode.generateIndexCommits(randomIntBetween(10, 20));
 
-            var primaryTerm = 1;
             var vbcc = new VirtualBatchedCompoundCommit(
                 fakeNode.shardId,
                 "fake-node-id",
@@ -295,6 +311,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             for (int start = SharedBytes.PAGE_SIZE; start < vbcc.getTotalSizeInBytes() - SharedBytes.PAGE_SIZE; start += 2
                 * SharedBytes.PAGE_SIZE) {
                 var range = ByteRange.of(start, start + SharedBytes.PAGE_SIZE);
+                String resourceDescription = vbcc.getBlobName();
                 long bytesRead = cacheFile.populateAndRead(
                     range,
                     range,
@@ -304,7 +321,7 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         try (
                             var in = shardContainer.readBlob(
                                 OperationPurpose.INDICES,
-                                vbcc.getBlobName(),
+                                resourceDescription,
                                 range.start() + relativePos,
                                 length
                             )
@@ -312,7 +329,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                             SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.clear());
                         }
                         ActionListener.completeWith(completionListener, () -> null);
-                    }
+                    },
+                    resourceDescription
                 );
                 assertThat(bytesRead, equalTo((long) SharedBytes.PAGE_SIZE));
             }
@@ -337,6 +355,11 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             // check that position and length were set only once
             assertThat(actualRangeInputStreamPosition.get(), equalTo(0L));
             assertThat(actualRangeInputStreamLength.get(), equalTo(fakeNode.sharedCacheService.getRegionSize()));
+            List<Measurement> measurements = fakeNode.meterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.miss_that_triggered_read.total");
+            Measurement first = measurements.getFirst();
+            assertThat(first.attributes().get("file_extension"), is("other"));
+            assertThat(first.value(), is(1L));
         }
     }
 
@@ -566,9 +589,10 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
             protected StatelessSharedBlobCacheService createCacheService(
                 NodeEnvironment nodeEnvironment,
                 Settings settings,
-                ThreadPool threadPool
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
             ) {
-                return spy(super.createCacheService(nodeEnvironment, settings, threadPool));
+                return spy(super.createCacheService(nodeEnvironment, settings, threadPool, meterRegistry));
             }
 
             @Override

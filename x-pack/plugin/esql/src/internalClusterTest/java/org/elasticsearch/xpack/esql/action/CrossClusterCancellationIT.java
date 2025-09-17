@@ -84,7 +84,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        String stats = randomFrom("STATS", "INLINESTATS");
+        request.query("FROM *:test | " + stats + " total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
         client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);
@@ -161,7 +162,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     public void testTasks() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        String stats = randomFrom("STATS", "INLINESTATS");
+        request.query("FROM *:test | " + stats + " total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         ActionFuture<EsqlQueryResponse> requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
@@ -199,7 +201,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     public void testCancelSkipUnavailable() throws Exception {
         createRemoteIndex(between(10, 100));
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        String stats = randomFrom("STATS", "INLINESTATS");
+        request.query("FROM *:test | " + stats + " total=sum(const) | LIMIT 1");
         request.pragmas(randomPragmas());
         request.includeCCSMetadata(true);
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();

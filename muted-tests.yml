@@ -588,6 +588,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<1000000000 ints>}
   issue: https://github.com/elastic/elasticsearch/issues/134855
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/134856
 
 # Examples:
 #

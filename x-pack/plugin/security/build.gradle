@@ -184,6 +184,7 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
+  exclude '**/*.bcfks'
   exclude '**/*.p12'
   exclude '**/*.der'
   exclude '**/*.zip'

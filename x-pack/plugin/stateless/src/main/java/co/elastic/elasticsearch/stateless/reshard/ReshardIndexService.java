@@ -22,8 +22,6 @@ import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
@@ -163,29 +161,27 @@ public class ReshardIndexService {
     public void reshardIndex(
         final TimeValue masterNodeTimeout,
         final ReshardIndexClusterStateUpdateRequest request,
-        final ActionListener<ShardsAcknowledgedResponse> listener
+        final ActionListener<Void> listener
     ) {
         logger.trace("reshardIndex[{}]", request);
         onlyReshardIndex(masterNodeTimeout, request, listener.delegateFailureAndWrap((delegate, response) -> {
             logger.trace("[{}] index reshard acknowledged", request.index().getName());
-            delegate.onResponse(ShardsAcknowledgedResponse.of(true, true));
+            delegate.onResponse(null);
         }));
     }
 
-    public void transitionToHandoff(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
-        // TODO it is up to the caller to figure out how to create ActionResponse, we should not be dealing with it here
+    public void transitionToHandoff(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
         transitionToHandOffStateQueue.submitTask(
             "transition-reshard-index-to-handoff [" + splitStateRequest.getShardId().getIndex().getName() + "]",
-            new TransitionToHandoffStateTask(splitStateRequest, listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
+            new TransitionToHandoffStateTask(splitStateRequest, listener),
             splitStateRequest.masterNodeTimeout()
         );
     }
 
-    public void transitionTargetState(SplitStateRequest splitStateRequest, ActionListener<ActionResponse> listener) {
-        // TODO it is up to the caller to figure out how to create ActionResponse, we should not be dealing with it here
+    public void transitionTargetState(SplitStateRequest splitStateRequest, ActionListener<Void> listener) {
         transitionTargetStateQueue.submitTask(
             "transition-reshard-index-target-state [" + splitStateRequest.getShardId().getIndex().getName() + "]",
-            new TransitionTargetStateTask(splitStateRequest, listener.map(ignored -> ActionResponse.Empty.INSTANCE)),
+            new TransitionTargetStateTask(splitStateRequest, listener),
             splitStateRequest.masterNodeTimeout()
         );
     }

@@ -1151,11 +1151,23 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * The reshardSplitShardCount tells us weather requests are being routed to the source shard or
+     * This method is used in the context of the resharding feature.
+     * Given a shardId and minimum target shard state required for an operation to be routed to target
+     * shards, this method returns the "effective" shard count as seen by this IndexMetadata.
+     *
+     * The reshardSplitShardCount tells us whether the coordinator routed requests to the source shard or
      * to both source and target shards. Requests are routed to both source and target shards
      * once the target shards are ready for an operation.
+     *
+     * The coordinator routes requests to source and target shards, based on its cluster state view of the state of shards
+     * undergoing a resharding operation. This method is used to populate a field in the shard level requests sent to
+     * source and target shards, as a proxy for the cluster state version. The same calculation is then done at the source shard
+     * to verify if the coordinator and source node's view of the resharding state have a mismatch.
+     * See {@link org.elasticsearch.action.support.replication.ReplicationRequest#reshardSplitShardCount}
+     * for a detailed description of how this value is used.
+     *
      * @param shardId  Input shardId for which we want to calculate the effective shard count
-     * @param minShardState Minimum target shard state required for
+     * @param minShardState Minimum target shard state required for the target to be considered ready
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
     public int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
@@ -1163,8 +1175,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         int shardCount = getNumberOfShards();
         if (reshardingMetadata != null) {
             if (reshardingMetadata.getSplit().isTargetShard(shardId)) {
-                // TODO: Assert that target state is atleast minShardState
                 int sourceShardId = reshardingMetadata.getSplit().sourceShard(shardId);
+                // Requests cannot be routed to target shards until they are ready
                 assert reshardingMetadata.getSplit().allTargetStatesAtLeast(sourceShardId, minShardState) : "unexpected target state";
                 shardCount = reshardingMetadata.getSplit().shardCountAfter();
             } else if (reshardingMetadata.getSplit().isSourceShard(shardId)) {

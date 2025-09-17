@@ -30,6 +30,7 @@ import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathFactory;
+import javax.xml.xpath.XPathFactoryConfigurationException;
 
 public class XmlUtils {
 
@@ -137,14 +138,13 @@ public class XmlUtils {
     }
 
     /**
-     * Constructs an XPath configured to be secure (not really though!)
+     * Constructs an XPath configured to be secure
      */
     @SuppressForbidden(reason = "This is the only allowed way to construct an XPath")
-    public static XPath getHardenedXPath() {
+    public static XPath getHardenedXPath() throws XPathFactoryConfigurationException {
         XPathFactory xPathFactory = XPathFactory.newInstance();
-        XPath xpath = xPathFactory.newXPath();
-        // n.b. not actually hardened yet!
-        return xpath;
+        xPathFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        return xPathFactory.newXPath();
     }
 
     private static class ErrorHandler implements org.xml.sax.ErrorHandler {

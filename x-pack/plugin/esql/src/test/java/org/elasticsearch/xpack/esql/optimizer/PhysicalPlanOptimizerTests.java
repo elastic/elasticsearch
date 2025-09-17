@@ -2936,15 +2936,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var planWithInvalidJoinRightSide = plan.transformUp(
             LookupJoinExec.class,
             // LookupJoinExec.rightReferences() is currently EMPTY (hack); use a HashJoinExec instead.
-            join -> new HashJoinExec(
-                join.source(),
-                join.left(),
-                join.left(),
-                join.leftFields(),
-                join.leftFields(),
-                join.rightFields(),
-                join.output()
-            )
+            join -> new HashJoinExec(join.source(), join.left(), join.left(), join.leftFields(), join.rightFields(), join.output())
         );
 
         e = expectThrows(IllegalStateException.class, () -> physicalPlanOptimizer.verify(planWithInvalidJoinRightSide, plan.output()));
@@ -7489,7 +7481,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         }
         PhysicalPlan plan = physicalPlan(query);
         var join = as(plan, HashJoinExec.class);
-        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(join.leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
             join.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("_meta_field{f}"))
@@ -7542,7 +7534,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var outerProject = as(plan, ProjectExec.class);
         assertThat(outerProject.projections().toString(), containsString("AS lang_name"));
         var join = as(outerProject.child(), HashJoinExec.class);
-        assertMap(join.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(join.leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertMap(
             join.output().stream().map(Object::toString).toList(),
             matchesList().item(startsWith("_meta_field{f}"))
@@ -7610,7 +7602,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
         Join join = as(innerTopN.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        assertMap(join.config().matchFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertMap(join.config().leftFields().stream().map(Objects::toString).toList(), matchesList().item(startsWith("int{r}")));
 
         Project innerProject = as(join.left(), Project.class);
         assertThat(innerProject.projections(), hasSize(10));

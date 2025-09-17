@@ -14,14 +14,10 @@ import java.io.IOException;
 
 public class PatternedTextBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
-    private final String templateFieldName;
-    private final String argsFieldName;
-    private final String argsInfoFieldName;
+    private final PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier;
 
-    PatternedTextBlockLoader(String templateFieldName, String argsFieldName, String argsInfoFieldName) {
-        this.templateFieldName = templateFieldName;
-        this.argsFieldName = argsFieldName;
-        this.argsInfoFieldName = argsInfoFieldName;
+    PatternedTextBlockLoader(PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier) {
+        this.docValuesSupplier = docValuesSupplier;
     }
 
     @Override
@@ -31,7 +27,7 @@ public class PatternedTextBlockLoader extends BlockDocValuesReader.DocValuesBloc
 
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
-        var docValues = PatternedTextDocValues.from(context.reader(), templateFieldName, argsFieldName, argsInfoFieldName);
+        var docValues = docValuesSupplier.get(context.reader());
         if (docValues == null) {
             return new ConstantNullsReader();
         }

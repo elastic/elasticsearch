@@ -54,13 +54,12 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
                             parserConfig(),
                             null,
                             null,
-                            TransportVersion.current(),
-                            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                            null,
+                            null,
                             null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
                             null,
-                            null,
-                            false
+                            null
                         )
                     )
             );
@@ -83,13 +82,12 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
                             parserConfig(),
                             null,
                             null,
-                            TransportVersion.current(),
-                            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                            null,
+                            null,
                             null,
                             new PointInTimeBuilder(new BytesArray("pitid")),
                             null,
-                            null,
-                            false
+                            null
                         )
                     )
             );
@@ -165,10 +163,10 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
-            false
+            null
         );
 
-        // No wildcards, no per-field boosting
+        // No wildcards
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
@@ -185,13 +183,13 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             "foo"
         );
 
-        // Non-default rank window size
+        // Non-default rank window size and rank constant
         rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2,
             new float[0]
         );
         assertMultiFieldsParamsRewrite(
@@ -468,7 +466,7 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             resolvedIndices,
             new PointInTimeBuilder(new BytesArray("pitid")),
             null,
-            false
+            null
         );
 
         RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(

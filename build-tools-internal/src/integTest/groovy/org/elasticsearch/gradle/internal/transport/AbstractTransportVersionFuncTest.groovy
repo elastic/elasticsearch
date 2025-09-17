@@ -155,7 +155,11 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         """
 
         setupLocalGitRepo()
-        execute("git checkout -b main")
+        String currentBranch = execute("git branch --show-current")
+        if (currentBranch.strip().equals("main") == false) {
+            // make sure a main branch exists, some CI doesn't have main set as the default branch
+            execute("git checkout -b main")
+        }
         execute("git checkout -b test")
     }
 

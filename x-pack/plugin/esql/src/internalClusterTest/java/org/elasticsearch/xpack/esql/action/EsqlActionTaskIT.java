@@ -521,14 +521,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 \\_ValuesSourceReaderOperator[fields = [pause_me]]
                 \\_ProjectOperator[projection = [1]]
                 \\_ExchangeSinkOperator""".replace("sourceStatus", sourceStatus)));
-            assertThat(
-                nodeReduceTasks(tasks).get(0).description(),
-                nodeLevelReduceDescriptionMatcher(
-                    tasks,
-                    "\\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], "
-                        + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]\n"
-                )
-            );
+            assertThat(nodeReduceTasks(tasks).get(0).description(), nodeLevelReduceDescriptionMatcher(""));
             assertThat(
                 coordinatorTasks(tasks).get(0).description(),
                 equalTo(
@@ -570,7 +563,6 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             assertThat(
                 nodeReduceTasks(tasks).get(0).description(),
                 nodeLevelReduceDescriptionMatcher(
-                    tasks,
                     "\\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], "
                         + "sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]]]\n"
                         + "\\_ProjectOperator[projection = [1]]\n"
@@ -671,7 +663,12 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         boolean matchNodeReduction = nodeLevelReduction
             // If the data node and the coordinator are the same node then we don't reduce aggs in it.
             && false == dataTasks(tasks).get(0).node().equals(coordinatorTasks(tasks).get(0).node());
-        return equalTo("\\_ExchangeSourceOperator[]\n" + (matchNodeReduction ? nodeReduce : "") + "\\_ExchangeSinkOperator");
+        return nodeLevelReduceDescriptionMatcher(matchNodeReduction ? nodeReduce : "");
+    }
+
+    /** Unlike the above, will always use the {@code nodeReduce} string. */
+    private static Matcher<String> nodeLevelReduceDescriptionMatcher(String nodeReduce) {
+        return equalTo("\\_ExchangeSourceOperator[]\n" + nodeReduce + "\\_ExchangeSinkOperator");
     }
 
     @Override

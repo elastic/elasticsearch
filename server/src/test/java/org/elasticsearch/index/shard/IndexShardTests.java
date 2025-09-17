@@ -1989,7 +1989,6 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newShard(true, settings);
         assertNull(shard.getShardFieldStats());
         recoverShardFromStore(shard);
-        boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
 
         // index some documents
         int numDocs = 10;
@@ -2015,12 +2014,10 @@ public class IndexShardTests extends IndexShardTestCase {
         // More segments because delete operation is stored in the new segment for replication purposes.
         assertThat(stats.numSegments(), equalTo(2));
         long expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second segment the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
+        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+        expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
+        // Second segment the delete operation that is marked as deleted:
+        expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
         assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
 
         // delete another doc:
@@ -2033,14 +2030,12 @@ public class IndexShardTests extends IndexShardTestCase {
         // More segments because delete operation is stored in the new segment for replication purposes.
         assertThat(stats.numSegments(), equalTo(3));
         expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            // First segment with deletes
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second and third segments the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
+        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+        // First segment with deletes
+        expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
+        // Second and third segments the delete operation that is marked as deleted:
+        expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
+        expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
         assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
 
         closeShards(shard);

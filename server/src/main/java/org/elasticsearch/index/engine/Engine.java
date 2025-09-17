@@ -301,26 +301,20 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            boolean trackPostingsMemoryEnabled = isStateless;
-            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
+            if (isStateless) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    if (trackPostingsMemoryEnabled) {
-                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                        );
-                        if (postingBytes != null) {
-                            totalPostingBytes += Long.parseLong(postingBytes);
-                        }
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
                     }
-                    if (trackLiveDocsMemoryEnabled) {
-                        var liveDocs = segmentReader.getLiveDocs();
-                        if (liveDocs != null) {
-                            assert validateLiveDocsClass(liveDocs);
-                            long liveDocsBytes = getLiveDocsBytes(liveDocs);
-                            totalLiveDocsBytes += liveDocsBytes;
-                        }
+                    var liveDocs = segmentReader.getLiveDocs();
+                    if (liveDocs != null) {
+                        assert validateLiveDocsClass(liveDocs);
+                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                        totalLiveDocsBytes += liveDocsBytes;
                     }
                 }
             }

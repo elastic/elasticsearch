@@ -26,7 +26,6 @@ import org.elasticsearch.common.util.FeatureFlag;
  */
 public record ShardFieldStats(int numSegments, int totalFields, long fieldUsages, long postingsInMemoryBytes, long liveDocsBytes) {
 
-    public static final FeatureFlag TRACK_LIVE_DOCS_IN_MEMORY_BYTES = new FeatureFlag("track_live_docs_in_memory_bytes");
     public static final long FIXED_BITSET_BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 
 }

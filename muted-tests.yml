@@ -446,6 +446,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/134407
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=mapping/30_multi_field_keyword/Keyword with escaped characters as multi-field}
+  issue: https://github.com/elastic/elasticsearch/issues/134928
 
 # Examples:
 #

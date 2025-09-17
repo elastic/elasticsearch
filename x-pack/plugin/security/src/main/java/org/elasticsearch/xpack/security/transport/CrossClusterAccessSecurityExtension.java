@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.security.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityExtension;
+
+import java.util.List;
 
 /**
  * Remote cluster security extension point which is based on cross-cluster API keys.
@@ -80,6 +83,11 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
                 extension.set(new CrossClusterAccessSecurityExtension(components));
             }
             return extension.get();
+        }
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return CrossClusterApiKeySignerSettings.getSettings();
         }
 
     }

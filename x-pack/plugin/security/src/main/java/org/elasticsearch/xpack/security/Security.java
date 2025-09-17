@@ -419,7 +419,6 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -1284,9 +1283,6 @@ public class Security extends Plugin
     }
 
     private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension(RemoteClusterSecurityExtension.Components components) {
-        if (this.remoteClusterSecurityExtensionProvider.get() == null) {
-            this.remoteClusterSecurityExtensionProvider.set(new CrossClusterAccessSecurityExtension.Provider());
-        }
         RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtensionProvider.get().getExtension(components);
         assert rcsExtension != null;
         if (false == isInternalRemoteClusterSecurityExtension(rcsExtension)) {
@@ -1571,13 +1567,16 @@ public class Security extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return getSettings(securityExtensions);
+        return getSettings(securityExtensions, remoteClusterSecurityExtensionProvider.get());
     }
 
     /**
      * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
      */
-    public static List<Setting<?>> getSettings(List<SecurityExtension> securityExtensions) {
+    public static List<Setting<?>> getSettings(
+        List<SecurityExtension> securityExtensions,
+        RemoteClusterSecurityExtension.Provider remoteClusterSecurityExtensionProvider
+    ) {
         List<Setting<?>> settingsList = new ArrayList<>();
 
         // The following just apply in node mode
@@ -1621,7 +1620,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
-        settingsList.addAll(CrossClusterApiKeySignerSettings.getSettings());
+        settingsList.addAll(remoteClusterSecurityExtensionProvider.getSettings());
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
@@ -2514,10 +2513,24 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
         loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, samlAuthenticateResponseHandlerFactory, SamlAuthenticateResponseHandler.Factory.class);
-        loadSingletonExtensionAndSetOnce(loader, remoteClusterSecurityExtensionProvider, RemoteClusterSecurityExtension.Provider.class);
+        loadSingletonExtensionAndSetOnce(
+            loader,
+            remoteClusterSecurityExtensionProvider,
+            RemoteClusterSecurityExtension.Provider.class,
+            CrossClusterAccessSecurityExtension.Provider::new
+        );
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {
+        loadSingletonExtensionAndSetOnce(loader, setOnce, clazz, () -> null);
+    }
+
+    private <T> void loadSingletonExtensionAndSetOnce(
+        ExtensionLoader loader,
+        SetOnce<T> setOnce,
+        Class<T> clazz,
+        Supplier<T> defaultExtensionProvider
+    ) {
         final List<T> loaded = loader.loadExtensions(clazz);
         if (loaded.size() > 1) {
             throw new IllegalStateException(clazz + " may not have multiple implementations");
@@ -2526,7 +2539,15 @@ public class Security extends Plugin
             setOnce.set(singleLoaded);
             logger.debug("Loaded implementation [{}] for interface [{}]", singleLoaded.getClass().getCanonicalName(), clazz);
         } else {
-            logger.debug("Will fall back on default implementation for interface [{}]", clazz);
+            T defaultExtension = defaultExtensionProvider.get();
+            if (defaultExtension != null) {
+                logger.debug(
+                    "Falling back on default implementation [{}] for interface [{}]",
+                    defaultExtension.getClass().getCanonicalName(),
+                    clazz
+                );
+                setOnce.set(defaultExtension);
+            }
         }
     }
 

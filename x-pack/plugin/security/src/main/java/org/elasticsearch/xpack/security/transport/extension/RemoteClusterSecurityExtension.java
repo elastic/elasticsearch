@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.transport.extension;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
+
+import java.util.List;
 
 /**
  * Allows defining an SPI extension point for providing a custom remote cluster security interceptor
@@ -46,7 +49,7 @@ public interface RemoteClusterSecurityExtension {
 
     /**
      * An SPI interface for providing remote cluster security extensions.
-     * Allows to override the default extension ({@link CrossClusterAccessSecurityExtension}).
+     * Allows to override the default extension provider ({@link CrossClusterAccessSecurityExtension.Provider}).
      */
     interface Provider {
 
@@ -57,6 +60,14 @@ public interface RemoteClusterSecurityExtension {
          * @return a non-null remote cluster extension
          */
         RemoteClusterSecurityExtension getExtension(Components components);
+
+        /**
+         * Allows remote cluster extensions to provide settings.
+         */
+        default List<Setting<?>> getSettings() {
+            return List.of();
+        }
+
     }
 
     /**

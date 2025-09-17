@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMultiMatchQ
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticMultiMatchRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
@@ -652,6 +653,7 @@ public class InferencePlugin extends Plugin
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
             new SemanticMatchQueryRewriteInterceptor(),
+            new SemanticMultiMatchRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }

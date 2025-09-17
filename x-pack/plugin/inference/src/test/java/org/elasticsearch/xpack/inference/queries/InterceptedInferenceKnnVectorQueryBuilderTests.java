@@ -64,6 +64,17 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     }
 
     @Override
+    protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> createInterceptedQueryBuilder(
+        KnnVectorQueryBuilder originalQuery,
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+    ) {
+        return new InterceptedInferenceKnnVectorQueryBuilder(
+            new InterceptedInferenceKnnVectorQueryBuilder(originalQuery),
+            inferenceResultsMap
+        );
+    }
+
+    @Override
     protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
         return new SemanticKnnVectorQueryRewriteInterceptor();
     }

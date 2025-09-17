@@ -48,7 +48,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         super(in);
     }
 
-    public InterceptedInferenceSparseVectorQueryBuilder(
+    InterceptedInferenceSparseVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> other,
         Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {

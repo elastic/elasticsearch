@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ResolvedIndices;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -33,9 +35,11 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -49,6 +53,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -64,12 +69,12 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
-
-// TODO: Add serialization tests with remote cluster inference results
 
 public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends AbstractQueryBuilder<T>> extends MapperServiceTestCase {
     private static TestThreadPool threadPool;
@@ -174,7 +179,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
         // Test querying a semantic text field
         final T semanticFieldQuery = createQueryBuilder(field);
-        IllegalArgumentException e = expectThrows(
+        IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
             () -> rewriteAndFetch(semanticFieldQuery, queryRewriteContext)
         );
@@ -194,6 +199,47 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         assertCoordinatorNodeRewriteOnNonInferenceField(nonInferenceFieldQuery, coordinatorRewritten);
     }
 
+    public void testSerializationRemoteClusterInferenceResults() throws Exception {
+        InferenceResults inferenceResults1 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("foo", 1.0f)),
+            false
+        );
+        InferenceResults inferenceResults2 = new TextExpansionResults(
+            DEFAULT_RESULTS_FIELD,
+            List.of(new WeightedToken("bar", 2.0f)),
+            false
+        );
+
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = Map.of(
+            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults1,
+            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            inferenceResults2
+        );
+
+        // It doesn't matter that the original query doesn't refer to an inference ID in the inference results map or if the inference
+        // results in the map don't match the type expected by the query. This only tests serialization, so it only matters that both
+        // the original query and the inference results map exists.
+        QueryBuilder interceptedQuery = createInterceptedQueryBuilder(createQueryBuilder(randomAlphaOfLength(5)), inferenceResultsMap);
+
+        // Test with the current transport version, which should work
+        QueryBuilder deserializedQuery = copyNamedWriteable(interceptedQuery, writableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(interceptedQuery));
+
+        // Test with a transport version prior to cluster alias support, which should fail
+        TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS,
+            TransportVersionUtils.getPreviousVersion(SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
+        );
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> copyNamedWriteable(interceptedQuery, writableRegistry(), QueryBuilder.class, transportVersion)
+        );
+        assertThat(e.getMessage(), equalTo("Cannot serialize remote cluster inference results in a mixed-version cluster"));
+    }
+
     protected List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         getPlugins().forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
@@ -209,6 +255,11 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
     }
 
     protected abstract T createQueryBuilder(String field);
+
+    protected abstract InterceptedInferenceQueryBuilder<T> createInterceptedQueryBuilder(
+        T originalQuery,
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+    );
 
     protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();
 

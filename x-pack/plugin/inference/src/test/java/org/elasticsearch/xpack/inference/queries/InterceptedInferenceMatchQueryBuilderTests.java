@@ -13,6 +13,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
 import java.util.Map;
@@ -26,6 +27,14 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
     @Override
     protected MatchQueryBuilder createQueryBuilder(String field) {
         return new MatchQueryBuilder(field, "foo").boost(randomFloatBetween(0.1f, 4.0f, true)).queryName(randomAlphanumericOfLength(5));
+    }
+
+    @Override
+    protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> createInterceptedQueryBuilder(
+        MatchQueryBuilder originalQuery,
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+    ) {
+        return new InterceptedInferenceMatchQueryBuilder(new InterceptedInferenceMatchQueryBuilder(originalQuery), inferenceResultsMap);
     }
 
     @Override

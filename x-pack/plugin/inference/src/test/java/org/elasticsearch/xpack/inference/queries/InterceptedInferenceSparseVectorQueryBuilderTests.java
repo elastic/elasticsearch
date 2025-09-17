@@ -58,6 +58,17 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
     }
 
     @Override
+    protected InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> createInterceptedQueryBuilder(
+        SparseVectorQueryBuilder originalQuery,
+        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+    ) {
+        return new InterceptedInferenceSparseVectorQueryBuilder(
+            new InterceptedInferenceSparseVectorQueryBuilder(originalQuery),
+            inferenceResultsMap
+        );
+    }
+
+    @Override
     protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
         return new SemanticSparseVectorQueryRewriteInterceptor();
     }

@@ -36,7 +36,7 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
         super(in);
     }
 
-    private InterceptedInferenceMatchQueryBuilder(
+    InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
         Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {

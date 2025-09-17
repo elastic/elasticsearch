@@ -49,7 +49,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         super(in);
     }
 
-    public InterceptedInferenceKnnVectorQueryBuilder(
+    InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
         Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
     ) {

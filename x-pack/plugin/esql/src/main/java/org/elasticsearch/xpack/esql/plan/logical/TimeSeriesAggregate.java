@@ -82,17 +82,17 @@ public class TimeSeriesAggregate extends Aggregate {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, hasTopLevelOverTimeFunctions);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, hasTopLevelOverTimeFunctions);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, hasTopLevelOverTimeFunctions);
     }
 
     @Override

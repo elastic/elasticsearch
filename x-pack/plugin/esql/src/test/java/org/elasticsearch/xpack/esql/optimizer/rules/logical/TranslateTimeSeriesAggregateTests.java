@@ -127,7 +127,7 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
      * This tests the "group by all" case.  With no outer (aka vertical) aggregation, we expect to get back one bucket per time series,
      * grouped by each of the dimension fields.
      */
-    public void testNoOuterAggregation() {
+    public void testNoOuterAggregationWithBucket() {
         assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan plan = planK8s("""
             TS k8s
@@ -141,6 +141,29 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         // TODO: Add asserts about the specific aggregation details here
         Eval eval = as(outerStats.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[10[INTEGER],false]
+     * \_TimeSeriesAggregate[[_tsid{m}#31],[COUNT(network.cost{f}#21,true[BOOLEAN]) AS count#30, VALUES(cluster{f}#6,true[BOOLEAN])
+     *      AS cluster#32, VALUES(pod{f}#7,true[BOOLEAN]) AS pod#33],null,true]
+     *   \_EsRelation[k8s][@timestamp{f}#5, client.ip{f}#9, cluster{f}#6, even..]
+     * }</pre>
+     */
+    public void testNoOuterAggregatinoOrBucket() {
+
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS count = count_over_time(network.cost)
+            | LIMIT 10
+            """);
+        Limit limit = as(plan, Limit.class);
+        // Drop drop = as(limit.child(), Drop.class);
+        // TimeSeriesAggregate outerStats = as(drop.child(), TimeSeriesAggregate.class);
+        TimeSeriesAggregate outerStats = as(limit.child(), TimeSeriesAggregate.class);
+        // TODO: Add asserts about the specific aggregation details here
+        EsRelation relation = as(outerStats.child(), EsRelation.class);
     }
 
 }

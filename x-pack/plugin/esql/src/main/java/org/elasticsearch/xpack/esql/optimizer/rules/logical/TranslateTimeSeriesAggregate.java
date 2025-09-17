@@ -151,7 +151,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
+        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null && ts.hasTopLevelOverTimeFunctions() == false) {
             return translate(ts);
         } else {
             return aggregate;

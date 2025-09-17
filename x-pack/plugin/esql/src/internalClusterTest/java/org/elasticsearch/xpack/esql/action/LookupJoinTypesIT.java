@@ -121,8 +121,10 @@ public class LookupJoinTypesIT extends ESIntegTestCase {
     public static Iterable<Object[]> parametersFactory() {
         List<Object[]> operations = new ArrayList<>();
         operations.add(new Object[] { null });
-        for (BinaryComparisonOperation operation : BinaryComparisonOperation.values()) {
-            operations.add(new Object[] { operation });
+        if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+            for (BinaryComparisonOperation operation : BinaryComparisonOperation.values()) {
+                operations.add(new Object[] { operation });
+            }
         }
         return operations;
     }

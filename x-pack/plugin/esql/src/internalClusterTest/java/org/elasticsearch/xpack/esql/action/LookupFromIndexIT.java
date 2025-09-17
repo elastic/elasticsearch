@@ -377,7 +377,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 TEST_REQUEST_TIMEOUT
             );
             final String finalNodeWithShard = nodeWithShard;
-            boolean expressionJoin = randomBoolean();
+            boolean expressionJoin = EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled() ? randomBoolean() : false;
             List<MatchConfig> matchFields = new ArrayList<>();
             List<Expression> joinOnConditions = new ArrayList<>();
             if (expressionJoin) {

@@ -593,6 +593,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     public void testLookupJoinIndexAllowed() throws Exception {
         testLookupJoinIndexAllowedHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         testLookupJoinIndexAllowedHelper(true);
     }
 
@@ -689,6 +693,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testLookupJoinDocLevelSecurity() throws Exception {
         testLookupJoinDocLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         testLookupJoinDocLevelSecurityHelper(true);
     }
 
@@ -754,6 +762,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
     @SuppressWarnings("unchecked")
     public void testLookupJoinFieldLevelSecurity() throws Exception {
         testLookupJoinFieldLevelSecurityHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         testLookupJoinFieldLevelSecurityHelper(true);
     }
 
@@ -829,6 +841,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     public void testLookupJoinFieldLevelSecurityOnAlias() throws Exception {
         testLookupJoinFieldLevelSecurityOnAliasHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         testLookupJoinFieldLevelSecurityOnAliasHelper(true);
     }
 
@@ -904,6 +920,10 @@ public class EsqlSecurityIT extends ESRestTestCase {
 
     public void testLookupJoinIndexForbidden() throws Exception {
         testLookupJoinIndexForbiddenHelper(false);
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         testLookupJoinIndexForbiddenHelper(true);
     }
 

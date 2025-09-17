@@ -173,7 +173,10 @@ public abstract class Attribute extends NamedExpression {
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Attribute) o;
-        return Objects.equals(id(), other.id()) && super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+        return Objects.equals(id(), other.id())
+            && super.innerEquals(other)
+            && Objects.equals(qualifier, other.qualifier)
+            && Objects.equals(nullability, other.nullability);
     }
 
     @Override

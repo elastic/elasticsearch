@@ -186,7 +186,6 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     }
 
     public void testPhraseQuery() throws IOException {
-        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
         createRequest.settings(LOGSDB_SETTING);
         assertAcked(admin().indices().create(createRequest));

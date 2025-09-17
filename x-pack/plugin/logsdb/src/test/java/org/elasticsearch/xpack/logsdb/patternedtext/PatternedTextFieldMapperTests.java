@@ -26,6 +26,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -34,9 +37,14 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -47,14 +55,21 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PatternedTextFieldMapperTests extends MapperTestCase {
 
@@ -302,13 +317,66 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean useSearchOperationForFetchTests() {
-        return false;
-    }
-
-    @Override
     protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
         assumeFalse("patterned_text currently don't support multiple values in the same field", false);
+    }
+
+    /**
+     * pattern_text does not allow sorting or aggregation and thus only allow field data operations
+     * of type SCRIPT to access field data. We still want to use `testFetch` to compare value fetchers against doc
+     * values. This method copies MapperTestCase.assertFetch, but uses field data operation type SCRIPT.
+     */
+    @Override
+    protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
+        MappedFieldType ft = mapperService.fieldType(field);
+        SourceToParse source = source(b -> b.field(ft.name(), value));
+        var fielddataContext =
+            new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        var fdt = fielddataContext.fielddataOperation();
+        ValueFetcher docValueFetcher = new DocValueFetcher(
+            ft.docValueFormat(format, null),
+            ft.fielddataBuilder(fielddataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+        );
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
+        when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
+            throw new UnsupportedOperationException();
+        }, fdt));
+        ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
+        ParsedDocument doc = mapperService.documentMapper().parse(source);
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(ir.leaves().get(0), 0);
+            docValueFetcher.setNextReader(ir.leaves().get(0));
+            nativeFetcher.setNextReader(ir.leaves().get(0));
+            List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
+            List<Object> fromNative = nativeFetcher.fetchValues(s, 0, new ArrayList<>());
+            /*
+             * The native fetcher uses byte, short, etc but doc values always
+             * uses long or double. This difference is fine because on the outside
+             * users can't see it.
+             */
+            fromNative = fromNative.stream().map(o -> {
+                if (o instanceof Integer || o instanceof Short || o instanceof Byte) {
+                    return ((Number) o).longValue();
+                }
+                if (o instanceof Float) {
+                    return ((Float) o).doubleValue();
+                }
+                return o;
+            }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
+            /*
+             * Doc values sort according to something appropriate to the field
+             * and the native fetchers usually don't sort. We're ok with this
+             * difference. But we have to convince the test we're ok with it.
+             */
+            assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
+        });
     }
 
     @Override

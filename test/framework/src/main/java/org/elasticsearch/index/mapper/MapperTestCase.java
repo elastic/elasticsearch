@@ -850,14 +850,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
-        var fielddataContext = useSearchOperationForFetchTests()
-            ? FieldDataContext.noRuntimeFields("test")
-            : new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
-        var fdt = fielddataContext.fielddataOperation();
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder(fielddataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
@@ -899,15 +897,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
              */
             assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
         });
-    }
-
-    /**
-     * Some field types (e.g. patterned_text fields) do not allow sorting or aggregation and thus only allow field data operations
-     * of type SCRIPT to access field data. For such types, we still want to use `testFetch` to compare value fetchers against doc
-     * values. Overriding this method to return false allows such types to set operation type to SCRIPT for fetch tests.
-     */
-    protected boolean useSearchOperationForFetchTests() {
-        return true;
     }
 
     /**

@@ -854,6 +854,8 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
+        CanMatchPhaseAPMMetrics canMatchMetrics = new CanMatchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
+        // TODO CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics = new CoordinatorSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
@@ -941,7 +943,6 @@ class NodeConstruction {
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .slowLogFieldProvider(slowLogFieldProvider)
-            .canMatchPhaseMetrics(new CanMatchPhaseAPMMetrics(telemetryProvider.getMeterRegistry()))
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1352,6 +1353,7 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(CanMatchPhaseAPMMetrics.class).toInstance(canMatchMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

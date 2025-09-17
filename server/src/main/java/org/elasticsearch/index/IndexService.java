@@ -175,7 +175,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
-    private final CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -215,8 +214,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         QueryRewriteInterceptor queryRewriteInterceptor,
         IndexingStatsSettings indexingStatsSettings,
         SearchStatsSettings searchStatsSettings,
-        MergeMetrics mergeMetrics,
-        CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics
+        MergeMetrics mergeMetrics
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -304,7 +302,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
-        this.canMatchPhaseAPMMetrics = canMatchPhaseAPMMetrics;
         updateFsyncTaskIfNecessary();
     }
 
@@ -597,8 +594,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 mapperMetrics,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics,
-                canMatchPhaseAPMMetrics
+                mergeMetrics
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

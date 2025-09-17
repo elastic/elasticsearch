@@ -69,6 +69,8 @@ public abstract class RunTask extends DefaultTestClustersTask {
     );
     private MockApmServer mockServer;
 
+    private String apmServerUrl;
+
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch.")
     public void setDebug(boolean enabled) {
         this.debug = enabled;
@@ -141,6 +143,11 @@ public abstract class RunTask extends DefaultTestClustersTask {
     @Option(option = "apm-transactions-excludes", description = "Transaction wildcard filter for APM server")
     public void setApmServerTransactionsExcludes(String apmServerTransactionsExcludes) {
         this.apmServerTransactionsExcludes = apmServerTransactionsExcludes;
+    }
+
+    @Option(option = "apm-server-url", description = "URL for APM server")
+    public void setApmServerUrl(String apmServerUrl) {
+        this.apmServerUrl = apmServerUrl;
     }
 
     @Option(option = "with-plugins", description = "Run distribution with plugins installed")
@@ -247,6 +254,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
             try {
                 mockServer = new MockApmServer(apmServerMetrics, apmServerTransactions, apmServerTransactionsExcludes);
                 mockServer.start();
+                this.apmServerUrl = "http://127.0.0.1:" + mockServer.getPort();
             } catch (IOException e) {
                 throw new GradleException("Unable to start APM server: " + e.getMessage(), e);
             }
@@ -280,12 +288,12 @@ public abstract class RunTask extends DefaultTestClustersTask {
                     node.setting("xpack.security.transport.ssl.keystore.path", "transport.keystore");
                     node.setting("xpack.security.transport.ssl.certificate_authorities", "transport.ca");
                 }
-                if (mockServer != null) {
+                if (apmServerUrl != null) {
                     node.setting("telemetry.metrics.enabled", "true");
                     node.setting("telemetry.tracing.enabled", "true");
                     node.setting("telemetry.agent.transaction_sample_rate", "1.0");
                     node.setting("telemetry.agent.metrics_interval", "10s");
-                    node.setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockServer.getPort());
+                    node.setting("telemetry.agent.server_url", apmServerUrl);
                 }
                 // in serverless metrics are enabled by default
                 // if metrics were not enabled explicitly for gradlew run we should disable them

@@ -49,7 +49,6 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
@@ -184,7 +183,6 @@ public final class IndexModule {
     private final IndexingStatsSettings indexingStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
-    private final CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -195,7 +193,6 @@ public final class IndexModule {
      * @param engineFactory      the engine factory
      * @param directoryFactories the available store types
      * @param mergeMetrics
-     * @param canMatchPhaseAPMMetrics helpers to record can-match phase metrics
      */
     public IndexModule(
         final IndexSettings indexSettings,
@@ -210,9 +207,7 @@ public final class IndexModule {
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
         final SearchStatsSettings searchStatsSettings,
-        final MergeMetrics mergeMetrics,
-        final CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics
-        ) {
+        final MergeMetrics mergeMetrics) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
@@ -229,7 +224,6 @@ public final class IndexModule {
         this.indexingStatsSettings = indexingStatsSettings;
         this.searchStatsSettings = searchStatsSettings;
         this.mergeMetrics = mergeMetrics;
-        this.canMatchPhaseAPMMetrics = canMatchPhaseAPMMetrics;
     }
 
     /**
@@ -568,8 +562,7 @@ public final class IndexModule {
                 queryRewriteInterceptor,
                 indexingStatsSettings,
                 searchStatsSettings,
-                mergeMetrics,
-                canMatchPhaseAPMMetrics
+                mergeMetrics
             );
             success = true;
             return indexService;

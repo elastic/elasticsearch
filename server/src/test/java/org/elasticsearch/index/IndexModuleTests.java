@@ -69,7 +69,6 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -266,8 +265,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            CanMatchPhaseAPMMetrics.NOOP
+            MergeMetrics.NOOP
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -298,8 +296,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            CanMatchPhaseAPMMetrics.NOOP
+            MergeMetrics.NOOP
         );
 
         final IndexService indexService = newIndexService(module);
@@ -328,8 +325,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            CanMatchPhaseAPMMetrics.NOOP
+            MergeMetrics.NOOP
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -686,8 +682,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            CanMatchPhaseAPMMetrics.NOOP
+            MergeMetrics.NOOP
         );
 
         final IndexService indexService = newIndexService(module);
@@ -713,8 +708,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            CanMatchPhaseAPMMetrics.NOOP
+            MergeMetrics.NOOP
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -820,8 +814,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyList(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP,
-            CanMatchPhaseAPMMetrics.NOOP
+            MergeMetrics.NOOP
         );
     }
 

@@ -148,6 +148,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -2772,7 +2773,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService,
-                        TelemetryProvider.NOOP
+                        TelemetryProvider.NOOP,
+                        CanMatchPhaseAPMMetrics.NOOP
                     )
                 );
                 actions.put(

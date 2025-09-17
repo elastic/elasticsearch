@@ -23,7 +23,7 @@ import static org.elasticsearch.action.search.TransportSearchAction.SearchTimePr
  */
 public class CoordinatorSearchPhaseAPMMetrics extends SearchPhaseAPMMetrics {
 
-    static final String metricNameFormat = "es.search.coordinator.phases.%s.duration.histogram";
+    private static final String metricNameFormat = "es.search.coordinator.phases.%s.duration.histogram";
     private final Map<String, LongHistogram> histogramsCache = ConcurrentCollections.newConcurrentMap();
     private final MeterRegistry meterRegistry;
     private final SearchTimeProvider timeProvider;

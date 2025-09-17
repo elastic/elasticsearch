@@ -82,6 +82,10 @@
         "description": "Aggregation used to create a grid for `field`.",
         "default": "geotile"
       },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
+      },
       "size": {
         "type": "int",
         "description": "Maximum number of features to return in the hits layer. Accepts 0-10000.",

@@ -51,10 +51,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final List<FieldWriter> fieldWriters = new ArrayList<>();
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
+    private final String rawVectorFormatName;
     private final FlatVectorsWriter rawVectorDelegate;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate) throws IOException {
+    protected IVFVectorsWriter(SegmentWriteState state, String rawVectorFormatName, FlatVectorsWriter rawVectorDelegate)
+        throws IOException {
+        this.rawVectorFormatName = rawVectorFormatName;
         this.rawVectorDelegate = rawVectorDelegate;
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -107,7 +110,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     }
 
     @Override
-    public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+    public final KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
         if (fieldInfo.getVectorSimilarityFunction() == VectorSimilarityFunction.COSINE) {
             throw new IllegalArgumentException("IVF does not support cosine similarity");
         }
@@ -476,6 +479,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         ivfMeta.writeInt(field.number);
+        ivfMeta.writeString(rawVectorFormatName);
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
         ivfMeta.writeInt(numCentroids);

@@ -54,8 +54,6 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final String CLUSTER_EXTENSION = "clivf";
     static final String IVF_META_EXTENSION = "mivf";
 
-    static final String RAW_VECTOR_FORMAT = "raw_vector_format";
-
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 

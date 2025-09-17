@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
@@ -40,8 +39,6 @@ import java.nio.ByteOrder;
 import java.util.AbstractList;
 import java.util.Arrays;
 
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.RAW_VECTOR_FORMAT;
-
 /**
  * Default implementation of {@link IVFVectorsWriter}. It uses {@link HierarchicalKMeans} algorithm to
  * partition the vector space, and then stores the centroids and posting list in a sequential
@@ -50,7 +47,6 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     private static final Logger logger = LogManager.getLogger(ES920DiskBBQVectorsWriter.class);
 
-    private final String rawVectorFormatName;
     private final int vectorPerCluster;
     private final int centroidsPerParentCluster;
 
@@ -61,16 +57,9 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
-        super(state, rawVectorDelegate);
-        this.rawVectorFormatName = rawVectorFormatName;
+        super(state, rawVectorFormatName, rawVectorDelegate);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
-    }
-
-    @Override
-    public KnnFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
-        fieldInfo.putAttribute(RAW_VECTOR_FORMAT, rawVectorFormatName);
-        return super.addField(fieldInfo);
     }
 
     @Override

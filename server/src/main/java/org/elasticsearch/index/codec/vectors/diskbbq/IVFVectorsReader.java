@@ -29,6 +29,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -36,6 +37,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,10 +53,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
-    private final Map<String, FlatVectorsReader> rawVectorReaders;
+    private final IOFunction<String, FlatVectorsReader> rawVectorReaders;
+    private final Map<String, FlatVectorsReader> loadedReaders = new HashMap<>();
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorReaders) throws IOException {
+    protected IVFVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> rawVectorReaders) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
@@ -161,6 +164,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     private FieldEntry readField(IndexInput input, FieldInfo info) throws IOException {
+        final String rawVectorFormat = input.readString();
         final VectorEncoding vectorEncoding = readVectorEncoding(input);
         final VectorSimilarityFunction similarityFunction = readSimilarityFunction(input);
         if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -187,6 +191,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             globalCentroidDp = Float.intBitsToFloat(input.readInt());
         }
         return new FieldEntry(
+            rawVectorFormat,
             similarityFunction,
             vectorEncoding,
             numCentroids,
@@ -217,16 +222,20 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public final void checkIntegrity() throws IOException {
-        for (var reader : rawVectorReaders.values()) {
+        for (var reader : loadedReaders.values()) {
             reader.checkIntegrity();
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private FlatVectorsReader getReaderForField(String field) {
-        FlatVectorsReader reader = rawVectorReaders.get(field);
-        if (reader == null) throw new IllegalArgumentException("No recorded raw vector reader for field " + field);
+    private synchronized FlatVectorsReader getReaderForField(String field) throws IOException {
+        String formatName = fields.get(fieldInfos.fieldInfo(field).number).rawVectorFormatName;
+        FlatVectorsReader reader = loadedReaders.get(formatName);
+        if (reader == null) {
+            reader = rawVectorReaders.apply(formatName);
+            loadedReaders.put(formatName, reader);
+        }
         return reader;
     }
 
@@ -334,12 +343,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>(rawVectorReaders.values());
+        List<Closeable> closeables = new ArrayList<>(loadedReaders.values());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
         IOUtils.close(closeables);
     }
 
     protected record FieldEntry(
+        String rawVectorFormatName,
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
         int numCentroids,

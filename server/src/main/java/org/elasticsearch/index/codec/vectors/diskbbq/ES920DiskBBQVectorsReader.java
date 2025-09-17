@@ -10,7 +10,6 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -26,7 +25,6 @@ import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -35,7 +33,6 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.elasticsearch.index.codec.vectors.BQSpaceUtils.transposeHalfByte;
 import static org.elasticsearch.index.codec.vectors.BQVectorUtils.discretize;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
-import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.RAW_VECTOR_FORMAT;
 import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 
 /**
@@ -45,23 +42,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
     public ES920DiskBBQVectorsReader(SegmentReadState state, Function<String, FlatVectorsFormat> formatLookup) throws IOException {
-        super(state, loadReaders(state, formatLookup));
-    }
-
-    private static Map<String, FlatVectorsReader> loadReaders(SegmentReadState state, Function<String, FlatVectorsFormat> formatLookup)
-        throws IOException {
-        Map<String, FlatVectorsReader> readers = new HashMap<>();
-        for (FieldInfo fi : state.fieldInfos) {
-            if (fi.hasVectorValues()) {
-                String formatName = fi.getAttribute(RAW_VECTOR_FORMAT);
-                if (formatName == null) {
-                    throw new IllegalArgumentException("Field does not have attribute " + RAW_VECTOR_FORMAT);
-                }
-                readers.put(fi.name, formatLookup.apply(formatName).fieldsReader(state));
-            }
-        }
-
-        return Map.copyOf(readers);
+        super(state, f -> formatLookup.apply(f).fieldsReader(state));
     }
 
     CentroidIterator getPostingListPrefetchIterator(CentroidIterator centroidIterator, IndexInput postingListSlice) throws IOException {

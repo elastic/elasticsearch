@@ -140,6 +140,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        assert allocation.isSimulating() == false || balancerSettings.completeEarlyOnShardAssignmentChange()
+            : "inconsistent states: isSimulating ["
+                + allocation.isSimulating()
+                + "] vs completeEarlyOnShardAssignmentChange ["
+                + balancerSettings.completeEarlyOnShardAssignmentChange()
+                + "]";
         if (allocation.metadata().hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
@@ -148,8 +154,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         assert allocation.ignoreDisable() == false;
         assert allocation.isSimulating() == false || allocation.routingNodes().hasInactiveShards() == false
             : "expect no initializing shard, but got " + allocation.routingNodes();
-        assert allocation.isSimulating() == false || allocation.routingNodes().getRelocatingShardCount() == 0
-            : "expect no relocating shard, but got " + allocation.routingNodes();
+        // TODO: Cannot assert the following because shards can be moved by commands without simulation
+        // assert allocation.isSimulating() == false || allocation.routingNodes().getRelocatingShardCount() == 0
+        // : "expect no relocating shard, but got " + allocation.routingNodes();
 
         if (allocation.routingNodes().size() == 0) {
             failAllocationOfNewPrimaries(allocation);
@@ -161,18 +168,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeights,
-            balancerSettings.isCompleteEarlyOnShardAssignmentChange()
+            balancerSettings.completeEarlyOnShardAssignmentChange()
         );
 
         boolean shardAssigned = false, shardMoved = false, shardBalanced = false;
         try {
             shardAssigned = balancer.allocateUnassigned();
-            if (shardAssigned && balancerSettings.isCompleteEarlyOnShardAssignmentChange()) {
+            if (shardAssigned && balancerSettings.completeEarlyOnShardAssignmentChange()) {
                 return;
             }
 
             shardMoved = balancer.moveShards();
-            if (shardMoved && balancerSettings.isCompleteEarlyOnShardAssignmentChange()) {
+            if (shardMoved && balancerSettings.completeEarlyOnShardAssignmentChange()) {
                 return;
             }
 
@@ -240,7 +247,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             allocation,
             balancerSettings.getThreshold(),
             balancingWeightsFactory.create(),
-            balancerSettings.isCompleteEarlyOnShardAssignmentChange()
+            balancerSettings.completeEarlyOnShardAssignmentChange()
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -1042,7 +1049,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             final long shardSize = getExpectedShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation);
                             minNode.addShard(projectIndex(shard), shard.initialize(minNode.getNodeId(), null, shardSize));
                             // If we see a throttle decision in simulation, there must be other shards that got assigned before it.
-                            assert shardAssignmentChanged : "shard " + shard + " was throttled but no other shards were assigned";
+                            assert allocation.isSimulating() == false || shardAssignmentChanged
+                                : "shard " + shard + " was throttled but no other shards were assigned";
                         } else {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("No Node found to assign shard [{}]", shard);

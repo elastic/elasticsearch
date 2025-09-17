@@ -73,7 +73,7 @@ public class BalancerSettings {
         return threshold;
     }
 
-    public boolean isCompleteEarlyOnShardAssignmentChange() {
+    public boolean completeEarlyOnShardAssignmentChange() {
         return completeEarlyOnShardAssignmentChange;
     }
 }

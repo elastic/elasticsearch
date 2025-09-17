@@ -158,10 +158,22 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     protected static ShardsAllocator createShardsAllocator(Settings settings) {
         return switch (pickShardsAllocator(settings)) {
-            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(settings);
+            case BALANCED_ALLOCATOR -> new BalancedShardsAllocator(
+                Settings.builder().put(settings).put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), BALANCED_ALLOCATOR).build()
+            );
             case DESIRED_BALANCE_ALLOCATOR -> createDesiredBalanceShardsAllocator(settings);
             default -> throw new AssertionError("Unknown allocator");
         };
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        final var warnings = new ArrayList<>(super.filteredWarnings());
+        warnings.add(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release. See the breaking changes documentation for the next major version."
+        );
+        return List.copyOf(warnings);
     }
 
     private static String pickShardsAllocator(Settings settings) {

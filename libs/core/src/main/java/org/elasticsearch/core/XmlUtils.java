@@ -28,6 +28,8 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathFactory;
 
 public class XmlUtils {
 
@@ -132,6 +134,17 @@ public class XmlUtils {
         saxParserFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
         saxParserFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         return saxParserFactory;
+    }
+
+    /**
+     * Constructs an XPath configured to be secure (not really though!)
+     */
+    @SuppressForbidden(reason = "This is the only allowed way to construct an XPath")
+    public static XPath getHardenedXPath() {
+        XPathFactory xPathFactory = XPathFactory.newInstance();
+        XPath xpath = xPathFactory.newXPath();
+        // n.b. not actually hardened yet!
+        return xpath;
     }
 
     private static class ErrorHandler implements org.xml.sax.ErrorHandler {

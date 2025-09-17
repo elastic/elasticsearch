@@ -25,11 +25,12 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -47,6 +48,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class PatternedTextFieldType extends StringFieldType {
 
@@ -62,13 +64,23 @@ public class PatternedTextFieldType extends StringFieldType {
     private final TextFieldMapper.TextFieldType textFieldType;
     private final boolean hasPositions;
 
-    PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
+    private final boolean disableTemplating;
+
+    PatternedTextFieldType(
+        String name,
+        TextSearchInfo tsi,
+        Analyzer indexAnalyzer,
+        boolean isSyntheticSource,
+        boolean disableTemplating,
+        Map<String, String> meta
+    ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
         super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
         this.hasPositions = tsi.hasPositions();
+        this.disableTemplating = disableTemplating;
     }
 
     // For testing only
@@ -78,11 +90,12 @@ public class PatternedTextFieldType extends StringFieldType {
             new TextSearchInfo(
                 hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
                 null,
-                Lucene.STANDARD_ANALYZER,
-                Lucene.STANDARD_ANALYZER
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
             ),
-            Lucene.STANDARD_ANALYZER,
+            DelimiterAnalyzer.INSTANCE,
             syntheticSource,
+            false,
             Collections.emptyMap()
         );
     }
@@ -130,6 +143,10 @@ public class PatternedTextFieldType extends StringFieldType {
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
         SearchExecutionContext searchExecutionContext
     ) {
+        if (disableTemplating) {
+            return storedFieldFetcher(storedNamed());
+        }
+
         return context -> {
             ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
             valueFetcher.setNextReader(context);
@@ -139,6 +156,18 @@ public class PatternedTextFieldType extends StringFieldType {
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
+            };
+        };
+    }
+
+    private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> storedFieldFetcher(String name) {
+        var loader = StoredFieldLoader.create(false, Set.of(name));
+        return context -> {
+            var leafLoader = loader.getLoader(context, null);
+            return docId -> {
+                leafLoader.advanceTo(docId);
+                var storedFields = leafLoader.storedFields();
+                return storedFields.get(name);
             };
         };
     }
@@ -273,6 +302,10 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        if (disableTemplating) {
+            return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
+        }
+
         return new PatternedTextBlockLoader((leafReader -> PatternedTextCompositeValues.from(leafReader, this)));
     }
 
@@ -306,6 +339,10 @@ public class PatternedTextFieldType extends StringFieldType {
 
     String storedNamed() {
         return name() + STORED_SUFFIX;
+    }
+
+    boolean disableTemplating() {
+        return disableTemplating;
     }
 
 }

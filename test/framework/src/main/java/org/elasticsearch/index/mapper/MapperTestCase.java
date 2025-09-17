@@ -1514,6 +1514,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return false;
     }
 
+    protected boolean supportsBulkIntBlockReading() {
+        return false;
+    }
+
     protected boolean supportsBulkDoubleBlockReading() {
         return false;
     }
@@ -1524,6 +1528,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     protected Object[] getThreeEncodedSampleValues() {
         return getThreeSampleValues();
+    }
+
+    public void testSingletonIntBulkBlockReading() throws IOException {
+        assumeTrue("field type supports bulk singleton int reading", supportsBulkIntBlockReading());
+        testSingletonBulkBlockReading(columnAtATimeReader -> (BlockDocValuesReader.SingletonInts) columnAtATimeReader);
     }
 
     public void testSingletonLongBulkBlockReading() throws IOException {
@@ -1604,8 +1613,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
-                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null));
-                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null);
+                boolean toInt = supportsBulkIntBlockReading();
+                assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt));
+                block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt);
                 assertNotNull(block);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
                 assertThat(block.get(1), equalTo(expectedSampleValues[2]));
@@ -1635,7 +1645,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var columnReader = blockLoader.columnAtATimeReader(context);
                 assertThat(
                     columnReader,
-                    anyOf(instanceOf(BlockDocValuesReader.Longs.class), instanceOf(BlockDocValuesReader.Doubles.class))
+                    anyOf(
+                        instanceOf(BlockDocValuesReader.Longs.class),
+                        instanceOf(BlockDocValuesReader.Doubles.class),
+                        instanceOf(BlockDocValuesReader.Ints.class)
+                    )
                 );
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);

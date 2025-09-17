@@ -100,21 +100,21 @@ public class JvmInfo implements ReportingService.Info {
                 Object onErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnError");
                 onError = (String) valueMethod.invoke(onErrorObject);
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
                 Object onOutOfMemoryErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnOutOfMemoryError");
                 onOutOfMemoryError = (String) valueMethod.invoke(onOutOfMemoryErrorObject);
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
                 Object useCompressedOopsVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
                 useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOptionObject);
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
@@ -123,39 +123,39 @@ public class JvmInfo implements ReportingService.Info {
                 Object regionSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "G1HeapRegionSize");
                 g1RegisionSize = Long.parseLong((String) valueMethod.invoke(regionSizeVmOptionObject));
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
                 Object initialHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "InitialHeapSize");
                 configuredInitialHeapSize = Long.parseLong((String) valueMethod.invoke(initialHeapSizeVmOptionObject));
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
                 Object maxHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxHeapSize");
                 configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOptionObject));
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
                 Object maxDirectMemorySizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxDirectMemorySize");
                 directMemoryMax = Long.parseLong((String) valueMethod.invoke(maxDirectMemorySizeVmOptionObject));
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
             try {
                 Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
                 useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
             } catch (Exception e) {
-                logger.info("Error getting JVM info from MX Bean", e);
+                logger.debug("Error getting JVM info from MX Bean", e);
             }
 
         } catch (Exception e) {
-            logger.info("Error getting JVM info from MX Bean", e);
+            logger.debug("Error getting JVM info from MX Bean", e);
         }
 
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);

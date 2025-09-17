@@ -104,7 +104,9 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -171,6 +173,7 @@ public class FakeStatelessNode implements Closeable {
     public final SharedBlobCacheWarmingService warmingService;
     public final TelemetryProvider telemetryProvider;
     public final StatelessOnlinePrewarmingService onlinePrewarmingService;
+    public final RecordingMeterRegistry meterRegistry;
     private final StatelessCommitCleaner commitCleaner;
 
     private final Closeable closeables;
@@ -193,13 +196,24 @@ public class FakeStatelessNode implements Closeable {
         this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
     }
 
-    @SuppressWarnings("this-escape")
     public FakeStatelessNode(
         Function<Settings, Environment> environmentSupplier,
         CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
         NamedXContentRegistry xContentRegistry,
         long primaryTerm,
         ProjectResolver projectResolver
+    ) throws IOException {
+        this(environmentSupplier, nodeEnvironmentSupplier, xContentRegistry, primaryTerm, projectResolver, null);
+    }
+
+    @SuppressWarnings("this-escape")
+    public FakeStatelessNode(
+        Function<Settings, Environment> environmentSupplier,
+        CheckedFunction<Settings, NodeEnvironment, IOException> nodeEnvironmentSupplier,
+        NamedXContentRegistry xContentRegistry,
+        long primaryTerm,
+        ProjectResolver projectResolver,
+        RecordingMeterRegistry meterRegistry
     ) throws IOException {
         this.primaryTerm = primaryTerm;
         DiscoveryNodeUtils.create(
@@ -256,7 +270,8 @@ public class FakeStatelessNode implements Closeable {
             client = createClient(nodeSettings, threadPool);
             nodeEnvironment = nodeEnvironmentSupplier.apply(nodeSettings);
             localCloseables.add(nodeEnvironment);
-            sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool);
+            sharedCacheService = createCacheService(nodeEnvironment, nodeSettings, threadPool, meterRegistry);
+            this.meterRegistry = meterRegistry;
             localCloseables.add(sharedCacheService);
             cacheBlobReaderService = createCacheBlobReaderService(sharedCacheService);
 
@@ -372,7 +387,16 @@ public class FakeStatelessNode implements Closeable {
         Settings settings,
         ThreadPool threadPool
     ) {
-        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool);
+        return createCacheService(nodeEnvironment, settings, threadPool, null);
+    }
+
+    protected StatelessSharedBlobCacheService createCacheService(
+        NodeEnvironment nodeEnvironment,
+        Settings settings,
+        ThreadPool threadPool,
+        MeterRegistry meterRegistry
+    ) {
+        return TestUtils.newCacheService(nodeEnvironment, settings, threadPool, meterRegistry);
     }
 
     protected CacheBlobReaderService createCacheBlobReaderService(StatelessSharedBlobCacheService cacheService) {

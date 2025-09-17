@@ -90,11 +90,13 @@ public class CacheFileReader {
      * @param endOfInput    the length of the {@link BlobCacheIndexInput} that triggers the read (used for assertions)
      * @throws Exception    if an error occurs
      */
-    public void read(Object initiator, ByteBuffer b, long position, int length, long endOfInput) throws Exception {
-        doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput);
+    public void read(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
+        throws Exception {
+        doRead(initiator, b, blobFileRanges.getPosition(position, length), length, endOfInput, resourceDescription);
     }
 
-    private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput) throws Exception {
+    private void doRead(Object initiator, ByteBuffer b, long position, int length, long endOfInput, String resourceDescription)
+        throws Exception {
         // Semaphore that, when all permits are acquired, ensures that async callbacks (such as those used by readCacheFile) are not
         // accessing the byte buffer anymore that was passed to doReadInternal
         // In particular, it's important to acquire all permits before adapting the ByteBuffer's offset
@@ -142,7 +144,8 @@ public class CacheFileReader {
                         bytesCopied -> {},
                         Stateless.SHARD_READ_THREAD_POOL,
                         Stateless.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
-                    )
+                    ),
+                    resourceDescription
                 );
                 byteBufferReference.finish(bytesRead);
             } catch (Exception e) {

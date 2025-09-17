@@ -31,9 +31,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
@@ -57,6 +59,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -89,7 +92,26 @@ import static org.hamcrest.Matchers.notNullValue;
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
+    private int initialShardSnapshotPerNodeLimit;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        initialShardSnapshotPerNodeLimit = between(0, 10);
+    }
+
+    @After
+    public void clearShardSnapshotPerNodeLimitSetting() {
+        // Clear any persistent setting that may have been set during the test. The teardown process does not like it.
+        safeGet(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey()))
+                .execute()
+        );
+    }
+
     public void testRandomActivities() throws InterruptedException {
+        logger.info("--> initial shard snapshot per node limit: [{}]", initialShardSnapshotPerNodeLimit);
         final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
@@ -98,6 +120,14 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             .nodes();
         new TrackedCluster(internalCluster(), nodeNames(discoveryNodes.getMasterNodes()), nodeNames(discoveryNodes.getDataNodes())).run();
         disableRepoConsistencyCheck("have not necessarily written to all repositories");
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey(), initialShardSnapshotPerNodeLimit)
+            .build();
     }
 
     private static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
@@ -323,8 +353,16 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 startCleaner();
             }
 
-            if (randomBoolean()) {
+            final int shardMovingVariant = between(0, 2);
+            if (shardMovingVariant == 0) {
                 startNodeShutdownMarker();
+            } else if (shardMovingVariant == 1) {
+                startAllocationFiltering();
+            }
+            // Intentionally have neither node shutdown marker nor allocation filtering in some tests
+
+            if (randomBoolean()) {
+                startUpdateShardSnapshotPerNodeLimit();
             }
 
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
@@ -1306,6 +1344,121 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             });
         }
 
+        private void startAllocationFiltering() {
+            enqueueAction(() -> {
+                boolean rerun = true;
+                try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (usually()) {
+                        return;
+                    }
+
+                    final List<TrackedIndex> trackedIndices = indices.values()
+                        .stream()
+                        .filter(index -> index.supportsAllocationFilter)
+                        .toList();
+                    if (trackedIndices.isEmpty()) {
+                        return;
+                    }
+                    final var trackedIndex = randomFrom(trackedIndices);
+                    if (localReleasables.add(tryAcquirePermit(trackedIndex.permits)) == null) {
+                        return;
+                    }
+
+                    if (localReleasables.add(blockNodeRestarts()) == null) {
+                        return;
+                    }
+                    final var trackedNode = randomFrom(shuffledNodes.stream().filter(node -> node.isDataNode).toList());
+
+                    final Releasable releaseAll = localReleasables.transfer();
+
+                    logger.info(" --> moving index [{}] away from node [{}]", trackedIndex.indexName, trackedNode.nodeName);
+
+                    SubscribableListener.<AcknowledgedResponse>newForked(
+                        l -> indicesAdmin().prepareUpdateSettings(trackedIndex.indexName)
+                            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", trackedNode.nodeName))
+                            .execute(l)
+                    ).addListener(mustSucceed(acknowledgedResponse -> {
+                        assertTrue(acknowledgedResponse.isAcknowledged());
+                        logger.info("--> updated index [{}] settings to exclude node [{}]", trackedIndex.indexName, trackedNode.nodeName);
+                        pollForAllocationFilterCompletion(trackedNode, trackedIndex.indexName, releaseAll, this::startAllocationFiltering);
+                    }));
+                    rerun = false;
+
+                } finally {
+                    if (rerun) {
+                        startAllocationFiltering();
+                    }
+                }
+            });
+        }
+
+        private void pollForAllocationFilterCompletion(
+            TrackedNode excludedNode,
+            String indexName,
+            Releasable onCompletion,
+            Runnable onSuccess
+        ) {
+            if (shouldStop.get()) {
+                Releasables.close(onCompletion);
+                return;
+            }
+            clientExecutor.execute(mustSucceed(() -> {
+                final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+                final ClusterState state = clusterService.state();
+
+                final var allRebalanced = state.routingTable(ProjectId.DEFAULT)
+                    .index(indexName)
+                    .allShards()
+                    .flatMap(IndexShardRoutingTable::allShards)
+                    .allMatch(shardRouting -> shardRouting.active() && excludedNode.nodeId.equals(shardRouting.currentNodeId()) == false);
+
+                if (allRebalanced) {
+                    logger.info("--> moved index [{}] away from node [{}]", indexName, excludedNode.nodeName);
+                    Releasables.close(onCompletion);
+                    onSuccess.run();
+                } else {
+                    pollForAllocationFilterCompletion(excludedNode, indexName, onCompletion, onSuccess);
+                }
+            }));
+        }
+
+        private void startUpdateShardSnapshotPerNodeLimit() {
+            enqueueAction(() -> {
+                boolean rerun = true;
+                try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (usually()) {
+                        return;
+                    }
+
+                    if (localReleasables.add(blockNodeRestarts()) == null) {
+                        return;
+                    }
+
+                    final Releasable releaseAll = localReleasables.transfer();
+
+                    final int newLimit = between(0, 10);
+                    logger.info("--> updating shard snapshot per node limit to [{}]", newLimit);
+
+                    clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        .setPersistentSettings(
+                            Settings.builder().put(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey(), newLimit)
+                        )
+                        .execute(mustSucceed(response -> {
+                            assertTrue(response.isAcknowledged());
+                            logger.info("--> updated shard snapshot per node limit to [{}]", newLimit);
+                            Releasables.close(releaseAll);
+                            startUpdateShardSnapshotPerNodeLimit();
+                        }));
+
+                    rerun = false;
+                } finally {
+                    if (rerun) {
+                        startUpdateShardSnapshotPerNodeLimit();
+                    }
+                }
+            });
+        }
+
         @Nullable // if we couldn't block node restarts
         private Releasable blockNodeRestarts() {
             try (TransferableReleasables localReleasables = new TransferableReleasables()) {
@@ -1449,6 +1602,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
             // these fields are only changed when all permits held by the delete/recreate process:
             private int shardCount;
+            private boolean supportsAllocationFilter;
             private Semaphore docPermits;
 
             private TrackedIndex(String indexName) {
@@ -1472,8 +1626,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 shardCount = between(1, 5);
                 docPermits = new Semaphore(between(1000, 3000));
                 logger.info("--> create index [{}] with max [{}] docs", indexName, docPermits.availablePermits());
+                final int replicaCount = between(0, cluster.numDataNodes() - 1);
+                supportsAllocationFilter = 1 + replicaCount < cluster.numDataNodes();
                 indicesAdmin().prepareCreate(indexName)
-                    .setSettings(indexSettings(shardCount, between(0, cluster.numDataNodes() - 1)))
+                    .setSettings(indexSettings(shardCount, replicaCount))
                     .execute(mustSucceed(response -> {
                         assertTrue(response.isAcknowledged());
                         logger.info("--> finished create index [{}]", indexName);
@@ -1753,11 +1909,13 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private final String nodeName;
         private final boolean isMasterNode;
         private final boolean isDataNode;
+        private final String nodeId;
 
         TrackedNode(String nodeName, boolean isMasterNode, boolean isDataNode) {
             this.nodeName = nodeName;
             this.isMasterNode = isMasterNode;
             this.isDataNode = isDataNode;
+            this.nodeId = getNodeId(nodeName);
         }
 
         Semaphore getPermits() {

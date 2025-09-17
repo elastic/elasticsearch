@@ -1346,7 +1346,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V2(Build.current().isSnapshot()),
+        FUSE_V3(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1453,6 +1453,11 @@ public class EsqlCapabilities {
          * URL decoding function.
          */
         URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
 
         /**
          * FORK with remote indices

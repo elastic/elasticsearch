@@ -1,6 +1,6 @@
 version: 9.0.7
-released: false
-generated: 2025-09-13T00:04:02.183179976Z
+released: true
+generated: 2025-09-16T14:42:09.427433242Z
 changelogs:
   - pr: 132853
     summary: Bump bcpkix version

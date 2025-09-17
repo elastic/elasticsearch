@@ -9,14 +9,17 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInferenceQueryBuilder<MultiMatchQueryBuilder> {
     public static final String NAME = "intercepted_inference_multi_match";
@@ -72,19 +75,13 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
             return nonInferenceFields.isEmpty() ? new MatchNoneQueryBuilder() : originalQuery;
         }
 
-        // Single semantic field scenario
-        if (inferenceFields.size() == 1 && nonInferenceFields.isEmpty()) {
-            Map.Entry<String, Float> field = inferenceFields.entrySet().iterator().next();
-            SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(field.getKey(), getQuery(), null, inferenceResultsMap);
-
-            float fieldBoost = field.getValue() != null ? field.getValue() : 1.0f;
-            float finalBoost = fieldBoost * originalQuery.boost();
-
-            return semanticQuery.boost(finalBoost).queryName(originalQuery.queryName());
+        // All semantic field(s) scenario
+        if (nonInferenceFields.isEmpty()) {
+            return buildSemanticQuery(inferenceFields, getQuery());
         }
 
-        // TODO: Handle multiple semantic fields and mixed scenarios
-        throw new UnsupportedOperationException("Multiple semantic fields and mixed scenarios not yet implemented");
+        // TODO: Handle mixed field queries (semantic + non-semantic fields)
+        throw new UnsupportedOperationException("Mixed field queries not yet implemented");
     }
 
     @Override
@@ -100,6 +97,39 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    private QueryBuilder buildSemanticQuery(Map<String, Float> inferenceFields, String queryValue) {
+        // Single field
+        if (inferenceFields.size() == 1) {
+            Map.Entry<String, Float> field = inferenceFields.entrySet().iterator().next();
+            SemanticQueryBuilder semanticQuery = createSemanticQuery(field.getKey(), queryValue, field.getValue());
+            return semanticQuery.boost(semanticQuery.boost() * originalQuery.boost()).queryName(originalQuery.queryName());
+        }
+
+        // Multiple fields
+        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
+        for (Map.Entry<String, Float> field : inferenceFields.entrySet()) {
+            disMaxQuery.add(createSemanticQuery(field.getKey(), queryValue, field.getValue()));
+        }
+
+        // Apply tie_breaker - use explicit value or fall back to type's default
+        Float tieBreaker = originalQuery.tieBreaker();
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
+
+        // Apply query-level boost and name
+        return disMaxQuery.boost(originalQuery.boost()).queryName(originalQuery.queryName());
+    }
+
+    private SemanticQueryBuilder createSemanticQuery(String fieldName, String queryValue, Float fieldBoost) {
+        SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, null, inferenceResultsMap);
+
+        // Apply field-level boost
+        if (fieldBoost != null && fieldBoost != 1.0f) {
+            semanticQuery.boost(fieldBoost);
+        }
+
+        return semanticQuery;
     }
 
     private void validateQueryTypeSupported(MultiMatchQueryBuilder.Type queryType) {

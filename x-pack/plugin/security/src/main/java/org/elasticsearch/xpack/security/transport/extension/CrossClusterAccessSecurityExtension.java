@@ -8,18 +8,17 @@
 package org.elasticsearch.xpack.security.transport.extension;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
 
-import java.util.List;
-
 /**
  * Remote cluster security extension point which is based on cross-cluster API keys.
  */
-public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurityExtension {
+public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurityExtension, ReloadableSecurityComponent {
 
     private final CrossClusterAccessAuthenticationService authenticationService;
     private final CrossClusterAccessTransportInterceptor transportInterceptor;
@@ -48,6 +47,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
             components.authorizationService(),
             components.securityContext(),
             this.authenticationService,
+            this.crossClusterApiKeySigner,
             components.licenseState()
         );
     }
@@ -63,8 +63,8 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
     }
 
     @Override
-    public List<ReloadableSecurityComponent> getReloadableComponents() {
-        return List.of(this.crossClusterApiKeySignerReloader);
+    public void reload(Settings settings) {
+        this.crossClusterApiKeySignerReloader.reload(settings);
     }
 
     public static class Provider implements RemoteClusterSecurityExtension.Provider {

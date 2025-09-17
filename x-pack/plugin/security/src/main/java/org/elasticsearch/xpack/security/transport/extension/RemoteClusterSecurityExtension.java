@@ -19,10 +19,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
-
-import java.util.List;
 
 /**
  * Allows defining an SPI extension point for providing a custom remote cluster security interceptor
@@ -44,14 +41,6 @@ public interface RemoteClusterSecurityExtension {
      * Returns a {@link RemoteClusterAuthenticationService} used to authenticate remote cluster requests.
      */
     RemoteClusterAuthenticationService getAuthenticationService();
-
-    /**
-     * Allows exposing {@link ReloadableSecurityComponent}s to the security plugin
-     * that should be called when secure settings are reloaded.
-     */
-    default List<ReloadableSecurityComponent> getReloadableComponents() {
-        return List.of();
-    }
 
     /**
      * An SPI interface for providing remote cluster security extensions.

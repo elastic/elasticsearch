@@ -26,10 +26,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     private static final String STATIC_TEST_CLUSTER_ALIAS = "static_test_cluster";
 
     public void testSignWithPemKeyConfig() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySigner();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         X509CertificateSignature signature = signer.sign(STATIC_TEST_CLUSTER_ALIAS, testHeaders);
@@ -47,10 +44,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     }
 
     public void testSignUnknownClusterAlias() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySigner();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         X509CertificateSignature signature = signer.sign("unknowncluster", testHeaders);
@@ -58,10 +52,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     }
 
     public void testSeveralKeyStoreAliases() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySigner();
 
         try {
             // Create a new config without an alias. Since there are several aliases in the keystore, no signature should be generated
@@ -130,5 +121,14 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
             "secretpassword"
         );
         return builder.build();
+    }
+
+    private static CrossClusterApiKeySigner getCrossClusterApiKeySigner() {
+        RemoteClusterTransportInterceptor interceptor = internalCluster().getInstance(
+            RemoteClusterTransportInterceptor.class,
+            internalCluster().getRandomNodeName()
+        );
+        assert interceptor instanceof CrossClusterAccessTransportInterceptor;
+        return ((CrossClusterAccessTransportInterceptor) interceptor).getCrossClusterApiKeySigner();
     }
 }

@@ -419,6 +419,7 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
+import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.extension.CrossClusterAccessSecurityExtension;
@@ -1189,9 +1190,11 @@ public class Security extends Plugin
             threadPool,
             settings
         );
-        this.remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
+        remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
         remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());
         components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
+        var remoteClusterTransportInterceptor = remoteClusterSecurityExtension.get().getTransportInterceptor();
+        components.add(new PluginComponentBinding<>(RemoteClusterTransportInterceptor.class, remoteClusterTransportInterceptor));
 
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -1200,7 +1203,7 @@ public class Security extends Plugin
                 getSslService(),
                 securityContext.get(),
                 destructiveOperations,
-                remoteClusterSecurityExtension.get().getTransportInterceptor()
+                remoteClusterTransportInterceptor
             )
         );
 
@@ -1242,16 +1245,21 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
+        setClosableAndReloadableComponents(components);
+        return components;
+    }
+
+    private void setClosableAndReloadableComponents(List<Object> components) {
+        final List<Object> allComponents = new ArrayList<>(components);
+        // adding additional components we don't expose externally,
+        // but want to allow reloading settings and closing resources
+        // when the security plugin gets closed
+        allComponents.add(remoteClusterSecurityExtension.get());
+
         final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
-        reloadableComponents.addAll(remoteClusterSecurityExtension.get().getReloadableComponents());
         final List<Closeable> closableComponents = new ArrayList<>();
-        for (Object component : components) {
-            final Object unwrapped;
-            if (component instanceof PluginComponentBinding<?, ?> pcb) {
-                unwrapped = pcb.impl();
-            } else {
-                unwrapped = component;
-            }
+        for (Object component : allComponents) {
+            final Object unwrapped = unwrapComponentObject(component);
             if (unwrapped instanceof ReloadableSecurityComponent reloadable) {
                 reloadableComponents.add(reloadable);
             }
@@ -1262,7 +1270,16 @@ public class Security extends Plugin
 
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
-        return components;
+    }
+
+    private static Object unwrapComponentObject(Object component) {
+        final Object unwrapped;
+        if (component instanceof PluginComponentBinding<?, ?> pcb) {
+            unwrapped = pcb.impl();
+        } else {
+            unwrapped = component;
+        }
+        return unwrapped;
     }
 
     private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension(RemoteClusterSecurityExtension.Components components) {

@@ -76,7 +76,8 @@
       },
       "master_timeout": {
         "type": "time",
-        "description": "Specify timeout for connection to master"
+        "default": "30s",
+        "description": "Timeout for waiting for new cluster state in case it is blocked"
       },
       "flat_settings": {
         "type": "boolean",

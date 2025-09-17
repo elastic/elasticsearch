@@ -15,10 +15,10 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -221,7 +221,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
     }
 
     private static boolean canPushLimit(TopNExec topn, PhysicalSettings physicalSettings) {
-        return topn.limit() instanceof Literal l && ((Number) l.value()).intValue() <= physicalSettings.luceneTopNLimit();
+        return Foldables.limitValue(topn.limit(), topn.sourceText()) <= physicalSettings.luceneTopNLimit();
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {

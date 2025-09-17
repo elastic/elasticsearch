@@ -245,7 +245,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         }
 
         TransportVersionUpperBound existingUpperBound = getResources().get().getUpperBoundFromUpstream(upperBound.name());
-        if (existingUpperBound != null) {
+        if (existingUpperBound != null && getShouldValidatePrimaryIdNotPatch().get()) {
             if (upperBound.definitionId().patch() != 0 && upperBound.definitionId().base() != existingUpperBound.definitionId().base()) {
                 throwUpperBoundFailure(
                     upperBound,

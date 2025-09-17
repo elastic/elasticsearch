@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=mapping/30_multi_field_keyword/Keyword with escaped characters as multi-field}
   issue: https://github.com/elastic/elasticsearch/issues/134928
+- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
+  method: testCBTrippingOnReduction
+  issue: https://github.com/elastic/elasticsearch/issues/134902
 
 # Examples:
 #

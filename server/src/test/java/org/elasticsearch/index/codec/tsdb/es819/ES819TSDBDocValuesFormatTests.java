@@ -925,6 +925,91 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testOptionalColumnAtATimeReaderReadAsInt() throws Exception {
+        final String counterField = "counter";
+        final String timestampField = "@timestamp";
+        final String gaugeField = "gauge";
+        int currentTimestamp = 17040672;
+        int currentCounter = 10_000_000;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int[] gauge1Values = new int[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField(counterField, currentCounter));
+                d.add(new SortedNumericDocValuesField(gaugeField, gauge1Values[i % gauge1Values.length]));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000;
+                    currentCounter++;
+                }
+            }
+            iw.commit();
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                int gaugeIndex = numDocs;
+                for (var leaf : reader.leaves()) {
+                    var timestampDV = getBaseDenseNumericValues(leaf.reader(), timestampField);
+                    var counterDV = getBaseDenseNumericValues(leaf.reader(), counterField);
+                    var gaugeDV = getBaseDenseNumericValues(leaf.reader(), gaugeField);
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc;) {
+                        int size = Math.max(1, random().nextInt(0, maxDoc - i));
+                        var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
+
+                        {
+                            // bulk loading timestamp:
+                            var block = (TestBlock) timestampDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                int actualTimestamp = (int) block.get(j);
+                                int expectedTimestamp = currentTimestamp;
+                                assertEquals(expectedTimestamp, actualTimestamp);
+                                currentTimestamp -= 1000;
+                            }
+                        }
+                        {
+                            // bulk loading counter field:
+                            var block = (TestBlock) counterDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                int expectedCounter = currentCounter;
+                                int actualCounter = (int) block.get(j);
+                                assertEquals(expectedCounter, actualCounter);
+                                currentCounter--;
+                            }
+                        }
+                        {
+                            // bulk loading gauge field:
+                            var block = (TestBlock) gaugeDV.tryRead(factory, docs, 0, random().nextBoolean(), null, true);
+                            assertNotNull(block);
+                            assertEquals(size, block.size());
+                            for (int j = 0; j < block.size(); j++) {
+                                int actualGauge = (int) block.get(j);
+                                int expectedGauge = gauge1Values[--gaugeIndex % gauge1Values.length];
+                                assertEquals(expectedGauge, actualGauge);
+                            }
+                        }
+
+                        i += size;
+                    }
+                }
+            }
+        }
+    }
+
     public void testOptionalColumnAtATimeReaderWithSparseDocs() throws Exception {
         final String counterField = "counter";
         final String counterAsStringField = "counter_as_string";

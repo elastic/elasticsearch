@@ -22,6 +22,7 @@ import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -85,6 +86,17 @@ public class RateTests extends AbstractAggregationTestCase {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(type, DataType.DATETIME, DataType.INTEGER, DataType.LONG), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             List<Object> dataRows = fieldTypedData.multiRowData();
+            if (randomBoolean()) {
+                List<Object> withNulls = new ArrayList<>(dataRows);
+                for (Object dataRow : dataRows) {
+                    if (randomBoolean()) {
+                        withNulls.add(null);
+                    } else {
+                        withNulls.add(dataRow);
+                    }
+                }
+                dataRows = withNulls;
+            }
             fieldTypedData = TestCaseSupplier.TypedData.multiRow(dataRows, type, fieldTypedData.name());
             List<Long> timestamps = new ArrayList<>();
             List<Integer> slices = new ArrayList<>();
@@ -107,7 +119,7 @@ public class RateTests extends AbstractAggregationTestCase {
                 DataType.LONG,
                 "_max_timestamp"
             );
-
+            dataRows = dataRows.stream().filter(Objects::nonNull).toList();
             final Matcher<?> matcher;
             if (dataRows.size() < 2) {
                 matcher = Matchers.nullValue();

@@ -166,16 +166,6 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         };
     }
 
-    @Override
-    protected List<String> filteredWarnings() {
-        final var warnings = new ArrayList<>(super.filteredWarnings());
-        warnings.add(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release. See the breaking changes documentation for the next major version."
-        );
-        return List.copyOf(warnings);
-    }
-
     private static String pickShardsAllocator(Settings settings) {
         return SHARDS_ALLOCATOR_TYPE_SETTING.exists(settings)
             ? SHARDS_ALLOCATOR_TYPE_SETTING.get(settings)

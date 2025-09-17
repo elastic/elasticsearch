@@ -32,6 +32,7 @@ public class TimeSeriesAggregate extends Aggregate {
     );
 
     private final Bucket timeBucket;
+
     private final boolean hasTopLevelOverTimeFunctions;
 
     public TimeSeriesAggregate(
@@ -60,12 +61,18 @@ public class TimeSeriesAggregate extends Aggregate {
     public TimeSeriesAggregate(StreamInput in) throws IOException {
         super(in);
         this.timeBucket = in.readOptionalWriteable(inp -> (Bucket) Bucket.ENTRY.reader.read(inp));
+        // Shouldn't need to be serialized; at least not yet
+        this.hasTopLevelOverTimeFunctions = false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(timeBucket);
+    }
+
+    public boolean hasTopLevelOverTimeFunctions() {
+        return hasTopLevelOverTimeFunctions;
     }
 
     @Override

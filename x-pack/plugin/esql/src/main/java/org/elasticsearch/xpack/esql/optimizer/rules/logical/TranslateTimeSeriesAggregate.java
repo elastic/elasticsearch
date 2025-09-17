@@ -156,7 +156,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
+        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null && ts.hasTopLevelOverTimeFunctions() == false) {
             return translate(ts);
         } else {
             return aggregate;
@@ -168,15 +168,10 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
-        boolean hasTopLevelOverTimeAggs = false;
         var internalNames = new InternalNames();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
                 Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
-                if (af instanceof TimeSeriesAggregateFunction) {
-                    hasTopLevelOverTimeAggs = true;
-                }
-                // NOCOMMIT TODO: If af is a time series agg, do the group by all behavior
                 /*
                 This transformation does several things
                     - extract the inner TimeSeriesAggregateFunction and get its perTimeSeriesAggregation equivalent
@@ -260,29 +255,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         });
         NamedExpression timeBucket = timeBucketRef.get();
 
-        // Construct the groupings for the new aggregations
-        if (hasTopLevelOverTimeAggs == false) {
-            // Two tiered case; we want to group both tiers by the tbucket, collect the groupings for the second aggregation
-            // as values on the first, and finally group the second agg by those values
-            for (Expression group : aggregate.groupings()) {
-                if (group instanceof Attribute == false) {
-                    throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
-                }
-                final Attribute g = (Attribute) group;
-                final NamedExpression newFinalGroup;
-                if (timeBucket != null && g.id().equals(timeBucket.id())) {
-                    // Add the time bucket grouping to both the inner and outer aggregations
-                    newFinalGroup = timeBucket.toAttribute();
-                    firstPassGroupings.add(newFinalGroup);
-                } else {
-                    // Pass all the second pass groupings through the first pass aggregation via a values agg
-                    newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
-                    firstPassAggs.add(newFinalGroup);
-                }
-                secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
-            }
-        }
-
         // Add the _tsid to the EsRelation Leaf, if it's not there already
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
@@ -306,10 +278,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             mergeExpressions(firstPassAggs, firstPassGroupings),
             (Bucket) Alias.unwrap(timeBucket)
         );
-        if (hasTopLevelOverTimeAggs) {
-            // Project away the _tsid; we don't want to expose that to users directly
-            return new Drop(firstPhase.source(), firstPhase, List.of(tsid.get()));
-        }
         return new Aggregate(firstPhase.source(), firstPhase, secondPassGroupings, mergeExpressions(secondPassAggs, secondPassGroupings));
     }
 

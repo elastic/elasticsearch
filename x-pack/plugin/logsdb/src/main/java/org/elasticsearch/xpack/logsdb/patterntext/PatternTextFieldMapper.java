@@ -54,7 +54,7 @@ public class PatternTextFieldMapper extends FieldMapper {
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     /**
-     * A setting that indicates that patterned text fields should disable templating, usually because there is
+     * A setting that indicates that pattern text fields should disable templating, usually because there is
      * no valid enterprise license.
      */
     public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(

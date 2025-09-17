@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -70,18 +69,18 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
     ) {
         validateQueryTypeSupported(originalQuery.type());
 
-        // Handle case where no inference fields are present
+        // No inference fields are present
         if (inferenceFields.isEmpty()) {
-            return nonInferenceFields.isEmpty() ? new MatchNoneQueryBuilder() : originalQuery;
+            return originalQuery;
         }
 
-        // All semantic field(s) scenario
+        // Only semantic field(s)
         if (nonInferenceFields.isEmpty()) {
             return buildSemanticQuery(inferenceFields, getQuery());
         }
 
-        // TODO: Handle mixed field queries (semantic + non-semantic fields)
-        throw new UnsupportedOperationException("Mixed field queries not yet implemented");
+        // Both semantic and non-semantic fields
+        return buildCombinedQuery(inferenceFields, nonInferenceFields, getQuery());
     }
 
     @Override
@@ -130,6 +129,61 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
         }
 
         return semanticQuery;
+    }
+
+    private QueryBuilder buildCombinedQuery(Map<String, Float> inferenceFields, Map<String, Float> nonInferenceFields, String queryValue) {
+        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
+
+        // Add semantic queries for inference fields
+        for (Map.Entry<String, Float> field : inferenceFields.entrySet()) {
+            disMaxQuery.add(createSemanticQuery(field.getKey(), queryValue, field.getValue()));
+        }
+
+        // Add traditional multi_match query for non-inference fields
+        if (nonInferenceFields.isEmpty() == false) {
+            MultiMatchQueryBuilder nonInferenceQuery = createNonInferenceQuery(nonInferenceFields, queryValue);
+            disMaxQuery.add(nonInferenceQuery);
+        }
+
+        // Apply tie_breaker - use explicit value or fall back to type's default
+        Float tieBreaker = originalQuery.tieBreaker();
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
+
+        // Apply query-level boost and name
+        return disMaxQuery.boost(originalQuery.boost()).queryName(originalQuery.queryName());
+    }
+
+    private MultiMatchQueryBuilder createNonInferenceQuery(Map<String, Float> nonInferenceFields, String queryValue) {
+        MultiMatchQueryBuilder nonInferenceQuery = new MultiMatchQueryBuilder(queryValue);
+        nonInferenceQuery.fields(nonInferenceFields);
+
+        // Copy relevant properties from an original query (excluding boost and name which are applied at DisMax level)
+        nonInferenceQuery.type(originalQuery.type());
+        nonInferenceQuery.operator(originalQuery.operator());
+        if (originalQuery.analyzer() != null) {
+            nonInferenceQuery.analyzer(originalQuery.analyzer());
+        }
+        if (originalQuery.fuzziness() != null) {
+            nonInferenceQuery.fuzziness(originalQuery.fuzziness());
+        }
+        nonInferenceQuery.prefixLength(originalQuery.prefixLength());
+        nonInferenceQuery.maxExpansions(originalQuery.maxExpansions());
+        if (originalQuery.minimumShouldMatch() != null) {
+            nonInferenceQuery.minimumShouldMatch(originalQuery.minimumShouldMatch());
+        }
+        nonInferenceQuery.slop(originalQuery.slop());
+        if (originalQuery.tieBreaker() != null) {
+            nonInferenceQuery.tieBreaker(originalQuery.tieBreaker());
+        }
+        nonInferenceQuery.zeroTermsQuery(originalQuery.zeroTermsQuery());
+        nonInferenceQuery.autoGenerateSynonymsPhraseQuery(originalQuery.autoGenerateSynonymsPhraseQuery());
+        nonInferenceQuery.fuzzyTranspositions(originalQuery.fuzzyTranspositions());
+        nonInferenceQuery.lenient(originalQuery.lenient());
+        if (originalQuery.fuzzyRewrite() != null) {
+            nonInferenceQuery.fuzzyRewrite(originalQuery.fuzzyRewrite());
+        }
+
+        return nonInferenceQuery;
     }
 
     private void validateQueryTypeSupported(MultiMatchQueryBuilder.Type queryType) {

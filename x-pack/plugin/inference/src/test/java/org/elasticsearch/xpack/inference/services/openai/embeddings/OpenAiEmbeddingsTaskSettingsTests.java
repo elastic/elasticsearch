@@ -14,7 +14,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
-import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -39,7 +38,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testIsEmpty() {
-        var randomSettings = new OpenAiChatCompletionTaskSettings(randomBoolean() ? null : "username");
+        var randomSettings = new OpenAiEmbeddingsTaskSettings(randomBoolean() ? null : "username");
         var stringRep = Strings.toString(randomSettings);
         assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
     }

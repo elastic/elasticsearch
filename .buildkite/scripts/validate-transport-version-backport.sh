@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+if [[ "${BUILDKITE_PULL_REQUEST_BASE_BRANCH}" == "main" ]]; then
+  # Don't run on PRs targeting main
+  exit 0
+fi
+
 echo "--- Looking for transport version changes"
 
 # Get any changes in this pull request to transport definitions

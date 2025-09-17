@@ -37,17 +37,17 @@ public class CrossProjectQueryIT extends CrossClusterQueryIT {
         return CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), CpsPlugin.class);
     }
 
-    protected EsqlQueryResponse runQuery(String query, Boolean cpsMetadataInResponse) {
+    protected EsqlQueryResponse runQuery(String query, Boolean includeCpsMetadata) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
-        if (cpsMetadataInResponse != null) {
+        if (includeCpsMetadata != null) {
             if (randomBoolean()) {
-                request.includeCPSMetadata(cpsMetadataInResponse);
+                request.includeCPSMetadata(includeCpsMetadata);
             } else {
-                request.includeCCSMetadata(cpsMetadataInResponse);
+                request.includeCCSMetadata(includeCpsMetadata);
             }
         }
         return runQuery(request);

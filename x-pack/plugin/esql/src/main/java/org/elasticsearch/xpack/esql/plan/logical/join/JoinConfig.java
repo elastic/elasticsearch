@@ -29,9 +29,7 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
     implements
         Writeable {
 
-    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName(
-        "esql_lookup_join_on_expression"
-    );
+    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
     public JoinConfig(StreamInput in) throws IOException {
         this(JoinTypes.readFrom(in), readLeftFields(in), in.readNamedWriteableCollectionAsList(Attribute.class), readJoinConditions(in));

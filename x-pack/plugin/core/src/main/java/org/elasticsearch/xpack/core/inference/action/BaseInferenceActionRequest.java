@@ -24,7 +24,9 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
-    static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName("inference_request_adaptive_rate_limiting_removed");
+    static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(
+        "inference_request_adaptive_rate_limiting_removed"
+    );
 
     private final InferenceContext context;
 

@@ -30,9 +30,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         "LookupJoinExec",
         LookupJoinExec::new
     );
-    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName(
-        "esql_lookup_join_on_expression"
-    );
+    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
     private final List<Attribute> leftFields;
     private final List<Attribute> rightFields;

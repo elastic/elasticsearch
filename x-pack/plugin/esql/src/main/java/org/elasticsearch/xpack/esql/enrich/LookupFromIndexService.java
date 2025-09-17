@@ -193,9 +193,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
             "esql_lookup_join_on_many_fields"
         );
-        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName(
-            "esql_lookup_join_on_expression"
-        );
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;

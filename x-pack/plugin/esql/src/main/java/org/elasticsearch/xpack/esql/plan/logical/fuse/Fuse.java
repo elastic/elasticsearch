@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,10 +26,11 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
     private final Attribute discriminator;
     private final List<NamedExpression> groupings;
     private final FuseType fuseType;
+    private final MapExpression options;
 
     public enum FuseType {
         RRF,
-        LINEAR
+        LINEAR;
     };
 
     public Fuse(
@@ -37,13 +39,15 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
         Attribute score,
         Attribute discriminator,
         List<NamedExpression> groupings,
-        FuseType fuseType
+        FuseType fuseType,
+        MapExpression options
     ) {
         super(source, child);
         this.score = score;
         this.discriminator = discriminator;
         this.groupings = groupings;
         this.fuseType = fuseType;
+        this.options = options;
 
     }
 
@@ -59,12 +63,12 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fuse::new, child(), score, discriminator, groupings, fuseType);
+        return NodeInfo.create(this, Fuse::new, child(), score, discriminator, groupings, fuseType, options);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Fuse(source(), newChild, score, discriminator, groupings, fuseType);
+        return new Fuse(source(), newChild, score, discriminator, groupings, fuseType, options);
     }
 
     public List<NamedExpression> groupings() {
@@ -81,6 +85,10 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
 
     public FuseType fuseType() {
         return fuseType;
+    }
+
+    public MapExpression options() {
+        return options;
     }
 
     @Override

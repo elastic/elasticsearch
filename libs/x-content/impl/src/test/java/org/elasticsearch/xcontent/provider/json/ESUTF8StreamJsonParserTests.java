@@ -57,14 +57,30 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.END_OBJECT));
         });
 
-        testParseJson("{\"foo\": \"bar\\\"baz\\\"\"}", parser -> {
+        testParseJson("{\"foo\": [\"bar\\\"baz\\\"\", \"foobar\"]}", parser -> {
             assertThat(parser.nextToken(), Matchers.equalTo(JsonToken.START_OBJECT));
             assertThat(parser.nextFieldName(), Matchers.equalTo("foo"));
+
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.START_ARRAY));
             assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
 
-            var text = parser.getValueAsText();
-            assertThat(text, Matchers.notNullValue());
-            assertTextRef(text.bytes(), "bar\"baz\"");
+            var firstText = parser.getValueAsText();
+            assertThat(firstText, Matchers.notNullValue());
+            assertTextRef(firstText.bytes(), "bar\"baz\"");
+            // Retrieve the value for a second time to ensure the last value is available
+            firstText = parser.getValueAsText();
+            assertThat(firstText, Matchers.notNullValue());
+            assertTextRef(firstText.bytes(), "bar\"baz\"");
+
+            // Ensure values lastOptimisedValue is reset
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.VALUE_STRING));
+            var secondTest = parser.getValueAsText();
+            assertThat(secondTest, Matchers.notNullValue());
+            assertTextRef(secondTest.bytes(), "foobar");
+            secondTest = parser.getValueAsText();
+            assertThat(secondTest, Matchers.notNullValue());
+            assertTextRef(secondTest.bytes(), "foobar");
+            assertThat(parser.nextValue(), Matchers.equalTo(JsonToken.END_ARRAY));
         });
 
         testParseJson("{\"foo\": \"b\\u00e5r\"}", parser -> {
@@ -256,7 +272,15 @@ public class ESUTF8StreamJsonParserTests extends ESTestCase {
                     var text = parser.getValueAsText();
                     assertTextRef(text.bytes(), currVal);
                     assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
+
+                    // Retrieve it twice to ensure it works as expected
+                    text = parser.getValueAsText();
+                    assertTextRef(text.bytes(), currVal);
+                    assertThat(text.stringLength(), Matchers.equalTo(currVal.length()));
                 } else {
+                    assertThat(parser.getValueAsText(), Matchers.nullValue());
+                    assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
+                    // Retrieve it twice to ensure it works as expected
                     assertThat(parser.getValueAsText(), Matchers.nullValue());
                     assertThat(parser.getValueAsString(), Matchers.equalTo(currVal));
                 }

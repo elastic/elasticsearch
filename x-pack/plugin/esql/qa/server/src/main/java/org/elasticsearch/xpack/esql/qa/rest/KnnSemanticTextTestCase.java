@@ -37,11 +37,13 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
+        // TODO: not sure why this doesn't work??
+        // assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
     }
 
     @SuppressWarnings("unchecked")
     public void testKnnQueryWithSemanticText() throws IOException {
+        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(dense_semantic, [0, 1, 2])
@@ -63,6 +65,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     public void testKnnQueryOnTextField() throws IOException {
+        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(text, [0, 1, 2])
@@ -77,6 +80,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
     }
 
     public void testKnnQueryOnSparseSemanticTextField() throws IOException {
+        assumeTrue("knn with semantic text not available", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
         String knnQuery = """
             FROM semantic-test METADATA _score
             | WHERE knn(sparse_semantic, [0, 1, 2])
@@ -87,7 +91,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(knnQuery));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), is(BAD_REQUEST.getStatus()));
-        assertThat(re.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
+        assertThat(re.getMessage(), containsString("Field [sparse_semantic] does not use a [text_embedding] model"));
     }
 
     @Before

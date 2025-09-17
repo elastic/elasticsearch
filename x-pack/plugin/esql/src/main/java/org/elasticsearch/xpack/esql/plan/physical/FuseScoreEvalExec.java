@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.fuse.FuseConfig;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -18,11 +19,13 @@ import java.io.IOException;
 public class FuseScoreEvalExec extends UnaryExec {
     private final Attribute scoreAttr;
     private final Attribute discriminatorAttr;
+    private final FuseConfig fuseConfig;
 
-    public FuseScoreEvalExec(Source source, PhysicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr) {
+    public FuseScoreEvalExec(Source source, PhysicalPlan child, Attribute scoreAttr, Attribute discriminatorAttr, FuseConfig fuseConfig) {
         super(source, child);
         this.scoreAttr = scoreAttr;
         this.discriminatorAttr = discriminatorAttr;
+        this.fuseConfig = fuseConfig;
     }
 
     @Override
@@ -37,12 +40,12 @@ public class FuseScoreEvalExec extends UnaryExec {
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, FuseScoreEvalExec::new, child(), scoreAttr, discriminatorAttr);
+        return NodeInfo.create(this, FuseScoreEvalExec::new, child(), scoreAttr, discriminatorAttr, fuseConfig);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FuseScoreEvalExec(source(), newChild, scoreAttr, discriminatorAttr);
+        return new FuseScoreEvalExec(source(), newChild, scoreAttr, discriminatorAttr, fuseConfig);
     }
 
     public Attribute score() {
@@ -51,6 +54,10 @@ public class FuseScoreEvalExec extends UnaryExec {
 
     public Attribute discriminator() {
         return discriminatorAttr;
+    }
+
+    public FuseConfig fuseConfig() {
+        return fuseConfig;
     }
 
     @Override

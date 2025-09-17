@@ -251,10 +251,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 matchFields = new ArrayList<>(1);
                 matchFields.add(new MatchConfig(matchField, 0, inputDataType));
             }
-            var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source = Source.readFrom(planIn);
-            }
+            var source = Source.readFrom(planIn);
             // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
             // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
@@ -324,9 +321,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 // send the field name of the first and only match field here
                 out.writeString(matchFields.get(0).fieldName());
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source.writeTo(planOut);
-            }
+            source.writeTo(planOut);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }

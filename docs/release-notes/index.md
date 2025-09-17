@@ -145,8 +145,6 @@ Relevance:
 Search:
 * KQL: Support boolean operators in field queries [#133737](https://github.com/elastic/elasticsearch/pull/133737) (issue: [#132366](https://github.com/elastic/elasticsearch/issues/132366))
 
-
-
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
 
 ### Highlights [elasticsearch-9.0.6-highlights]

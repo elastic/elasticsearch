@@ -10,6 +10,7 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -90,8 +91,10 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
     }
 
     public void testIndexing() throws Exception {
-        assumeTrue("Match only text block loader fix is not present in this cluster",
-                   oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX));
+        assumeTrue(
+            "Match only text block loader fix is not present in this cluster",
+            oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX)
+        );
 
         if (isOldCluster()) {
             // given - enable logsdb and create a template

@@ -70,7 +70,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isGeoPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTimeDuration;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isUnsignedLong;
 
 /**
  * Decay a numeric, spatial or date type value based on the distance of it to an origin.
@@ -237,8 +236,6 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             );
         } else if (isMillisOrNanos(valueType)) {
             return validateOriginAndScale(DataType::isMillisOrNanos, "datetime or date_nanos", DataType::isTimeDuration, "time_duration");
-        } else if (isUnsignedLong(valueType)) {
-            return validateOriginAndScale(DataType::isUnsignedLong, "unsigned long", DataType::isUnsignedLong, "unsigned_long");
         } else {
             return validateOriginAndScale(DataType::isNumeric, "numeric", DataType::isNumeric, "numeric");
         }
@@ -290,8 +287,8 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
         FoldContext foldCtx = toEvaluator.foldCtx();
 
         // Constants
-        Object originFolded = origin.fold(foldCtx);
-        Object scaleFolded = getFoldedScale(foldCtx, valueDataType);
+        Object originFolded = convertToExpectedType(origin.fold(foldCtx), origin.dataType(), valueDataType);
+        Object scaleFolded = convertToExpectedType(getFoldedScale(foldCtx, valueDataType), scale.dataType(), valueDataType);
         Object offsetFolded = getOffset(foldCtx, valueDataType, offsetExpr);
         Double decayFolded = decayExpr != null ? (Double) decayExpr.fold(foldCtx) : DEFAULT_DECAY;
         DecayFunction decayFunction = DecayFunction.fromBytesRef(typeExpr != null ? (BytesRef) typeExpr.fold(foldCtx) : DEFAULT_FUNCTION);
@@ -672,6 +669,38 @@ public class Decay extends EsqlScalarFunction implements OptionalArgument, PostO
             case DATETIME, DATE_NANOS -> DEFAULT_TEMPORAL_OFFSET;
             default -> throw new UnsupportedOperationException("Unsupported data type: " + valueDataType);
         };
+    }
+
+    private Object convertToExpectedType(Object value, DataType valueType, DataType targetType) {
+        if (targetType == INTEGER && value instanceof Integer) {
+            return value;
+        }
+        if (targetType == LONG && value instanceof Long) {
+            return value;
+        }
+        if (targetType == UNSIGNED_LONG && value instanceof Long) {
+            return value;
+        }
+        if (targetType == DOUBLE && value instanceof Double) {
+            return value;
+        }
+
+        // Unsigned longs are represented using (Long.MIN_VALUE, Long.MAX_VALUE), therefore we need to convert
+        // if the targetType is not "unsigned_long"
+        if (valueType == UNSIGNED_LONG && targetType != UNSIGNED_LONG) {
+            value = NumericUtils.unsignedLongToDouble(((Number) value).longValue());
+        }
+
+        if (value instanceof Number num) {
+            return switch (targetType) {
+                case INTEGER -> num.intValue();
+                case LONG, UNSIGNED_LONG -> num.longValue();
+                case DOUBLE -> num.doubleValue();
+                default -> value;
+            };
+        }
+
+        return value;
     }
 
 }

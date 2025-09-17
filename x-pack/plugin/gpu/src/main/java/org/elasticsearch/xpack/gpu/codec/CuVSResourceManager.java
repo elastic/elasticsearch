@@ -71,6 +71,7 @@ public interface CuVSResourceManager {
      */
     class PoolingCuVSResourceManager implements CuVSResourceManager {
 
+        // TEST CI build: does it find CuVSProvider & co?
         static final Logger logger = LogManager.getLogger(CuVSResourceManager.class);
 
         /** A multiplier on input data to account for intermediate and output data size required while processing it */

@@ -71,6 +71,7 @@ mapped_string:foo OR (mapped_string_2:foo bar OR foo bar)
 mapped_string:AND
 mapped_string:OR
 mapped_string:NOT
+mapped_string: foo not bar
 foo AND
 foo OR
 foo NOT

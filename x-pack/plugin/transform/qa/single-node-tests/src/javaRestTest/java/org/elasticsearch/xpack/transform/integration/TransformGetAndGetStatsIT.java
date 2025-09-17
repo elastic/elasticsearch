@@ -594,7 +594,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         createAndStartTransform(transformId2, transformSrc, transformId2 + "_idx");
 
         assertThat(getTransformIdFromAll(0, 1), equalTo(transformId1));
-        assertThat(getTransformIdFromAll(1,1), equalTo(transformId2));
+        assertThat(getTransformIdFromAll(1, 1), equalTo(transformId2));
 
         assertThat(getAllTransformIds(), containsInAnyOrder(transformId1, transformId2));
 

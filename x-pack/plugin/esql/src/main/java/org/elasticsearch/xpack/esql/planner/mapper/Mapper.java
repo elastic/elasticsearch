@@ -85,54 +85,6 @@ public class Mapper {
     private PhysicalPlan mapUnary(UnaryPlan unary) {
         PhysicalPlan mappedChild = map(unary.child());
 
-        //
-        // TODO - this is hard to follow, causes bugs and needs reworking
-        // https://github.com/elastic/elasticsearch/issues/115897
-        //
-        if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-            // When we have remote enrich, we want to put it under FragmentExec, so it would be executed remotely.
-            // We're only going to do it on the coordinator node.
-            // The way we're going to do it is as follows:
-            // 1. Locate FragmentExec in the tree. If we have no FragmentExec, we won't do anything.
-            // 2. Put this Enrich under it, removing everything that was below it previously.
-            // 3. Above FragmentExec, we should deal with pipeline breakers, since pipeline ops already are supposed to go under
-            // FragmentExec.
-            // 4. Aggregates can't appear here since the plan should have errored out if we have aggregate inside remote Enrich.
-            // 5. So we should be keeping: LimitExec, ExchangeExec, OrderExec, TopNExec (actually OrderExec probably can't happen anyway).
-            Holder<Boolean> hasFragment = new Holder<>(false);
-
-            // Remove most plan nodes between this remote ENRICH and the data node's fragment so they're not executed twice;
-            // include the plan up until this ENRICH in the fragment.
-            var childTransformed = mappedChild.transformUp(f -> {
-                // Once we reached FragmentExec, we stuff our Enrich under it
-                if (f instanceof FragmentExec) {
-                    hasFragment.set(true);
-                    return new FragmentExec(enrich);
-                }
-                if (f instanceof EnrichExec enrichExec) {
-                    // It can only be ANY because COORDINATOR would have errored out earlier, and REMOTE should be under FragmentExec
-                    assert enrichExec.mode() == Enrich.Mode.ANY : "enrich must be in ANY mode here";
-                    return enrichExec.child();
-                }
-                if (f instanceof UnaryExec unaryExec) {
-                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
-                        return f;
-                    } else {
-                        return unaryExec.child();
-                    }
-                }
-                // Here we have the following possibilities:
-                // 1. LeafExec - should resolve to FragmentExec or we can ignore it
-                // 2. Join - must be remote, and thus will go inside FragmentExec
-                // 3. Fork/MergeExec - not currently allowed with remote enrich
-                return f;
-            });
-
-            if (hasFragment.get()) {
-                return childTransformed;
-            }
-        }
-
         if (mappedChild instanceof FragmentExec) {
             // COORDINATOR enrich must not be included to the fragment as it has to be executed on the coordinating node
             if (unary instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {

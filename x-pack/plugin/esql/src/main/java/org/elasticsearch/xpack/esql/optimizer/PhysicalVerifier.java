@@ -12,11 +12,8 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
-import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
-import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -34,21 +31,6 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
 
     public static PhysicalVerifier getGeneralVerifier() {
         return new PhysicalVerifier(false);
-    }
-
-    @Override
-    boolean hasRemoteEnrich(PhysicalPlan optimizedPlan) {
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-        if (isLocal) {
-            var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
-            return enriches.stream().anyMatch(e -> ((EnrichExec) e).mode() == Enrich.Mode.REMOTE);
-        } else {
-            var fragments = optimizedPlan.collectFirstChildren(FragmentExec.class::isInstance);
-            return fragments.stream().map(FragmentExec.class::cast).anyMatch(f -> {
-                var enriches = f.fragment().collectFirstChildren(Enrich.class::isInstance);
-                return enriches.stream().anyMatch(e -> ((Enrich) e).mode() == Enrich.Mode.REMOTE);
-            });
-        }
     }
 
     @Override

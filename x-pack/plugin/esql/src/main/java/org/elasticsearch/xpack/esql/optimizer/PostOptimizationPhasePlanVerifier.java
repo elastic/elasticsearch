@@ -39,11 +39,6 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
     public Failures verify(P optimizedPlan, List<Attribute> expectedOutputAttributes) {
         Failures failures = new Failures();
         Failures depFailures = new Failures();
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-        // This is a temporary workaround to skip verification when there is a remote enrich, due to a bug
-        if (hasRemoteEnrich(optimizedPlan)) {
-            return failures;
-        }
 
         checkPlanConsistency(optimizedPlan, failures, depFailures);
 
@@ -55,9 +50,6 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
 
         return failures;
     }
-
-    // This is a temporary workaround to skip verification when there is a remote enrich, due to a bug
-    abstract boolean hasRemoteEnrich(P optimizedPlan);
 
     abstract void checkPlanConsistency(P optimizedPlan, Failures failures, Failures depFailures);
 

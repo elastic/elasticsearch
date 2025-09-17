@@ -152,7 +152,7 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public boolean semanticEquals(Expression other) {
-        return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
+        return other instanceof Attribute otherAttr && id().equals(otherAttr.id());
     }
 
     @Override
@@ -160,10 +160,25 @@ public abstract class Attribute extends NamedExpression {
         return clone(Source.EMPTY, qualifier(), name(), dataType(), nullability, id(), synthetic());
     }
 
+    /**
+     * Compares all fields except the id. Useful when looking for attributes that are the same except for their origin, or when we create
+     * new attributes based on existing ones and want to avoid duplicates.
+     */
+    protected boolean nonSemanticEquals(Attribute other) {
+        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+    }
+
+    /**
+     * Hashcode that's consistent with {@link #nonSemanticEquals(Attribute)}.
+     */
+    protected int nonSemanticHashCode() {
+        return Objects.hash(super.hashCode(), qualifier, nullability);
+    }
+
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), id(), qualifier, nullability);
+        return Objects.hash(super.hashCode(), id(), nonSemanticHashCode());
     }
 
     /**
@@ -173,10 +188,7 @@ public abstract class Attribute extends NamedExpression {
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Attribute) o;
-        return Objects.equals(id(), other.id())
-            && super.innerEquals(other)
-            && Objects.equals(qualifier, other.qualifier)
-            && Objects.equals(nullability, other.nullability);
+        return semanticEquals(other) && nonSemanticEquals(other);
     }
 
     @Override

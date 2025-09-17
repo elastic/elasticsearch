@@ -50,14 +50,13 @@ public abstract class TypedAttribute extends Attribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), dataType);
+    public int nonSemanticHashCode() {
+        return Objects.hash(super.nonSemanticHashCode(), dataType);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean nonSemanticEquals(Attribute o) {
         var other = (TypedAttribute) o;
-        return super.innerEquals(other) && dataType == other.dataType;
+        return super.nonSemanticEquals(other) && dataType == other.dataType;
     }
 }

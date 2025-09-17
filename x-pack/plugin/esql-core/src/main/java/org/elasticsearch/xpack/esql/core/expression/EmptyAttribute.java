@@ -79,13 +79,22 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
+    public int nonSemanticHashCode() {
         return EmptyAttribute.class.hashCode();
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean nonSemanticEquals(Attribute o) {
         return true;
+    }
+
+    @Override
+    public int semanticHash() {
+        return EmptyAttribute.class.hashCode();
+    }
+
+    @Override
+    public boolean semanticEquals(Expression other) {
+        return other instanceof EmptyAttribute;
     }
 }

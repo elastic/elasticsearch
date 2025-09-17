@@ -188,15 +188,14 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), hasCustomMessage, message);
+    public int nonSemanticHashCode() {
+        return Objects.hash(super.nonSemanticHashCode(), hasCustomMessage, message);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean nonSemanticEquals(Attribute o) {
         var other = (UnsupportedAttribute) o;
-        return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
+        return super.nonSemanticEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
     /**

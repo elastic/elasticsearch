@@ -221,6 +221,11 @@ final class S3ClientSettings {
     /** The read timeout for the s3 client. */
     final int readTimeoutMillis;
 
+    /**
+     * The maximum idle time (in millis) of a connection before it is discarded from the connection pool.
+     */
+    final long connectionMaxIdleTimeMillis;
+
     /** The maximum number of concurrent connections to use. */
     final int maxConnections;
 
@@ -239,11 +244,6 @@ final class S3ClientSettings {
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
-    /**
-     * The maximum idle time (in millis) of a connection before it is discarded from the connection pool.
-     */
-    final long connectionMaxIdleTimeMillis;
-
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -254,13 +254,13 @@ final class S3ClientSettings {
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis,
+        long connectionMaxIdleTimeMillis,
         int maxConnections,
         int maxRetries,
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
-        String region,
-        long connectionMaxIdleTimeMillis
+        String region
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -271,13 +271,13 @@ final class S3ClientSettings {
         this.proxyUsername = proxyUsername;
         this.proxyPassword = proxyPassword;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.connectionMaxIdleTimeMillis = connectionMaxIdleTimeMillis;
         this.maxConnections = maxConnections;
         this.maxRetries = maxRetries;
         this.pathStyleAccess = pathStyleAccess;
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
-        this.connectionMaxIdleTimeMillis = connectionMaxIdleTimeMillis;
     }
 
     /**
@@ -332,14 +332,14 @@ final class S3ClientSettings {
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
             && newReadTimeoutMillis == readTimeoutMillis
+            && Objects.equals(connectionMaxIdleTimeMillis, newConnectionMaxIdleTimeMillis)
             && maxConnections == newMaxConnections
             && maxRetries == newMaxRetries
             && Objects.equals(credentials, newCredentials)
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
-            && Objects.equals(region, newRegion)
-            && Objects.equals(connectionMaxIdleTimeMillis, newConnectionMaxIdleTimeMillis)) {
+            && Objects.equals(region, newRegion)) {
             return this;
         }
         return new S3ClientSettings(
@@ -352,13 +352,13 @@ final class S3ClientSettings {
             proxyUsername,
             proxyPassword,
             newReadTimeoutMillis,
+            newConnectionMaxIdleTimeMillis,
             newMaxConnections,
             newMaxRetries,
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
-            newRegion,
-            newConnectionMaxIdleTimeMillis
+            newRegion
         );
     }
 
@@ -461,13 +461,13 @@ final class S3ClientSettings {
                 proxyUsername.toString(),
                 proxyPassword.toString(),
                 Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+                getConfigValue(settings, clientName, CONNECTION_MAX_IDLE_TIME_SETTING).millis(),
                 getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING),
                 getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
-                getConfigValue(settings, clientName, REGION),
-                getConfigValue(settings, clientName, CONNECTION_MAX_IDLE_TIME_SETTING).millis()
+                getConfigValue(settings, clientName, REGION)
             );
         }
     }
@@ -483,6 +483,7 @@ final class S3ClientSettings {
         final S3ClientSettings that = (S3ClientSettings) o;
         return proxyPort == that.proxyPort
             && readTimeoutMillis == that.readTimeoutMillis
+            && Objects.equals(connectionMaxIdleTimeMillis, that.connectionMaxIdleTimeMillis)
             && maxConnections == that.maxConnections
             && maxRetries == that.maxRetries
             && Objects.equals(credentials, that.credentials)
@@ -494,8 +495,7 @@ final class S3ClientSettings {
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
-            && Objects.equals(region, that.region)
-            && Objects.equals(connectionMaxIdleTimeMillis, that.connectionMaxIdleTimeMillis);
+            && Objects.equals(region, that.region);
     }
 
     @Override
@@ -510,12 +510,12 @@ final class S3ClientSettings {
             proxyUsername,
             proxyPassword,
             readTimeoutMillis,
+            connectionMaxIdleTimeMillis,
             maxRetries,
             maxConnections,
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
-            region,
-            connectionMaxIdleTimeMillis
+            region
         );
     }
 
@@ -533,8 +533,8 @@ final class S3ClientSettings {
 
     static final class Defaults {
         static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);
+        static final TimeValue CONNECTION_MAX_IDLE_TIME = TimeValue.timeValueSeconds(60);
         static final int MAX_CONNECTIONS = 50;
         static final int RETRY_COUNT = 3;
-        static final TimeValue CONNECTION_MAX_IDLE_TIME = TimeValue.timeValueSeconds(60);
     }
 }

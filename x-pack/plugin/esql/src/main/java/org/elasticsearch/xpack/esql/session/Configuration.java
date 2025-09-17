@@ -103,21 +103,9 @@ public class Configuration implements Writeable {
         this.resultTruncationMaxSizeRegular = in.readVInt();
         this.resultTruncationDefaultSizeRegular = in.readVInt();
         this.query = readQuery(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            this.profile = in.readBoolean();
-        } else {
-            this.profile = false;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
-        } else {
-            this.tables = Map.of();
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.queryStartTimeNanos = in.readLong();
-        } else {
-            this.queryStartTimeNanos = -1;
-        }
+        this.profile = in.readBoolean();
+        this.tables = in.readImmutableMap(i1 -> i1.readImmutableMap(i2 -> new Column((BlockStreamInput) i2)));
+        this.queryStartTimeNanos = in.readLong();
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
             || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             this.allowPartialResults = in.readBoolean();
@@ -146,15 +134,9 @@ public class Configuration implements Writeable {
         out.writeVInt(resultTruncationMaxSizeRegular);
         out.writeVInt(resultTruncationDefaultSizeRegular);
         writeQuery(out, query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeBoolean(profile);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeLong(queryStartTimeNanos);
-        }
+        out.writeBoolean(profile);
+        out.writeMap(tables, (o1, columns) -> o1.writeMap(columns, StreamOutput::writeWriteable));
+        out.writeLong(queryStartTimeNanos);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             out.writeBoolean(allowPartialResults);

@@ -13,15 +13,26 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
-    public static TransportVersionDefinition fromString(Path file, String contents) {
+record TransportVersionDefinition(String name, List<TransportVersionId> ids, boolean isReferable) {
+    public static TransportVersionDefinition fromString(Path file, String contents, boolean isReferable) {
         String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");
         String name = filename.substring(0, filename.length() - 4);
         List<TransportVersionId> ids = new ArrayList<>();
 
+        String idsLine = null;
         if (contents.isEmpty() == false) {
-            for (String rawId : contents.split(",")) {
+            String[] lines = contents.split(System.lineSeparator());
+            for (String line : lines) {
+                line = line.replaceAll("\\s+", "");
+                if (line.startsWith("#") == false) {
+                    idsLine = line;
+                    break;
+                }
+            }
+        }
+        if (idsLine != null) {
+            for (String rawId : idsLine.split(",")) {
                 try {
                     ids.add(TransportVersionId.fromString(rawId));
                 } catch (NumberFormatException e) {
@@ -30,6 +41,6 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
             }
         }
 
-        return new TransportVersionDefinition(name, ids);
+        return new TransportVersionDefinition(name, ids, isReferable);
     }
 }

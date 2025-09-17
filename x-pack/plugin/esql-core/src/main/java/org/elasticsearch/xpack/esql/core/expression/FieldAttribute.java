@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ESQL_FIELD_ATTRIBUTE_DROP_TYPE;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Attribute for an ES field.
@@ -105,7 +103,7 @@ public class FieldAttribute extends TypedAttribute {
         Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
         String parentName = ((PlanStreamInput) in).readOptionalCachedString();
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
-        String name = readCachedStringWithVersionCheck(in);
+        String name = ((PlanStreamInput) in).readCachedString();
         if (in.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
             DataType.readFrom(in);
         }
@@ -125,7 +123,7 @@ public class FieldAttribute extends TypedAttribute {
             Source.EMPTY.writeTo(out);
             ((PlanStreamOutput) out).writeOptionalCachedString(parentName);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
-            writeCachedStringWithVersionCheck(out, name());
+            ((PlanStreamOutput) out).writeCachedString(name());
             if (out.getTransportVersion().before(ESQL_FIELD_ATTRIBUTE_DROP_TYPE)) {
                 dataType().writeTo(out);
             }

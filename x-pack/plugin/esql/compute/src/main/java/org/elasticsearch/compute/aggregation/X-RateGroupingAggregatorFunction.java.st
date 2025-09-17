@@ -193,7 +193,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
     private void addRawInput(int positionOffset, IntVector groups, $Type$Block valueBlock, LongVector timestampVector) {
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(0));
+            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(positionOffset));
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
                 if (valueBlock.isNull(valuePosition)) {
@@ -207,7 +207,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
             Buffer buffer = null;
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition) == false) {
+                if (valueBlock.isNull(valuePosition)) {
                     continue;
                 }
                 assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
@@ -229,7 +229,7 @@ public final class Rate$Type$GroupingAggregatorFunction implements GroupingAggre
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(0));
+            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
             for (int p = 0; p < positionCount; p++) {
                 int valuePosition = positionOffset + p;
                 buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.get$Type$(valuePosition));

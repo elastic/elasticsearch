@@ -1,0 +1,304 @@
+setup:
+  - requires:
+      cluster_features: "search.semantic_text_supports_multi_match_query"
+      reason: semantic_text multi_match support introduced in 9.2.0
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-index
+        body:
+          mappings:
+            properties:
+              title:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              content:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              summary:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.create:
+        index: test-mixed-index
+        body:
+          mappings:
+            properties:
+              title:
+                type: text
+              semantic_content:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              tags:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test-text-only-index
+        body:
+          mappings:
+            properties:
+              title:
+                type: text
+              content:
+                type: text
+
+---
+"Multi-match query on semantic_text fields":
+  - do:
+      index:
+        index: test-semantic-index
+        id: doc_1
+        body:
+          title: "Machine learning algorithms"
+          content: "Deep neural networks for computer vision"
+          summary: "AI and machine learning fundamentals"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "machine learning neural networks"
+              fields: ["title", "content"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Multi-match query on mixed semantic_text and text fields":
+  - do:
+      index:
+        index: test-mixed-index
+        id: doc_1
+        body:
+          title: "Quantum computing breakthrough"
+          semantic_content: "Revolutionary quantum algorithms for cryptography"
+          tags: ["quantum", "computing"]
+        refresh: true
+
+  - do:
+      index:
+        index: test-mixed-index
+        id: doc_2
+        body:
+          title: "AI research advances"
+          semantic_content: "Neural network architectures and deep learning"
+          tags: ["ai", "research"]
+        refresh: true
+
+  - do:
+      search:
+        index: test-mixed-index
+        body:
+          query:
+            multi_match:
+              query: "quantum algorithms"
+              fields: ["title", "semantic_content"]
+
+  - match: { hits.total.value: 2 }
+
+---
+"Multi-match most_fields query on semantic_text":
+  - do:
+      index:
+        index: test-semantic-index
+        id: doc_1
+        body:
+          title: "Computer vision systems"
+          content: "Image recognition and computer vision algorithms"
+          summary: "Visual processing and pattern recognition"
+        refresh: true
+
+  - do:
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "computer vision"
+              fields: ["title", "content", "summary"]
+              type: "most_fields"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Multi-match query across multiple indices with different field types":
+  - do:
+      index:
+        index: test-semantic-index
+        id: doc_1
+        body:
+          title: "Robotics automation"
+          content: "Autonomous systems and robotic controls"
+        refresh: true
+
+  - do:
+      index:
+        index: test-text-only-index
+        id: doc_2
+        body:
+          title: "Robotics research"
+          content: "Industrial automation and robotics"
+        refresh: true
+
+  - do:
+      search:
+        index: "test-semantic-index,test-text-only-index"
+        body:
+          query:
+            multi_match:
+              query: "robotics automation"
+              fields: ["title", "content"]
+
+  - match: { hits.total.value: 2 }
+
+---
+"Multi-match boost and query name progression":
+  - skip:
+      features: ["headers", "close_to"]
+
+  - do:
+      index:
+        index: test-semantic-index
+        id: doc_1
+        body:
+          title: "Machine learning algorithms"
+          content: "Deep neural networks for computer vision"
+          summary: "AI and machine learning fundamentals"
+        refresh: true
+
+  # Baseline query - no boost
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "machine learning"
+              fields: ["title", "content"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 3.398582E18, error: 1e15 } }
+  - not_exists: hits.hits.0.matched_queries
+
+  # Field-level boost
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "machine learning"
+              fields: ["title", "content^2"]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 6.797164E18, error: 1e15 } }
+  - not_exists: hits.hits.0.matched_queries
+
+  # Overall boost with query name
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "machine learning"
+              fields: ["title", "content^2"]
+              boost: 3.0
+              _name: "boosted-multi-match"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - close_to: { hits.hits.0._score: { value: 2.0391492E19, error: 1e16 } }
+  - match: { hits.hits.0.matched_queries: ["boosted-multi-match"] }
+
+---
+"Multi-match query error on unsupported type with multiple fields":
+  - do:
+      catch: /multi_match query with type \[cross_fields\] is not supported for semantic_text fields/
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "test query"
+              fields: ["title", "content"]
+              type: "cross_fields"
+
+  - do:
+      catch: /multi_match query with type \[phrase\] is not supported for semantic_text fields/
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "test query"
+              fields: [ "title", "content" ]
+              type: "phrase"
+
+  - do:
+      catch: /multi_match query with type \[bool_prefix\] is not supported for semantic_text fields/
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "test query"
+              fields: [ "title", "content" ]
+              type: "bool_prefix"
+
+  - do:
+      catch: /multi_match query with type \[phrase_prefix\] is not supported for semantic_text fields/
+      search:
+        index: test-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "test query"
+              fields: [ "title", "content" ]
+              type: "phrase_prefix"

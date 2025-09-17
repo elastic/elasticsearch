@@ -815,13 +815,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<NamedExpression> groupings = List.of(idAttr, indexAttr);
 
             MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
-            String fuseType = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType).toUpperCase(Locale.ROOT);
+            String fuseTypeName = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType);
 
-            if (fuseType.equals(Fuse.FuseType.RRF.name()) == false) {
-                throw new ParsingException(source(ctx), "Fuse type " + fuseType + " is not supported");
+            Fuse.FuseType fuseType;
+            try {
+                fuseType = Fuse.FuseType.valueOf(fuseTypeName.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new ParsingException(source(ctx), "Fuse type " + fuseTypeName + " is not supported");
             }
 
-            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, Fuse.FuseType.RRF, options);
+            return new Fuse(source, input, scoreAttr, discriminatorAttr, groupings, fuseType, options);
         };
     }
 

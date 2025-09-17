@@ -462,12 +462,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
-- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
-  method: testParseOrQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133863
-- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
-  method: testParseAndQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133871
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
@@ -546,42 +540,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/134407
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testValidationFailsWhenUpdateWithInvalidPath
-  issue: https://github.com/elastic/elasticsearch/issues/134805
 - class: org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorTests
   method: testSliceIndex
   issue: https://github.com/elastic/elasticsearch/issues/134808
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBeforeStatsByWithWhere}
   issue: https://github.com/elastic/elasticsearch/issues/134817
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<0 longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/134844
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<0 ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/134845
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testIndexSettingProviderPrivateSetting
   issue: https://github.com/elastic/elasticsearch/issues/134846
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<-0 doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/134847
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<0 doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/134849
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlinestats
   issue: https://github.com/elastic/elasticsearch/issues/134854
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<1000000000 ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/134855
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/134856
+- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
+  method: testCancelSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/134865
+- class: org.elasticsearch.xpack.ml.integration.InferenceIT
+  method: testInferRegressionModel
+  issue: https://github.com/elastic/elasticsearch/issues/133603
 
 # Examples:
 #

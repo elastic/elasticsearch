@@ -87,7 +87,7 @@ public class RateTests extends AbstractAggregationTestCase {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             List<Object> dataRows = fieldTypedData.multiRowData();
             if (randomBoolean()) {
-                List<Object> withNulls = new ArrayList<>(dataRows);
+                List<Object> withNulls = new ArrayList<>(dataRows.size());
                 for (Object dataRow : dataRows) {
                     if (randomBoolean()) {
                         withNulls.add(null);

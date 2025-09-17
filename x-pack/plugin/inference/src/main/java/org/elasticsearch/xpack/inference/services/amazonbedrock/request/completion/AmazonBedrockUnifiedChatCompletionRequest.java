@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
+
+import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 
 import org.elasticsearch.core.Nullable;
@@ -23,10 +27,12 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.Amazo
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getInputSchema;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getUnifiedConverseMessageList;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 
@@ -56,27 +62,59 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
 
         if (requestEntity.tools() != null) {
             requestEntity.tools().forEach(tool -> {
-                converseStreamRequest.toolConfig(
-                    ToolConfiguration.builder()
-                        .tools(
-                            Tool.builder()
-                                .toolSpec(
-                                    ToolSpecification.builder()
-                                        .name(tool.function().name())
-                                        .description(tool.function().description())
-                                        .inputSchema(getInputSchema())
-                                        .build()
-                                )
-                                .build()
-                        )
-                        .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder().name(tool.function().name()).build()).build())
-                        .build()
-                );
+                try {
+                    converseStreamRequest.toolConfig(
+                        ToolConfiguration.builder()
+                            .tools(
+                                Tool.builder()
+                                    .toolSpec(
+                                        ToolSpecification.builder()
+                                            .name(tool.function().name())
+                                            .description(tool.function().description())
+                                            .inputSchema(ToolInputSchema
+                                                .fromJson(Document.fromMap(paramToDocumentMap(tool))))
+                                            .build()
+                                    )
+                                    .build()
+                            )
+                            .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder()
+                                .name(tool.function().name()).build()).build())
+                            .build()
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             });
         }
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
+    }
+
+    private Document toDocument(Object value) {
+        return switch (value) {
+            case null -> Document.fromNull();
+            case String stringValue -> Document.fromString(stringValue);
+            case Integer numberValue -> Document.fromNumber(numberValue);
+            case Map<?,?> mapValue -> {
+                final Map<String, Document> converted = new HashMap<>();
+                for (Map.Entry<?,?> entry : mapValue.entrySet()) {
+                    converted.put(
+                        String.valueOf(entry.getKey()),
+                        toDocument(entry.getValue()));
+                }
+                yield Document.fromMap(converted);
+            }
+            default -> Document.mapBuilder().build();
+        };
+    }
+
+    private Map<String, Document> paramToDocumentMap(UnifiedCompletionRequest.Tool tool) throws IOException {
+        Map<String, Document> paramDocuments = new HashMap<>();
+        for (Map.Entry<String, Object> entry : tool.function().parameters().entrySet()) {
+            paramDocuments.put(entry.getKey(), toDocument(entry.getValue()));
+        }
+        return paramDocuments;
     }
 
     @Override

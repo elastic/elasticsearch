@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -33,35 +34,28 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 
-/**
- * The {@code increase()} function calculates the absolute increase of a counter field in a time window.
- *
- * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
- * it calculates the total increase over the time window.
- */
-public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
+public class Delta extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Delta", Delta::new);
 
     private final Expression timestamp;
 
     @FunctionInfo(
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "double" },
-        description = "The absolute increase of a counter field in a time window.",
+        description = "The Delta of a counter field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
-        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds"
+        note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
+        examples = { @Example(file = "k8s-timeseries", tag = "Delta") }
     )
-    public Increase(
-        Source source,
-        @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field
-    ) {
+    public Delta(Source source, @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field) {
         this(source, field, new UnresolvedAttribute(source, "@timestamp"));
     }
 
-    public Increase(
+    public Delta(
         Source source,
         @Param(name = "field", type = { "counter_long", "counter_integer", "counter_double" }) Expression field,
         Expression timestamp
@@ -70,16 +64,16 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     }
 
     // compatibility constructor used when reading from the stream
-    private Increase(Source source, Expression field, Expression filter, List<Expression> children) {
+    private Delta(Source source, Expression field, Expression filter, List<Expression> children) {
         this(source, field, filter, children.getFirst());
     }
 
-    private Increase(Source source, Expression field, Expression filter, Expression timestamp) {
+    private Delta(Source source, Expression field, Expression filter, Expression timestamp) {
         super(source, field, filter, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
-    public Increase(StreamInput in) throws IOException {
+    public Delta(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
@@ -94,22 +88,22 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     }
 
     @Override
-    protected NodeInfo<Increase> info() {
-        return NodeInfo.create(this, Increase::new, field(), timestamp);
+    protected NodeInfo<Delta> info() {
+        return NodeInfo.create(this, Delta::new, field(), timestamp);
     }
 
     @Override
-    public Increase replaceChildren(List<Expression> newChildren) {
+    public Delta replaceChildren(List<Expression> newChildren) {
         if (newChildren.size() != 3) {
             assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
             throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
         }
-        return new Increase(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new Delta(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
-    public Increase withFilter(Expression filter) {
-        return new Increase(source(), field(), filter, timestamp);
+    public Delta withFilter(Expression filter) {
+        return new Delta(source(), field(), filter, timestamp);
     }
 
     @Override
@@ -119,28 +113,38 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> DataType.isCounter(dt), sourceText(), FIRST, "counter_long", "counter_integer", "counter_double");
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != AGGREGATE_METRIC_DOUBLE,
+            sourceText(),
+            DEFAULT,
+            "numeric except counter types"
+        );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(RateCalculationMode.INCREASE);
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(RateCalculationMode.INCREASE);
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(RateCalculationMode.INCREASE);
+            case LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(RateCalculationMode.DELTA);
+            case INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(RateCalculationMode.DELTA);
+            case DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(RateCalculationMode.DELTA);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 
     @Override
-    public Increase perTimeSeriesAggregation() {
+    public Delta perTimeSeriesAggregation() {
         return this;
     }
 
     @Override
     public String toString() {
-        return "increase(" + field() + ")";
+        return "delta(" + field() + ")";
+    }
+
+    Expression timestamp() {
+        return timestamp;
     }
 
     @Override

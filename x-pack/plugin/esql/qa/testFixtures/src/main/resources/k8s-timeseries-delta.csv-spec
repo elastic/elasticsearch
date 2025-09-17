@@ -1,0 +1,166 @@
+
+delta_of_double_no_grouping
+required_capability: metrics_command
+TS k8s
+| STATS cost_change=sum(delta(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
+| SORT cost_change DESC, time_bucket DESC | LIMIT 10;
+
+cost_change:double | time_bucket:datetime
+null               | 2024-05-10T00:01:00.000Z
+21.315340909090907 | 2024-05-10T00:20:00.000Z
+12.522435897435898 | 2024-05-10T00:13:00.000Z
+11.486895161290322 | 2024-05-10T00:12:00.000Z
+11.066666666666666 | 2024-05-10T00:21:00.000Z
+11.0625            | 2024-05-10T00:22:00.000Z
+8.753739316239315  | 2024-05-10T00:09:00.000Z
+6.991071428571427  | 2024-05-10T00:15:00.000Z
+5.833333333333333  | 2024-05-10T00:10:00.000Z
+5.03125            | 2024-05-10T00:00:00.000Z
+
+
+;
+
+delta_of_integer
+required_capability: metrics_command
+required_capability: k8s_dataset_additional_fields
+TS k8s | STATS clients = avg(delta(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
+
+clients:double      | time_bucket:datetime
+-910.0              | 2024-05-10T00:00:00.000Z
+null                | 2024-05-10T00:01:00.000Z
+-372.75             | 2024-05-10T00:02:00.000Z
+-268.212962962963   | 2024-05-10T00:03:00.000Z
+385.33333333333326  | 2024-05-10T00:04:00.000Z
+-644.040650406504   | 2024-05-10T00:05:00.000Z
+201.0982142857143   | 2024-05-10T00:06:00.000Z
+-321.0              | 2024-05-10T00:07:00.000Z
+-128.05555555555557 | 2024-05-10T00:08:00.000Z
+-93.61147741147741  | 2024-05-10T00:09:00.000Z
+;
+
+delta_of_integer_grouping
+required_capability: metrics_command
+required_capability: k8s_dataset_additional_fields
+TS k8s | STATS clients = avg(delta(network.eth0.currently_connected_clients)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
+
+clients:double | cluster:keyword | time_bucket:datetime
+-910.0            | prod            | 2024-05-10T00:00:00.000Z
+null              | staging         | 2024-05-10T00:00:00.000Z
+null              | prod            | 2024-05-10T00:01:00.000Z
+null              | qa              | 2024-05-10T00:01:00.000Z
+-81.0             | prod            | 2024-05-10T00:02:00.000Z
+null              | qa              | 2024-05-10T00:02:00.000Z
+-664.5            | staging         | 2024-05-10T00:02:00.000Z
+null              | prod            | 2024-05-10T00:03:00.000Z
+140.3611111111111 | qa              | 2024-05-10T00:03:00.000Z
+-472.5            | staging         | 2024-05-10T00:03:00.000Z
+
+
+;
+
+delta_with_filtering
+required_capability: metrics_command
+TS k8s | WHERE pod == "one" | STATS tx = sum(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+tx:double          | cluster:keyword | time_bucket:datetime
+-371.890099009901  | prod            | 2024-05-10T00:00:00.000Z
+598.0              | qa              | 2024-05-10T00:00:00.000Z
+138.21049382716058 | staging         | 2024-05-10T00:00:00.000Z
+295.7746478873239  | prod            | 2024-05-10T00:10:00.000Z
+78.35912698412699  | qa              | 2024-05-10T00:10:00.000Z
+-684.622030237581  | staging         | 2024-05-10T00:10:00.000Z
+-30.80685358255448 | prod            | 2024-05-10T00:20:00.000Z
+-948.0             | qa              | 2024-05-10T00:20:00.000Z
+-766.5             | staging         | 2024-05-10T00:20:00.000Z
+
+;
+
+delta_with_inline_filtering
+required_capability: metrics_command
+TS k8s | STATS tx = sum(delta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+tx:double          | cluster:keyword | time_bucket:datetime
+-371.890099009901  | prod            | 2024-05-10T00:00:00.000Z
+598.0              | qa              | 2024-05-10T00:00:00.000Z
+138.21049382716058 | staging         | 2024-05-10T00:00:00.000Z
+295.7746478873239  | prod            | 2024-05-10T00:10:00.000Z
+78.35912698412699  | qa              | 2024-05-10T00:10:00.000Z
+-684.622030237581  | staging         | 2024-05-10T00:10:00.000Z
+-30.80685358255448 | prod            | 2024-05-10T00:20:00.000Z
+-948.0             | qa              | 2024-05-10T00:20:00.000Z
+-766.5             | staging         | 2024-05-10T00:20:00.000Z
+
+;
+
+eval_on_delta
+required_capability: metrics_command
+TS k8s | STATS avg_bytes = avg(delta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
+
+avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
+-233.7966494439313  | prod            | 2024-05-10T00:00:00.000Z | -0.3337966494439313
+-63.158276227018554 | qa              | 2024-05-10T00:00:00.000Z | -0.16315827622701853
+-28.533473808061007 | staging         | 2024-05-10T00:00:00.000Z | -0.12853347380806102
+149.4084082074723   | prod            | 2024-05-10T00:10:00.000Z | 0.04940840820747229
+334.5465423843677   | qa              | 2024-05-10T00:10:00.000Z | 0.23454654238436767
+216.5891933840098   | staging         | 2024-05-10T00:10:00.000Z | 0.1165891933840098
+74.080807442957     | prod            | 2024-05-10T00:20:00.000Z | -0.025919192557043006
+-488.375            | qa              | 2024-05-10T00:20:00.000Z | -0.588375
+-652.0491298527444  | staging         | 2024-05-10T00:20:00.000Z | -0.7520491298527444
+
+;
+
+delta_multi_values
+required_capability: metrics_command
+required_capability: k8s_dataset_additional_fields
+TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(delta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
+
+events:double      | pod:keyword | time_bucket:datetime
+null               | one         | 2024-05-10T00:01:00.000Z
+null               | one         | 2024-05-10T00:04:00.000Z
+null               | three       | 2024-05-10T00:01:00.000Z
+null               | three       | 2024-05-10T00:02:00.000Z
+null               | three       | 2024-05-10T00:05:00.000Z
+null               | three       | 2024-05-10T00:08:00.000Z
+null               | two         | 2024-05-10T00:00:00.000Z
+null               | two         | 2024-05-10T00:01:00.000Z
+null               | two         | 2024-05-10T00:07:00.000Z
+13.785714285714285 | three       | 2024-05-10T00:06:00.000Z
+;
+
+delta_null_values
+required_capability: metrics_command
+required_capability: k8s_dataset_additional_fields
+TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(delta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
+
+events:double | pod:keyword | time_bucket:datetime
+null          | one         | 2024-05-10T00:10:00.000Z
+null          | one         | 2024-05-10T00:11:00.000Z
+null          | one         | 2024-05-10T00:12:00.000Z
+null          | one         | 2024-05-10T00:14:00.000Z
+null          | three       | 2024-05-10T00:11:00.000Z
+null          | three       | 2024-05-10T00:12:00.000Z
+null          | three       | 2024-05-10T00:14:00.000Z
+null          | two         | 2024-05-10T00:10:00.000Z
+null          | two         | 2024-05-10T00:11:00.000Z
+null          | two         | 2024-05-10T00:13:00.000Z
+
+
+;
+
+delta_all_value_types
+required_capability: metrics_command
+required_capability: k8s_dataset_additional_fields
+TS k8s | STATS events = sum(delta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
+
+events:double       | pod:keyword | time_bucket:datetime
+0.7783926403287569  | two         | 2024-05-10T00:20:00.000Z
+0.0                 | one         | 2024-05-10T00:20:00.000Z
+-0.6324059649846072 | three       | 2024-05-10T00:00:00.000Z
+-0.6484957259757258 | one         | 2024-05-10T00:10:00.000Z
+-5.5                | three       | 2024-05-10T00:20:00.000Z
+-6.75               | three       | 2024-05-10T00:10:00.000Z
+-7.526696002933628  | one         | 2024-05-10T00:00:00.000Z
+-19.54273340163969  | two         | 2024-05-10T00:00:00.000Z
+-19.884546535382967 | two         | 2024-05-10T00:10:00.000Z
+
+;

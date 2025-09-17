@@ -7,6 +7,7 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,11 +37,10 @@ import java.util.List;
 public final class RateLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
 
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
-        // Overriding constructor to support isRateOverTime flag
-        private final boolean isRateOverTime;
+        private final RateCalculationMode calculation;
 
-        public FunctionSupplier(boolean isRateOverTime) {
-            this.isRateOverTime = isRateOverTime;
+        public FunctionSupplier(RateCalculationMode calculation) {
+            this.calculation = calculation;
         }
 
         @Override
@@ -60,7 +60,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
 
         @Override
         public RateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
-            return new RateLongGroupingAggregatorFunction(channels, driverContext, isRateOverTime);
+            return new RateLongGroupingAggregatorFunction(channels, driverContext, calculation);
         }
 
         @Override
@@ -81,13 +81,13 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
-    private final boolean isRateOverTime;
+    private final RateCalculationMode calculation;
 
-    public RateLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, boolean isRateOverTime) {
+    public RateLongGroupingAggregatorFunction(List<Integer> channels, DriverContext driverContext, RateCalculationMode calculation) {
         this.channels = channels;
         this.driverContext = driverContext;
         this.bigArrays = driverContext.bigArrays();
-        this.isRateOverTime = isRateOverTime;
+        this.calculation = calculation;
         ObjectArray<Buffer> buffers = driverContext.bigArrays().newObjectArray(256);
         try {
             this.reducedStates = driverContext.bigArrays().newObjectArray(256);
@@ -181,7 +181,6 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             if (valueBlock.isNull(valuePosition)) {
                 continue;
             }
-            assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
             int groupStart = groups.getFirstValueIndex(p);
             int groupEnd = groupStart + groups.getValueCount(p);
             long timestamp = timestampVector.getLong(valuePosition);
@@ -208,7 +207,6 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 if (valueBlock.isNull(valuePosition)) {
                     continue;
                 }
-                assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
                 buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueBlock.getLong(valuePosition));
             }
         } else {
@@ -219,7 +217,6 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 if (valueBlock.isNull(valuePosition)) {
                     continue;
                 }
-                assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
                 long timestamp = timestampVector.getLong(valuePosition);
                 var value = valueBlock.getLong(valuePosition);
                 int groupId = groups.getInt(p);
@@ -574,9 +571,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
                 }
                 final double rate;
                 if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), isRateOverTime);
+                    rate = extrapolateRate(state, tsContext.rangeStartInMillis(group), tsContext.rangeEndInMillis(group), calculation);
                 } else {
+                    assert calculation == RateCalculationMode.RATE : "only rate calculation is supported in non-extrapolation mode";
                     rate = computeRateWithoutExtrapolate(state);
+
                 }
                 rates.appendDouble(rate);
             }
@@ -663,12 +662,12 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, boolean isRateOverTime) {
+    private static double extrapolateRate(ReducedState state, long rangeStart, long rangeEnd, RateCalculationMode calculation) {
         assert state.samples >= 2 : "rate requires at least two samples; got " + state.samples;
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
-        double lastValue = state.intervals[0].v1 + state.resets;
+        double lastValue = (calculation == RateCalculationMode.DELTA) ? state.intervals[0].v1 : state.intervals[0].v1 + state.resets;
         final double sampleTS = lastTS - firstTS;
         final double averageSampleInterval = sampleTS / state.samples;
         final double slope = (lastValue - firstValue) / sampleTS;
@@ -686,9 +685,9 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
             }
             lastValue = lastValue + endGap * slope;
         }
-        if (isRateOverTime) {
+        if (calculation == RateCalculationMode.RATE) {
             return (lastValue - firstValue) * 1000.0 / (rangeEnd - rangeStart);
-        } else {
+        } else { // (calculation == RateCalculationMode.DELTA || calculation == RateCalculationMode.INCREASE) {
             return lastValue - firstValue;
         }
     }

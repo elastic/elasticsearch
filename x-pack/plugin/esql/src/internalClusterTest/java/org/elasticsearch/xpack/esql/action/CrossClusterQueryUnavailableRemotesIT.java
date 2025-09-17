@@ -159,6 +159,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
     }
 
     public void testCCSAgainstDisconnectedRemoteWithSkipUnavailableTrueInlineStats() throws Exception {
+        assumeTrue("requires inlinestats", EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.isEnabled());
         int numClusters = 3;
         Map<String, Object> testClusterInfo = setupClusters(numClusters);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -289,7 +290,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
             boolean responseExpectMeta = includeCCSMetadata.v2();
 
-            String stats = randomFrom("STATS", "INLINE STATS");
+            String stats = randomStats();
             // query only the REMOTE_CLUSTER_1
             try (
                 EsqlQueryResponse resp = runQuery(
@@ -379,7 +380,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
             Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
 
-            String stats = randomFrom("STATS", "INLINE STATS");
+            String stats = randomStats();
             final Exception exception = expectThrows(
                 Exception.class,
                 () -> runQuery("FROM logs-*,*:logs-* | " + stats + " sum (v) | SORT v", requestIncludeMeta)
@@ -399,7 +400,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterT
         try {
             Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
             Boolean requestIncludeMeta = includeCCSMetadata.v1();
-            String stats = randomFrom("STATS", "INLINE STATS");
+            String stats = randomStats();
             {
                 // close the remote cluster so that it is unavailable
                 cluster(REMOTE_CLUSTER_1).close();

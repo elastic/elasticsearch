@@ -30,8 +30,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -261,11 +264,16 @@ public class PatternedTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Multiple values are not allowed for field [" + fieldType().name() + "].");
         }
 
-        // Parse template and args
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
-
         // Add index on original value
         context.doc().add(new Field(fieldType().name(), value, fieldType));
+
+        if (fieldType().disableTemplating()) {
+            context.doc().add(new StoredField(fieldType().storedNamed(), new BytesRef(value)));
+            return;
+        }
+
+        // Parse template and args
+        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
 
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
@@ -305,14 +313,25 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(
-            () -> new CompositeSyntheticFieldLoader(
-                leafName(),
-                fullPath(),
-                new PatternedTextSyntheticFieldLoaderLayer(
-                    fieldType().name(),
-                    leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType())
-                )
+        return new SyntheticSourceSupport.Native(this::getSyntheticFieldLoader);
+    }
+
+    private SourceLoader.SyntheticFieldLoader getSyntheticFieldLoader() {
+        if (fieldType().disableTemplating()) {
+            return new StringStoredFieldFieldLoader(fieldType().storedNamed(), fieldType().name(), leafName()) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value(((BytesRef) value).utf8ToString());
+                }
+            };
+        }
+
+        return new CompositeSyntheticFieldLoader(
+            leafName(),
+            fullPath(),
+            new PatternedTextSyntheticFieldLoaderLayer(
+                fieldType().name(),
+                leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType())
             )
         );
     }

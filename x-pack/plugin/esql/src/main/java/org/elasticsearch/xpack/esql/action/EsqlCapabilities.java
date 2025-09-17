@@ -1460,6 +1460,11 @@ public class EsqlCapabilities {
         URL_DECODE(Build.current().isSnapshot()),
 
         /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+
+        /**
          * FORK with remote indices
          */
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),

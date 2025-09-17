@@ -204,7 +204,7 @@ book_no:keyword | title:text                                            | author
 
 reranker after FUSE
 required_capability: fork_v9
-required_capability: fuse_v2
+required_capability: fuse_v3
 required_capability: match_operator_colon
 required_capability: rerank
 

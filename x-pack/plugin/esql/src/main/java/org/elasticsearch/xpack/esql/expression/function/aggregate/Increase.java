@@ -35,6 +35,14 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
+/**
+ * The {@code increase()} function calculates the absolute increase of a counter field in a time window.
+ *
+ * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
+ * it calculates the total increase over the time window.
+ *
+ * NOTES FROM DEBUGGING: Reproduction command: ./gradlew ":x-pack:plugin:esql:internalClusterTest" --tests "org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT.testRateGroupBySubset" -Dtests.iters=200 -Dtests.seed="9EF74F1FFF23B553:D02B50B51294AB38"
+ */
 public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
 

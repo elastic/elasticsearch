@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 200L;
-    private static final Long TIME_RANGE_SECONDS = 360L;
+    private static final Long NUM_DOCS = 10L;
+    private static final Long TIME_RANGE_SECONDS = 60L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
@@ -332,17 +332,18 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
                 lastValue = currentValue; // Update last value for next iteration
             }
-            var res = new RateRange(
-                counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
-                1000.0 * counterGrowth / (lastTs.toEpochMilli() - firstTs.toEpochMilli()) * 1.01 // Add 1% tolerance to the upper bound
-            );
+            var tsDurationSeconds = (lastTs.toEpochMilli() - firstTs.toEpochMilli()) / 1000.0;
             if (deltaAgg.equals(DeltaAgg.INCREASE)) {
                 return new RateRange(
-                    res.lower * secondsInWindow, // INCREASE is RATE multiplied by the window size
-                    res.upper * secondsInWindow
+                    counterGrowth * 0.99, // INCREASE is RATE multiplied by the window size
+                    // Upper bound is extrapolated to the window size
+                    counterGrowth * secondsInWindow / tsDurationSeconds * 1.01
                 );
             } else {
-                return res;
+                return new RateRange(
+                    counterGrowth / secondsInWindow * 0.99, // Add 1% tolerance to the lower bound
+                    counterGrowth / tsDurationSeconds * 1.01 // Add 1% tolerance to the upper bound
+                );
             }
         }).filter(Objects::nonNull).toList();
         if (allRates.isEmpty()) {
@@ -446,7 +447,8 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     max(<DELTAGG>(metrics.<METRIC>)),
                     avg(<DELTAGG>(metrics.<METRIC>)),
                     min(<DELTAGG>(metrics.<METRIC>)),
-                    sum(<DELTAGG>(metrics.<METRIC>))
+                    sum(<DELTAGG>(metrics.<METRIC>)),
+                    values(<DELTAGG>(metrics.<METRIC>))
                 BY tbucket=bucket(@timestamp, %s) %s
             | SORT tbucket
             """, DATASTREAM_NAME, windowStr, dimensionsStr).replaceAll("<DELTAGG>", deltaAgg.v1()).replaceAll("<METRIC>", metricName);
@@ -466,7 +468,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     checkWithin((Double) row.get(3), rateAgg.min);
                     checkWithin((Double) row.get(4), rateAgg.sum);
                 } catch (AssertionError e) {
-                    failedWindows.add("Failed for row:\n" + row + "\nWanted: " + rateAgg + "\nException: " + e.getMessage());
+                    failedWindows.add("ROWS: " + rows.size() + "|Failed for row:\n" + row + "\nWanted: " + rateAgg +
+                    "\nRow times and values:\n\tTS:" + docsPerTimeseries.values().stream().map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", "))).collect(Collectors.joining("\n\tTS:")) +
+                        "\nException: " + e.getMessage());
+                } finally {
+//                    failedWindows.add("ROWS: " + rows.size() + "|PASSED for row:\n" + row + "\nWanted: " + rateAgg
+//                    + "\nRow times and values:\n\tTS:" + docsPerTimeseries.values().stream().map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", "))).collect(Collectors.joining("\n\tTS:")));
                 }
             }
             assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());

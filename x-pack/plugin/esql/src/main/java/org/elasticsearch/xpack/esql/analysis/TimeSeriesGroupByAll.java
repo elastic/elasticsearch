@@ -110,11 +110,8 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
         // Group the new aggregations by tsid. This is equivalent to grouping by all dimensions.
         groupings.add(tsid.get());
         // Add the time bucket grouping for the new agg
-        // NOCOMMIT - validate that there is no other grouping at this point?
-        NamedExpression tbucket = getTBucket(aggregate, timestamp.get());
-        if (tbucket != null) {
-            groupings.add(tbucket);
-        }
+        // NOCOMMIT - validation rule for groupings?
+        groupings.addAll(aggregate.groupings());
         for (Attribute dimension : dimensions) {
             // We add the dimensions as Values aggs here as an optimization. Grouping by the _tsid should already ensure
             // one row per unique combination of dimensions, and collecting those values in a Values aggregation is less
@@ -130,7 +127,9 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             null,
             true
         );
-        return new Drop(aggregate.source(), newAggregate, List.of(tsid.get()));
+        // NOCOMMIT - We should drop the _tsid here
+        // return new Drop(aggregate.source(), newAggregate, List.of(tsid.get()));
+        return newAggregate;
     }
 
     private static void getTsFields(
@@ -152,29 +151,5 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
                 }
             }
         });
-    }
-
-    private static NamedExpression getTBucket(Aggregate aggregate, Attribute timestamp) {
-        // NOCOMMIT - TranslateTSA also need to do this
-        Holder<NamedExpression> timeBucketRef = new Holder<>();
-        // Extract the time grouping from the rest of the groupings.
-        aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
-            for (Expression child : e.children()) {
-                // We need two branches here because the TBUCKET translation rule runs after this rule
-                if (child instanceof Bucket bucket && bucket.field().equals(timestamp)) {
-                    if (timeBucketRef.get() != null) {
-                        throw new IllegalArgumentException("expected at most one time bucket");
-                    }
-                    timeBucketRef.set(e);
-                } else if (child instanceof TBucket tbucket && tbucket.field().equals(timestamp)) {
-                    if (timeBucketRef.get() != null) {
-                        throw new IllegalArgumentException("expected at most one time tbucket");
-                    }
-                    Bucket bucket = (Bucket) tbucket.surrogate();
-                    timeBucketRef.set(new Alias(e.source(), bucket.functionName(), bucket, e.id()));
-                }
-            }
-        });
-        return timeBucketRef.get();
     }
 }

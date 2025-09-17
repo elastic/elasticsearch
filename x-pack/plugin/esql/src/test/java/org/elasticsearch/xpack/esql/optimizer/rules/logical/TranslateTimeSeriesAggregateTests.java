@@ -107,6 +107,22 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
         EsRelation relation = as(eval.child(), EsRelation.class);
     }
 
+    public void testAvgOfAvgOverTime() {
+        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
+        LogicalPlan plan = planK8s("""
+            TS k8s
+            | STATS avg_cost=avg(avg_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
+            | SORT avg_cost DESC, time_bucket DESC, cluster
+            | LIMIT 10
+            """);
+        Limit limit = as(plan, Limit.class);
+        Aggregate innerStats = as(limit.child(), Aggregate.class);
+        TimeSeriesAggregate outerStats = as(innerStats.child(), TimeSeriesAggregate.class);
+        // TODO: Add asserts about the specific aggregation details here
+        Eval eval = as(outerStats.child(), Eval.class);
+        EsRelation relation = as(eval.child(), EsRelation.class);
+    }
+
     /**
      * This tests the "group by all" case.  With no outer (aka vertical) aggregation, we expect to get back one bucket per time series,
      * grouped by each of the dimension fields.
@@ -119,8 +135,9 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);
-        Drop drop = as(limit.child(), Drop.class);
-        TimeSeriesAggregate outerStats = as(drop.child(), TimeSeriesAggregate.class);
+        // Drop drop = as(limit.child(), Drop.class);
+        // TimeSeriesAggregate outerStats = as(drop.child(), TimeSeriesAggregate.class);
+        Aggregate outerStats = as(limit.child(), Aggregate.class);
         // TODO: Add asserts about the specific aggregation details here
         Eval eval = as(outerStats.child(), Eval.class);
         EsRelation relation = as(eval.child(), EsRelation.class);

@@ -13,31 +13,28 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Time-series aggregation is special because it must be computed per time series, regardless of the grouping keys.
@@ -88,25 +85,23 @@ import java.util.Set;
  * | KEEP `avg(rate(request))`, host, `bucket(@timestamp, 1minute)`
  * </pre>
  *
- * Non-rate aggregates will be rewritten as a pair of to_partial and from_partial aggregates, where the `to_partial`
- * aggregates will be executed in the first pass and always produce an intermediate output regardless of the aggregate
- * mode. The `from_partial` aggregates will be executed on the second pass and always receive intermediate output
- * produced by `to_partial`. Examples:
+ * Non time-series aggregates will be rewritten with last_over_time used in the first pass aggregation.
+ * Here, we don't have the staleness interval, but allow any value within the bucket (_tsid and optionally time-bucket).
  *
  * <pre>
  * TS k8s | STATS max(rate(request)), max(memory_used) becomes:
  *
  * TS k8s
- * | STATS rate_$1=rate(request), $p1=to_partial(max(memory_used)) BY _tsid
- * | STATS max(rate_$1), `max(memory_used)` = from_partial($p1, max($_))
+ * | STATS rate_$1=rate(request), $last_m1=last_over_time(memory_used) BY _tsid
+ * | STATS max(rate_$1), `max(memory_used)` = max($last_m1)
  *
  * TS k8s | STATS max(rate(request)) avg(memory_used) BY host
  *
  * becomes
  *
  * TS k8s
- * | STATS rate_$1=rate(request), $p1=to_partial(sum(memory_used)), $p2=to_partial(count(memory_used)), VALUES(host) BY _tsid
- * | STATS max(rate_$1), $sum=from_partial($p1, sum($_)), $count=from_partial($p2, count($_)) BY host=`VALUES(host)`
+ * | STATS rate_$1=rate(request), $p1=last_over_time(memory_used), VALUES(host) BY _tsid
+ * | STATS max(rate_$1), $sum=sum($p1), $count=count($p1) BY host=`VALUES(host)`
  * | EVAL `avg(memory_used)` = $sum / $count
  * | KEEP `max(rate(request))`, `avg(memory_used)`, host
  *
@@ -116,8 +111,8 @@ import java.util.Set;
  *
  * TS k8s
  * | EVAL `bucket(@timestamp, 5m)` = datetrunc(@timestamp, '5m')
- * | STATS rate_$1=rate(request), $p1=to_partial(min(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
- * | STATS sum(rate_$1), `min(memory_used)` = from_partial($p1, min($)) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
+ * | STATS rate_$1=rate(request), $p1=last_over_time(memory_used)), VALUES(pod) BY _tsid, `bucket(@timestamp, 5m)`
+ * | STATS sum(rate_$1), `min(memory_used)` = min($p1) BY pod=`VALUES(pod)`, `bucket(@timestamp, 5m)`
  * | KEEP `min(memory_used)`, `sum(rate_$1)`, pod, `bucket(@timestamp, 5m)`
  *
  * {agg}_over_time time-series aggregation will be rewritten in the similar way
@@ -156,7 +151,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null && ts.hasTopLevelOverTimeFunctions() == false) {
+        if (aggregate instanceof TimeSeriesAggregate ts && ts.timeBucket() == null) {
             return translate(ts);
         } else {
             return aggregate;
@@ -164,53 +159,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
     }
 
     LogicalPlan translate(TimeSeriesAggregate aggregate) {
-        Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
-        List<NamedExpression> firstPassAggs = new ArrayList<>();
-        List<NamedExpression> secondPassAggs = new ArrayList<>();
-        Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
-        var internalNames = new InternalNames();
-        for (NamedExpression agg : aggregate.aggregates()) {
-            if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
-                Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
-                /*
-                This transformation does several things
-                    - extract the inner TimeSeriesAggregateFunction and get its perTimeSeriesAggregation equivalent
-                    - Save that aggregation in timeSeriesAggs to later build a new Aggregate node from
-                    - Replace the aggregate sub-function of af with a reference to the extracted aggregation.  This changes
-                      outerAgg to be operating on the output of a previous step, rather than on a sub-expression
-                 */
-                Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
-                    changed.set(Boolean.TRUE);
-                    if (tsAgg instanceof Rate) {
-                        hasRateAggregates.set(Boolean.TRUE);
-                    }
-                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
-                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
-                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
-                        firstPassAggs.add(firstStageAlias);
-                        return firstStageAlias;
-                    });
-                    return newAgg.toAttribute();
-                });
-
-                if (changed.get()) {
-                    // In this branch, we found a time series aggregation, and are constructing a vertical aggregation around it
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
-                } else {
-                    // This case deals with a non-time series agg by splitting it into two partial steps
-                    var toPartial = new Alias(agg.source(), alias.name(), new ToPartial(agg.source(), af.field(), af));
-                    var fromPartial = new FromPartial(agg.source(), toPartial.toAttribute(), af);
-                    firstPassAggs.add(toPartial);
-                    secondPassAggs.add(new Alias(alias.source(), alias.name(), fromPartial, alias.id()));
-                }
-            }
-        }
-        if (timeSeriesAggs.isEmpty()) {
-            // no time-series aggregations, run a regular aggregation instead.
-            return new Aggregate(aggregate.source(), aggregate.child(), aggregate.groupings(), aggregate.aggregates());
-        }
-
-        // Collect time series specific grouping fields from the leaf relation
         Holder<Attribute> tsid = new Holder<>();
         Holder<Attribute> timestamp = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
@@ -229,16 +177,77 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         if (timestamp.get() == null) {
             throw new IllegalArgumentException("_tsid or @timestamp field are missing from the time-series source");
         }
-
+        Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
+        List<NamedExpression> firstPassAggs = new ArrayList<>();
+        List<NamedExpression> secondPassAggs = new ArrayList<>();
+        Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
+        var internalNames = new InternalNames();
+        for (NamedExpression agg : aggregate.aggregates()) {
+            if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
+                Holder<Boolean> changed = new Holder<>(Boolean.FALSE);
+                final Expression inlineFilter;
+                if (af.hasFilter()) {
+                    inlineFilter = af.filter();
+                    af = af.withFilter(Literal.TRUE);
+                } else {
+                    inlineFilter = null;
+                }
+                Expression outerAgg = af.transformDown(TimeSeriesAggregateFunction.class, tsAgg -> {
+                    if (inlineFilter != null) {
+                        if (tsAgg.hasFilter() == false) {
+                            throw new IllegalStateException("inline filter isn't propagated to time-series aggregation");
+                        }
+                    } else if (tsAgg.hasFilter()) {
+                        throw new IllegalStateException("unexpected inline filter in time-series aggregation");
+                    }
+                    changed.set(Boolean.TRUE);
+                    if (tsAgg instanceof Rate) {
+                        hasRateAggregates.set(Boolean.TRUE);
+                    }
+                    AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
+                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
+                        firstPassAggs.add(firstStageAlias);
+                        return firstStageAlias;
+                    });
+                    return newAgg.toAttribute();
+                });
+                if (changed.get()) {
+                    secondPassAggs.add(new Alias(alias.source(), alias.name(), outerAgg, agg.id()));
+                } else {
+                    // TODO: reject over_time_aggregation only
+                    final Expression aggField = af.field();
+                    var tsAgg = new LastOverTime(af.source(), aggField, timestamp.get());
+                    final AggregateFunction firstStageFn;
+                    if (inlineFilter != null) {
+                        firstStageFn = tsAgg.perTimeSeriesAggregation().withFilter(inlineFilter);
+                    } else {
+                        firstStageFn = tsAgg.perTimeSeriesAggregation();
+                    }
+                    Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
+                        Alias firstStageAlias = new Alias(tsAgg.source(), internalNames.next(tsAgg.functionName()), firstStageFn);
+                        firstPassAggs.add(firstStageAlias);
+                        return firstStageAlias;
+                    });
+                    secondPassAggs.add((Alias) agg.transformUp(f -> f == aggField || f instanceof AggregateFunction, e -> {
+                        if (e == aggField) {
+                            return newAgg.toAttribute();
+                        } else if (e instanceof AggregateFunction f) {
+                            return f.withFilter(Literal.TRUE);
+                        } else {
+                            return e;
+                        }
+                    }));
+                }
+            }
+        }
         // time-series aggregates must be grouped by _tsid (and time-bucket) first and re-group by users key
         List<Expression> firstPassGroupings = new ArrayList<>();
         firstPassGroupings.add(tsid.get());
         List<Expression> secondPassGroupings = new ArrayList<>();
         Holder<NamedExpression> timeBucketRef = new Holder<>();
-        // Extract the time grouping from the rest of the groupings.
         aggregate.child().forEachExpressionUp(NamedExpression.class, e -> {
             for (Expression child : e.children()) {
-                // We need two branches here because the TBUCKET translation rule runs after this rule
                 if (child instanceof Bucket bucket && bucket.field().equals(timestamp.get())) {
                     if (timeBucketRef.get() != null) {
                         throw new IllegalArgumentException("expected at most one time bucket");
@@ -254,8 +263,21 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             }
         });
         NamedExpression timeBucket = timeBucketRef.get();
-
-        // Add the _tsid to the EsRelation Leaf, if it's not there already
+        for (Expression group : aggregate.groupings()) {
+            if (group instanceof Attribute == false) {
+                throw new EsqlIllegalArgumentException("expected named expression for grouping; got " + group);
+            }
+            final Attribute g = (Attribute) group;
+            final NamedExpression newFinalGroup;
+            if (timeBucket != null && g.id().equals(timeBucket.id())) {
+                newFinalGroup = timeBucket.toAttribute();
+                firstPassGroupings.add(newFinalGroup);
+            } else {
+                newFinalGroup = new Alias(g.source(), g.name(), new Values(g.source(), g), g.id());
+                firstPassAggs.add(newFinalGroup);
+            }
+            secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
+        }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
             IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
@@ -270,7 +292,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                 return new EsRelation(r.source(), r.indexPattern(), indexMode, r.indexNameWithModes(), r.output());
             }
         });
-
         final var firstPhase = new TimeSeriesAggregate(
             newChild.source(),
             newChild,

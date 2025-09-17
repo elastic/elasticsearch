@@ -330,8 +330,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
         SourceToParse source = source(b -> b.field(ft.name(), value));
-        var fielddataContext =
-            new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        var fielddataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
         var fdt = fielddataContext.fielddataOperation();
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),

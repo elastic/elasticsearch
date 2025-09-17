@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -18,7 +19,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker {
+public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;
@@ -29,19 +30,29 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
      * infinite loops from adding a duplicate of the limit past the child over and over again.
      */
     private final transient boolean duplicated;
+    /**
+     * Local limit is not a pipeline breaker, and is applied only to the local node's data.
+     * It should always end up inside a fragment.
+     */
+    private final transient boolean local;
 
     /**
      * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated} to
      * {@code false}.
      */
     public Limit(Source source, Expression limit, LogicalPlan child) {
-        this(source, limit, child, false);
+        this(source, limit, child, false, false);
     }
 
     public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated) {
+        this(source, limit, child, duplicated, false);
+    }
+
+    public Limit(Source source, Expression limit, LogicalPlan child, boolean duplicated, boolean local) {
         super(source, child);
         this.limit = limit;
         this.duplicated = duplicated;
+        this.local = local;
     }
 
     /**
@@ -52,6 +63,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(LogicalPlan.class),
+            false,
             false
         );
     }
@@ -75,12 +87,24 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
 
     @Override
     protected NodeInfo<Limit> info() {
-        return NodeInfo.create(this, Limit::new, limit, child(), duplicated);
+        return NodeInfo.create(this, Limit::new, limit, child(), duplicated, local);
     }
 
     @Override
     public Limit replaceChild(LogicalPlan newChild) {
-        return new Limit(source(), limit, newChild, duplicated);
+        return new Limit(source(), limit, newChild, duplicated, local);
+    }
+
+    public Limit combine(Limit other, FoldContext ctx) {
+        // Keep the smallest limit
+        var thisLimitValue = (int) limit.fold(ctx);
+        var otherLimitValue = (int) other.limit.fold(ctx);
+        // We want to preserve the duplicated() value of the smaller limit.
+        if (otherLimitValue <= thisLimitValue) {
+            return other.withLocal(local || other.local);
+        } else {
+            return new Limit(source(), limit, other.child(), duplicated, local || other.local);
+        }
     }
 
     public Expression limit() {
@@ -95,8 +119,16 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
         return duplicated;
     }
 
+    public boolean isLocal() {
+        return local;
+    }
+
     public Limit withDuplicated(boolean duplicated) {
         return new Limit(source(), limit, child(), duplicated);
+    }
+
+    public Limit withLocal(boolean newLocal) {
+        return new Limit(source(), limit, child(), duplicated, newLocal);
     }
 
     @Override
@@ -106,7 +138,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
 
     @Override
     public int hashCode() {
-        return Objects.hash(limit, child(), duplicated);
+        return Objects.hash(limit, child(), duplicated, local);
     }
 
     @Override
@@ -120,6 +152,15 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker 
 
         Limit other = (Limit) obj;
 
-        return Objects.equals(limit, other.limit) && Objects.equals(child(), other.child()) && (duplicated == other.duplicated);
+        return Objects.equals(limit, other.limit)
+            && Objects.equals(child(), other.child())
+            && (duplicated == other.duplicated)
+            && (local == other.local);
+    }
+
+    @Override
+    public ExecuteLocation executesOn() {
+        // Global limit always needs to be on the coordinator
+        return isLocal() ? ExecuteLocation.ANY : ExecuteLocation.COORDINATOR;
     }
 }

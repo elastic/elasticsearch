@@ -20,17 +20,11 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /** Physical plan verifier. */
 public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
+    public static final PhysicalVerifier LOCAL_INSTANCE = new PhysicalVerifier(true);
+    public static final PhysicalVerifier INSTANCE = new PhysicalVerifier(false);
 
     private PhysicalVerifier(boolean isLocal) {
         super(isLocal);
-    }
-
-    public static PhysicalVerifier getLocalVerifier() {
-        return new PhysicalVerifier(true);
-    }
-
-    public static PhysicalVerifier getGeneralVerifier() {
-        return new PhysicalVerifier(false);
     }
 
     @Override

@@ -28,7 +28,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
         new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns())
     );
 
-    private final PhysicalVerifier verifier = PhysicalVerifier.getGeneralVerifier();
+    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);

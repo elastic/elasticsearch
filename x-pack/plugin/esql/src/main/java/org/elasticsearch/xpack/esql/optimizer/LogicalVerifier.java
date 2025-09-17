@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificatio
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -19,17 +18,11 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<LogicalPlan> {
+    public static final LogicalVerifier LOCAL_INSTANCE = new LogicalVerifier(true);
+    public static final LogicalVerifier INSTANCE = new LogicalVerifier(false);
 
     private LogicalVerifier(boolean isLocal) {
         super(isLocal);
-    }
-
-    public static LogicalVerifier getLocalVerifier() {
-        return new LogicalVerifier(true);
-    }
-
-    public static LogicalVerifier getGeneralVerifier() {
-        return new LogicalVerifier(false);
     }
 
     @Override

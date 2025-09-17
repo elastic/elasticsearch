@@ -34,23 +34,23 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.child() instanceof Limit childLimit) {
-            var limitSource = limit.limit();
-            var parentLimitValue = (int) limitSource.fold(ctx.foldCtx());
-            var childLimitValue = (int) childLimit.limit().fold(ctx.foldCtx());
-            // We want to preserve the duplicated() value of the smaller limit, so we'll use replaceChild.
-            return parentLimitValue < childLimitValue ? limit.replaceChild(childLimit.child()) : childLimit;
+            return limit.combine(childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
-            if (unary instanceof Eval
-                || unary instanceof Project
-                || unary instanceof RegexExtract
-                || unary instanceof Enrich
-                || unary instanceof InferencePlan<?>) {
+            if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
+                // Push the limit under unary
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
                 return duplicateLimitAsFirstGrandchild(limit);
+            } else if (unary instanceof Enrich enrich) {
+                if (enrich.mode() == Enrich.Mode.REMOTE) {
+                    return duplicateLimitAsFirstGrandchild(limit);
+                } else {
+                    // We can push past local enrich because it does not increase the number of rows
+                    return enrich.replaceChild(limit.replaceChild(enrich.child()));
+                }
             }
             // check if there's a 'visible' descendant limit lower than the current one
             // and if so, align the current limit since it adds no value
@@ -111,7 +111,8 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
         List<LogicalPlan> grandChildren = limit.child().children();
         LogicalPlan firstGrandChild = grandChildren.getFirst();
-        LogicalPlan newFirstGrandChild = limit.replaceChild(firstGrandChild);
+        // Use the local limit under the original node, so it won't break the pipeline
+        LogicalPlan newFirstGrandChild = limit.withLocal(true).replaceChild(firstGrandChild);
 
         List<LogicalPlan> newGrandChildren = new ArrayList<>();
         newGrandChildren.add(newFirstGrandChild);

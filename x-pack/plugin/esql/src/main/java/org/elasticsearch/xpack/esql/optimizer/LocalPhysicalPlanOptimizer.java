@@ -36,7 +36,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
-    private final PhysicalVerifier verifier = PhysicalVerifier.getLocalVerifier();
+    private final PhysicalVerifier verifier = PhysicalVerifier.LOCAL_INSTANCE;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);

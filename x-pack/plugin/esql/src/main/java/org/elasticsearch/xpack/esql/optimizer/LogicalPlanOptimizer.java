@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
@@ -105,7 +106,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );
 
-    private final LogicalVerifier verifier = LogicalVerifier.getGeneralVerifier();
+    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
     public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
         super(optimizerContext);
@@ -165,6 +166,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> operators(boolean local) {
         return new Batch<>(
             "Operator Optimization",
+            new HoistRemoteEnrichLimit(local),
             new CombineProjections(local),
             new CombineEvals(),
             new PruneEmptyPlans(),

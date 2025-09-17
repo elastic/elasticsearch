@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -247,7 +248,16 @@ public class EsqlSession {
         // TODO: merge into one method
         if (subPlan != null) {
             // code-path to execute subplans
-            executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
+            executeSubPlan(
+                new DriverCompletionInfo.Accumulator(),
+                optimizedPlan,
+                subPlan,
+                executionInfo,
+                runner,
+                request,
+                // Ensure we don't have subplan flag stuck in there on failure
+                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+            );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             // execute main plan
@@ -267,6 +277,8 @@ public class EsqlSession {
         LOGGER.debug("Executing subplan:\n{}", subPlans.stubReplacedSubPlan());
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
+
+        executionInfo.startSubPlans();
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
@@ -288,6 +300,7 @@ public class EsqlSession {
                 var newSubPlan = firstSubPlan(newLogicalPlan);
 
                 if (newSubPlan == null) {// run the final "main" plan
+                    executionInfo.finishSubPlans();
                     LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
                     runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
@@ -319,6 +332,7 @@ public class EsqlSession {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
             LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
+        QuerySettings.validate(parsed, remoteClusterService);
         return parsed;
     }
 

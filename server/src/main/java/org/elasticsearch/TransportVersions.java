@@ -175,6 +175,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_00_1);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_7 = def(8_840_0_09);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_18_8 = def(8_840_0_10);
 
     /*
      * STOP! READ THIS FIRST! No, really,

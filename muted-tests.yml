@@ -585,6 +585,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<1.0E9 doubles>}
   issue: https://github.com/elastic/elasticsearch/issues/134860
+- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
+  method: testCancelSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/134865
 
 # Examples:
 #

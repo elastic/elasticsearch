@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -34,12 +35,14 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
@@ -3130,23 +3133,112 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
     }
 
-    public void testValidJoinPattern() {
+    public void testValidJoinPatternFieldJoin() {
         assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
         var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
-        var onField = randomIdentifier();
+        var numberOfOnFields = randomIntBetween(1, 5);
+        List<String> existingIdentifiers = new ArrayList<>();
+        StringBuilder onFields = new StringBuilder();
+        for (var i = 0; i < numberOfOnFields; i++) {
+            if (randomBoolean()) {
+                onFields.append(" ");
+            }
+            String onField = randomValueOtherThanMany(existingIdentifiers::contains, () -> randomIdentifier());
+            existingIdentifiers.add(onField);
+            onFields.append(onField);
+            if (randomBoolean()) {
+                onFields.append(" ");
+            }
+            if (i < numberOfOnFields - 1) {
+                onFields.append(", ");
+            }
 
-        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onField);
+        }
+        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onFields);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
         assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
 
         var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertThat(joinType.columns(), hasSize(1));
-        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(joinType.columns(), hasSize(numberOfOnFields));
+        for (int i = 0; i < numberOfOnFields; i++) {
+            assertThat(as(joinType.columns().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
+        }
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testExpressionJoinNonSnapshotBuild() {
+        assumeFalse("LOOKUP JOIN is not yet in non-snapshot builds", Build.current().isSnapshot());
+        expectThrows(
+            ParsingException.class,
+            startsWith("line 1:31: JOIN ON clause only supports fields at the moment."),
+            () -> statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field")
+        );
+    }
+
+    public void testValidJoinPatternExpressionJoin() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+
+        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER), without(INDEX_SELECTOR));
+        var numberOfExpressions = randomIntBetween(1, 5);
+
+        var expressions = new ArrayList<Tuple<Tuple<String, String>, EsqlBinaryComparison.BinaryComparisonOperation>>();
+        StringBuilder onExpressionString = new StringBuilder();
+
+        for (var i = 0; i < numberOfExpressions; i++) {
+            var left = randomIdentifier();
+            var right = randomIdentifier();
+            var op = randomBinaryComparisonOperation();
+            expressions.add(new Tuple<>(new Tuple<>(left, right), op));
+
+            onExpressionString.append(left);
+            if (randomBoolean()) {
+                onExpressionString.append(" ");
+            }
+            onExpressionString.append(op.symbol());
+            if (randomBoolean()) {
+                onExpressionString.append(" ");
+            }
+            onExpressionString.append(right);
+
+            if (i < numberOfExpressions - 1) {
+                onExpressionString.append(" AND ");
+            }
+        }
+
+        // add a check that the feature is disabled on non-snaphsot build
+        String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
+        var plan = statement(query);
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+
+        var joinType = join.config().type();
+        assertThat(joinType.joinName(), startsWith("LEFT OUTER"));
+
+        List<Expression> actualExpressions = Predicates.splitAnd(join.config().joinOnConditions());
+        assertThat(actualExpressions.size(), equalTo(numberOfExpressions));
+
+        for (int i = 0; i < numberOfExpressions; i++) {
+            var expected = expressions.get(i);
+            var actual = actualExpressions.get(i);
+
+            assertThat(actual, instanceOf(EsqlBinaryComparison.class));
+            var actualComp = (EsqlBinaryComparison) actual;
+
+            assertThat(((UnresolvedAttribute) actualComp.left()).name(), equalTo(expected.v1().v1()));
+            assertThat(((UnresolvedAttribute) actualComp.right()).name(), equalTo(expected.v1().v2()));
+            assertThat(actualComp.getFunctionType(), equalTo(expected.v2()));
+        }
+    }
+
+    private EsqlBinaryComparison.BinaryComparisonOperation randomBinaryComparisonOperation() {
+        return randomFrom(EsqlBinaryComparison.BinaryComparisonOperation.values());
     }
 
     public void testInvalidFromPatterns() {
@@ -3271,24 +3363,103 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testValidJoinPatternWithRemote() {
+    public void testValidJoinPatternWithRemoteFieldJoin() {
+        testValidJoinPatternWithRemote(randomIdentifier());
+    }
+
+    public void testValidJoinPatternWithRemoteExpressionJoin() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        testValidJoinPatternWithRemote(singleExpressionJoinClause());
+    }
+
+    private void testValidJoinPatternWithRemote(String onClause) {
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier());
+        var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause);
 
         var join = as(plan, LookupJoin.class);
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(fromPatterns)));
         assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
     }
 
-    public void testInvalidJoinPatterns() {
+    public void testInvalidJoinPatternsFieldJoin() {
+        testInvalidJoinPatterns(randomIdentifier());
+    }
+
+    public void testInvalidJoinPatternsFieldJoinTwo() {
+        testInvalidJoinPatterns(randomIdentifier() + ", " + randomIdentifier());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoin() {
+        testInvalidJoinPatterns(singleExpressionJoinClause());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoinTwo() {
+        testInvalidJoinPatterns(singleExpressionJoinClause() + " AND " + singleExpressionJoinClause());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoinMix() {
+        testInvalidJoinPatterns(randomIdentifier() + ", " + singleExpressionJoinClause());
+    }
+
+    public void testInvalidJoinPatternsExpressionJoinMixTwo() {
+        testInvalidJoinPatterns(singleExpressionJoinClause() + " AND " + randomIdentifier());
+    }
+
+    public void testInvalidLookupJoinOnClause() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " , " + singleExpressionJoinClause(),
+            "JOIN ON clause must be a comma separated list of fields or a single expression, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " , " + randomIdentifier(),
+            "JOIN ON clause with expressions only supports a single expression, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " , " + singleExpressionJoinClause(),
+            "JOIN ON clause with expressions only supports a single expression, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + singleExpressionJoinClause() + " AND " + randomIdentifier(),
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + randomIdentifier(),
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found"
+        );
+
+        expectError(
+            "FROM test  | LOOKUP JOIN test2 ON " + randomIdentifier() + " AND " + singleExpressionJoinClause(),
+            "JOIN ON clause only supports fields or AND of Binary Expressions at the moment, found "
+        );
+    }
+
+    private String singleExpressionJoinClause() {
+        var left = randomIdentifier();
+        var right = randomValueOtherThan(left, ESTestCase::randomIdentifier);
+        var op = randomBinaryComparisonOperation();
+        return left + (randomBoolean() ? " " : "") + op.symbol() + (randomBoolean() ? " " : "") + right;
+    }
+
+    private void testInvalidJoinPatterns(String onClause) {
         assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         {
             // wildcard
             var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER), without(INDEX_SELECTOR));
             expectError(
-                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
             );
         }
@@ -3297,7 +3468,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
             var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
             expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported with LOOKUP JOIN"
             );
         }
@@ -3307,7 +3478,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var fromPatterns = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
             var joinPattern = randomIndexPattern();
             expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 // Since the from pattern is partially quoted, we get an error at the end of the partially quoted string.
                 " mismatched input ':'"
             );
@@ -3318,7 +3489,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             var fromPatterns = randomIdentifier() + ":" + quote(randomIndexPatterns(without(CROSS_CLUSTER)));
             var joinPattern = randomIndexPattern();
             expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
                 "expecting UNQUOTED_SOURCE"
@@ -3330,7 +3501,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             // Generate a syntactically invalid (partial quoted) pattern.
             var joinPattern = quote(randomIdentifier()) + ":" + unquoteIndexPattern(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 // Since the join pattern is partially quoted, we get an error at the end of the partially quoted string.
                 "mismatched input ':'"
             );
@@ -3341,7 +3512,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             // Generate a syntactically invalid (partially quoted) pattern.
             var joinPattern = randomIdentifier() + ":" + quote(randomIndexPattern(without(CROSS_CLUSTER)));
             expectError(
-                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                 // Since the from pattern is partially quoted, we get an error at the beginning of the partially quoted
                 // index name that we're expecting an unquoted string.
                 "no viable alternative at input"
@@ -3358,7 +3529,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 fromPatterns = unquoteIndexPattern(fromPatterns) + "::data";
                 var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
                 expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                     "mismatched input '::' expecting {"
                 );
             }
@@ -3372,7 +3543,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 fromPatterns = "\"" + unquoteIndexPattern(fromPatterns) + "::data\"";
                 var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
                 expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                     "Selectors are not yet supported on remote cluster patterns"
                 );
             }
@@ -3384,7 +3555,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // it to chance.
                 joinPattern = unquoteIndexPattern(joinPattern);
                 expectError(
-                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                     "no viable alternative at input "
                 );
             }
@@ -3397,7 +3568,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 // it to chance.
                 joinPattern = "\"" + unquoteIndexPattern(joinPattern) + "\"";
                 expectError(
-                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "FROM " + randomIndexPatterns(without(CROSS_CLUSTER)) + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                     "invalid index pattern ["
                         + unquoteIndexPattern(joinPattern)
                         + "], index pattern selectors are not supported in LOOKUP JOIN"
@@ -3411,7 +3582,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 var joinPattern = quote(randomIdentifier()) + "::" + randomFrom("data", "failures");
                 // After the end of the partially quoted string, i.e. the index name, parser now expects "ON..." and not a selector string.
                 expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause,
                     "mismatched input ':' expecting 'on'"
                 );
             }
@@ -3423,10 +3594,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 var joinPattern = randomIdentifier() + "::" + quote(randomFrom("data", "failures"));
                 // After the index name and "::", parser expects an unquoted string, i.e. the selector string should not be
                 // partially quoted.
-                expectError(
-                    "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
-                    "no viable alternative at input"
-                );
+                expectError("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + onClause, "no viable alternative at input");
             }
         }
     }
@@ -3587,7 +3755,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                ( RENAME a as c )
                ( MV_EXPAND a )
                ( CHANGE_POINT a on b )
-               ( LOOKUP JOIN idx2 ON f1 )
+               ( LOOKUP JOIN idx2 ON f1 | LOOKUP JOIN idx3 ON f1 > f3)
                ( ENRICH idx2 on f1 with f2 = f3 )
                ( FORK ( WHERE a:"baz" ) ( EVAL x = [ 1, 2, 3 ] ) )
                ( COMPLETION a=b WITH { "inference_id": "c" } )
@@ -4044,6 +4212,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testDoubleParamsForIdentifier() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         // There are three variations of double parameters - named, positional or anonymous, e.g. ??n, ??1 or ??, covered.
         // Each query is executed three times with the three variations.
 
@@ -4463,6 +4635,41 @@ public class StatementParserTests extends AbstractStatementParserTests {
             );
         }
 
+        // lookup join on expression
+        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4");
+        anonymousDoubleParams = List.of("??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | lookup join idx on {}.{} == {}.{}
+                | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3));
+            LogicalPlan plan = statement(
+                query,
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("f1", "f.1"),
+                        paramAsConstant("f2", "f.2"),
+                        paramAsConstant("f3", "f.3"),
+                        paramAsConstant("f4", "f.4")
+                    )
+                )
+            );
+            Limit limit = as(plan, Limit.class);
+            LookupJoin join = as(limit.child(), LookupJoin.class);
+            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+            assertEquals(ur.indexPattern().indexPattern(), "idx");
+            assertTrue(join.config().type().joinName().contains("LEFT OUTER"));
+            EsqlBinaryComparison on = as(join.config().joinOnConditions(), EsqlBinaryComparison.class);
+            assertEquals(on.getFunctionType(), EsqlBinaryComparison.BinaryComparisonOperation.EQ);
+            assertEquals(as(on.left(), UnresolvedAttribute.class).name(), "f.1.f.2");
+            assertEquals(as(on.right(), UnresolvedAttribute.class).name(), "f.3.f.4");
+        }
+
         namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6");
         positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6");
         anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??");
@@ -4511,6 +4718,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMixedSingleDoubleParams() {
         assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
         // This is a subset of testDoubleParamsForIdentifier, with single and double parameter markers mixed in the queries
         // Single parameter markers represent a constant value or pattern
         // double parameter markers represent identifiers - field or function names
@@ -4680,13 +4891,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String param2 = randomBoolean() ? "?" : "??";
             String param3 = randomBoolean() ? "?" : "??";
             if (param1.equals("?") || param2.equals("?") || param3.equals("?")) {
-                expectError(
-                    LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
-                    List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
-                    command.contains("join")
-                        ? "JOIN ON clause only supports fields at the moment"
-                        : "declared as a constant, cannot be used as an identifier"
-                );
+                if (command.contains("lookup join") == false) {
+                    expectError(
+                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                        "declared as a constant, cannot be used as an identifier"
+                    );
+                } else {
+                    expectError(
+                        LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                        List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                        "JOIN ON clause only supports fields or AND of Binary Expressions at the moment"
+                    );
+
+                }
             }
         }
     }
@@ -4807,6 +5025,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from te()st", "line 1:8: token recognition error at: '('");
         expectError("from test | enrich foo)", "line -1:-1: Invalid query [from test | enrich foo)]");
         expectError("from test | lookup join foo) on bar", "line 1:28: token recognition error at: ')'");
+        if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+            expectError("from test | lookup join foo) on bar1 > bar2", "line 1:28: token recognition error at: ')'");
+        }
     }
 
     private void expectErrorForBracketsWithoutQuotes(String pattern) {
@@ -4817,6 +5038,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectThrows(ParsingException.class, () -> processingCommand("from remote1:" + pattern + ",remote2:" + pattern));
 
         expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join " + pattern + " on bar"));
+        expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join " + pattern + " on bar1  < bar2"));
 
         expectThrows(ParsingException.class, () -> processingCommand("from test | enrich " + pattern));
     }
@@ -4841,11 +5063,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         if (indexName.contains("*")) {
             expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar"));
+            expectThrows(ParsingException.class, () -> processingCommand("from test | lookup join \"" + indexName + "\" on bar1 > bar2"));
         } else {
             plan = statement("from test | lookup join \"" + indexName + "\" on bar");
             LookupJoin lookup = as(plan, LookupJoin.class);
             UnresolvedRelation right = as(lookup.right(), UnresolvedRelation.class);
             assertThat(right.indexPattern().indexPattern(), is(indexName));
+            if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+                plan = statement("from test | lookup join \"" + indexName + "\" on bar1 <= bar2");
+                lookup = as(plan, LookupJoin.class);
+                right = as(lookup.right(), UnresolvedRelation.class);
+                assertThat(right.indexPattern().indexPattern(), is(indexName));
+            }
         }
     }
 }

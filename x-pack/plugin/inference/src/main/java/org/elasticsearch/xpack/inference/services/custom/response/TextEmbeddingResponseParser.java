@@ -27,8 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.JSON_PARSER;
 
 public class TextEmbeddingResponseParser extends BaseCustomResponseParser {

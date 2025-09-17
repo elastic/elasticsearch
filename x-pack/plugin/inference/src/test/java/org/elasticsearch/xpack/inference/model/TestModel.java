@@ -23,7 +23,6 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +34,8 @@ import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.missingSettingErrorMsg;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
 
 public class TestModel extends Model {
 
@@ -139,10 +140,10 @@ public class TestModel extends Model {
         public static TestServiceSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String model = ServiceUtils.removeAsType(map, "model", String.class);
+            String model = removeAsType(map, "model", String.class);
 
             if (model == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS));
+                validationException.addValidationError(missingSettingErrorMsg("model", ModelConfigurations.SERVICE_SETTINGS));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {
@@ -227,7 +228,7 @@ public class TestModel extends Model {
         private static final String NAME = "test_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
-            Integer temperature = ServiceUtils.removeAsType(map, "temperature", Integer.class);
+            Integer temperature = removeAsType(map, "temperature", Integer.class);
             return new TestTaskSettings(temperature);
         }
 
@@ -278,10 +279,10 @@ public class TestModel extends Model {
         public static TestSecretSettings fromMap(Map<String, Object> map) {
             ValidationException validationException = new ValidationException();
 
-            String apiKey = ServiceUtils.removeAsType(map, "api_key", String.class);
+            String apiKey = removeAsType(map, "api_key", String.class);
 
             if (apiKey == null) {
-                validationException.addValidationError(ServiceUtils.missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
+                validationException.addValidationError(missingSettingErrorMsg("api_key", ModelSecrets.SECRET_SETTINGS));
             }
 
             if (validationException.validationErrors().isEmpty() == false) {

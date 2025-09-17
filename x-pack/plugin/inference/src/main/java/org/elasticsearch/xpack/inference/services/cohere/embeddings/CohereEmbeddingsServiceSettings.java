@@ -29,7 +29,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.invalidValue;
 
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
@@ -67,7 +69,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                 CohereEmbeddingType.FLOAT
             );
             case PERSISTENT -> {
-                var embeddingType = ServiceUtils.extractOptionalString(
+                var embeddingType = extractOptionalString(
                     map,
                     EMBEDDING_TYPE,
                     ModelConfigurations.SERVICE_SETTINGS,
@@ -101,7 +103,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                     .map(value -> value.toString().toLowerCase(Locale.ROOT))
                     .toArray(String[]::new);
                 validationException.addValidationError(
-                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
+                    invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
                 );
                 return null;
             }

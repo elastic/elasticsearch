@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStor
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
 
 record SageMakerOpenAiTaskSettings(@Nullable String user) implements SageMakerStoredTaskSchema {
     static final String NAME = "sagemaker_openai_task_settings";

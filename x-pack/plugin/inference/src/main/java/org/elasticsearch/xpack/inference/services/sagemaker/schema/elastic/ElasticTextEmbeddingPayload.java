@@ -41,9 +41,9 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**

@@ -31,15 +31,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
 
 public class CohereServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
@@ -110,7 +111,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         return switch (context) {
             case REQUEST -> CohereApiVersion.V2; // new endpoints all use the V2 API.
             case PERSISTENT -> {
-                var apiVersion = ServiceUtils.extractOptionalEnum(
+                var apiVersion = extractOptionalEnum(
                     map,
                     API_VERSION,
                     ModelConfigurations.SERVICE_SETTINGS,

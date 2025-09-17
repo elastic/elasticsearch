@@ -14,8 +14,8 @@ import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings.INPUT_TYPE;
 

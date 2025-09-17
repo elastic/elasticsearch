@@ -238,8 +238,4 @@ public final class Utils {
             assertThat(actualParser.map().entrySet(), containsInAnyOrder(expectedParser.map().entrySet().toArray()));
         }
     }
-
-    public static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
-        return new HashMap<>(aMap);
-    }
 }

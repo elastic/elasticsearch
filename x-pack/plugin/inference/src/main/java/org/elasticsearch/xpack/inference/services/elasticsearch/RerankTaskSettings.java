@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalBoolean;
 
 /**
  * Defines the task settings for internal rerank service.

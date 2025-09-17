@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIService.VALID_INPUT_TYPE_VALUES;
 
 /**

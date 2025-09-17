@@ -22,6 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
+
 /**
  * Defines the task settings for the AlibabaCloudSearch completion service.
  *
@@ -45,7 +47,7 @@ public class AlibabaCloudSearchCompletionTaskSettings implements TaskSettings {
             return EMPTY_SETTINGS;
         }
 
-        Map<String, Object> parameters = ServiceUtils.removeAsType(map, PARAMETERS, Map.class, validationException);
+        Map<String, Object> parameters = removeAsType(map, PARAMETERS, Map.class, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;

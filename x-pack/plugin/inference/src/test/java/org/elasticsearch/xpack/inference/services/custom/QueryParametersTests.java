@@ -22,7 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.modifiableMap;
 import static org.hamcrest.Matchers.is;
 
 public class QueryParametersTests extends AbstractBWCWireSerializationTestCase<QueryParameters> {

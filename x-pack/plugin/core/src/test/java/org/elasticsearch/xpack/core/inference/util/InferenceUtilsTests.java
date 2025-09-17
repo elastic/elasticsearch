@@ -1,0 +1,1259 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.inference.util;
+
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.inference.InputType;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalDoubleInRange;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalFloat;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalList;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalListOfStringTuples;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalMap;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalMapRemoveNulls;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveLong;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalTimeValue;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredMap;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredPositiveIntegerBetween;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.modifiableMap;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsOneOfTypes;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeNullValues;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.validateMapValues;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
+public class InferenceUtilsTests extends ESTestCase {
+    public void testRemoveAsTypeWithTheCorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
+
+        Integer i = removeAsType(map, "a", Integer.class);
+        assertEquals(Integer.valueOf(5), i);
+        assertNull(map.get("a")); // field has been removed
+
+        String str = removeAsType(map, "b", String.class);
+        assertEquals("a string", str);
+        assertNull(map.get("b"));
+
+        Boolean b = removeAsType(map, "c", Boolean.class);
+        assertEquals(Boolean.TRUE, b);
+        assertNull(map.get("c"));
+
+        Double d = removeAsType(map, "d", Double.class);
+        assertEquals(Double.valueOf(1.0), d);
+        assertNull(map.get("d"));
+
+        assertThat(map.entrySet(), empty());
+    }
+
+    public void testRemoveAsType_Validation_WithTheCorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
+
+        ValidationException validationException = new ValidationException();
+        Integer i = removeAsType(map, "a", Integer.class, validationException);
+        assertEquals(Integer.valueOf(5), i);
+        assertNull(map.get("a")); // field has been removed
+        assertThat(validationException.validationErrors(), empty());
+
+        String str = removeAsType(map, "b", String.class, validationException);
+        assertEquals("a string", str);
+        assertNull(map.get("b"));
+        assertThat(validationException.validationErrors(), empty());
+    }
+
+    public void testRemoveAsTypeWithInCorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
+
+        var e = expectThrows(ElasticsearchStatusException.class, () -> removeAsType(map, "a", String.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
+        );
+        assertNull(map.get("a"));
+
+        e = expectThrows(ElasticsearchStatusException.class, () -> removeAsType(map, "b", Boolean.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [b] is not of the expected type. The value [a string] cannot be converted to a [Boolean]")
+        );
+        assertNull(map.get("b"));
+
+        e = expectThrows(ElasticsearchStatusException.class, () -> removeAsType(map, "c", Integer.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [c] is not of the expected type. The value [true] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("c"));
+
+        // cannot convert double to integer
+        e = expectThrows(ElasticsearchStatusException.class, () -> removeAsType(map, "d", Integer.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [d] is not of the expected type. The value [5.0] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("d"));
+
+        // cannot convert integer to double
+        e = expectThrows(ElasticsearchStatusException.class, () -> removeAsType(map, "e", Double.class));
+        assertThat(
+            e.getMessage(),
+            containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
+        );
+        assertNull(map.get("e"));
+
+        assertThat(map.entrySet(), empty());
+    }
+
+    public void testRemoveAsType_Validation_WithInCorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
+
+        var validationException = new ValidationException();
+        Object result = removeAsType(map, "a", String.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
+        );
+        assertNull(map.get("a"));
+
+        validationException = new ValidationException();
+        removeAsType(map, "b", Boolean.class, validationException);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [b] is not of the expected type. The value [a string] cannot be converted to a [Boolean]")
+        );
+        assertNull(map.get("b"));
+
+        validationException = new ValidationException();
+        result = removeAsType(map, "c", Integer.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [c] is not of the expected type. The value [true] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("c"));
+
+        // cannot convert double to integer
+        validationException = new ValidationException();
+        result = removeAsType(map, "d", Integer.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [d] is not of the expected type. The value [5.0] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("d"));
+
+        // cannot convert integer to double
+        validationException = new ValidationException();
+        result = removeAsType(map, "e", Double.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
+        );
+        assertNull(map.get("e"));
+
+        assertThat(map.entrySet(), empty());
+    }
+
+    public void testRemoveAsTypeMissingReturnsNull() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE));
+        assertNull(removeAsType(map, "missing", Integer.class));
+        assertThat(map.entrySet(), hasSize(3));
+    }
+
+    public void testRemoveAsOneOfTypes_Validation_WithCorrectTypes() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
+        ValidationException validationException = new ValidationException();
+
+        Integer i = (Integer) removeAsOneOfTypes(map, "a", List.of(String.class, Integer.class), validationException);
+        assertEquals(Integer.valueOf(5), i);
+        assertNull(map.get("a")); // field has been removed
+
+        String str = (String) removeAsOneOfTypes(map, "b", List.of(Integer.class, String.class), validationException);
+        assertEquals("a string", str);
+        assertNull(map.get("b"));
+
+        Boolean b = (Boolean) removeAsOneOfTypes(map, "c", List.of(String.class, Boolean.class), validationException);
+        assertEquals(Boolean.TRUE, b);
+        assertNull(map.get("c"));
+
+        Double d = (Double) removeAsOneOfTypes(map, "d", List.of(Booleans.class, Double.class), validationException);
+        assertEquals(Double.valueOf(1.0), d);
+        assertNull(map.get("d"));
+
+        assertThat(map.entrySet(), empty());
+    }
+
+    public void testRemoveAsOneOfTypes_Validation_WithIncorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
+
+        var validationException = new ValidationException();
+        Object result = removeAsOneOfTypes(map, "a", List.of(String.class, Boolean.class), validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [a] is not of one of the expected types. The value [5] cannot be converted to one of [String, Boolean]")
+        );
+        assertNull(map.get("a"));
+
+        validationException = new ValidationException();
+        result = removeAsOneOfTypes(map, "b", List.of(Boolean.class, Integer.class), validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString(
+                "field [b] is not of one of the expected types. The value [a string] cannot be converted to one of [Boolean, Integer]"
+            )
+        );
+        assertNull(map.get("b"));
+
+        validationException = new ValidationException();
+        result = removeAsOneOfTypes(map, "c", List.of(String.class, Integer.class), validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString(
+                "field [c] is not of one of the expected types. The value [true] cannot be converted to one of [String, Integer]"
+            )
+        );
+        assertNull(map.get("c"));
+
+        validationException = new ValidationException();
+        result = removeAsOneOfTypes(map, "d", List.of(String.class, Boolean.class), validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [d] is not of one of the expected types. The value [5.0] cannot be converted to one of [String, Boolean]")
+        );
+        assertNull(map.get("d"));
+
+        validationException = new ValidationException();
+        result = removeAsOneOfTypes(map, "e", List.of(String.class, Boolean.class), validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [e] is not of one of the expected types. The value [5] cannot be converted to one of [String, Boolean]")
+        );
+        assertNull(map.get("e"));
+
+        assertThat(map.entrySet(), empty());
+    }
+
+    public void testRemoveAsOneOfTypesMissingReturnsNull() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE));
+        assertNull(removeAsOneOfTypes(map, "missing", List.of(Integer.class), new ValidationException()));
+        assertThat(map.entrySet(), hasSize(3));
+    }
+
+    public void testExtractRequiredString_AddsException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractRequiredString(map, "abc", "scope", validation);
+
+        assertNull(createdString);
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(map.size(), is(1));
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [abc]"));
+    }
+
+    public void testExtractRequiredString_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertNull(createdString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractOptionalString_CreatesString() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(createdString);
+        assertThat(createdString, is("value"));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalString_DoesNotAddException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdString = extractOptionalString(map, "abc", "scope", validation);
+
+        assertNull(createdString);
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalString_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        var createdString = extractOptionalString(map, "key", "scope", validation);
+
+        assertNull(createdString);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractOptionalList_CreatesList() {
+        var validation = new ValidationException();
+        var list = List.of(randomAlphaOfLength(10), randomAlphaOfLength(10));
+
+        Map<String, Object> map = modifiableMap(Map.of("key", list));
+        assertEquals(list, extractOptionalList(map, "key", String.class, validation));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(randomAlphaOfLength(10), randomAlphaOfLength(10))));
+        assertNull(extractOptionalList(map, "abc", String.class, validation));
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsEmpty() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", ""));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsNotAList() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldIsNotAListOfTheCorrectType() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(1, 2)));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalList_AddsException_WhenFieldContainsMixedTypeValues() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", List.of(1, "a")));
+        assertNull(extractOptionalList(map, "key", String.class, validation));
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalPositiveInteger_returnsInteger_withPositiveInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 1));
+        assertEquals(Integer.valueOf(1), extractOptionalPositiveInteger(map, "abc", "scope", validation));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalPositiveInteger_returnsNull_whenSettingNotFound() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 1));
+        assertThat(extractOptionalPositiveInteger(map, "not_abc", "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalPositiveInteger_returnsNull_addsValidationError_whenObjectIsNotInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String setting = "abc";
+        Map<String, Object> map = modifiableMap(Map.of(setting, "not_an_int"));
+        assertThat(extractOptionalPositiveInteger(map, setting, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(validation.validationErrors().getLast(), containsString("cannot be converted to a [Integer]"));
+    }
+
+    public void testExtractOptionalPositiveInteger_returnNull_addsValidationError_withNonPositiveInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String zeroKey = "zero";
+        String negativeKey = "negative";
+        Map<String, Object> map = modifiableMap(Map.of(zeroKey, 0, negativeKey, -1));
+
+        // Test zero
+        assertThat(extractOptionalPositiveInteger(map, zeroKey, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(validation.validationErrors().getLast(), containsString("[" + zeroKey + "] must be a positive integer"));
+
+        // Test a negative number
+        assertThat(extractOptionalPositiveInteger(map, negativeKey, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(3));
+        assertThat(validation.validationErrors().getLast(), containsString("[" + negativeKey + "] must be a positive integer"));
+    }
+
+    public void testExtractOptionalInteger_returnsInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String positiveKey = "positive";
+        int positiveValue = 123;
+        String zeroKey = "zero";
+        int zeroValue = 0;
+        String negativeKey = "negative";
+        int negativeValue = -123;
+        Map<String, Object> map = modifiableMap(Map.of(positiveKey, positiveValue, zeroKey, zeroValue, negativeKey, negativeValue));
+
+        assertThat(extractOptionalInteger(map, positiveKey, "scope", validation), is(positiveValue));
+        assertThat(extractOptionalInteger(map, zeroKey, "scope", validation), is(zeroValue));
+        assertThat(extractOptionalInteger(map, negativeKey, "scope", validation), is(negativeValue));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalInteger_returnsNull_whenSettingNotFound() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 1));
+        assertThat(extractOptionalInteger(map, "not_abc", "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalInteger_returnsNull_addsValidationError_whenObjectIsNotInteger() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        String setting = "abc";
+        Map<String, Object> map = modifiableMap(Map.of(setting, "not_an_int"));
+        assertThat(extractOptionalInteger(map, setting, "scope", validation), is(nullValue()));
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertThat(validation.validationErrors().getLast(), containsString("cannot be converted to a [Integer]"));
+    }
+
+    public void testExtractOptionalPositiveLong_IntegerValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 3));
+        assertEquals(Long.valueOf(3), extractOptionalPositiveLong(map, "abc", "scope", validation));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractOptionalPositiveLong() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 4_000_000_000L));
+        assertEquals(Long.valueOf(4_000_000_000L), extractOptionalPositiveLong(map, "abc", "scope", validation));
+        assertThat(validation.validationErrors(), hasSize(1));
+    }
+
+    public void testExtractRequiredPositiveInteger_ReturnsValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var parsedInt = extractRequiredPositiveInteger(map, "key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(1));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveInteger_AddsErrorForNegativeValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveInteger(map, "key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value [-1]. [key] must be a positive integer"));
+    }
+
+    public void testExtractRequiredPositiveInteger_AddsErrorWhenKeyIsMissing() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveInteger(map, "not_key", "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_ReturnsValueWhenValueIsLessThanMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(1));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_ReturnsValueWhenValueIsEqualToMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 5));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(5));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorForNegativeValue() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value [-1]. [key] must be a positive integer"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorWhenKeyIsMissing() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", -1));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "not_key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerLessThanOrEqualToMax_AddsErrorWhenValueIsGreaterThanMax() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", 6));
+        var parsedInt = extractRequiredPositiveIntegerLessThanOrEqualToMax(map, "not_key", 5, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [not_key]"));
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_ReturnsValueWhenValueIsEqualToMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(5, 5);
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_ReturnsValueWhenValueIsGreaterThanToMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(5, 6);
+    }
+
+    private void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_Successful(int minValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, "key", minValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorWhenValueIsLessThanMin() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "key",
+            5,
+            4,
+            "[scope] Invalid value [4.0]. [key] must be a greater than or equal to [5.0]"
+        );
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorWhenKeyIsMissing() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "not_key",
+            5,
+            -1,
+            "[scope] does not contain the required setting [not_key]"
+        );
+    }
+
+    public void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsErrorOnNegativeValue() {
+        testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+            "key",
+            5,
+            -1,
+            "[scope] Invalid value [-1]. [key] must be a positive integer"
+        );
+    }
+
+    private void testExtractRequiredPositiveIntegerGreaterThanOrEqualToMin_AddsError(
+        String key,
+        int minValue,
+        int actualValue,
+        String error
+    ) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, key, minValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertThat(validation.validationErrors().get(1), containsString(error));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsBetweenMinAndMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 2, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, randomIntBetween(minValue + 1, maxValue - 1));
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, minValue);
+    }
+
+    public void testExtractRequiredPositiveIntegerBetween_ReturnsValueWhenValueIsEqualToMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue + 1, minValue + 10);
+        testExtractRequiredPositiveIntegerBetween_Successful(minValue, maxValue, maxValue);
+    }
+
+    private void testExtractRequiredPositiveIntegerBetween_Successful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(1));
+        assertNotNull(parsedInt);
+        assertThat(parsedInt, is(actualValue));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueBelowMin() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, minValue - 1);
+    }
+
+    public void testExtractRequiredIntBetween_AddsErrorForValueAboveMax() {
+        var minValue = randomNonNegativeInt();
+        var maxValue = randomIntBetween(minValue, minValue + 10);
+        testExtractRequiredIntBetween_Unsuccessful(minValue, maxValue, maxValue + 1);
+    }
+
+    private void testExtractRequiredIntBetween_Unsuccessful(int minValue, int maxValue, int actualValue) {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("key", actualValue));
+        var parsedInt = extractRequiredPositiveIntegerBetween(map, "key", minValue, maxValue, "scope", validation);
+
+        assertThat(validation.validationErrors(), hasSize(2));
+        assertNull(parsedInt);
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(1), containsString("Invalid value"));
+    }
+
+    public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "value"));
+        var createdEnum = extractOptionalEnum(map, "abc", "scope", InputType::fromString, EnumSet.allOf(InputType.class), validation);
+
+        assertNull(createdEnum);
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(map.size(), is(1));
+    }
+
+    public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenAnInvalidValueExists() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "invalid_value"));
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.SEARCH),
+            validation
+        );
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is("[scope] Invalid value [invalid_value] received. [key] must be one of [ingest, search]")
+        );
+    }
+
+    public void testExtractOptionalEnum_ReturnsNullAndAddsException_WhenValueIsNotPartOfTheAcceptableValues() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.UNSPECIFIED.toString()));
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertNull(createdEnum);
+        assertFalse(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value [unspecified] received. [key] must be one of [ingest]"));
+    }
+
+    public void testExtractOptionalEnum_ReturnsIngest_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.INGEST.toString()));
+        var createdEnum = extractOptionalEnum(map, "key", "scope", InputType::fromString, EnumSet.of(InputType.INGEST), validation);
+
+        assertThat(createdEnum, is(InputType.INGEST));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalEnum_ReturnsClassification_WhenValueIsAcceptable() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", InputType.CLASSIFICATION.toString()));
+        var createdEnum = extractOptionalEnum(
+            map,
+            "key",
+            "scope",
+            InputType::fromString,
+            EnumSet.of(InputType.INGEST, InputType.CLASSIFICATION),
+            validation
+        );
+
+        assertThat(createdEnum, is(InputType.CLASSIFICATION));
+        assertTrue(validation.validationErrors().isEmpty());
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNull_WhenKeyDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var timeValue = extractOptionalTimeValue(map, "a", "scope", validation);
+
+        assertNull(timeValue);
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_CreatesTimeValue_Of3Seconds() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "3s"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(timeValue);
+        assertThat(timeValue, is(TimeValue.timeValueSeconds(3)));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_InvalidUnit() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "3abc"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertFalse(validation.validationErrors().isEmpty());
+        assertNull(timeValue);
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is(
+                "[scope] Invalid time value [3abc]. [key] must be a valid time value string: failed to parse setting [key] "
+                    + "with value [3abc] as a time value: unit is missing or unrecognized"
+            )
+        );
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_NegativeNumber() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "-3d"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertFalse(validation.validationErrors().isEmpty());
+        assertNull(timeValue);
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is(
+                "[scope] Invalid time value [-3d]. [key] must be a valid time value string: failed to parse setting [key] "
+                    + "with value [-3d] as a time value: negative durations are not supported"
+            )
+        );
+    }
+
+    public void testExtractOptionalDouble_ExtractsAsDoubleInRange() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
+        var result = extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        assertEquals(Double.valueOf(1.01), result);
+        assertTrue(map.isEmpty());
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testExtractOptionalDouble_InRange_ReturnsNullWhenKeyNotPresent() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
+        var result = extractOptionalDoubleInRange(map, "other_key", 0.0, 2.0, "test_scope", validationException);
+        assertNull(result);
+        assertThat(map.size(), is(1));
+        assertThat(map.get("key"), is(1.01));
+    }
+
+    public void testExtractOptionalDouble_InRange_HasErrorWhenBelowMinValue() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", -2.0));
+        var result = extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            is("[test_scope] Invalid value [-2.0]. [key] must be a greater than or equal to [0.0]")
+        );
+    }
+
+    public void testExtractOptionalDouble_InRange_HasErrorWhenAboveMaxValue() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 12.0));
+        var result = extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            is("[test_scope] Invalid value [12.0]. [key] must be a less than or equal to [2.0]")
+        );
+    }
+
+    public void testExtractOptionalDouble_InRange_DoesNotCheckMinWhenNull() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", -2.0));
+        var result = extractOptionalDoubleInRange(map, "key", null, 2.0, "test_scope", validationException);
+        assertEquals(Double.valueOf(-2.0), result);
+        assertTrue(map.isEmpty());
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testExtractOptionalDouble_InRange_DoesNotCheckMaxWhenNull() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 12.0));
+        var result = extractOptionalDoubleInRange(map, "key", 0.0, null, "test_scope", validationException);
+        assertEquals(Double.valueOf(12.0), result);
+        assertTrue(map.isEmpty());
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testExtractOptionalFloat_ExtractsAFloat() {
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.0f));
+        var result = extractOptionalFloat(map, "key");
+        assertThat(result, is(1.0f));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalFloat_ReturnsNullWhenKeyNotPresent() {
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.0f));
+        var result = extractOptionalFloat(map, "other_key");
+        assertNull(result);
+        assertThat(map.size(), is(1));
+        assertThat(map.get("key"), is(1.0f));
+    }
+
+    public void testExtractRequiredEnum_ExtractsAEnum() {
+        ValidationException validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "ingest"));
+        var result = extractRequiredEnum(
+            map,
+            "key",
+            "testscope",
+            InputType::fromString,
+            EnumSet.allOf(InputType.class),
+            validationException
+        );
+        assertThat(result, is(InputType.INGEST));
+    }
+
+    public void testExtractRequiredEnum_ReturnsNullWhenEnumValueIsNotPresent() {
+        ValidationException validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "invalid"));
+        var result = extractRequiredEnum(
+            map,
+            "key",
+            "testscope",
+            InputType::fromString,
+            EnumSet.allOf(InputType.class),
+            validationException
+        );
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors().get(0), containsString("Invalid value [invalid] received. [key] must be one of"));
+    }
+
+    public void testExtractRequiredMap() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("setting", Map.of("key", "value"))), "setting", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(extractedMap, is(Map.of("key", "value")));
+    }
+
+    public void testExtractRequiredMap_ReturnsNull_WhenTypeIsInvalid() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("setting", 123)), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [setting] is not of the expected type. The value [123] cannot be converted to a [Map];")
+        );
+    }
+
+    public void testExtractRequiredMap_ReturnsNull_WhenMissingSetting() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("not_setting", Map.of("key", "value"))), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(validation.getMessage(), is("Validation Failed: 1: [scope] does not contain the required setting [setting];"));
+    }
+
+    public void testExtractRequiredMap_ReturnsNull_WhenMapIsEmpty() {
+        var validation = new ValidationException();
+        var extractedMap = extractRequiredMap(modifiableMap(Map.of("setting", Map.of())), "setting", "scope", validation);
+
+        assertNull(extractedMap);
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: [scope] Invalid value empty map. [setting] must be a non-empty map;")
+        );
+    }
+
+    public void testExtractOptionalMap() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of("key", "value"))), "setting", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(extractedMap, is(Map.of("key", "value")));
+    }
+
+    public void testExtractOptionalMap_ReturnsNull_WhenTypeIsInvalid() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", 123)), "setting", validation);
+
+        assertNull(extractedMap);
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [setting] is not of the expected type. The value [123] cannot be converted to a [Map];")
+        );
+    }
+
+    public void testExtractOptionalMap_ReturnsNull_WhenMissingSetting() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("not_setting", Map.of("key", "value"))), "setting", validation);
+
+        assertNull(extractedMap);
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testExtractOptionalMap_ReturnsEmptyMap_WhenEmpty() {
+        var validation = new ValidationException();
+        var extractedMap = extractOptionalMap(modifiableMap(Map.of("setting", Map.of())), "setting", validation);
+
+        assertThat(extractedMap, is(Map.of()));
+    }
+
+    public void testExtractOptionalMapRemoveNulls() {
+        var validation = new ValidationException();
+
+        var map = modifiableMap(Map.of("key", "value"));
+        map.put("null_key", null);
+
+        var extractedMap = extractOptionalMapRemoveNulls(modifiableMap(Map.of("setting", map)), "setting", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(extractedMap, is(Map.of("key", "value")));
+    }
+
+    public void testExtractOptionalMapRemoveNulls_HandlesNullMap_FromUnknownSetting() {
+        var validation = new ValidationException();
+
+        var extractedMap = extractOptionalMapRemoveNulls(
+            modifiableMap(Map.of("setting", Map.of("key", "value"))),
+            "key_that_does_not_exist",
+            validation
+        );
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNull(extractedMap);
+    }
+
+    public void testValidateMapValues() {
+        var validation = new ValidationException();
+        validateMapValues(
+            Map.of("string_key", "abc", "num_key", Integer.valueOf(1)),
+            List.of(String.class, Integer.class),
+            "setting",
+            validation,
+            false
+        );
+    }
+
+    public void testValidateMapValues_IgnoresNullMap() {
+        var validation = new ValidationException();
+        validateMapValues(null, List.of(String.class, Integer.class), "setting", validation, false);
+    }
+
+    public void testValidateMapValues_ThrowsException_WhenMapContainsInvalidTypes() {
+        // Includes the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapValues(
+                    Map.of("string_key", "abc", "num_key", Integer.valueOf(1)),
+                    List.of(String.class),
+                    "setting",
+                    validation,
+                    false
+                )
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
+                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                )
+            );
+        }
+
+        // Does not include the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapValues(
+                    Map.of("string_key", "abc", "num_key", Integer.valueOf(1)),
+                    List.of(String.class, List.class),
+                    "setting",
+                    validation,
+                    true
+                )
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Map field [setting] has an entry that is not valid. "
+                        + "Value type is not one of [List, String].;"
+                )
+            );
+        }
+    }
+
+    public void testValidateMapStringValues() {
+        var validation = new ValidationException();
+        assertThat(
+            validateMapStringValues(Map.of("string_key", "abc", "string_key2", new String("awesome")), "setting", validation, false),
+            is(Map.of("string_key", "abc", "string_key2", "awesome"))
+        );
+    }
+
+    public void testValidateMapStringValues_ReturnsEmptyMap_WhenMapIsNull() {
+        var validation = new ValidationException();
+        assertThat(validateMapStringValues(null, "setting", validation, false), is(Map.of()));
+    }
+
+    public void testValidateMapStringValues_ReturnsNullDefaultValue_WhenMapIsNull() {
+        var validation = new ValidationException();
+        assertNull(validateMapStringValues(null, "setting", validation, false, null));
+    }
+
+    public void testValidateMapStringValues_ThrowsException_WhenMapContainsInvalidTypes() {
+        // Includes the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapStringValues(Map.of("string_key", "abc", "num_key", Integer.valueOf(1)), "setting", validation, false)
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "Validation Failed: 1: Map field [setting] has an entry that is not valid, "
+                        + "[num_key => 1]. Value type of [1] is not one of [String].;"
+                )
+            );
+        }
+
+        // Does not include the invalid key and value in the exception message
+        {
+            var validation = new ValidationException();
+            var exception = expectThrows(
+                ValidationException.class,
+                () -> validateMapStringValues(Map.of("string_key", "abc", "num_key", Integer.valueOf(1)), "setting", validation, true)
+            );
+
+            assertThat(
+                exception.getMessage(),
+                is("Validation Failed: 1: Map field [setting] has an entry that is not valid. Value type is not one of [String].;")
+            );
+        }
+    }
+
+    public void testRemoveNullValues() {
+        var map = new HashMap<String, Object>();
+        map.put("key1", null);
+        map.put("key2", "awesome");
+        map.put("key3", null);
+
+        assertThat(removeNullValues(map), is(Map.of("key2", "awesome")));
+    }
+
+    public void testRemoveNullValues_ReturnsNull_WhenMapIsNull() {
+        assertNull(removeNullValues(null));
+    }
+
+    public void testExtractOptionalListOfStringTuples() {
+        var validation = new ValidationException();
+        assertThat(
+            extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("key", "value"), List.of("key2", "value2")))),
+                "params",
+                "scope",
+                validation
+            ),
+            is(List.of(new Tuple<>("key", "value"), new Tuple<>("key2", "value2")))
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_ReturnsNull_WhenFieldIsNotAList() {
+        var validation = new ValidationException();
+        assertNull(extractOptionalListOfStringTuples(modifiableMap(Map.of("params", Map.of())), "params", "scope", validation));
+
+        assertThat(
+            validation.getMessage(),
+            is("Validation Failed: 1: field [params] is not of the expected type. The value [{}] cannot be converted to a [List];")
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleIsNotAList() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(modifiableMap(Map.of("params", List.of("string"))), "params", "scope", validation)
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting "
+                    + "[params], expected a list but the entry is [String];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleIsListSize2() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("string")))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry "
+                    + "[0] for setting [params], the tuple list size must be two, but was [1];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleFirstElement_IsNotAString() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of(1, "value")))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                    + "the first element must be a string but was [Integer];"
+            )
+        );
+    }
+
+    public void testExtractOptionalListOfStringTuples_Exception_WhenTupleSecondElement_IsNotAString() {
+        var validation = new ValidationException();
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> extractOptionalListOfStringTuples(
+                modifiableMap(Map.of("params", List.of(List.of("key", 2)))),
+                "params",
+                "scope",
+                validation
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is(
+                "Validation Failed: 1: [scope] failed to parse tuple list entry [0] for setting [params], "
+                    + "the second element must be a string but was [Integer];"
+            )
+        );
+    }
+}

@@ -29,10 +29,10 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.chunking.NoneChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.RecursiveChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;

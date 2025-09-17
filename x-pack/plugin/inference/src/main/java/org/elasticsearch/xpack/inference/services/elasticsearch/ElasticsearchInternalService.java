@@ -56,8 +56,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
@@ -74,6 +74,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -557,7 +558,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
      */
     private void migrateModelVersionToModelId(Map<String, Object> serviceSettingsMap) {
         if (serviceSettingsMap.containsKey(OLD_MODEL_ID_FIELD_NAME)) {
-            String modelId = ServiceUtils.removeAsType(serviceSettingsMap, OLD_MODEL_ID_FIELD_NAME, String.class);
+            String modelId = removeAsType(serviceSettingsMap, OLD_MODEL_ID_FIELD_NAME, String.class);
             serviceSettingsMap.put(ElserInternalServiceSettings.MODEL_ID, modelId);
         }
     }

@@ -17,8 +17,8 @@ import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
-import org.elasticsearch.xpack.inference.chunking.Chunker;
-import org.elasticsearch.xpack.inference.chunking.ChunkerBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.Chunker;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkerBuilder;
 
 import java.io.IOException;
 import java.util.List;

@@ -22,8 +22,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEmptyString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEmptyString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class InputTypeTranslator implements ToXContentFragment, Writeable {

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
-import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;

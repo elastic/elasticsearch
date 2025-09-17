@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.security.action.stats;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -21,9 +23,12 @@ import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsNodeRe
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsNodeResponse;
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsNodesRequest;
 import org.elasticsearch.xpack.core.security.action.stats.GetSecurityStatsNodesResponse;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 public class TransportSecurityStatsAction extends TransportNodesAction<
     GetSecurityStatsNodesRequest,
@@ -32,12 +37,16 @@ public class TransportSecurityStatsAction extends TransportNodesAction<
     GetSecurityStatsNodeResponse,
     Void> {
 
+    @Nullable
+    private final CompositeRolesStore rolesStore;
+
     @Inject
     public TransportSecurityStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        CompositeRolesStore rolesStore
     ) {
         super(
             GetSecurityStatsAction.INSTANCE.name(),
@@ -47,6 +56,7 @@ public class TransportSecurityStatsAction extends TransportNodesAction<
             GetSecurityStatsNodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.rolesStore = rolesStore;
     }
 
     @Override
@@ -70,6 +80,12 @@ public class TransportSecurityStatsAction extends TransportNodesAction<
 
     @Override
     protected GetSecurityStatsNodeResponse nodeOperation(final GetSecurityStatsNodeRequest request, final Task task) {
-        return new GetSecurityStatsNodeResponse(clusterService.localNode());
+        final CompletableFuture<Map<String, Object>> rolesStatsFuture = new CompletableFuture<>();
+        if (rolesStore == null) {
+            rolesStatsFuture.complete(null);
+        } else {
+            rolesStore.usageStats(ActionListener.wrap(rolesStatsFuture::complete, rolesStatsFuture::completeExceptionally));
+        }
+        return new GetSecurityStatsNodeResponse(clusterService.localNode(), rolesStatsFuture.join());
     }
 }

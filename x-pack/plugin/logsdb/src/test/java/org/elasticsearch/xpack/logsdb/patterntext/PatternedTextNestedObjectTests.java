@@ -141,10 +141,7 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
             """.replace("%", message));
 
         var actualMappings = getMapping();
-        assertEquals(
-            "pattern_text",
-            ObjectPath.eval("properties.obj.properties.inner.properties.field_pattern_text.type", actualMappings)
-        );
+        assertEquals("pattern_text", ObjectPath.eval("properties.obj.properties.inner.properties.field_pattern_text.type", actualMappings));
 
         var query = randomBoolean()
             ? QueryBuilders.matchQuery("obj.inner.field_pattern_text", SHORT_MESSAGE)

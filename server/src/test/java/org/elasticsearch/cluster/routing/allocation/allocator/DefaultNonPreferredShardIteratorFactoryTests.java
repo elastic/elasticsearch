@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -80,13 +81,21 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
             )
         );
         final RoutingAllocation routingAllocation = createRoutingAllocation(randomIntBetween(2, 20));
+        final double maxShardWriteLoad = routingAllocation.clusterInfo().getShardWriteLoads().values().stream().reduce(0.0, Double::max);
+        final double lowThreshold = maxShardWriteLoad * 0.5;
+        final double highThreshold = maxShardWriteLoad * 0.8;
         final Iterable<ShardRouting> shards = iteratorFactory.createNonPreferredShardIterator(routingAllocation);
 
+        String nodeId = null;
+        Tier lastTierForNode = null;
         long lastNodeQueueLatency = -1;
         int totalCount = 0;
         for (ShardRouting shardRouting : shards) {
             totalCount++;
-            final String nodeId = shardRouting.currentNodeId();
+            if (Objects.equals(nodeId, shardRouting.currentNodeId()) == false) {
+                lastTierForNode = null;
+                nodeId = shardRouting.currentNodeId();
+            }
             NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = routingAllocation.clusterInfo()
                 .getNodeUsageStatsForThreadPools()
                 .get(nodeId);
@@ -100,15 +109,28 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
                 assertThat(thisNodeQueueLatency, lessThanOrEqualTo(lastNodeQueueLatency));
             }
             lastNodeQueueLatency = thisNodeQueueLatency;
-            final Double shardWriteLoad = routingAllocation.clusterInfo().getShardWriteLoads().get(shardRouting.shardId());
-            // Should not receive shards with no write-load
-            assertNotNull(shardWriteLoad);
-            // TODO: assert on shard order, when we know what we want that to be
+            final double shardWriteLoad = routingAllocation.clusterInfo().getShardWriteLoads().getOrDefault(shardRouting.shardId(), 0.0);
+            // Inside nodes, shards should be delivered in tier order
+            Tier tier = tierFor(shardWriteLoad, lowThreshold, highThreshold);
+            if (lastTierForNode != null) {
+                assertThat(tier, greaterThanOrEqualTo(lastTierForNode));
+            }
+            lastTierForNode = tier;
         }
 
         if (totalCount > 0) {
             assertThat(lastNodeQueueLatency, greaterThanOrEqualTo(0L));
         }
+    }
+
+    private Tier tierFor(double writeLoad, double lowThreshold, double highThreshold) {
+        return writeLoad < lowThreshold ? Tier.LOW : writeLoad < highThreshold ? Tier.MEDIUM : Tier.HIGH;
+    }
+
+    private enum Tier {
+        MEDIUM,
+        HIGH,
+        LOW
     }
 
     public void testNoShardsAreReturnedWhenWriteLoadDeciderNotFullyEnabled() {

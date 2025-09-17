@@ -13,15 +13,16 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.StreamSupport;
 
 /**
  * Non-preferred shard iterator factory that returns the most desirable shards from most-hot-spotted
@@ -79,20 +80,57 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
 
         private Iterator<ShardRouting> createShardIterator() {
             final var shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-            final List<ShardRouting> sortedRoutings = new ArrayList<>();
-            double totalWriteLoad = 0;
-            for (ShardRouting shard : routingNode) {
-                Double shardWriteLoad = shardWriteLoads.get(shard.shardId());
-                if (shardWriteLoad != null) {
-                    sortedRoutings.add(shard);
-                    totalWriteLoad += shardWriteLoad;
-                }
+            return StreamSupport.stream(routingNode.spliterator(), false)
+                .sorted(new TieringWriteLoadComparator(shardWriteLoads))
+                .toList()
+                .iterator();
+        }
+    }
+
+    /**
+     * Sorts shards by "tiered" write load, then descending write load inside tiers
+     *
+     * e.g., MEDIUM/0.7, MEDIUM/0.65, HIGH/0.9, HIGH/0.81, LOW/0.4, LOW/0.2, LOW/0.1
+     */
+    private static class TieringWriteLoadComparator implements Comparator<ShardRouting> {
+
+        private final Map<ShardId, Double> shardWriteLoads;
+        private final double lowThreshold;
+        private final double highThreshold;
+        private final Comparator<ShardRouting> comparator;
+
+        /**
+         * Enum order is prioritization order
+         */
+        private enum Tier {
+            MEDIUM,
+            HIGH,
+            LOW
+        }
+
+        private TieringWriteLoadComparator(Map<ShardId, Double> shardWriteLoads) {
+            this.shardWriteLoads = shardWriteLoads;
+            double maxWriteLoad = shardWriteLoads.values().stream().reduce(0.0, Double::max);
+            this.lowThreshold = maxWriteLoad * 0.5;
+            this.highThreshold = maxWriteLoad * 0.8;
+            this.comparator = Comparator.comparing(this::getTier)
+                .thenComparing(sr -> shardWriteLoads.getOrDefault(sr.shardId(), 0.0), Comparator.reverseOrder());
+        }
+
+        @Override
+        public int compare(ShardRouting o1, ShardRouting o2) {
+            return comparator.compare(o1, o2);
+        }
+
+        private Tier getTier(ShardRouting shard) {
+            double writeLoad = shardWriteLoads.getOrDefault(shard.shardId(), 0.0);
+            if (writeLoad < lowThreshold) {
+                return Tier.LOW;
+            } else if (writeLoad < highThreshold) {
+                return Tier.MEDIUM;
+            } else {
+                return Tier.HIGH;
             }
-            // TODO: Work out what this order should be
-            // Sort by distance-from-mean-write-load
-            double meanWriteLoad = totalWriteLoad / sortedRoutings.size();
-            sortedRoutings.sort(Comparator.comparing(sr -> Math.abs(shardWriteLoads.get(sr.shardId()) - meanWriteLoad)));
-            return sortedRoutings.iterator();
         }
     }
 

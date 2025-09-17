@@ -12,6 +12,7 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
+import org.elasticsearch.common.regex.Regex;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
@@ -19,8 +20,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
 import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptibleVoid;
@@ -84,20 +85,12 @@ class ErrorPumpThread extends Thread implements Closeable {
         nonInterruptibleVoid(this::join);
     }
 
-    /** Set of messages / lines to filter from the output. */
-    private static Set<String> filter = Set.of("WARNING: Using incubator modules: jdk.incubator.vector");
-
-    private static boolean isFilteredOut(String line) {
-        if (filter.contains(line)) {
-            return true;
-        }
+    /** Messages / lines predicate to filter from the output. */
+    private static Predicate<String> filter = Regex.simpleMatcher(
+        "WARNING: Using incubator modules: jdk.incubator.vector",
         // requires log4j2 upgrade, see https://github.com/elastic/elasticsearch/issues/132035
-        if (line.startsWith("WARNING: Use of the three-letter time zone ID")
-            && line.endsWith("is deprecated and it will be removed in a future release")) {
-            return true;
-        }
-        return false;
-    }
+        "WARNING: Use of the three-letter time zone ID * is deprecated and it will be removed in a future release"
+    );
 
     @Override
     public void run() {
@@ -107,7 +100,7 @@ class ErrorPumpThread extends Thread implements Closeable {
                 if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                     ready = true;
                     readyOrDead.countDown();
-                } else if (isFilteredOut(line) == false) {
+                } else if (filter.test(line) == false) {
                     terminal.errorPrintln(Verbosity.SILENT, line, false);
                 }
             }

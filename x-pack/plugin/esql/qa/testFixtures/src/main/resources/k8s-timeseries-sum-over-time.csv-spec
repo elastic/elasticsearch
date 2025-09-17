@@ -176,6 +176,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 sum_over_time_aggregate_metric_double_implicit_casting
 required_capability: ts_command_v0
+required_capability: aggregate_metric_double
 TS k8s* | STATS bytes = sum(sum_over_time(network.eth0.rx)) by time_bucket = bucket(@timestamp, 10minute) | SORT bytes desc, time_bucket | LIMIT 10 ;
 
 bytes:double | time_bucket:datetime

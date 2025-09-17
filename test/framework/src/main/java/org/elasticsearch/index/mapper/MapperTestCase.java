@@ -1602,7 +1602,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
-                boolean toInt = expectedSampleValues[0] instanceof Integer;
+                boolean toInt = supportsBulkIntBlockReading();
                 assertNull(directReader.tryRead(TestBlock.factory(), docBlock, 0, false, null, toInt));
                 block = (TestBlock) directReader.tryRead(TestBlock.factory(), docBlock, 0, true, null, toInt);
                 assertNotNull(block);

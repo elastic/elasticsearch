@@ -69,7 +69,7 @@ public interface BlockLoader {
          * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
          *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
          * @param toDouble      a function to convert long values to double, or null if no conversion is needed/supported
-         * @param toInt
+         * @param toInt         whether to convert to int in case int block / vector is needed
          */
         @Nullable
         BlockLoader.Block tryRead(

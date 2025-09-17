@@ -1898,7 +1898,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         if (toDouble != null) {
             return new SingletonLongToDoubleDelegate(factory.singletonDoubles(valueCount), toDouble);
         } else if (toInt) {
-            return new SingletonLongToSingletonIntDelegate(factory.singletonInts(valueCount));
+            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount));
         } else {
             return factory.singletonLongs(valueCount);
         }
@@ -1952,10 +1952,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    static final class SingletonLongToSingletonIntDelegate implements BlockLoader.SingletonLongBuilder {
+    static final class SingletonLongtoIntDelegate implements BlockLoader.SingletonLongBuilder {
         private final BlockLoader.SingletonIntBuilder builder;
 
-        SingletonLongToSingletonIntDelegate(BlockLoader.SingletonIntBuilder builder) {
+        SingletonLongtoIntDelegate(BlockLoader.SingletonIntBuilder builder) {
             this.builder = builder;
         }
 

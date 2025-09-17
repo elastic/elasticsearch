@@ -274,8 +274,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (numericDocValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, true);
                 if (result != null) {
-                    // This returns a long block, but should be handled ok downstream.
-                    // tryRead(...) doesn't support creating int blocks yet, but can be supported in the future.
                     return result;
                 }
             }

@@ -564,27 +564,12 @@ tests:
 - class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
   method: testIndexSettingProviderPrivateSetting
   issue: https://github.com/elastic/elasticsearch/issues/134846
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<-0 doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/134847
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<0 doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/134849
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlinestats
   issue: https://github.com/elastic/elasticsearch/issues/134854
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<1000000000 ints>}
-  issue: https://github.com/elastic/elasticsearch/issues/134855
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<positive longs>}
-  issue: https://github.com/elastic/elasticsearch/issues/134856
-- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
-  method: testGroupingAggregate {TestCase=<1.0E9 doubles>}
-  issue: https://github.com/elastic/elasticsearch/issues/134860
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865

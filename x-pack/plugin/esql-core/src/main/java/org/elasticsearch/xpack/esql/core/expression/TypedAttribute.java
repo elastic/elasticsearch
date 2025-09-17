@@ -13,9 +13,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.Objects;
 
 /**
- * A resolved attribute - we know its type.
- * Because the name alone is not sufficient to identify an attribute (two different relations can have the same attribute name),
- * we also have an id that is used in equality checks and hashing.
+ * A fully resolved attribute - we know its type. For example, if it references data directly from Lucene, this will be a
+ * {@link FieldAttribute}. If it references the results of another calculation it will be {@link ReferenceAttribute}s.
  */
 public abstract class TypedAttribute extends Attribute {
 
@@ -53,15 +52,12 @@ public abstract class TypedAttribute extends Attribute {
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), id(), dataType);
+        return Objects.hash(super.hashCode(), dataType);
     }
 
-    /**
-     * After resolution, the name id uniquely identifies an attribute, so it is included in equality check.
-     */
     @Override
     protected boolean innerEquals(Object o) {
         var other = (TypedAttribute) o;
-        return super.innerEquals(other) && Objects.equals(id(), other.id()) && dataType == other.dataType;
+        return super.innerEquals(other) && dataType == other.dataType;
     }
 }

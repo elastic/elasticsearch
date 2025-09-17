@@ -163,13 +163,17 @@ public abstract class Attribute extends NamedExpression {
     @Override
     @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
-        return Objects.hash(super.hashCode(), qualifier, nullability);
+        return Objects.hash(super.hashCode(), id(), qualifier, nullability);
     }
 
+    /**
+     * Because the name alone is not sufficient to identify an attribute (two different relations can have the same attribute name),
+     * we also have an id that is used in equality checks and hashing.
+     */
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Attribute) o;
-        return super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
+        return Objects.equals(id(), other.id()) && super.innerEquals(other) && Objects.equals(qualifier, other.qualifier) && Objects.equals(nullability, other.nullability);
     }
 
     @Override

@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -254,11 +253,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (this.inferenceResultsMap != null) {
-            inferenceResultsErrorCheck(this.inferenceResultsMap);
-            return this;
-        }
-
         QueryBuilder rewrittenBwC = doRewriteBwC(queryRewriteContext);
         if (rewrittenBwC != this) {
             return rewrittenBwC;
@@ -298,17 +292,30 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results are
-        // provided by the user.
+        QueryBuilder rewritten = this;
         String query = getQuery();
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
-        if (query != null) {
-            for (String inferenceId : inferenceIds) {
-                SemanticQueryBuilder.registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
+        if (query == null && this.inferenceResultsMap == null) {
+            // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results
+            // are provided by the user. Ensure that we set an empty inference results map in this case so that it is always non-null after
+            // coordinator node rewrite.
+            rewritten = copy(Map.of());
+        } else if (query != null && queryRewriteContext.hasAsyncActions() == false) {
+            Map<Tuple<String, String>, InferenceResults> modifiedInferenceResultsMap = SemanticQueryBuilder.getInferenceResults(
+                queryRewriteContext,
+                inferenceIds,
+                this.inferenceResultsMap,
+                query
+            );
+
+            if (modifiedInferenceResultsMap == this.inferenceResultsMap) {
+                // The inference results map is fully populated, so we can perform error checking
+                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+            } else {
+                rewritten = copy(modifiedInferenceResultsMap);
             }
         }
 
-        return copy(inferenceResultsMap);
+        return rewritten;
     }
 
     private static Set<String> getInferenceIdsForFields(

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -213,7 +214,50 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return PARSER.apply(parser, null);
     }
 
-    public static void registerInferenceAsyncAction(
+    /**
+     * <p>
+     * Get inference results for the provided query using the provided inference IDs. The inference IDs are fully qualified by the
+     * cluster alias in the provided {@link QueryRewriteContext}.
+     * </p>
+     * <p>
+     * This method will return an inference results map that will be asynchronously populated with inference results. If the provided
+     * inference results map already contains all required inference results, the same map instance will be returned. Otherwise, a new map
+     * instance will be returned. It is guaranteed that a non-null map instance will be returned.
+     * </p>
+     *
+     * @param queryRewriteContext The query rewrite context
+     * @param inferenceIds The inference IDs to use to generate inference results
+     * @param inferenceResultsMap The initial inference results map
+     * @param query The query to generate inference results for
+     * @return An inference results map
+     */
+    static Map<Tuple<String, String>, InferenceResults> getInferenceResults(
+        QueryRewriteContext queryRewriteContext,
+        Set<String> inferenceIds,
+        @Nullable Map<Tuple<String, String>, InferenceResults> inferenceResultsMap,
+        String query
+    ) {
+        boolean modifiedInferenceResultsMap = false;
+        Map<Tuple<String, String>, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
+            ? inferenceResultsMap
+            : Map.of();
+        for (String inferenceId : inferenceIds) {
+            Tuple<String, String> fullyQualifiedInferenceId = Tuple.tuple(queryRewriteContext.getLocalClusterAlias(), inferenceId);
+            if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                if (modifiedInferenceResultsMap == false) {
+                    // Copy the inference results map to ensure it is mutable and thread safe
+                    currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
+                    modifiedInferenceResultsMap = true;
+                }
+
+                registerInferenceAsyncAction(queryRewriteContext, currentInferenceResultsMap, query, inferenceId);
+            }
+        }
+
+        return currentInferenceResultsMap;
+    }
+
+    static void registerInferenceAsyncAction(
         QueryRewriteContext queryRewriteContext,
         Map<Tuple<String, String>, InferenceResults> inferenceResultsMap,
         String query,
@@ -267,7 +311,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResults The inference result
      * @return An inference results map
      */
-    protected static Map<Tuple<String, String>, InferenceResults> buildBwcInferenceResultsMap(InferenceResults inferenceResults) {
+    static Map<Tuple<String, String>, InferenceResults> buildBwcInferenceResultsMap(InferenceResults inferenceResults) {
         return Map.of(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID), inferenceResults);
     }
 
@@ -355,32 +399,25 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             throw new IllegalArgumentException(NAME + " query does not support cross-cluster search");
         }
 
-        boolean modifiedInferenceResultsMap = false;
-        Map<Tuple<String, String>, InferenceResults> currentInferenceResultsMap = this.inferenceResultsMap != null
-            ? this.inferenceResultsMap
-            : Map.of();
+        SemanticQueryBuilder rewritten = this;
         if (queryRewriteContext.hasAsyncActions() == false) {
             Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-            for (String inferenceId : inferenceIds) {
-                Tuple<String, String> fullyQualifiedInferenceId = Tuple.tuple(queryRewriteContext.getLocalClusterAlias(), inferenceId);
-                if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
-                    if (modifiedInferenceResultsMap == false) {
-                        // Copy the inference results map to ensure it is mutable
-                        currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
-                        modifiedInferenceResultsMap = true;
-                    }
+            Map<Tuple<String, String>, InferenceResults> modifiedInferenceResultsMap = getInferenceResults(
+                queryRewriteContext,
+                inferenceIds,
+                inferenceResultsMap,
+                query
+            );
 
-                    registerInferenceAsyncAction(queryRewriteContext, currentInferenceResultsMap, query, inferenceId);
-                }
-            }
-
-            if (modifiedInferenceResultsMap == false) {
-                // The inference results map is now fully populated, so we can perform error checking
-                inferenceResultsErrorCheck(currentInferenceResultsMap);
+            if (modifiedInferenceResultsMap == inferenceResultsMap) {
+                // The inference results map is fully populated, so we can perform error checking
+                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+            } else {
+                rewritten = new SemanticQueryBuilder(this, modifiedInferenceResultsMap);
             }
         }
 
-        return modifiedInferenceResultsMap ? new SemanticQueryBuilder(this, currentInferenceResultsMap) : this;
+        return rewritten;
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

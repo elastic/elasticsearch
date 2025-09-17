@@ -1201,6 +1201,11 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support for INCREASE timeseries aggregation.
+         */
+        INCREASE(Build.current().isSnapshot()),
+
+        /**
          * Extra field types in the k8s.csv dataset
          */
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),

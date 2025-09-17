@@ -963,14 +963,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * with respect to the weight function. All given shards must be unassigned.
          */
         private boolean allocateUnassigned() {
-            boolean shardAssignmentChanged = false;
             RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
             assert nodes.isEmpty() == false;
             if (logger.isTraceEnabled()) {
                 logger.trace("Start allocating unassigned shards");
             }
             if (unassigned.isEmpty()) {
-                return shardAssignmentChanged;
+                return false;
             }
 
             /*
@@ -1007,6 +1006,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             int secondaryLength = 0;
             int primaryLength = primary.length;
             ArrayUtil.timSort(primary, comparator);
+            boolean shardAssignmentChanged = false;
             do {
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];

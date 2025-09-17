@@ -3861,3 +3861,16 @@ event_duration:long| message:keyword         | avg(event_duration):double| clien
 1756467            | Connected to 10.1.0.1   | 3945955.75                | 172.21.3.15
 1756467            | Connected to 10.1.0.1   | 3945955.75                | 172.21.3.15
 ;
+
+useOfDeprecatedInlinestats
+required_capability: inline_stats
+ROW city = "Raleigh"
+| INLINESTATS c = COUNT(city)
+;
+
+warning:Line 2:3: INLINESTATS is deprecated, use INLINE STATS instead
+
+city:keyword|c:long
+Raleigh     |1
+;
+

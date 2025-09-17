@@ -8,6 +8,7 @@
 lexer grammar Inline;
 
 DEV_INLINE : {this.isDevVersion()}? 'inline' -> pushMode(INLINE_MODE);
+DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats' -> pushMode(EXPRESSION_MODE); // TODO: drop after next minor release
 
 mode INLINE_MODE;
 

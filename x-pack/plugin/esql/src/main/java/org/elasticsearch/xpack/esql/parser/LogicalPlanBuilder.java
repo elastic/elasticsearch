@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -411,6 +412,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         var source = source(ctx);
         if (false == EsqlPlugin.INLINE_STATS_FEATURE_FLAG) {
             throw new ParsingException(source, "INLINE STATS command currently requires a snapshot build");
+        }
+        // TODO: drop after next minor release
+        if (ctx.DEV_INLINESTATS() != null) {
+            HeaderWarning.addWarning(
+                "Line {}:{}: INLINESTATS is deprecated, use INLINE STATS instead",
+                source.source().getLineNumber(),
+                source.source().getColumnNumber()
+            );
         }
         List<Alias> aggFields = visitAggFields(ctx.stats);
         List<NamedExpression> aggregates = new ArrayList<>(aggFields);

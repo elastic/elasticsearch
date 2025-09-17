@@ -400,52 +400,56 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        var query = "INLINE STATS b = MIN(a) BY c, d.e";
-        if (releaseBuildForInlineStats(query)) {
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
-        assertThat(
-            processingCommand(query),
-            is(
-                new InlineStats(
-                    EMPTY,
-                    new Aggregate(
+        for (var cmd : List.of("INLINE STATS", "INLINESTATS")) {
+            var query = cmd + " b = MIN(a) BY c, d.e";
+            assertThat(
+                processingCommand(query),
+                is(
+                    new InlineStats(
                         EMPTY,
-                        PROCESSING_CMD_INPUT,
-                        List.of(attribute("c"), attribute("d.e")),
-                        List.of(
-                            new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
-                            attribute("c"),
-                            attribute("d.e")
+                        new Aggregate(
+                            EMPTY,
+                            PROCESSING_CMD_INPUT,
+                            List.of(attribute("c"), attribute("d.e")),
+                            List.of(
+                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                attribute("c"),
+                                attribute("d.e")
+                            )
                         )
                     )
                 )
-            )
-        );
+            );
+        }
     }
 
     public void testInlineStatsWithoutGroups() {
-        var query = "INLINE STATS MIN(a), c = 1";
-        if (releaseBuildForInlineStats(query)) {
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
-        assertThat(
-            processingCommand(query),
-            is(
-                new InlineStats(
-                    EMPTY,
-                    new Aggregate(
+        for (var cmd : List.of("INLINE STATS", "INLINESTATS")) {
+            var query = cmd + " MIN(a), c = 1";
+            assertThat(
+                processingCommand(query),
+                is(
+                    new InlineStats(
                         EMPTY,
-                        PROCESSING_CMD_INPUT,
-                        List.of(),
-                        List.of(
-                            new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
-                            new Alias(EMPTY, "c", integer(1))
+                        new Aggregate(
+                            EMPTY,
+                            PROCESSING_CMD_INPUT,
+                            List.of(),
+                            List.of(
+                                new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                new Alias(EMPTY, "c", integer(1))
+                            )
                         )
                     )
                 )
-            )
-        );
+            );
+        }
     }
 
     public void testInlineStatsParsing() {

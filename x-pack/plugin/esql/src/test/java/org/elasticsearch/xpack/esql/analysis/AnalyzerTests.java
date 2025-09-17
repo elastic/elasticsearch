@@ -4408,6 +4408,11 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | inline stats stats
             """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
+        // TODO: drop after next minor release
+        verifyUnsupported("""
+            from test
+            | inlinestats stats
+            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {

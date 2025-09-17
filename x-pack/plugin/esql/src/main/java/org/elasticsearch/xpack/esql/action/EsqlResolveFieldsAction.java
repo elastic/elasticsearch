@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -60,9 +59,6 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
         FieldCapabilitiesRequest request,
         ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
     ) {
-        var remoteAction = conn.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
-            ? RESOLVE_REMOTE_TYPE
-            : TransportFieldCapabilitiesAction.REMOTE_TYPE;
-        transportService.sendRequest(conn, remoteAction.name(), request, TransportRequestOptions.EMPTY, responseHandler);
+        transportService.sendRequest(conn, RESOLVE_REMOTE_TYPE.name(), request, TransportRequestOptions.EMPTY, responseHandler);
     }
 }

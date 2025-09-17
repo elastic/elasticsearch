@@ -73,8 +73,9 @@ public final class AsinEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Asin.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Asin.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -87,8 +88,9 @@ public final class AsinEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Asin.process(valVector.getDouble(p)));
+          result.appendDouble(Asin.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

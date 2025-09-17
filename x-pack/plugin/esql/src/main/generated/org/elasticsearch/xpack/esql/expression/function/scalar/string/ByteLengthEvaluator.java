@@ -76,7 +76,8 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendInt(ByteLength.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
+        result.appendInt(ByteLength.process(val));
       }
       return result.build();
     }
@@ -86,7 +87,8 @@ public final class ByteLengthEvaluator implements EvalOperator.ExpressionEvaluat
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, ByteLength.process(valVector.getBytesRef(p, valScratch)));
+        BytesRef val = valVector.getBytesRef(p, valScratch);
+        result.appendInt(p, ByteLength.process(val));
       }
       return result.build();
     }

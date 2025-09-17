@@ -72,7 +72,8 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
-        result.appendLong(Cast.castLongToUnsignedLong(vBlock.getLong(vBlock.getFirstValueIndex(p))));
+        long v = vBlock.getLong(vBlock.getFirstValueIndex(p));
+        result.appendLong(Cast.castLongToUnsignedLong(v));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   public LongVector eval(int positionCount, LongVector vVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Cast.castLongToUnsignedLong(vVector.getLong(p)));
+        long v = vVector.getLong(p);
+        result.appendLong(p, Cast.castLongToUnsignedLong(v));
       }
       return result.build();
     }

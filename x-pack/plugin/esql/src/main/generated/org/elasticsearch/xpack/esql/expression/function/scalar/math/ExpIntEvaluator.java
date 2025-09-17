@@ -74,7 +74,8 @@ public final class ExpIntEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Exp.process(valBlock.getInt(valBlock.getFirstValueIndex(p))));
+        int val = valBlock.getInt(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Exp.process(val));
       }
       return result.build();
     }
@@ -83,7 +84,8 @@ public final class ExpIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleVector eval(int positionCount, IntVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Exp.process(valVector.getInt(p)));
+        int val = valVector.getInt(p);
+        result.appendDouble(p, Exp.process(val));
       }
       return result.build();
     }

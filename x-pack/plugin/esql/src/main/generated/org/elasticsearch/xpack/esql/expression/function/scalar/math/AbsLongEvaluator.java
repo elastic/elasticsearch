@@ -72,7 +72,8 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
-        result.appendLong(Abs.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p))));
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        result.appendLong(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
   public LongVector eval(int positionCount, LongVector fieldValVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Abs.process(fieldValVector.getLong(p)));
+        long fieldVal = fieldValVector.getLong(p);
+        result.appendLong(p, Abs.process(fieldVal));
       }
       return result.build();
     }

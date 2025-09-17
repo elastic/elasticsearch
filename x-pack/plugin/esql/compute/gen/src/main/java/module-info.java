@@ -15,6 +15,7 @@ module org.elasticsearch.compute.gen {
     requires java.compiler;
 
     exports org.elasticsearch.compute.gen;
+    exports org.elasticsearch.compute.gen.argument;
 
     provides javax.annotation.processing.Processor with AggregatorProcessor, ConsumeProcessor, EvaluatorProcessor;
 }

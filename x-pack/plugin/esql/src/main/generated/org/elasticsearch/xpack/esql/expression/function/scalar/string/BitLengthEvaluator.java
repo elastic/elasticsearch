@@ -76,8 +76,9 @@ public final class BitLengthEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
         try {
-          result.appendInt(BitLength.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch)));
+          result.appendInt(BitLength.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -91,8 +92,9 @@ public final class BitLengthEvaluator implements EvalOperator.ExpressionEvaluato
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef val = valVector.getBytesRef(p, valScratch);
         try {
-          result.appendInt(BitLength.process(valVector.getBytesRef(p, valScratch)));
+          result.appendInt(BitLength.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -90,8 +90,9 @@ public final class DecayDatetimeEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
+        long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Decay.processDatetime(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+          result.appendDouble(Decay.processDatetime(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
         } catch (InvalidArgumentException | IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -104,8 +105,9 @@ public final class DecayDatetimeEvaluator implements EvalOperator.ExpressionEval
   public DoubleBlock eval(int positionCount, LongVector valueVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long value = valueVector.getLong(p);
         try {
-          result.appendDouble(Decay.processDatetime(valueVector.getLong(p), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+          result.appendDouble(Decay.processDatetime(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
         } catch (InvalidArgumentException | IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

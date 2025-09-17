@@ -87,8 +87,9 @@ public final class MvPercentileLongEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
+        double percentile = percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p));
         try {
-          MvPercentile.process(result, p, valuesBlock, percentileBlock.getDouble(percentileBlock.getFirstValueIndex(p)), this.scratch);
+          MvPercentile.process(result, p, valuesBlock, percentile, this.scratch);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

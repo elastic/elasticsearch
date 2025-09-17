@@ -93,7 +93,9 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendLong(Round.process(valBlock.getLong(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        long decimals = decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p));
+        result.appendLong(Round.process(val, decimals));
       }
       return result.build();
     }
@@ -102,7 +104,9 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   public LongVector eval(int positionCount, LongVector valVector, LongVector decimalsVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Round.process(valVector.getLong(p), decimalsVector.getLong(p)));
+        long val = valVector.getLong(p);
+        long decimals = decimalsVector.getLong(p);
+        result.appendLong(p, Round.process(val, decimals));
       }
       return result.build();
     }

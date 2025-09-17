@@ -79,7 +79,8 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(FromBase64.process(fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch), this.oScratch));
+        BytesRef field = fieldBlock.getBytesRef(fieldBlock.getFirstValueIndex(p), fieldScratch);
+        result.appendBytesRef(FromBase64.process(field, this.oScratch));
       }
       return result.build();
     }
@@ -89,7 +90,8 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef fieldScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(FromBase64.process(fieldVector.getBytesRef(p, fieldScratch), this.oScratch));
+        BytesRef field = fieldVector.getBytesRef(p, fieldScratch);
+        result.appendBytesRef(FromBase64.process(field, this.oScratch));
       }
       return result.build();
     }

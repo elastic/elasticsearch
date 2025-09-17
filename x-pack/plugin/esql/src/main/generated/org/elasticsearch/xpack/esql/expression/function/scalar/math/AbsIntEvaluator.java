@@ -72,7 +72,8 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendInt(Abs.process(fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p))));
+        int fieldVal = fieldValBlock.getInt(fieldValBlock.getFirstValueIndex(p));
+        result.appendInt(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   public IntVector eval(int positionCount, IntVector fieldValVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Abs.process(fieldValVector.getInt(p)));
+        int fieldVal = fieldValVector.getInt(p);
+        result.appendInt(p, Abs.process(fieldVal));
       }
       return result.build();
     }

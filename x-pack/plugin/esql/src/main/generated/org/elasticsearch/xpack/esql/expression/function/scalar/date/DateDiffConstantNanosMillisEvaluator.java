@@ -100,8 +100,10 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
           result.appendNull();
           continue position;
         }
+        long startTimestampNanos = startTimestampNanosBlock.getLong(startTimestampNanosBlock.getFirstValueIndex(p));
+        long endTimestampMillis = endTimestampMillisBlock.getLong(endTimestampMillisBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanosBlock.getLong(startTimestampNanosBlock.getFirstValueIndex(p)), endTimestampMillisBlock.getLong(endTimestampMillisBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanos, endTimestampMillis));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -115,8 +117,10 @@ public final class DateDiffConstantNanosMillisEvaluator implements EvalOperator.
       LongVector endTimestampMillisVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long startTimestampNanos = startTimestampNanosVector.getLong(p);
+        long endTimestampMillis = endTimestampMillisVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanosVector.getLong(p), endTimestampMillisVector.getLong(p)));
+          result.appendInt(DateDiff.processNanosMillis(this.datePartFieldUnit, startTimestampNanos, endTimestampMillis));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

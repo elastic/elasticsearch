@@ -97,7 +97,9 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(Substring.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        result.appendBytesRef(Substring.process(str, start));
       }
       return result.build();
     }
@@ -107,7 +109,9 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(Substring.process(strVector.getBytesRef(p, strScratch), startVector.getInt(p)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        int start = startVector.getInt(p);
+        result.appendBytesRef(Substring.process(str, start));
       }
       return result.build();
     }

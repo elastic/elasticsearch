@@ -11,7 +11,6 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.util.FeatureFlag;
 
 /**
  * A per shard stats including the number of segments and total fields across those segments.

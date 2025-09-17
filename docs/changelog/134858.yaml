@@ -1,0 +1,5 @@
+pr: 134858
+summary: Multi Match Query with `semantic_text` field
+area: Relevance
+type: enhancement
+issues: []

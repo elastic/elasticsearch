@@ -1505,7 +1505,7 @@ public class EsqlCapabilities {
         ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
         /** INLINESTATS supports remote indices */
-        INLINESTATS_SUPPORTS_REMOTE;
+        INLINESTATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled);
 
         private final boolean enabled;
 

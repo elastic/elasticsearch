@@ -301,7 +301,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             return doRewriteBuildSemanticQuery(searchExecutionContext);
         }
 
-        return doRewriteGetInferenceResults(queryRewriteContext);
+        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
+        if (resolvedIndices != null) {
+            return doRewriteGetInferenceResults(queryRewriteContext);
+        }
+
+        return this;
     }
 
     private QueryBuilder doRewriteBuildSemanticQuery(SearchExecutionContext searchExecutionContext) {
@@ -345,27 +350,37 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (inferenceResultsMap != null) {
-            inferenceResultsErrorCheck();
-            return this;
-        }
-
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        if (resolvedIndices == null) {
-            throw new IllegalStateException(
-                "Rewriting on the coordinator node requires a query rewrite context with non-null resolved indices"
-            );
-        } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+        if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
             throw new IllegalArgumentException(NAME + " query does not support cross-cluster search");
         }
 
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
-        Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-        for (String inferenceId : inferenceIds) {
-            registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
+        boolean modifiedInferenceResultsMap = false;
+        Map<Tuple<String, String>, InferenceResults> currentInferenceResultsMap = this.inferenceResultsMap != null
+            ? this.inferenceResultsMap
+            : Map.of();
+        if (queryRewriteContext.hasAsyncActions() == false) {
+            Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
+            for (String inferenceId : inferenceIds) {
+                Tuple<String, String> fullyQualifiedInferenceId = Tuple.tuple(queryRewriteContext.getLocalClusterAlias(), inferenceId);
+                if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                    if (modifiedInferenceResultsMap == false) {
+                        // Copy the inference results map to ensure it is mutable
+                        currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
+                        modifiedInferenceResultsMap = true;
+                    }
+
+                    registerInferenceAsyncAction(queryRewriteContext, currentInferenceResultsMap, query, inferenceId);
+                }
+            }
+
+            if (modifiedInferenceResultsMap == false) {
+                // The inference results map is now fully populated, so we can perform error checking
+                inferenceResultsErrorCheck(currentInferenceResultsMap);
+            }
         }
 
-        return new SemanticQueryBuilder(this, inferenceResultsMap);
+        return modifiedInferenceResultsMap ? new SemanticQueryBuilder(this, currentInferenceResultsMap) : this;
     }
 
     private static InferenceResults validateAndConvertInferenceResults(
@@ -410,7 +425,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResults;
     }
 
-    private void inferenceResultsErrorCheck() {
+    private void inferenceResultsErrorCheck(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
             String inferenceId = entry.getKey().v2();
             InferenceResults inferenceResults = entry.getValue();

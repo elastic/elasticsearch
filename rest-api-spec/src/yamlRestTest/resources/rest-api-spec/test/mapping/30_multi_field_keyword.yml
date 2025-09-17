@@ -1,5 +1,8 @@
 ---
 Keyword with escaped characters as multi-field:
+  - requires:
+      cluster_features: [ "mapper.multi_field.unicode_optimisation_fix" ]
+      reason: "requires a fix (#134770)"
   - do:
       indices.create:
         index: test

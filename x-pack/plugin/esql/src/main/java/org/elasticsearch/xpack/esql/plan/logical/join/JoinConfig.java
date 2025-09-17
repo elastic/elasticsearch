@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.join;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,12 +29,16 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
     implements
         Writeable {
 
+    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName(
+        "esql_lookup_join_on_expression"
+    );
+
     public JoinConfig(StreamInput in) throws IOException {
         this(JoinTypes.readFrom(in), readLeftFields(in), in.readNamedWriteableCollectionAsList(Attribute.class), readJoinConditions(in));
     }
 
     private static List<Attribute> readLeftFields(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+        if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
             // For BWC, the left fields were written twice (once as match fields)
             // We read the first set and ignore them.
             in.readNamedWriteableCollectionAsList(Attribute.class);
@@ -43,7 +47,7 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
     }
 
     private static Expression readJoinConditions(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+        if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
             return in.readOptionalNamedWriteable(Expression.class);
         }
         return null;
@@ -52,12 +56,12 @@ public record JoinConfig(JoinType type, List<Attribute> leftFields, List<Attribu
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         type.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION) == false) {
             out.writeNamedWriteableCollection(leftFields);
         }
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
             out.writeOptionalNamedWriteable(joinOnConditions);
         } else if (joinOnConditions != null) {
             throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");

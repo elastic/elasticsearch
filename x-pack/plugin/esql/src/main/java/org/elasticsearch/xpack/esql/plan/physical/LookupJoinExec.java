@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +29,9 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         PhysicalPlan.class,
         "LookupJoinExec",
         LookupJoinExec::new
+    );
+    private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName(
+        "esql_lookup_join_on_expression"
     );
 
     private final List<Attribute> leftFields;
@@ -63,7 +66,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         this.leftFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.rightFields = in.readNamedWriteableCollectionAsList(Attribute.class);
         this.addedFields = in.readNamedWriteableCollectionAsList(Attribute.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+        if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
             this.joinOnConditions = in.readOptionalNamedWriteable(Expression.class);
         } else {
             this.joinOnConditions = null;
@@ -76,7 +79,7 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
         out.writeNamedWriteableCollection(leftFields);
         out.writeNamedWriteableCollection(rightFields);
         out.writeNamedWriteableCollection(addedFields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+        if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
             out.writeOptionalNamedWriteable(joinOnConditions);
         } else if (joinOnConditions != null) {
             throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");

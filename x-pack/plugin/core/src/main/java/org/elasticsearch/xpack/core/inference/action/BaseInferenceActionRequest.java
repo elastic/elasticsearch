@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,6 +24,8 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
+    static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName("inference_request_adaptive_rate_limiting_removed");
+
     private final InferenceContext context;
 
     public BaseInferenceActionRequest(InferenceContext context) {
@@ -33,7 +36,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)
-            && in.getTransportVersion().before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED)) {
+            && in.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
             in.readBoolean();
         }
 
@@ -59,7 +62,7 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)
-            && out.getTransportVersion().before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED)) {
+            && out.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
             out.writeBoolean(true);
         }
 

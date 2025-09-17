@@ -1376,14 +1376,61 @@ public final class Authentication implements ToXContentObject {
         return authentication;
     }
 
-    public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
-        assert authResult.isAuthenticated() : "cloud API Key authn result must be successful";
-        final User apiKeyUser = authResult.getValue();
-        final Authentication.RealmRef authenticatedBy = newCloudApiKeyRealmRef(nodeName);
+    private static final Map<Subject.Type, Set<AuthenticationType>> VALID_CLOUD_AUTH_TYPES = Map.ofEntries(
+        Map.entry(Subject.Type.CLOUD_API_KEY, Set.of(AuthenticationType.API_KEY, AuthenticationType.TOKEN)),
+        Map.entry(Subject.Type.USER, Set.of(AuthenticationType.TOKEN))
+    );
+
+    public static Authentication newCloudAuthentication(
+        AuthenticationType authenticationType,
+        Subject.Type subjectType,
+        AuthenticationResult<User> authenticationResult,
+        String nodeName,
+        @Nullable RealmIdentifier realmId
+    ) {
+        assert authenticationResult.isAuthenticated() : "cloud authentication results must be successful";
+
+        if (VALID_CLOUD_AUTH_TYPES.getOrDefault(subjectType, Set.of()).contains(authenticationType) == false) {
+            throw new IllegalArgumentException(
+                "Cannot create cloud [" + subjectType + "] authentication with authentication type [" + authenticationType + "]"
+            );
+        }
+
+        final User user = authenticationResult.getValue();
+        final RealmRef realmRef;
+        if (subjectType == Subject.Type.CLOUD_API_KEY) {
+            assert realmId == null : "Cannot have realm id [" + realmId + "] for cloud API Key subject [" + user + "]";
+            realmRef = newCloudApiKeyRealmRef(nodeName);
+        } else if (subjectType == Subject.Type.USER) {
+            assert realmId != null : "Must have realm id for cloud user subject [" + user + "]";
+            realmRef = new RealmRef(realmId.getName(), realmId.getType(), nodeName);
+        } else {
+            throw new IllegalArgumentException("Unsupported subject type [" + subjectType + "] for cloud authentication");
+        }
+
         return new Authentication(
-            new Subject(apiKeyUser, authenticatedBy, TransportVersion.current(), authResult.getMetadata()),
-            AuthenticationType.API_KEY
+            new Subject(user, realmRef, TransportVersion.current(), authenticationResult.getMetadata()),
+            authenticationType
         );
+    }
+
+    @Deprecated
+    public static Authentication newCloudAccessTokenAuthentication(
+        AuthenticationResult<User> authResult,
+        Authentication.RealmRef realmRef
+    ) {
+        return newCloudAuthentication(
+            AuthenticationType.TOKEN,
+            Subject.Type.USER,
+            authResult,
+            realmRef.nodeName,
+            new RealmIdentifier(realmRef.type, realmRef.name)
+        );
+    }
+
+    @Deprecated
+    public static Authentication newCloudApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
+        return newCloudAuthentication(AuthenticationType.API_KEY, Subject.Type.CLOUD_API_KEY, authResult, nodeName, null);
     }
 
     public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {

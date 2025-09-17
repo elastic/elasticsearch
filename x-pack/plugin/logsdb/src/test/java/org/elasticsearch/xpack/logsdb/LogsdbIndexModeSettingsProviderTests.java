@@ -30,6 +30,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -958,6 +959,23 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
     }
 
+    public void testPatternedTextNotAllowedByLicense() throws Exception {
+        assumeTrue("patterned_text feature must be enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
+
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.PATTERNED_TEXT_TEMPLATING_FEATURE))).thenReturn(false);
+        logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
+        logsdbLicenseService.setLicenseState(licenseState);
+
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertTrue(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.get(result));
+    }
+
     public void testSortAndHostNamePropagateValue() throws Exception {
         var settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
@@ -1218,6 +1236,43 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         Settings result = generateLogsdbSettings(settings, mappings);
         assertFalse(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
         assertFalse(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
+        assertEquals(1, newMapperServiceCounter.get());
+    }
+
+    public void testSortAndHostNameAlias() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+            .build();
+        var mappings = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "resource": {
+                    "properties": {
+                      "attributes": {
+                        "properties": {
+                          "host.arch": {
+                            "type": "keyword"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "host.architecture": {
+                    "type": "alias",
+                    "path": "resource.attributes.host.arch"
+                  }
+                }
+              }
+            }
+            """;
+        Settings result = generateLogsdbSettings(settings, mappings);
+        assertTrue(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(result));
+        assertTrue(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.get(result));
         assertEquals(1, newMapperServiceCounter.get());
     }
 

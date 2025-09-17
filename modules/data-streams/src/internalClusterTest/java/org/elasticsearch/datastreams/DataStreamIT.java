@@ -87,6 +87,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -1393,7 +1394,7 @@ public class DataStreamIT extends ESIntegTestCase {
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
         DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
-            .dataRetention(randomPositiveTimeValue())
+            .dataRetention(randomTimeValueGreaterThan(TimeValue.timeValueSeconds(10)))
             .buildTemplate();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle, false);
         int numDocsFoo = randomIntBetween(2, 16);
@@ -2429,24 +2430,20 @@ public class DataStreamIT extends ESIntegTestCase {
         {
             ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
                     {
-                      "_doc":{
-                        "dynamic":"strict",
-                        "properties":{
-                          "field1":{
-                            "type":"text"
-                          }
+                      "dynamic":"strict",
+                      "properties":{
+                        "field1":{
+                          "type":"text"
                         }
                       }
                     }
                 """), null), 3L, null);
             ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
                     {
-                      "_doc":{
-                        "dynamic":"strict",
-                        "properties":{
-                          "field2":{
-                            "type":"text"
-                          }
+                      "dynamic":"strict",
+                      "properties":{
+                        "field2":{
+                          "type":"text"
                         }
                       }
                     }
@@ -2464,12 +2461,10 @@ public class DataStreamIT extends ESIntegTestCase {
                     .indexPatterns(List.of("effective-*"))
                     .template(Template.builder().mappings(CompressedXContent.fromJSON("""
                         {
-                          "_doc":{
-                            "dynamic":"strict",
-                            "properties":{
-                              "field3":{
-                                "type":"text"
-                              }
+                          "dynamic":"strict",
+                          "properties":{
+                            "field3":{
+                              "type":"text"
                             }
                           }
                         }
@@ -2530,25 +2525,22 @@ public class DataStreamIT extends ESIntegTestCase {
         Map<String, Object> effectiveMappingMap = XContentHelper.convertToMap(effectiveMappings.uncompressed(), true, XContentType.JSON)
             .v2();
         Map<String, Object> expectedEffectiveMappingMap = Map.of(
-            "_doc",
+            "dynamic",
+            "strict",
+            "_data_stream_timestamp",
+            Map.of("enabled", true),
+            "properties",
             Map.of(
-                "dynamic",
-                "strict",
-                "_data_stream_timestamp",
-                Map.of("enabled", true),
-                "properties",
-                Map.of(
-                    "@timestamp",
-                    Map.of("type", "date"),
-                    "field1",
-                    Map.of("type", "keyword"),
-                    "field2",
-                    Map.of("type", "text"),
-                    "field3",
-                    Map.of("type", "text"),
-                    "field4",
-                    Map.of("type", "keyword")
-                )
+                "@timestamp",
+                Map.of("type", "date"),
+                "field1",
+                Map.of("type", "keyword"),
+                "field2",
+                Map.of("type", "text"),
+                "field3",
+                Map.of("type", "text"),
+                "field4",
+                Map.of("type", "keyword")
             )
         );
         assertThat(effectiveMappingMap, equalTo(expectedEffectiveMappingMap));

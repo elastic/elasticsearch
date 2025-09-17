@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*")
+                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -539,7 +539,8 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(
                         "logs-m365_defender.vulnerability-*",
                         "logs-microsoft_defender_endpoint.vulnerability-*",
-                        "logs-microsoft_defender_cloud.assessment-*"
+                        "logs-microsoft_defender_cloud.assessment-*",
+                        "logs-sentinel_one.application_risk-*"
                     )
                     .privileges(
                         "read",
@@ -548,10 +549,11 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportDeleteIndexAction.TYPE.name()
                     )
                     .build(),
-                // For ExtraHop and QualysGAV specific actions. Kibana reads, writes and manages this index
+                // For ExtraHop, QualysGAV, and SentinelOne Application Dataset specific actions. Kibana reads, writes and manages this
+                // index
                 // for configured ILM policies.
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*")
+                    .indices("logs-extrahop.investigation-*", "logs-qualys_gav.asset-*", "logs-sentinel_one.application-*")
                     .privileges(
                         "manage",
                         "create_index",
@@ -593,7 +595,15 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.*").privileges("read", "write").build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*history*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".entities.*reset*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

@@ -532,7 +532,6 @@ public final class ServiceUtils {
     public static Map<String, Object> extractOptionalMap(
         Map<String, Object> map,
         String settingName,
-        String scope,
         ValidationException validationException
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
@@ -543,6 +542,14 @@ public final class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    public static Map<String, Object> extractOptionalMapRemoveNulls(
+        Map<String, Object> map,
+        String settingName,
+        ValidationException validationException
+    ) {
+        return removeNullValues(extractOptionalMap(map, settingName, validationException));
     }
 
     public static List<Tuple<String, String>> extractOptionalListOfStringTuples(
@@ -624,6 +631,20 @@ public final class ServiceUtils {
             );
             throw validationException;
         }
+    }
+
+    public static Map<String, String> validateMapStringValues(
+        Map<String, ?> map,
+        String settingName,
+        ValidationException validationException,
+        boolean censorValue,
+        @Nullable Map<String, String> defaultValue
+    ) {
+        if (map == null) {
+            return defaultValue;
+        }
+
+        return validateMapStringValues(map, settingName, validationException, censorValue);
     }
 
     /**
@@ -800,6 +821,25 @@ public final class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
+        return extractOptionalInteger(map, settingName, scope, validationException, true);
+    }
+
+    public static Integer extractOptionalInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        return extractOptionalInteger(map, settingName, scope, validationException, false);
+    }
+
+    private static Integer extractOptionalInteger(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException,
+        boolean mustBePositive
+    ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
         Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
 
@@ -807,7 +847,7 @@ public final class ServiceUtils {
             return null;
         }
 
-        if (optionalField != null && optionalField <= 0) {
+        if (optionalField != null && mustBePositive && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
             return null;
         }

@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.logsdb.patternedtext.PatternedTextFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -51,7 +52,12 @@ import static org.elasticsearch.xpack.logsdb.LogsDBPlugin.CLUSTER_LOGSDB_ENABLED
 final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private static final Logger LOGGER = LogManager.getLogger(LogsdbIndexModeSettingsProvider.class);
     static final String LOGS_PATTERN = "logs-*-*";
-    private static final Set<String> MAPPING_INCLUDES = Set.of("_doc._source.*", "_doc.properties.host**", "_doc.subobjects");
+    private static final Set<String> MAPPING_INCLUDES = Set.of(
+        "_doc._source.*",
+        "_doc.properties.host**",
+        "_doc.properties.resource**",
+        "_doc.subobjects"
+    );
 
     private final LogsdbLicenseService licenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
@@ -186,6 +192,11 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                     additionalSettings.put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
                 }
             }
+        }
+
+        if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()
+            && licenseService.allowPatternedTextTemplating(isTemplateValidation) == false) {
+            additionalSettings.put(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
         }
     }
 

@@ -1285,7 +1285,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for cross-cluster lookup joins.
          */
-        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
 
         /**
          * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
@@ -1467,7 +1467,45 @@ public class EsqlCapabilities {
         /**
          * Support for the Present function
          */
-        FN_PRESENT;
+        FN_PRESENT,
+
+        /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support present_over_time aggregation that gets evaluated per time-series
+         */
+        PRESENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Multivalued query parameters
+         */
+        QUERY_PARAMS_MULTI_VALUES(),
+
+        FIX_PERCENTILE_PRECISION(),
+
+        /**
+         * Support for the Absent function
+         */
+        FN_ABSENT,
+
+        /**
+         * Support absent_over_time aggregation that gets evaluated per time-series
+         */
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /** INLINESTATS supports remote indices */
+        INLINESTATS_SUPPORTS_REMOTE;
 
         private final boolean enabled;
 

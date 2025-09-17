@@ -1,7 +1,7 @@
 setup:
   - requires:
       cluster_features: [ "mapper.patterned_text" ]
-      reason: "patterned_text mappings are used in this test"
+      reason: "pattern_text mappings are used in this test"
 
   - do:
       indices.create:
@@ -10,8 +10,8 @@ setup:
           mappings:
             properties:
               foo:
-                type: patterned_text
-                # defaults to index_options: docs
+                type: pattern_text
+                index_options: positions
   - do:
       index:
         index: test
@@ -181,15 +181,14 @@ Fuzzy query:
 
 ---
 Span query:
-# With index_options=docs span queries are not supported
   - do:
-      catch: bad_request
       search:
         index: test
         body:
           query:
             span_term:
               foo: errors
+  - match: { "hits.total.value": 3 }
 
 ---
 Term intervals query:
@@ -290,7 +289,7 @@ tsdb:
                 type: keyword
                 time_series_dimension: true
               foo:
-                type: patterned_text
+                type: pattern_text
 
   - do:
       index:
@@ -320,7 +319,7 @@ Multiple values:
           mappings:
             properties:
               foo:
-                type: patterned_text
+                type: pattern_text
   - do:
       catch: bad_request
       index:

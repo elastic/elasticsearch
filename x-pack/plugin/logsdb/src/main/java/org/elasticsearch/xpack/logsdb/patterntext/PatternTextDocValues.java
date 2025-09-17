@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -16,23 +16,23 @@ import org.apache.lucene.util.BytesRef;
 import java.io.IOException;
 import java.util.List;
 
-public final class PatternedTextDocValues extends BinaryDocValues {
+public final class PatternTextDocValues extends BinaryDocValues {
     private final SortedSetDocValues templateDocValues;
     private final SortedSetDocValues argsDocValues;
     private final SortedSetDocValues argsInfoDocValues;
 
-    PatternedTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
+    PatternTextDocValues(SortedSetDocValues templateDocValues, SortedSetDocValues argsDocValues, SortedSetDocValues argsInfoDocValues) {
         this.templateDocValues = templateDocValues;
         this.argsDocValues = argsDocValues;
         this.argsInfoDocValues = argsInfoDocValues;
     }
 
-    static PatternedTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
+    static PatternTextDocValues from(LeafReader leafReader, String templateFieldName, String argsFieldName, String argsInfoFieldName)
         throws IOException {
         SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, templateFieldName);
         SortedSetDocValues argsDocValues = DocValues.getSortedSet(leafReader, argsFieldName);
         SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, argsInfoFieldName);
-        return new PatternedTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
+        return new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
     }
 
     private String getNextStringValue() throws IOException {
@@ -46,7 +46,7 @@ public final class PatternedTextDocValues extends BinaryDocValues {
             var mergedArgs = argsDocValues.lookupOrd(argsDocValues.nextOrd());
             var args = Arg.decodeRemainingArgs(mergedArgs.utf8ToString());
             assert args.length == argsInfo.size();
-            return PatternedTextValueProcessor.merge(template, args, argsInfo);
+            return PatternTextValueProcessor.merge(template, args, argsInfo);
         } else {
             return template;
         }

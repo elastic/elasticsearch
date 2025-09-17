@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.DocWriteRequest;
@@ -39,7 +39,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
-public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
+public class PatternTextNestedObjectTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
@@ -62,7 +62,7 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
+        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
     }
 
     @After
@@ -77,8 +77,8 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
                     "obj": {
                       "type": "object",
                       "properties": {
-                        "field_patterned_text": {
-                          "type": "patterned_text"
+                        "field_pattern_text": {
+                          "type": "pattern_text"
                         }
                       }
                     }
@@ -92,20 +92,20 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
         String message = randomBoolean() ? SHORT_MESSAGE : LONG_MESSAGE;
         indexDoc("""
             {
-                "obj.field_patterned_text": "%"
+                "obj.field_pattern_text": "%"
             }
             """.replace("%", message));
 
         var actualMappings = getMapping();
-        assertEquals("patterned_text", ObjectPath.eval("properties.obj.properties.field_patterned_text.type", actualMappings));
+        assertEquals("pattern_text", ObjectPath.eval("properties.obj.properties.field_pattern_text.type", actualMappings));
 
         var query = randomBoolean()
-            ? QueryBuilders.matchQuery("obj.field_patterned_text", SHORT_MESSAGE)
-            : QueryBuilders.matchPhraseQuery("obj.field_patterned_text", SHORT_MESSAGE);
+            ? QueryBuilders.matchQuery("obj.field_pattern_text", SHORT_MESSAGE)
+            : QueryBuilders.matchPhraseQuery("obj.field_pattern_text", SHORT_MESSAGE);
         var searchRequest = client().prepareSearch(INDEX).setQuery(query).setSize(1);
 
         assertNoFailuresAndResponse(searchRequest, searchResponse -> {
-            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.field_patterned_text"));
+            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.field_pattern_text"));
         });
     }
 
@@ -119,8 +119,8 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
                         "inner": {
                             "type": "object",
                             "properties": {
-                                "field_patterned_text": {
-                                  "type": "patterned_text"
+                                "field_pattern_text": {
+                                  "type": "pattern_text"
                                 }
                             }
                         }
@@ -136,23 +136,20 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
         String message = randomBoolean() ? SHORT_MESSAGE : LONG_MESSAGE;
         indexDoc("""
             {
-                "obj.inner.field_patterned_text": "%"
+                "obj.inner.field_pattern_text": "%"
             }
             """.replace("%", message));
 
         var actualMappings = getMapping();
-        assertEquals(
-            "patterned_text",
-            ObjectPath.eval("properties.obj.properties.inner.properties.field_patterned_text.type", actualMappings)
-        );
+        assertEquals("pattern_text", ObjectPath.eval("properties.obj.properties.inner.properties.field_pattern_text.type", actualMappings));
 
         var query = randomBoolean()
-            ? QueryBuilders.matchQuery("obj.inner.field_patterned_text", SHORT_MESSAGE)
-            : QueryBuilders.matchPhraseQuery("obj.inner.field_patterned_text", SHORT_MESSAGE);
+            ? QueryBuilders.matchQuery("obj.inner.field_pattern_text", SHORT_MESSAGE)
+            : QueryBuilders.matchPhraseQuery("obj.inner.field_pattern_text", SHORT_MESSAGE);
         var searchRequest = client().prepareSearch(INDEX).setQuery(query).setSize(1);
 
         assertNoFailuresAndResponse(searchRequest, searchResponse -> {
-            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.inner.field_patterned_text"));
+            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.inner.field_pattern_text"));
         });
     }
 
@@ -164,8 +161,8 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
                     "obj": {
                       "type": "nested",
                       "properties": {
-                        "field_patterned_text": {
-                          "type": "patterned_text"
+                        "field_pattern_text": {
+                          "type": "pattern_text"
                         }
                       }
                     }
@@ -179,21 +176,21 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
         String message = randomBoolean() ? SHORT_MESSAGE : LONG_MESSAGE;
         indexDoc("""
             {
-                "obj.field_patterned_text": "%"
+                "obj.field_pattern_text": "%"
             }
             """.replace("%", message));
 
         var actualMappings = getMapping();
-        assertEquals("patterned_text", ObjectPath.eval("properties.obj.properties.field_patterned_text.type", actualMappings));
+        assertEquals("pattern_text", ObjectPath.eval("properties.obj.properties.field_pattern_text.type", actualMappings));
 
         var innerQuery = randomBoolean()
-            ? QueryBuilders.matchQuery("obj.field_patterned_text", SHORT_MESSAGE)
-            : QueryBuilders.matchPhraseQuery("obj.field_patterned_text", SHORT_MESSAGE);
+            ? QueryBuilders.matchQuery("obj.field_pattern_text", SHORT_MESSAGE)
+            : QueryBuilders.matchPhraseQuery("obj.field_pattern_text", SHORT_MESSAGE);
         var query = QueryBuilders.nestedQuery("obj", innerQuery, ScoreMode.Avg);
         var searchRequest = client().prepareSearch(INDEX).setQuery(query).setSize(1);
 
         assertNoFailuresAndResponse(searchRequest, searchResponse -> {
-            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.field_patterned_text"));
+            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.field_pattern_text"));
         });
     }
 
@@ -205,8 +202,8 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
                       "type": "passthrough",
                       "priority": 1,
                       "properties": {
-                        "field_patterned_text": {
-                          "type": "patterned_text"
+                        "field_pattern_text": {
+                          "type": "pattern_text"
                         }
                       }
                     }
@@ -220,20 +217,20 @@ public class PatternedTextNestedObjectTests extends ESSingleNodeTestCase {
         String message = randomBoolean() ? SHORT_MESSAGE : LONG_MESSAGE;
         indexDoc("""
             {
-                "obj.field_patterned_text": "%"
+                "obj.field_pattern_text": "%"
             }
             """.replace("%", message));
 
         var actualMappings = getMapping();
-        assertEquals("patterned_text", ObjectPath.eval("properties.obj.properties.field_patterned_text.type", actualMappings));
+        assertEquals("pattern_text", ObjectPath.eval("properties.obj.properties.field_pattern_text.type", actualMappings));
 
         var query = randomBoolean()
-            ? QueryBuilders.matchQuery("field_patterned_text", SHORT_MESSAGE)
-            : QueryBuilders.matchPhraseQuery("field_patterned_text", SHORT_MESSAGE);
+            ? QueryBuilders.matchQuery("field_pattern_text", SHORT_MESSAGE)
+            : QueryBuilders.matchPhraseQuery("field_pattern_text", SHORT_MESSAGE);
         var searchRequest = client().prepareSearch(INDEX).setQuery(query).setSize(1);
 
         assertNoFailuresAndResponse(searchRequest, searchResponse -> {
-            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.field_patterned_text"));
+            assertEquals(Set.of(message), getFieldValuesFromSource(searchResponse, "obj.field_pattern_text"));
         });
     }
 

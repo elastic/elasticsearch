@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -29,24 +29,24 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData> {
+public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> {
 
-    private final PatternedTextFieldType fieldType;
+    private final PatternTextFieldType fieldType;
 
     static class Builder implements IndexFieldData.Builder {
 
-        final PatternedTextFieldType fieldType;
+        final PatternTextFieldType fieldType;
 
-        Builder(PatternedTextFieldType fieldType) {
+        Builder(PatternTextFieldType fieldType) {
             this.fieldType = fieldType;
         }
 
-        public PatternedTextIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new PatternedTextIndexFieldData(fieldType);
+        public PatternTextIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new PatternTextIndexFieldData(fieldType);
         }
     }
 
-    PatternedTextIndexFieldData(PatternedTextFieldType fieldType) {
+    PatternTextIndexFieldData(PatternTextFieldType fieldType) {
         this.fieldType = fieldType;
     }
 
@@ -72,7 +72,7 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
     @Override
     public LeafFieldData loadDirect(LeafReaderContext context) throws IOException {
         LeafReader leafReader = context.reader();
-        PatternedTextCompositeValues values = PatternedTextCompositeValues.from(leafReader, fieldType);
+        PatternTextCompositeValues values = PatternTextCompositeValues.from(leafReader, fieldType);
         return new LeafFieldData() {
 
             final ToScriptFieldFactory<SortedBinaryDocValues> factory = KeywordDocValuesField::new;
@@ -111,7 +111,7 @@ public class PatternedTextIndexFieldData implements IndexFieldData<LeafFieldData
 
     @Override
     public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
-        throw new IllegalArgumentException("not supported for source patterned text field type");
+        throw new IllegalArgumentException("not supported for source pattern_text field type");
     }
 
     @Override

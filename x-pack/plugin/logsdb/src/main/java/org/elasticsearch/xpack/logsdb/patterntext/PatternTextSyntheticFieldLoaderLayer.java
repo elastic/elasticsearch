@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
@@ -15,13 +15,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
+class PatternTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
 
-    private PatternedTextSyntheticFieldLoader loader;
+    private PatternTextSyntheticFieldLoader loader;
     private final String name;
-    private final PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier;
+    private final PatternTextFieldMapper.DocValuesSupplier docValuesSupplier;
 
-    PatternedTextSyntheticFieldLoaderLayer(String name, PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier) {
+    PatternTextSyntheticFieldLoaderLayer(String name, PatternTextFieldMapper.DocValuesSupplier docValuesSupplier) {
         this.name = name;
         this.docValuesSupplier = docValuesSupplier;
     }
@@ -37,7 +37,7 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
         if (docValues == null) {
             return null;
         }
-        loader = new PatternedTextSyntheticFieldLoader(docValues);
+        loader = new PatternTextSyntheticFieldLoader(docValues);
         return loader;
     }
 
@@ -58,11 +58,11 @@ class PatternedTextSyntheticFieldLoaderLayer implements CompositeSyntheticFieldL
         return name;
     }
 
-    private static class PatternedTextSyntheticFieldLoader implements DocValuesLoader {
+    private static class PatternTextSyntheticFieldLoader implements DocValuesLoader {
         private final BinaryDocValues docValues;
         private boolean hasValue = false;
 
-        PatternedTextSyntheticFieldLoader(BinaryDocValues docValues) {
+        PatternTextSyntheticFieldLoader(BinaryDocValues docValues) {
             this.docValues = docValues;
         }
 

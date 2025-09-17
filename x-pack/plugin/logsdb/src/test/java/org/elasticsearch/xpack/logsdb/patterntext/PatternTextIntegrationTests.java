@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -56,8 +56,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 
-public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
-    private static final Logger logger = LogManager.getLogger(PatternedTextIntegrationTests.class);
+public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
+    private static final Logger logger = LogManager.getLogger(PatternTextIntegrationTests.class);
 
     @ParametersFactory(argumentFormatting = "indexOptions=%s, disableTemplating=%b")
     public static List<Object[]> args() {
@@ -74,7 +74,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     private final boolean disableTemplating;
     private final String mapping;
 
-    public PatternedTextIntegrationTests(String indexOptions, boolean disableTemplating) {
+    public PatternTextIntegrationTests(String indexOptions, boolean disableTemplating) {
         this.indexOptions = indexOptions;
         this.disableTemplating = disableTemplating;
         this.mapping = getMapping(indexOptions, disableTemplating);
@@ -92,14 +92,14 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     private static final String INDEX = "test_index";
     private static final String MATCH_ONLY_TEXT_FIELD = "field_match_only_text";
-    private static final String PATTERNED_TEXT_FIELD = "field_patterned_text";
+    private static final String PATTERN_TEXT_FIELD = "field_pattern_text";
     private static final String MAPPING_TEMPLATE = """
             {
               "properties": {
                 "@timestamp": { "type": "date" },
                 "field_match_only_text": { "type": "match_only_text" },
-                "field_patterned_text": {
-                  "type": "patterned_text",
+                "field_pattern_text": {
+                  "type": "pattern_text",
                   "index_options": "%index_options%",
                   "disable_templating": "%disable_templating%",
                   "analyzer": "standard"
@@ -112,12 +112,12 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
+        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
     }
 
     @After
     public void cleanup() {
-        if (PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled()) {
+        if (PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled()) {
             assertAcked(admin().indices().prepareDelete(INDEX));
         }
     }
@@ -155,7 +155,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
             try (var indexReader = searcher.getIndexReader()) {
                 var document = indexReader.storedFields().document(0);
-                assertEquals(document.getField("field_patterned_text.stored").binaryValue().utf8ToString(), message);
+                assertEquals(document.getField("field_pattern_text.stored").binaryValue().utf8ToString(), message);
             }
         }
     }
@@ -177,9 +177,9 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
             try (var indexReader = searcher.getIndexReader()) {
                 var document = indexReader.storedFields().document(0);
                 if (disableTemplating) {
-                    assertEquals(document.getField("field_patterned_text.stored").binaryValue().utf8ToString(), message);
+                    assertEquals(document.getField("field_pattern_text.stored").binaryValue().utf8ToString(), message);
                 } else {
-                    assertNull(document.getField("field_patterned_text.stored"));
+                    assertNull(document.getField("field_pattern_text.stored"));
                 }
             }
         }
@@ -219,32 +219,32 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
 
         var queryTerms = logMessages.stream().flatMap(m -> randomQueryValues(m).stream()).toList();
         {
-            var ptQueries = buildQueries(PATTERNED_TEXT_FIELD, queryTerms, QueryBuilders::matchPhraseQuery);
+            var ptQueries = buildQueries(PATTERN_TEXT_FIELD, queryTerms, QueryBuilders::matchPhraseQuery);
             var motQueries = buildQueries(MATCH_ONLY_TEXT_FIELD, queryTerms, QueryBuilders::matchPhraseQuery);
             assertQueryResults(ptQueries, motQueries, numDocs, "phrase");
         }
         {
-            var ptQueries = buildQueries(PATTERNED_TEXT_FIELD, queryTerms, QueryBuilders::matchQuery);
+            var ptQueries = buildQueries(PATTERN_TEXT_FIELD, queryTerms, QueryBuilders::matchQuery);
             var motQueries = buildQueries(MATCH_ONLY_TEXT_FIELD, queryTerms, QueryBuilders::matchQuery);
             assertQueryResults(ptQueries, motQueries, numDocs, "match");
         }
         {
-            var ptQueries = buildQueries(PATTERNED_TEXT_FIELD, queryTerms, QueryBuilders::termQuery);
+            var ptQueries = buildQueries(PATTERN_TEXT_FIELD, queryTerms, QueryBuilders::termQuery);
             var motQueries = buildQueries(MATCH_ONLY_TEXT_FIELD, queryTerms, QueryBuilders::termQuery);
             assertQueryResults(ptQueries, motQueries, numDocs, "term");
         }
     }
 
     private void assertQueryResults(
-        List<QueryBuilder> patternedTextQueries,
+        List<QueryBuilder> patternTextQueries,
         List<QueryBuilder> matchOnlyTextQueries,
         int numDocs,
         String queryType
     ) {
         var numQueriesWithResults = new AtomicInteger(0);
         var numQueriesTotal = new AtomicInteger(0);
-        for (int i = 0; i < patternedTextQueries.size(); ++i) {
-            var ptRequest = client().prepareSearch(INDEX).setQuery(patternedTextQueries.get(i)).setSize(numDocs);
+        for (int i = 0; i < patternTextQueries.size(); ++i) {
+            var ptRequest = client().prepareSearch(INDEX).setQuery(patternTextQueries.get(i)).setSize(numDocs);
             var motRequest = client().prepareSearch(INDEX).setQuery(matchOnlyTextQueries.get(i)).setSize(numDocs);
 
             numQueriesTotal.incrementAndGet();
@@ -278,7 +278,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                 // no value for message
                 () -> null,
                 // regular small message, stored in doc values
-                PatternedTextIntegrationTests::randomMessage,
+                PatternTextIntegrationTests::randomMessage,
                 // large value, needs to be put in stored field
                 () -> randomMessage(8 * 1024)
             );
@@ -335,7 +335,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                 xContentBuilder = JsonXContent.contentBuilder()
                     .startObject()
                     .field("@timestamp", timestamp)
-                    .field("field_patterned_text", msg)
+                    .field("field_pattern_text", msg)
                     .field("field_match_only_text", msg)
                     .endObject();
             }
@@ -386,7 +386,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                     () -> randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 20)),
                     () -> UUID.randomUUID().toString(),
                     () -> randomIp(randomBoolean()),
-                    PatternedTextIntegrationTests::randomTimestamp,
+                    PatternTextIntegrationTests::randomTimestamp,
                     ESTestCase::randomInt,
                     ESTestCase::randomDouble
                 );
@@ -441,8 +441,8 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
             .get(INDEX)
             .sourceAsMap();
         Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
-        var patternedText = (Map<String, Object>) properties.get("field_patterned_text");
-        assertEquals("patterned_text", patternedText.get("type"));
+        var patternText = (Map<String, Object>) properties.get("field_pattern_text");
+        assertEquals("pattern_text", patternText.get("type"));
 
         var matchOnlyText = (Map<String, Object>) properties.get("field_match_only_text");
         assertEquals("match_only_text", matchOnlyText.get("type"));
@@ -453,7 +453,7 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         assertNoFailuresAndResponse(request, response -> {
             assertEquals(logMessages.size(), response.getHits().getHits().length);
             var values = new HashSet<>(
-                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).map(m -> m.get(PATTERNED_TEXT_FIELD)).toList()
+                Arrays.stream(response.getHits().getHits()).map(SearchHit::getSourceAsMap).map(m -> m.get(PATTERN_TEXT_FIELD)).toList()
             );
 
             assertEquals(new HashSet<>(logMessages), values);

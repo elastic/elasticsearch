@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -22,8 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 public class PatternTextDocValuesTests extends ESTestCase {
 
@@ -82,11 +80,11 @@ public class PatternTextDocValuesTests extends ESTestCase {
         var template = new SimpleSortedSetDocValues(messages.stream().map(Message::template).toList().toArray(new String[0]));
         var args = new SimpleSortedSetDocValues(messages.stream().map(Message::arg).toList().toArray(new String[0]));
         var info = new SimpleSortedSetDocValues(messages.stream().map(m -> m.hasArg() ? info(0) : info()).toList().toArray(new String[0]));
-        return new PatternedTextDocValues(template, args, info);
+        return new PatternTextDocValues(template, args, info);
     }
 
     private static BinaryDocValues makeCompositeDocValues(List<Message> messages) throws IOException {
-        var patternedTextDocValues = makeDocValues(messages);
+        var patternTextDocValues = makeDocValues(messages);
         var templateId = new SimpleSortedSetDocValues(
             IntStream.range(0, messages.size())
                 .mapToObj(i -> messages.get(i).storage == Storage.EMPTY ? null : "id" + i)
@@ -96,7 +94,7 @@ public class PatternTextDocValuesTests extends ESTestCase {
         String storedFieldName = "message.stored";
         var storedValues = messages.stream().map(m -> m.storage == Storage.STORED_FIELD ? new BytesRef(m.message) : null).toList();
         var storedLoader = new SimpleStoredFieldLoader(storedValues, storedFieldName);
-        return new PatternedTextCompositeValues(storedLoader, storedFieldName, patternedTextDocValues, templateId);
+        return new PatternTextCompositeValues(storedLoader, storedFieldName, patternTextDocValues, templateId);
     }
 
     private static BinaryDocValues makeDocValuesDense() throws IOException {

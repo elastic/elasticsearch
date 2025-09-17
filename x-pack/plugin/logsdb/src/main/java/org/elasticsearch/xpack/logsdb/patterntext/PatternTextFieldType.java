@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -50,7 +50,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-public class PatternedTextFieldType extends StringFieldType {
+public class PatternTextFieldType extends StringFieldType {
 
     private static final String STORED_SUFFIX = ".stored";
     private static final String TEMPLATE_SUFFIX = ".template";
@@ -58,7 +58,7 @@ public class PatternedTextFieldType extends StringFieldType {
     private static final String ARGS_SUFFIX = ".args";
     private static final String ARGS_INFO_SUFFIX = ".args_info";
 
-    public static final String CONTENT_TYPE = "patterned_text";
+    public static final String CONTENT_TYPE = "pattern_text";
 
     private final Analyzer indexAnalyzer;
     private final TextFieldMapper.TextFieldType textFieldType;
@@ -66,7 +66,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     private final boolean disableTemplating;
 
-    PatternedTextFieldType(
+    PatternTextFieldType(
         String name,
         TextSearchInfo tsi,
         Analyzer indexAnalyzer,
@@ -74,7 +74,7 @@ public class PatternedTextFieldType extends StringFieldType {
         boolean disableTemplating,
         Map<String, String> meta
     ) {
-        // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
+        // Though this type is based on doc_values, hasDocValues is set to false as the pattern_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
         super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
@@ -84,11 +84,11 @@ public class PatternedTextFieldType extends StringFieldType {
     }
 
     // For testing only
-    PatternedTextFieldType(String name, boolean hasPositions, boolean syntheticSource) {
+    PatternTextFieldType(String name, boolean hasPositions, boolean syntheticSource) {
         this(
             name,
             new TextSearchInfo(
-                hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
+                hasPositions ? PatternTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
                 null,
                 DelimiterAnalyzer.INSTANCE,
                 DelimiterAnalyzer.INSTANCE
@@ -113,12 +113,12 @@ public class PatternedTextFieldType extends StringFieldType {
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         return new ValueFetcher() {
-            PatternedTextCompositeValues docValues;
+            PatternTextCompositeValues docValues;
 
             @Override
             public void setNextReader(LeafReaderContext context) {
                 try {
-                    this.docValues = PatternedTextCompositeValues.from(context.reader(), PatternedTextFieldType.this);
+                    this.docValues = PatternTextCompositeValues.from(context.reader(), PatternTextFieldType.this);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -306,7 +306,7 @@ public class PatternedTextFieldType extends StringFieldType {
             return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedNamed());
         }
 
-        return new PatternedTextBlockLoader((leafReader -> PatternedTextCompositeValues.from(leafReader, this)));
+        return new PatternTextBlockLoader((leafReader -> PatternTextCompositeValues.from(leafReader, this)));
     }
 
     @Override
@@ -314,7 +314,7 @@ public class PatternedTextFieldType extends StringFieldType {
         if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
-        return new PatternedTextIndexFieldData.Builder(this);
+        return new PatternTextIndexFieldData.Builder(this);
     }
 
     String templateFieldName() {

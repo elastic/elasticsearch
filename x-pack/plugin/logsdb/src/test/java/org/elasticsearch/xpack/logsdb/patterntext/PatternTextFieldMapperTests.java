@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DirectoryReader;
@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class PatternedTextFieldMapperTests extends MapperTestCase {
+public class PatternTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
@@ -93,32 +93,32 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
 
     @Before
     public void setup() {
-        assumeTrue("Only when patterned_text feature flag is enabled", PatternedTextFieldMapper.PATTERNED_TEXT_MAPPER.isEnabled());
+        assumeTrue("Only when pattern_text feature flag is enabled", PatternTextFieldMapper.PATTERN_TEXT_MAPPER.isEnabled());
     }
 
     public void testExistsStandardSource() throws IOException {
-        assertExistsQuery(createMapperService(fieldMapping(b -> b.field("type", "patterned_text"))));
+        assertExistsQuery(createMapperService(fieldMapping(b -> b.field("type", "pattern_text"))));
     }
 
     public void testExistsSyntheticSource() throws IOException {
-        assertExistsQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text"))));
+        assertExistsQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "pattern_text"))));
     }
 
     public void testPhraseQueryStandardSource() throws IOException {
-        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "patterned_text"))));
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "pattern_text"))));
     }
 
     public void testPhraseQuerySyntheticSource() throws IOException {
-        assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text"))));
+        assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "pattern_text"))));
     }
 
     public void testPhraseQueryStandardSourceDisableTemplating() throws IOException {
-        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true))));
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true))));
     }
 
     public void testPhraseQuerySyntheticSourceDisableTemplating() throws IOException {
         assertPhraseQuery(
-            createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true)))
+            createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true)))
         );
     }
 
@@ -149,7 +149,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", "patterned_text");
+        b.field("type", "pattern_text");
     }
 
     @Override
@@ -200,47 +200,47 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     public void testNullConfigValuesFail() throws MapperParsingException {
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "patterned_text").field("meta", (String) null)))
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "pattern_text").field("meta", (String) null)))
         );
-        assertThat(e.getMessage(), containsString("[meta] on mapper [field] of type [patterned_text] must not have a [null] value"));
+        assertThat(e.getMessage(), containsString("[meta] on mapper [field] of type [pattern_text] must not have a [null] value"));
     }
 
     public void testSimpleMerge() throws IOException {
-        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "patterned_text"));
+        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "pattern_text"));
         MapperService mapperService = createMapperService(startingMapping);
-        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(PatternedTextFieldMapper.class));
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(PatternTextFieldMapper.class));
 
         merge(mapperService, startingMapping);
-        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(PatternedTextFieldMapper.class));
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(PatternTextFieldMapper.class));
 
         XContentBuilder newField = mapping(b -> {
-            b.startObject("field").field("type", "patterned_text").startObject("meta").field("key", "value").endObject().endObject();
+            b.startObject("field").field("type", "pattern_text").startObject("meta").field("key", "value").endObject().endObject();
             b.startObject("other_field").field("type", "keyword").endObject();
         });
         merge(mapperService, newField);
-        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(PatternedTextFieldMapper.class));
+        assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(PatternTextFieldMapper.class));
         assertThat(mapperService.documentMapper().mappers().getMapper("other_field"), instanceOf(KeywordFieldMapper.class));
     }
 
     public void testDisableTemplatingParameter() throws IOException {
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text"));
             MapperService mapperService = createMapperService(mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertFalse(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true));
             MapperService mapperService = createMapperService(mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", false));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", false));
             MapperService mapperService = createMapperService(mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertFalse(mapper.fieldType().disableTemplating());
         }
     }
@@ -248,24 +248,24 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     public void testDisableTemplatingParameterWhenDisallowedByLicense() throws IOException {
         Settings indexSettings = Settings.builder()
             .put(getIndexSettings())
-            .put(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
             .build();
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text"));
             MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true));
             MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", false));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", false));
             Exception e = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(getVersion(), indexSettings, () -> true, mapping)
@@ -287,7 +287,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
             {
                 mapping.startObject("foo");
                 {
-                    mapping.field("type", "patterned_text");
+                    mapping.field("type", "pattern_text");
                 }
                 mapping.endObject();
             }
@@ -385,11 +385,11 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        assertFalse("patterned_text doesn't support ignoreMalformed", ignoreMalformed);
-        return new PatternedTextSyntheticSourceSupport();
+        assertFalse("pattern_text doesn't support ignoreMalformed", ignoreMalformed);
+        return new PatternTextSyntheticSourceSupport();
     }
 
-    static class PatternedTextSyntheticSourceSupport implements SyntheticSourceSupport {
+    static class PatternTextSyntheticSourceSupport implements SyntheticSourceSupport {
         @Override
         public SyntheticSourceExample example(int maxValues) {
             Tuple<String, String> v = generateValue();
@@ -397,12 +397,12 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         }
 
         private Tuple<String, String> generateValue() {
-            var value = PatternedTextIntegrationTests.randomMessage();
+            var value = PatternTextIntegrationTests.randomMessage();
             return Tuple.tuple(value, value);
         }
 
         private void mapping(XContentBuilder b) throws IOException {
-            b.field("type", "patterned_text");
+            b.field("type", "pattern_text");
             if (randomBoolean()) {
                 b.field("disable_templating", true);
             }
@@ -415,54 +415,54 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValues() throws IOException {
-        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "patterned_text")));
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
     public void testDocValuesSynthetic() throws IOException {
-        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text")));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 
     public void testAnalyzerAttributeDefault() throws IOException {
-        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "patterned_text")));
-        var fieldMapper = (PatternedTextFieldMapper) mapper.mappingLookup().getMapper("field");
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
+        var fieldMapper = (PatternTextFieldMapper) mapper.mappingLookup().getMapper("field");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get("type"), equalTo("patterned_text"));
+        assertThat(result.get("type"), equalTo("pattern_text"));
     }
 
     public void testAnalyzerAttributeStandard() throws IOException {
-        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("analyzer", "standard")));
-        var fieldMapper = (PatternedTextFieldMapper) mapper.mappingLookup().getMapper("field");
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("analyzer", "standard")));
+        var fieldMapper = (PatternTextFieldMapper) mapper.mappingLookup().getMapper("field");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
         assertThat(result.size(), equalTo(2));
-        assertThat(result.get("type"), equalTo("patterned_text"));
+        assertThat(result.get("type"), equalTo("pattern_text"));
         assertThat(result.get("analyzer"), equalTo("standard"));
     }
 
     public void testAnalyzerAttributeLog() throws IOException {
-        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("analyzer", "delimiter")));
-        var fieldMapper = (PatternedTextFieldMapper) mapper.mappingLookup().getMapper("field");
+        MapperService mapper = createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("analyzer", "delimiter")));
+        var fieldMapper = (PatternTextFieldMapper) mapper.mappingLookup().getMapper("field");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         var result = (Map<?, ?>) XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2().get("field");
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get("type"), equalTo("patterned_text"));
+        assertThat(result.get("type"), equalTo("pattern_text"));
         assertThat(fieldMapper.getAnalyzer(), equalTo(DelimiterAnalyzer.INSTANCE));
     }
 
     public void testAnalyzerAttributeIllegal() throws IOException {
         IllegalArgumentException e = (IllegalArgumentException) expectThrows(
             MapperParsingException.class,
-            () -> createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("analyzer", "whitespace")))
+            () -> createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("analyzer", "whitespace")))
         ).getCause();
         assertThat(e.getMessage(), equalTo("unsupported analyzer [whitespace] for field [field], supported analyzers are [standard, log]"));
     }

@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai;
 
-import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 
 import java.io.IOException;
@@ -26,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -73,8 +72,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
 
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
 
-    private static final ResponseHandler RERANK_HANDLER = createRerankHandler();
-
     public ContextualAiService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
@@ -105,29 +102,22 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         ActionListener<Model> parsedModelListener
     ) {
         try {
-            if (taskType != TaskType.RERANK) {
-                throw new ElasticsearchStatusException(
-                    format("The [%s] service does not support task type [%s]", NAME, taskType),
-                    RestStatus.BAD_REQUEST
-                );
-            }
-            System.out.println("\n*************************************WHERE AM I?\n");
-            System.out.printf("ContextualAiService - parseRequestConfig - inferenceEntityId: %s\n", inferenceEntityId);
-            logger.info("ContextualAiService loaded from: {}",ContextualAiService.class.getProtectionDomain().getCodeSource().getLocation());
+            Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+            Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            var serviceSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.SERVICE_SETTINGS);
-            var taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-            var secretsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelSecrets.SECRET_SETTINGS);
-
-            var model = new ContextualAiRerankModel(
+            ContextualAiRerankModel model = createModel(
                 inferenceEntityId,
                 taskType,
-                NAME,
                 serviceSettingsMap,
                 taskSettingsMap,
-                secretsMap,
+                serviceSettingsMap,
+                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
+
+            ServiceUtils.throwIfNotEmptyMap(config, NAME);
+            ServiceUtils.throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            ServiceUtils.throwIfNotEmptyMap(taskSettingsMap, NAME);
 
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
@@ -135,31 +125,62 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         }
     }
 
+    private static ContextualAiRerankModel createModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        @Nullable Map<String, Object> secretSettings,
+        String failureMessage,
+        ConfigurationParseContext context
+    ) {
+        if (taskType != TaskType.RERANK) {
+            throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        }
+        
+        return new ContextualAiRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+    }
+
     @Override
-    public Model parsePersistedConfigWithSecrets(
+    public ContextualAiRerankModel parsePersistedConfigWithSecrets(
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        return new ContextualAiRerankModel(
+        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> secretSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
+
+        return createModel(
             inferenceEntityId,
             taskType,
-            NAME,
-            config,
-            Map.of(),
-            secrets,
+            serviceSettingsMap,
+            taskSettingsMap,
+            secretSettingsMap,
+            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
             ConfigurationParseContext.PERSISTENT
         );
     }
 
     @Override
-    public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, config, Map.of());
+    public ContextualAiRerankModel parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
+        Map<String, Object> serviceSettingsMap = ServiceUtils.removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        Map<String, Object> taskSettingsMap = ServiceUtils.removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
+
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            null,
+            ServiceUtils.parsePersistedConfigErrorMsg(inferenceEntityId, NAME),
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     @Override
-    protected void doInfer(
+    public void doInfer(
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
@@ -167,39 +188,15 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         ActionListener<InferenceServiceResults> listener
     ) {
         if (model instanceof ContextualAiRerankModel == false) {
-            listener.onFailure(createInvalidModelException(model));
+            listener.onFailure(ServiceUtils.createInvalidModelException(model));
             return;
         }
 
-        var contextualAiModel = (ContextualAiRerankModel) model;
-        
-        // Debug logging to see what task settings are being passed
-        logger.debug("ContextualAI doInfer - taskSettings: {}", taskSettings);
-        logger.debug("ContextualAI doInfer - model task settings: {}", 
-            contextualAiModel.getTaskSettings() != null ? 
-                "topN=" + contextualAiModel.getTaskSettings().getTopN() + 
-                ", returnDocs=" + contextualAiModel.getTaskSettings().getReturnDocuments() : 
-                "null");
-        
-        // Safely convert inputs with proper error handling
-        QueryAndDocsInputs rerankInput;
-        try {
-            if (inputs == null) {
-                throw new IllegalArgumentException("Inference inputs cannot be null");
-            }
-            rerankInput = QueryAndDocsInputs.of(inputs);
-        } catch (Exception e) {
-            listener.onFailure(new ElasticsearchStatusException(
-                format("Invalid input type for ContextualAI rerank service: %s", e.getMessage()),
-                RestStatus.BAD_REQUEST,
-                e
-            ));
-            return;
-        }
-
+        ContextualAiRerankModel contextualAiModel = (ContextualAiRerankModel) model;
         var actionCreator = new ContextualAiActionCreator(getSender(), getServiceComponents());
-        var action = actionCreator.create(contextualAiModel, taskSettings, RERANK_HANDLER);
-        action.execute(rerankInput, timeout, listener);
+
+        var action = contextualAiModel.accept(actionCreator, taskSettings);
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
@@ -232,7 +229,6 @@ public class ContextualAiService extends SenderService implements RerankingInfer
     @Override
     public int rerankerWindowSize(String modelId) {
         // Using conservative default as the actual window size is not known
-        // TODO: Make this configurable or retrieve from model metadata
         return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
@@ -246,92 +242,14 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         return TransportVersions.V_8_15_0;
     }
 
-    private static ResponseHandler createRerankHandler() {
-        return new BaseResponseHandler("contextual_ai_rerank", (request, result) -> {
-            if (request instanceof ContextualAiRerankRequest == false) {
-                throw new IllegalArgumentException(
-                    format(
-                        "Invalid request type: expected ContextualAi rerank request but got %s",
-                        request != null ? request.getClass().getSimpleName() : "null"
-                    )
-                );
-            }
-            try {
-                return ContextualAiRerankResponseEntity.fromResponse((ContextualAiRerankRequest) request, result);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to parse response: " + e.getMessage(), e);
-            }
-        },
-            result -> null // No specific error parsing for now
-        ) {
-            @Override
-            protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-                if (result.isSuccessfulResponse()) {
-                    return;
-                }
-
-                int statusCode = result.response().getStatusLine().getStatusCode();
-                if (statusCode == 503 || statusCode == 502 || statusCode == 429) {
-                    throw new RetryException(
-                        true,
-                        new ElasticsearchStatusException(
-                            format("Contextual AI rate limit reached. Status code %d", statusCode),
-                            RestStatus.fromCode(statusCode)
-                        )
-                    );
-                } else if (statusCode >= 500) {
-                    throw new RetryException(
-                        false,
-                        new ElasticsearchStatusException(
-                            format("Contextual AI server error. Status code %d", statusCode),
-                            RestStatus.fromCode(statusCode)
-                        )
-                    );
-                } else if (statusCode == 401) {
-                    throw new RetryException(
-                        false,
-                        new ElasticsearchStatusException("Contextual AI authentication failed. Check your API key", RestStatus.UNAUTHORIZED)
-                    );
-                } else {
-                    throw new RetryException(
-                        false,
-                        new ElasticsearchStatusException(
-                            format("Contextual AI request failed with status code %d", statusCode),
-                            RestStatus.fromCode(statusCode)
-                        )
-                    );
-                }
-            }
-        };
-    }
-
-    private static String buildErrorMessage(TaskType taskType, String inferenceId) {
-        return format("Failed to send Contextual AI %s request from inference entity id [%s]", taskType.toString(), inferenceId);
-    }
-
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
             return configuration.getOrCompute();
         }
 
-        private Configuration() {}
-
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
-
-                configurationMap.put(
-                    URL,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
-                        "The URL endpoint to use for Contextual AI requests."
-                    )
-                        .setLabel("URL")
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
 
                 configurationMap.put(
                     "model_id",

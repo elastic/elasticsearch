@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 import java.io.IOException;
 import java.net.URI;
@@ -28,14 +27,19 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-public class ContextualAiRerankServiceSettings extends FilteredXContentObject implements ServiceSettings {
+public class ContextualAiRerankServiceSettings extends FilteredXContentObject implements ContextualAiRateLimitServiceSettings, ServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
+    private static final String API_KEY = "api_key";
+    private static final String MODEL_ID = "model_id";
 
-    // Default Contextual AI API endpoint
+    // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
     private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
     
     // Default rate limit settings - can be adjusted based on ContextualAI's actual limits
@@ -49,30 +53,22 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject im
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         
-        // Handle model_id differently based on context
-        String modelId = switch (context) {
-            case REQUEST -> {
-                // For POST requests, model_id is optional - use from persisted settings if not provided
-                yield extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-            }
-            case PERSISTENT -> {
-                // For PUT requests (registration), model_id is required
-                yield extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-            }
-        };
-        
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, null, validationException, "contextualai", context);
+        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+            map,
+            DEFAULT_RATE_LIMIT_SETTINGS,
+            validationException,
+            ContextualAiService.NAME,
+            context
+        );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ContextualAiRerankServiceSettings(
-            ServiceUtils.createUri(url != null ? url : DEFAULT_URL), 
-            modelId, // Can be null for REQUEST context
-            rateLimitSettings
-        );
+        URI uri = url != null ? ServiceUtils.createUri(url) : ServiceUtils.createUri(DEFAULT_URL);
+        return new ContextualAiRerankServiceSettings(uri, modelId, rateLimitSettings);
     }
 
     public ContextualAiRerankServiceSettings(URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {

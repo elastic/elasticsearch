@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,6 +23,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 public class ContextualAiRerankTaskSettings implements TaskSettings {
 
@@ -31,6 +35,9 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
     public static final String RETURN_DOCUMENTS = "return_documents";
     public static final String TOP_N_DOCS_ONLY = "top_n";
     public static final String INSTRUCTION = "instruction";
+
+    // Default hardcoded instruction for reranking
+    private static final String DEFAULT_INSTRUCTION = "Rerank the given documents based on their relevance to the query.";
 
     public static final ContextualAiRerankTaskSettings EMPTY_SETTINGS = new ContextualAiRerankTaskSettings(null, null, null);
 
@@ -43,13 +50,7 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
 
         Boolean returnDocuments = extractOptionalBoolean(map, RETURN_DOCUMENTS, validationException);
         Integer topN = extractOptionalPositiveInteger(map, TOP_N_DOCS_ONLY, ModelConfigurations.TASK_SETTINGS, validationException);
-        String instruction = extractOptionalString(map, INSTRUCTION, ModelConfigurations.TASK_SETTINGS, validationException);
-
-        // Debug logging to see what we're actually getting
-        System.out.println("ContextualAI Task Settings - Map contents: " + map);
-        System.out.println("ContextualAI Task Settings - Parsed returnDocuments: " + returnDocuments);
-        System.out.println("ContextualAI Task Settings - Parsed topN: " + topN);
-        System.out.println("ContextualAI Task Settings - Parsed instruction: " + instruction);
+        String instruction = ServiceUtils.extractOptionalString(map, INSTRUCTION, ModelConfigurations.TASK_SETTINGS, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -99,9 +100,9 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
         return topN;
     }
 
-    @Nullable
+    // Return custom instruction if provided, otherwise use default
     public String getInstruction() {
-        return instruction;
+        return instruction != null ? instruction : DEFAULT_INSTRUCTION;
     }
 
     @Override

@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.inference.UnifiedCompletionRequest;
-
 import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlock;
 import software.amazon.awssdk.services.bedrockruntime.model.InferenceConfiguration;
 import software.amazon.awssdk.services.bedrockruntime.model.Message;
-
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Strings;
-
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
+
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -50,27 +48,44 @@ public final class AmazonBedrockConverseUtils {
     public static Tool getUnifiedConverseTool(UnifiedCompletionRequest.Tool tool) {
         var t = ToolInputSchema.builder();
         return Tool.builder()
-            .toolSpec(ToolSpecification.builder()
-                .name(tool.function().name())
-                .description(tool.function().description())
-                .inputSchema(getInputSchema())
-                .build())
+            .toolSpec(
+                ToolSpecification.builder()
+                    .name(tool.function().name())
+                    .description(tool.function().description())
+                    .inputSchema(getInputSchema())
+                    .build()
+            )
             .build();
     }
 
     static ToolInputSchema getInputSchema() {
-        return ToolInputSchema.fromJson(Document.fromMap(Map.of(
-            "type", Document.fromString("object"), "properties", Document.fromMap(Map.of(
-                "sign", Document.fromMap(Map.of(
+        return ToolInputSchema.fromJson(
+            Document.fromMap(
+                Map.of(
                     "type",
-                    Document.fromString("string"),
-                    "description",
-                    Document.fromString(
-                        "The call sign for the radio station for which you want the most popular song. "
-                            + "Example calls signs are WZPZ and WKRP.")
-                ))
-            )), "required", Document.fromList(List.of(Document.fromString("sign")))
-        )));
+                    Document.fromString("object"),
+                    "properties",
+                    Document.fromMap(
+                        Map.of(
+                            "sign",
+                            Document.fromMap(
+                                Map.of(
+                                    "type",
+                                    Document.fromString("string"),
+                                    "description",
+                                    Document.fromString(
+                                        "The call sign for the radio station for which you want the most popular song. "
+                                            + "Example calls signs are WZPZ and WKRP."
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    "required",
+                    Document.fromList(List.of(Document.fromString("sign")))
+                )
+            )
+        );
     }
 
     public static Optional<InferenceConfiguration> inferenceConfig(AmazonBedrockConverseRequestEntity request) {

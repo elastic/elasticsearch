@@ -60,7 +60,7 @@ public final class SingletonIntBuilder implements BlockLoader.SingletonIntBuilde
 
     @Override
     public long estimatedBytes() {
-        return (long) values.length * Integer.BYTES;
+        return valuesSize(values.length);
     }
 
     @Override

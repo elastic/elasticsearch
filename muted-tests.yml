@@ -567,9 +567,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<0 ints>}
   issue: https://github.com/elastic/elasticsearch/issues/134845
-- class: org.elasticsearch.cluster.metadata.MetadataCreateIndexServiceTests
-  method: testIndexSettingProviderPrivateSetting
-  issue: https://github.com/elastic/elasticsearch/issues/134846
 - class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
   method: testGroupingAggregate {TestCase=<-0 doubles>}
   issue: https://github.com/elastic/elasticsearch/issues/134847

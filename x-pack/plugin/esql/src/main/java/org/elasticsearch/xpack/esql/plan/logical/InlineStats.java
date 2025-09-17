@@ -130,6 +130,11 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
     }
 
     @Override
+    public String telemetryLabel() {
+        return "INLINE STATS";
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(aggregate, child());
     }

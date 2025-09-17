@@ -225,6 +225,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         }
         BooleanQuery booleanQuery = builder.build();
         Query filterQuery = booleanQuery.clauses().isEmpty() ? null : booleanQuery;
+        Query approxFilterQuery = filterQuery != null ? new CachingEnableFilterQuery(filterQuery) : null;
         Integer numCands = queryBuilder.numCands();
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
             float oversample = queryBuilder.rescoreVectorBuilder().oversample();
@@ -244,7 +245,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asByteVector(),
                 k,
                 numCands,
-                filterQuery,
+                approxFilterQuery,
                 expectedStrategy
             );
             case FLOAT -> new ESKnnFloatVectorQuery(
@@ -252,7 +253,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 queryBuilder.queryVector().asFloatVector(),
                 k,
                 numCands,
-                filterQuery,
+                approxFilterQuery,
                 expectedStrategy
             );
         };

@@ -166,6 +166,11 @@ public enum LuceneFilesExtensions {
     }
 
     @Nullable
+    public static boolean isLuceneExtension(String ext) {
+        return extensions.containsKey(ext);
+    }
+
+    @Nullable
     public static LuceneFilesExtensions fromFile(String fileName) {
         return fromExtension(IndexFileNames.getExtension(fileName));
     }

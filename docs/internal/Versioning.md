@@ -122,9 +122,9 @@ the latter will have a merge conflict with `main`.
 
 In the event of a conflict, merge `main` into your branch. You will have
 conflict(s) with transport version internal state files. Run the following
-generate task to resolve the conflict(s):
+task to resolve the conflict(s):
 
-    ./gradlew generateTransportVersion --resolve-conflict
+    ./gradlew resolveTransportVersionConflict
 
 This command will regenerate your transport version and stage the updated
 state files in git. You can then proceed with your merge as usual.

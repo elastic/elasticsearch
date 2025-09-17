@@ -19,14 +19,14 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         List<String> args = new ArrayList<>()
         args.add(":myserver:validateTransportVersionResources")
         args.add(":myserver:generateTransportVersion")
-        args.addAll(additionalArgs);
+        args.addAll(additionalArgs)
         return gradleRunner(args.toArray())
     }
 
     def runGenerateTask(String... additionalArgs) {
         List<String> args = new ArrayList<>()
         args.add(":myserver:generateTransportVersion")
-        args.addAll(additionalArgs);
+        args.addAll(additionalArgs)
         return gradleRunner(args.toArray())
     }
 

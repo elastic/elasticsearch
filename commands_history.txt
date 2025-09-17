@@ -1,0 +1,41 @@
+# Commands run during investigation (timestamps approximate)
+
+# 1. Compiled the inference plugin
+./gradlew :x-pack:plugin:inference:compileJava
+
+# 2. Clean + compile
+./gradlew :x-pack:plugin:inference:clean :x-pack:plugin:inference:compileJava
+
+# 3. Inspect compiled class bytecode and debug info
+javap -v -l -classpath x-pack/plugin/inference/build/classes/java/main org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService
+
+# 4. Compute checksum of compiled class
+sha256sum x-pack/plugin/inference/build/classes/java/main/org/elasticsearch/xpack/inference/services/contextualai/ContextualAiService.class
+
+# 5. Start Elasticsearch distribution (via VS Code task or manual script)
+# (Task used: "startElasticsearchWithDebug" configured in workspace tasks)
+# Equivalent shell: cd build/distribution/local/elasticsearch-9.2.0-SNAPSHOT && ELASTIC_PASSWORD=devpassword123 ./bin/elasticsearch -E xpack.security.enabled=true -E xpack.security.http.ssl.enabled=false -E network.host=localhost -E discovery.type=single-node
+
+# 6. List distribution logs directory and inspect logs
+cd build/distribution/local/elasticsearch-9.2.0-SNAPSHOT && ls -l logs
+
+# 7. Tail debug log (used a background terminal for follow)
+cd build/distribution/local/elasticsearch-9.2.0-SNAPSHOT && tail -F logs/elasticsearch-debug.log
+
+# 8. One-shot inspect last 200 lines of the debug log and json server log
+cd build/distribution/local/elasticsearch-9.2.0-SNAPSHOT && ls -l logs || true && tail -n 200 logs/elasticsearch-debug.log || true && tail -n 200 logs/elasticsearch-debug_server.json || true
+
+# 9. Searched codebase for doInfer and parser declarations (approx)
+# grep -R "doInfer" -n
+# rg "doInfer" || true
+# rg "task_settings" || true
+
+# 10. Replaced System.out.println calls with logger.debug in source files and recompiled (files edited in-editor then compiled)
+# Files edited: ContextualAiActionCreator.java, ContextualAiService.java, SenderService.java, TransportInferenceAction.java
+
+# 11. Created a todo list and instrumented logging verification steps
+
+# Helpful curl example to exercise inference endpoint (requires correct route and credentials):
+# curl -u elastic:devpassword123 -H 'Content-Type: application/json' -X POST 'http://localhost:9200/_inference?pretty' -d '{"model_id":"rerank-v1","input":{"query":"example query","documents":[{"_id":"1","text":"first doc"},{"_id":"2","text":"second doc"}]},"task_settings":{"some_setting":"some_value","rerank_top_k":10}}'
+
+# End of history

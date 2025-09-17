@@ -172,7 +172,7 @@ public final class BlobCacheIndexInput extends BlobCacheBufferedIndexInput {
     }
 
     private void readInternalSlow(ByteBuffer b, long position, int length) throws Exception {
-        cacheFileReader.read(this, b, position, length, this.offset + length());
+        cacheFileReader.read(this, b, position, length, this.offset + length(), super.toString());
     }
 
     // package-private for testing

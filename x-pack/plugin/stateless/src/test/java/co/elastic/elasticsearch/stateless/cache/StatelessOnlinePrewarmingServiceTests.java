@@ -41,6 +41,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -306,7 +307,8 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
             protected StatelessSharedBlobCacheService createCacheService(
                 NodeEnvironment nodeEnvironment,
                 Settings settings,
-                ThreadPool threadPool
+                ThreadPool threadPool,
+                MeterRegistry meterRegistry
             ) {
                 if (failingCacheService) {
                     return new StatelessSharedBlobCacheService(nodeEnvironment, settings, threadPool, BlobCacheMetrics.NOOP) {
@@ -324,7 +326,7 @@ public class StatelessOnlinePrewarmingServiceTests extends ESTestCase {
                         }
                     };
                 }
-                return super.createCacheService(nodeEnvironment, settings, threadPool);
+                return super.createCacheService(nodeEnvironment, settings, threadPool, meterRegistry);
             }
         };
     }

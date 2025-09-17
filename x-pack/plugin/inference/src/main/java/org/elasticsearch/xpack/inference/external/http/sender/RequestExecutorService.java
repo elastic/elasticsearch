@@ -162,19 +162,6 @@ public class RequestExecutorService implements RequestExecutor {
         return rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
     }
 
-    @Override
-    public void updateRateLimitDivisor(int numResponsibleNodes) {
-        // in the unlikely case where we get an invalid value, we'll just ignore it
-        if (numResponsibleNodes <= 0) {
-            return;
-        }
-
-        rateLimitDivisor.set(numResponsibleNodes);
-        for (var rateLimitingEndpointHandler : rateLimitGroupings.values()) {
-            rateLimitingEndpointHandler.updateTokensPerTimeUnit(rateLimitDivisor.get());
-        }
-    }
-
     /**
      * Begin servicing tasks.
      * <p>
@@ -393,20 +380,10 @@ public class RequestExecutorService implements RequestExecutor {
                 rateLimitSettings.requestsPerTimeUnit(),
                 rateLimitSettings.timeUnit()
             );
-
-            this.updateTokensPerTimeUnit(rateLimitDivisor);
         }
 
         public void init() {
             requestExecutorServiceSettings.registerQueueCapacityCallback(id, this::onCapacityChange);
-        }
-
-        /**
-         * @param divisor - divisor to divide the initial requests per time unit by
-         */
-        private synchronized void updateTokensPerTimeUnit(Integer divisor) {
-            double updatedTokensPerTimeUnit = (double) originalRequestsPerTimeUnit / divisor;
-            rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, updatedTokensPerTimeUnit, rateLimitSettings.timeUnit());
         }
 
         public String id() {

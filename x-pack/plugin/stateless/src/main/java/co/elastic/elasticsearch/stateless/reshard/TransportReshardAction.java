@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -37,9 +38,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportReshardAction extends TransportMasterNodeAction<ReshardIndexRequest, ReshardIndexResponse> {
+public class TransportReshardAction extends TransportMasterNodeAction<ReshardIndexRequest, ActionResponse.Empty> {
 
-    public static final ActionType<ReshardIndexResponse> TYPE = new ActionType<>("indices:admin/reshard");
+    public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard");
 
     private final ReshardIndexService reshardIndexService;
     private final ProjectResolver projectResolver;
@@ -62,7 +63,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
             threadPool,
             actionFilters,
             ReshardIndexRequest::new,
-            ReshardIndexResponse::new,
+            in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.reshardIndexService = reshardIndexService;
@@ -80,7 +81,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         Task task,
         final ReshardIndexRequest request,
         final ClusterState state,
-        final ActionListener<ReshardIndexResponse> listener
+        final ActionListener<ActionResponse.Empty> listener
     ) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
 
@@ -111,7 +112,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         reshardIndexService.reshardIndex(
             request.masterNodeTimeout(),
             updateRequest,
-            listener.map(response -> new ReshardIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()))
+            listener.map(ignored -> ActionResponse.Empty.INSTANCE)
         );
     }
 }

@@ -34,7 +34,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<SplitStateRequest, ActionResponse> {
+public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<SplitStateRequest, ActionResponse.Empty> {
 
     public static final ActionType<ActionResponse> TYPE = new ActionType<>("indices:admin/reshard/split_state");
 
@@ -61,14 +61,14 @@ public class TransportUpdateSplitStateAction extends TransportMasterNodeAction<S
     }
 
     @Override
-    protected void masterOperation(Task task, SplitStateRequest request, ClusterState state, ActionListener<ActionResponse> listener)
+    protected void masterOperation(Task task, SplitStateRequest request, ClusterState state, ActionListener<ActionResponse.Empty> listener)
         throws Exception {
         if (request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.HANDOFF) {
-            reshardIndexService.transitionToHandoff(request, listener);
+            reshardIndexService.transitionToHandoff(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
         } else {
             assert request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.SPLIT
                 || request.getNewTargetShardState() == IndexReshardingState.Split.TargetShardState.DONE;
-            reshardIndexService.transitionTargetState(request, listener);
+            reshardIndexService.transitionTargetState(request, listener.map(ignored -> ActionResponse.Empty.INSTANCE));
         }
     }
 

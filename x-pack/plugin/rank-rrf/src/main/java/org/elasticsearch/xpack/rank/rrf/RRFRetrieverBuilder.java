@@ -332,10 +332,11 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         return Objects.hash(super.doHashCode(), fields, query, rankConstant, Arrays.hashCode(weights));
     }
 
-    /**
-     * Creates an RRFRetrieverBuilder from a list of weighted retrievers for simplified syntax.
-     */
-    private RRFRetrieverBuilder createRRFFromWeightedRetrievers(List<WeightedRetrieverSource> r, int rankWindowSize, int rankConstant) {
+    private static RRFRetrieverBuilder createRRFFromWeightedRetrievers(
+        List<WeightedRetrieverSource> r,
+        int rankWindowSize,
+        int rankConstant
+    ) {
         int size = r.size();
         List<RetrieverSource> retrievers = new ArrayList<>(size);
         float[] weights = new float[size];
@@ -350,7 +351,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     /**
      * Validates that field weights are non-negative for simplified syntax.
      */
-    private void validateNonNegativeWeight(float w) {
+    private static void validateNonNegativeWeight(float w) {
         if (w < 0) {
             throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
         }

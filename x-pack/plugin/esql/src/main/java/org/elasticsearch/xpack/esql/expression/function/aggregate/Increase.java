@@ -40,8 +40,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *
  * It is similar to the {@code rate()} function, but instead of calculating the per-second average rate of increase,
  * it calculates the total increase over the time window.
- *
- * NOTES FROM DEBUGGING: Reproduction command: ./gradlew ":x-pack:plugin:esql:internalClusterTest" --tests "org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT.testRateGroupBySubset" -Dtests.iters=200 -Dtests.seed="9EF74F1FFF23B553:D02B50B51294AB38"
  */
 public class Increase extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Increase", Increase::new);
@@ -142,5 +140,10 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
     @Override
     public String toString() {
         return "increase(" + field() + ")";
+    }
+
+    @Override
+    public boolean requiredTimeSeriesSource() {
+        return true;
     }
 }

@@ -1,5 +1,5 @@
 pr: 134858
-summary: Multi Match Query with `semantic_text` field
-area: Relevance
+summary: Add multi match support for `semantic_text` fields
+area: Search
 type: enhancement
 issues: []

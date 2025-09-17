@@ -126,6 +126,11 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             assert false : "expected timestamp vector in time-series aggregation";
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
+        IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(2))).asVector();
+        assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
+        LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(3))).asVector();
+        assert futureMaxTimestamps != null : "expected future max timestamps vector in time-series aggregation";
+
         return new AddInput() {
             @Override
             public void add(int positionOffset, IntArrayBlock groupIds) {
@@ -188,7 +193,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
     private void addRawInput(int positionOffset, IntVector groups, IntBlock valueBlock, LongVector timestampVector) {
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(0));
+            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(positionOffset));
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
                 if (valueBlock.isNull(valuePosition)) {
@@ -202,7 +207,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
             Buffer buffer = null;
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
-                if (valueBlock.isNull(valuePosition) == false) {
+                if (valueBlock.isNull(valuePosition)) {
                     continue;
                 }
                 assert valueBlock.getValueCount(valuePosition) == 1 : "expected single-valued block " + valueBlock;
@@ -224,7 +229,7 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(0));
+            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
             for (int p = 0; p < positionCount; p++) {
                 int valuePosition = positionOffset + p;
                 buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.getInt(valuePosition));

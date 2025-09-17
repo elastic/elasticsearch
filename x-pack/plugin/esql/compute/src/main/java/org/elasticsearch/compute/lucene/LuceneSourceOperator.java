@@ -60,9 +60,9 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final int minPageSize;
 
     public static class Factory extends LuceneOperator.Factory {
-        private final List<? extends RefCounted> contexts;
-        private final int maxPageSize;
-        private final Limiter limiter;
+        protected final List<? extends RefCounted> contexts;
+        protected final int maxPageSize;
+        protected final Limiter limiter;
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -327,7 +327,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntVector shard = null;
                 IntVector leaf = null;
                 IntVector docs = null;
-                Block[] blocks = new Block[1 + (scoreBuilder == null ? 0 : 1) + scorer.tags().size()];
+                int metadataBlocks = numMetadataBlocks();
+                Block[] blocks = new Block[1 + metadataBlocks + scorer.tags().size()];
                 currentPagePos -= discardedDocs;
                 try {
                     int shardId = scorer.shardContext().index();
@@ -340,10 +341,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                     shard = null;
                     leaf = null;
                     docs = null;
-                    if (scoreBuilder != null) {
-                        blocks[b++] = buildScoresVector(currentPagePos).asBlock();
-                        scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    }
+                    buildMetadataBlocks(blocks, b, currentPagePos);
+                    b += metadataBlocks;
                     for (Object e : scorer.tags()) {
                         blocks[b++] = BlockUtils.constantBlock(blockFactory, e, currentPagePos);
                     }
@@ -390,6 +389,17 @@ public class LuceneSourceOperator extends LuceneOperator {
                 }
                 return slice.build();
             }
+        }
+    }
+
+    protected int numMetadataBlocks() {
+        return scoreBuilder != null ? 1 : 0;
+    }
+
+    protected void buildMetadataBlocks(Block[] blocks, int offset, int currentPagePos) {
+        if (scoreBuilder != null) {
+            blocks[offset] = buildScoresVector(currentPagePos).asBlock();
+            scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
         }
     }
 

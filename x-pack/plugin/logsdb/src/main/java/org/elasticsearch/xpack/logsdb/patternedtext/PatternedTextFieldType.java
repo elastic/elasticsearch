@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -65,13 +64,23 @@ public class PatternedTextFieldType extends StringFieldType {
     private final TextFieldMapper.TextFieldType textFieldType;
     private final boolean hasPositions;
 
-    PatternedTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, boolean isSyntheticSource, Map<String, String> meta) {
+    private final boolean disableTemplating;
+
+    PatternedTextFieldType(
+        String name,
+        TextSearchInfo tsi,
+        Analyzer indexAnalyzer,
+        boolean isSyntheticSource,
+        boolean disableTemplating,
+        Map<String, String> meta
+    ) {
         // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
         super(name, true, false, false, tsi, meta);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
         this.textFieldType = new TextFieldMapper.TextFieldType(name, isSyntheticSource);
         this.hasPositions = tsi.hasPositions();
+        this.disableTemplating = disableTemplating;
     }
 
     // For testing only
@@ -81,11 +90,12 @@ public class PatternedTextFieldType extends StringFieldType {
             new TextSearchInfo(
                 hasPositions ? PatternedTextFieldMapper.Defaults.FIELD_TYPE_POSITIONS : PatternedTextFieldMapper.Defaults.FIELD_TYPE_DOCS,
                 null,
-                Lucene.STANDARD_ANALYZER,
-                Lucene.STANDARD_ANALYZER
+                DelimiterAnalyzer.INSTANCE,
+                DelimiterAnalyzer.INSTANCE
             ),
-            Lucene.STANDARD_ANALYZER,
+            DelimiterAnalyzer.INSTANCE,
             syntheticSource,
+            false,
             Collections.emptyMap()
         );
     }
@@ -295,6 +305,10 @@ public class PatternedTextFieldType extends StringFieldType {
 
     String storedNamed() {
         return name() + STORED_SUFFIX;
+    }
+
+    boolean disableTemplating() {
+        return disableTemplating;
     }
 
 }

@@ -83,12 +83,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -572,50 +572,63 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
     }
 
-    public void testFailIfAlreadyExists() throws IOException, InterruptedException {
+    public void testFailIfAlreadyExists() throws IOException {
         try (BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             final String blobName = randomAlphaOfLengthBetween(8, 12);
 
-            final byte[] data;
-            if (randomBoolean()) {
-                // single upload
-                data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            } else {
-                // multipart upload
-                int thresholdInBytes = Math.toIntExact(((S3BlobContainer) container).getLargeBlobThresholdInBytes());
-                data = randomBytes(randomIntBetween(thresholdInBytes, thresholdInBytes + scaledRandomIntBetween(1024, 1 << 16)));
-            }
-
-            // initial write blob
-            AtomicInteger exceptionCount = new AtomicInteger(0);
-            try (var executor = Executors.newFixedThreadPool(2)) {
-                for (int i = 0; i < 2; i++) {
-                    executor.submit(() -> {
-                        try {
-                            writeBlob(container, blobName, new BytesArray(data), true);
-                        } catch (IOException e) {
-                            exceptionCount.incrementAndGet();
-                        }
-                    });
+            // initial write: exactly one of these may succeed
+            final var parallelWrites = between(1, 4);
+            final var exceptionCount = new AtomicInteger(0);
+            final var successData = new AtomicReference<byte[]>();
+            final var writeBarrier = new CyclicBarrier(parallelWrites);
+            runInParallel(parallelWrites, ignored -> {
+                final byte[] data = getRandomData(container);
+                safeAwait(writeBarrier);
+                try {
+                    writeBlob(container, blobName, new BytesArray(data), true);
+                    assertTrue(successData.compareAndSet(null, data));
+                } catch (IOException e) {
+                    exceptionCount.incrementAndGet();
                 }
-                executor.shutdown();
-                var done = executor.awaitTermination(1, TimeUnit.SECONDS);
-                assertTrue(done);
-            }
+            });
 
-            assertEquals(1, exceptionCount.get());
+            // the data in the blob comes from the successful write
+            assertNotNull(successData.get());
+            assertArrayEquals(successData.get(), readBlobFully(container, blobName, successData.get().length));
 
-            // overwrite if failIfAlreadyExists is set to false
-            writeBlob(container, blobName, new BytesArray(data), false);
+            // all the other writes failed with an IOException
+            assertEquals(parallelWrites - 1, exceptionCount.get());
+
+            // verify that another write succeeds
+            final var overwriteData = getRandomData(container);
+            writeBlob(container, blobName, new BytesArray(overwriteData), false);
+            assertArrayEquals(overwriteData, readBlobFully(container, blobName, overwriteData.length));
 
             // throw exception if failIfAlreadyExists is set to true
-            var exception = expectThrows(IOException.class, () -> writeBlob(container, blobName, new BytesArray(data), true));
-
+            var exception = expectThrows(
+                IOException.class,
+                () -> writeBlob(container, blobName, new BytesArray(getRandomData(container)), true)
+            );
             assertThat(exception.getMessage(), startsWith("Unable to upload"));
+
+            assertArrayEquals(overwriteData, readBlobFully(container, blobName, overwriteData.length));
 
             container.delete(randomPurpose());
         }
+    }
+
+    private static byte[] getRandomData(BlobContainer container) {
+        final byte[] data;
+        if (randomBoolean()) {
+            // single upload
+            data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        } else {
+            // multipart upload
+            int thresholdInBytes = Math.toIntExact(((S3BlobContainer) container).getLargeBlobThresholdInBytes());
+            data = randomBytes(randomIntBetween(thresholdInBytes, thresholdInBytes + scaledRandomIntBetween(1024, 1 << 16)));
+        }
+        return data;
     }
 
     /**

@@ -20,7 +20,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -37,7 +36,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -363,13 +361,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
             new float[0]
         );
-        assertMultiFieldsParamsRewriteWithWeights(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("field", 0.0f),
-            Map.of(),
-            "test query"
-        );
+        assertMultiFieldsParamsRewriteWithWeights(rrfRetrieverBuilder, queryRewriteContext, Map.of("field", 0.0f), Map.of(), "test query");
 
         // Large weight values are handled correctly
         rrfRetrieverBuilder = new RRFRetrieverBuilder(
@@ -542,9 +534,6 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertEquals("[rrf] cannot specify [query] when querying remote indices", iae.getMessage());
     }
 
-
-
-
     public void testNegativeWeightsRejected() {
         final String indexName = "test-index";
         final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
@@ -576,12 +565,6 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         );
         assertEquals("[rrf] per-field weights must be non-negative", iae.getMessage());
     }
-
-
-
-
-
-
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

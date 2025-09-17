@@ -63,6 +63,18 @@
         "type": "boolean",
         "description": "Verbose mode. Display column headers",
         "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
       }
     }
   }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -85,12 +84,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeEnum(getMode());
-            out.writeNamedWriteableCollection(intermediateAttributes());
-        } else {
-            out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
-        }
+        out.writeEnum(getMode());
+        out.writeNamedWriteableCollection(intermediateAttributes());
         out.writeOptionalVInt(estimatedRowSize());
     }
 

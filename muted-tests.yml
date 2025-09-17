@@ -582,6 +582,9 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryInlinestats
+  issue: https://github.com/elastic/elasticsearch/issues/134854
 
 # Examples:
 #

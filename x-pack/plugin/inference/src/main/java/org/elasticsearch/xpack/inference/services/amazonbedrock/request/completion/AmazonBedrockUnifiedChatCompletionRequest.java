@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
+import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 
 import org.elasticsearch.core.Nullable;
@@ -23,10 +25,11 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.Amazo
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.response.completion.AmazonBedrockChatCompletionResponseListener;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Flow;
 
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getInputSchema;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.getUnifiedConverseMessageList;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.inferenceConfig;
 
@@ -69,7 +72,8 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
                                 )
                                 .build()
                         )
-                        .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder().name(tool.function().name()).build()).build())
+                        .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder()
+                            .name(tool.function().name()).build()).build())
                         .build()
                 );
             });
@@ -77,6 +81,36 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
 
         inferenceConfig(requestEntity).ifPresent(converseStreamRequest::inferenceConfig);
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
+    }
+
+     static ToolInputSchema getInputSchema() {
+        return ToolInputSchema.fromJson(
+            Document.fromMap(
+                Map.of(
+                    "type",
+                    Document.fromString("object"),
+                    "properties",
+                    Document.fromMap(
+                        Map.of(
+                            "sign",
+                            Document.fromMap(
+                                Map.of(
+                                    "type",
+                                    Document.fromString("string"),
+                                    "description",
+                                    Document.fromString(
+                                        "The call sign for the radio station for which you want the most popular song. "
+                                            + "Example calls signs are WZPZ and WKRP."
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    "required",
+                    Document.fromList(List.of(Document.fromString("sign")))
+                )
+            )
+        );
     }
 
     @Override

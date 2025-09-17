@@ -7,28 +7,26 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
+
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
+import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
-import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
-import java.io.IOException;
+import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
+
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.concurrent.Flow;
@@ -37,17 +35,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 @SuppressWarnings("checkstyle:LineLength")
-class AmazonBedrockUnifiedStreamingChatProcessor
-    implements
-        Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
+class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingChatProcessor.class);
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Anthropic chat completions response";
 
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
     private final AtomicLong demand = new AtomicLong(0);
@@ -87,48 +79,38 @@ class AmazonBedrockUnifiedStreamingChatProcessor
 
     @Override
     public void onNext(ConverseStreamOutput item) {
-        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         var chunks = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(1);
 
         var eventType = item.sdkEventType();
         switch (eventType) {
             case ConverseStreamOutput.EventType.MESSAGE_START -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(
-                    ConverseStreamResponseHandler.Visitor.builder()
-                        .onMessageStart(event -> handleMessageStart(event, chunks, parserConfig))
-                        .build()
-                );
+                item.accept(ConverseStreamResponseHandler.Visitor.builder()
+                    .onMessageStart(event -> handleMessageStart(event, chunks)).build());
                 return;
             }
             case ConverseStreamOutput.EventType.CONTENT_BLOCK_START -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(
-                    ConverseStreamResponseHandler.Visitor.builder()
-                        .onContentBlockStart(event -> handleContentBlockStart(event, chunks, parserConfig))
-                        .build()
-                );
+                item.accept(ConverseStreamResponseHandler.Visitor.builder()
+                    .onContentBlockStart(event -> handleContentBlockStart(event, chunks)).build());
                 return;
             }
             case ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(
-                    ConverseStreamResponseHandler.Visitor.builder()
-                        .onContentBlockDelta(event -> handleContentBlockDelta(event, chunks, parserConfig))
-                        .build()
-                );
+                item.accept(ConverseStreamResponseHandler.Visitor.builder()
+                    .onContentBlockDelta(event -> handleContentBlockDelta(event, chunks)).build());
                 return;
             }
             case ConverseStreamOutput.EventType.METADATA -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(
-                    ConverseStreamResponseHandler.Visitor.builder().onMetadata(event -> handleMetadata(event, chunks, parserConfig)).build()
-                );
+                item.accept(ConverseStreamResponseHandler.Visitor.builder()
+                    .onMetadata(event -> handleMetadata(event, chunks)).build());
                 return;
             }
             case ConverseStreamOutput.EventType.MESSAGE_STOP -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder().onMessageStop(event -> Stream.empty()).build());
+                item.accept(ConverseStreamResponseHandler.Visitor.builder()
+                    .onMessageStop(event -> Stream.empty()).build());
                 return;
             }
             default -> {
@@ -145,68 +127,53 @@ class AmazonBedrockUnifiedStreamingChatProcessor
 
     private void handleMessageStart(
         MessageStartEvent event,
-        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks,
-        XContentParserConfiguration parserConfig
-    ) {
+        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
         runOnUtilityThreadPool(() -> {
-            var data = event.role().name();
             try {
-                var messageStart = parseMessageStart(parserConfig, data);
+                var messageStart = handleMessageStart(event);
                 messageStart.forEach(chunks::offer);
             } catch (Exception e) {
-                logger.warn("Failed to parse message start event from Amazon Bedrock provider: {}", data);
+                logger.warn("Failed to parse message start event from Amazon Bedrock provider: {}", event);
             }
-            var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
-            downstream.onNext(results);
+            if (chunks.isEmpty()) {
+                upstream.request(1);
+            } else {
+                downstream.onNext(new StreamingUnifiedChatCompletionResults.Results(chunks));
+            }
         });
     }
 
-    private void handleContentBlockStart(
-        ContentBlockStartEvent event,
-        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks,
-        XContentParserConfiguration parserConfig
-    ) {
-        var data = event.start().toString();
+    private void handleContentBlockStart(ContentBlockStartEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
         try {
-            var contentBlockStart = parseContentBlockStart(parserConfig, data);
+            var contentBlockStart = handleContentBlockStart(event);
             contentBlockStart.forEach(chunks::offer);
         } catch (Exception e) {
-            logger.warn("Failed to parse block start event from Amazon Bedrock provider: {}", data);
+            logger.warn("Failed to parse block start event from Amazon Bedrock provider: {}", event);
         }
         var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
         downstream.onNext(results);
     }
 
-    private void handleContentBlockDelta(
-        ContentBlockDeltaEvent event,
-        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks,
-        XContentParserConfiguration parserConfig
-    ) {
+    private void handleContentBlockDelta(ContentBlockDeltaEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
         runOnUtilityThreadPool(() -> {
-            var data = event.delta().toString();
             try {
-                var contentBlockDelta = parseContentBlockDelta(parserConfig, data);
+                var contentBlockDelta = handleContentBlockDelta(event);
                 contentBlockDelta.forEach(chunks::offer);
             } catch (Exception e) {
-                logger.warn("Failed to parse content block delta event from Amazon Bedrock provider: {}", data);
+                logger.warn("Failed to parse content block delta event from Amazon Bedrock provider: {}", event);
             }
             var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
             downstream.onNext(results);
         });
     }
 
-    private void handleMetadata(
-        ConverseStreamMetadataEvent event,
-        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks,
-        XContentParserConfiguration parserConfig
-    ) {
+    private void handleMetadata(ConverseStreamMetadataEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
         runOnUtilityThreadPool(() -> {
-            var data = event.toString();
             try {
-                var messageDelta = parseMessageDelta(parserConfig, data);
+                var messageDelta = handleMetadata(event);
                 messageDelta.forEach(chunks::offer);
             } catch (Exception e) {
-                logger.warn("Failed to parse metadata event from Amazon Bedrock provider: {}", data);
+                logger.warn("Failed to parse metadata event from Amazon Bedrock provider: {}", event);
             }
             var results = new StreamingUnifiedChatCompletionResults.Results(chunks);
             downstream.onNext(results);
@@ -292,205 +259,93 @@ class AmazonBedrockUnifiedStreamingChatProcessor
         }
     }
 
-    // Field names
-    public static final String ID_FIELD = "id";
-    public static final String MODEL_FIELD = "model";
-    public static final String STOP_REASON_FIELD = "stop_reason";
-    public static final String STOP_SEQUENCE_FIELD = "stop_sequence";
-    public static final String TYPE_FIELD = "type";
-    public static final String ROLE_FIELD = "role";
-    public static final String CONTENT_FIELD = "content";
-
-    public static final String INDEX_FIELD = "index";
-    public static final String NAME_FIELD = "name";
-    public static final String INPUT_TOKENS_FIELD = "input_tokens";
-    public static final String OUTPUT_TOKENS_FIELD = "output_tokens";
-    public static final String TEXT_FIELD = "text";
-    public static final String INPUT_FIELD = "input";
-    public static final String PARTIAL_JSON_FIELD = "partial_json";
-
-    // Content block types
-    public static final String TEXT_DELTA_TYPE = "text_delta";
-    public static final String INPUT_JSON_DELTA_TYPE = "input_json_delta";
-    public static final String TOOL_USE_TYPE = "tool_use";
-    public static final String TEXT_TYPE = "text";
-
     /**
-     * Parse a message start event into a ChatCompletionChunk stream
-     * @param parserConfig the parser configuration
-     * @param data the event data
+     * Parse a MessageStartEvent into a ChatCompletionChunk stream
+     * @param event the MessageStartEvent data
      * @return a stream of ChatCompletionChunk
-     * @throws IOException if parsing fails
      */
-    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageStart(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        System.out.println("data" + data);
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var role = parseStringField(jsonParser, ROLE_FIELD);
-            var id = parseStringField(jsonParser, ID_FIELD);
-            var model = parseStringField(jsonParser, MODEL_FIELD);
-            var finishReason = parseStringOrNullField(jsonParser, STOP_REASON_FIELD);
-            var promptTokens = parseNumberField(jsonParser, INPUT_TOKENS_FIELD);
-            var completionTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
-            var totalTokens = completionTokens + promptTokens;
-
-            var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(completionTokens, promptTokens, totalTokens);
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, null);
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, finishReason, 0);
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(id, List.of(choice), model, null, usage);
-
-            return Stream.of(chunk);
-        }
-    }
-
-    /**
-     * Parse a content block start event into a ChatCompletionChunk stream
-     * @param parserConfig the parser configuration
-     * @param data the event data
-     * @return a stream of ChatCompletionChunk
-     * @throws IOException if parsing fails
-     */
-    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockStart(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var index = parseNumberField(jsonParser, INDEX_FIELD);
-            var type = parseStringField(jsonParser, TYPE_FIELD);
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
-            if (type.equals(TEXT_TYPE)) {
-                var text = parseStringField(jsonParser, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
-            } else if (type.equals(TOOL_USE_TYPE)) {
-                var id = parseStringField(jsonParser, ID_FIELD);
-                var name = parseStringField(jsonParser, NAME_FIELD);
-                var input = parseFieldValue(jsonParser, INPUT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(
-                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                            0,
-                            id,
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(
-                                input != null ? input.toString() : null,
-                                name
-                            ),
-                            null
-                        )
-                    )
-                );
-            } else {
-                logger.debug("Unknown content block start type [{}] for line [{}].", type, data);
-                return Stream.empty();
-            }
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
+            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, event.roleAsString(), null);
+            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
             var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
             return Stream.of(chunk);
-        }
     }
 
     /**
-     * Parse a content block delta event into a ChatCompletionChunk stream
-     * @param parserConfig the parser configuration
-     * @param data the event data
-     * @return a stream of ChatCompletionChunk
-     * @throws IOException if parsing fails
+     * processes a tool initialization event from Bedrock
+     * This occurs when the model first decides to use a tool, providing its name and ID.
+     * Parse a MessageStartEvent into a ToolCall stream
+     * @param start the ContentBlockStart data
+     * @return a ToolCall
      */
-    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseContentBlockDelta(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var index = parseNumberField(jsonParser, INDEX_FIELD);
-            var type = parseStringField(jsonParser, TYPE_FIELD);
-            StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta delta;
-            if (type.equals(TEXT_DELTA_TYPE)) {
-                var text = parseStringField(jsonParser, TEXT_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, null);
-            } else if (type.equals(INPUT_JSON_DELTA_TYPE)) {
-                var partialJson = parseStringField(jsonParser, PARTIAL_JSON_FIELD);
-                delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(
-                    null,
-                    null,
-                    null,
-                    List.of(
-                        new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
-                            0,
-                            null,
-                            new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(partialJson, null),
-                            null
-                        )
-                    )
-                );
-            } else {
-                logger.debug("Unknown content block delta type [{}] for line [{}].", type, data);
-                return Stream.empty();
-            }
-
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, index);
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
-
-            return Stream.of(chunk);
-        }
+    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseStart(ContentBlockStart start) {
+        var type = start.type();
+        var toolUse = start.toolUse();
+        var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(null, toolUse.name());
+        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, toolUse.toolUseId(), function, type.name());
     }
 
     /**
-     * Parse a message delta event into a ChatCompletionChunk stream
-     * @param parserConfig the parser configuration
-     * @param data the event data
-     * @return a stream of ChatCompletionChunk
-     * @throws IOException if parsing fails
+     * processes incremental updates to a tool call
+     * This typically contains the arguments that the model wants to pass to the tool.
+     * Parse a ContentBlockDelta into a ToolCall stream
+     * @param delta the ContentBlockDelta data
+     * @return a ToolCall
      */
-    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> parseMessageDelta(
-        XContentParserConfiguration parserConfig,
-        String data
-    ) throws IOException {
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, data)) {
-            var finishReason = parseStringOrNullField(jsonParser, STOP_REASON_FIELD);
-            var totalTokens = parseNumberField(jsonParser, OUTPUT_TOKENS_FIELD);
-
-            var chunk = buildChatCompletionChunk(totalTokens, finishReason);
-
-            return Stream.of(chunk);
-        }
+    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseDelta(ContentBlockDelta delta) {
+        var type = delta.type();
+        var toolUse = delta.toolUse();
+        var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(toolUse.input(), null);
+        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, null, function, type.name());
     }
 
-    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk buildChatCompletionChunk(
-        int totalTokens,
-        String finishReason
-    ) {
-        var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(totalTokens, 0, totalTokens);
+    /**
+     * Parse a ContentBlockStartEvent into a ChatCompletionChunk stream
+     * @param event the content block start data
+     * @return a stream of ChatCompletionChunk
+     */
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleContentBlockStart(ContentBlockStartEvent event) {
+        var toolCall = handleToolUseStart(event.start());
+        var role = "assistant";
+
+        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, role, List.of(toolCall));
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
+        return Stream.of(chunk);
+    }
+
+    /**
+     * processes incremental content updates
+     * Parse a ContentBlockDeltaEvent into a ChatCompletionChunk stream
+     * @param event the event data
+     * @return a stream of ChatCompletionChunk
+     */
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleContentBlockDelta(ContentBlockDeltaEvent event) {
+        var text = event.delta().text();
+        var toolCall = handleToolUseDelta(event.delta());
+        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(text, null, null, List.of(toolCall));
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
+        return Stream.of(chunk);
+    }
+
+    /**
+     * processes usage statistics
+     * Parse a ConverseStreamMetadataEvent into a ChatCompletionChunk stream
+     * @param event the event data
+     * @return a stream of ChatCompletionChunk
+     */
+    public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMetadata(ConverseStreamMetadataEvent event) {
+        var inputTokens = event.usage().inputTokens();
+        var outputTokens = event.usage().outputTokens();
+        var totalTokens = event.usage().totalTokens();
+        var usage = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Usage(outputTokens, inputTokens, totalTokens);
         var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(
             new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, null, null),
-            finishReason,
+            null,
             0
         );
-        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, usage);
-    }
-
-    private static int parseNumberField(XContentParser jsonParser, String fieldName) throws IOException {
-        positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
-        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, jsonParser.currentToken(), jsonParser);
-        return jsonParser.intValue();
-    }
-
-    private static String parseStringField(XContentParser jsonParser, String fieldName) throws IOException {
-        positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
-        ensureExpectedToken(XContentParser.Token.VALUE_STRING, jsonParser.currentToken(), jsonParser);
-        return jsonParser.text();
-    }
-
-    private static String parseStringOrNullField(XContentParser jsonParser, String fieldName) throws IOException {
-        positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
-        return jsonParser.textOrNull();
-    }
-
-    private static Object parseFieldValue(XContentParser jsonParser, String fieldName) throws IOException {
-        positionParserAtTokenAfterField(jsonParser, fieldName, FAILED_TO_FIND_FIELD_TEMPLATE);
-        return parseFieldsValue(jsonParser);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, usage);
+        return Stream.of(chunk);
     }
 }

@@ -20,6 +20,10 @@ setup:
                 index_options:
                   type: int8_hnsw
                 similarity: l2_norm
+  - do:
+      indices.forcemerge:
+        index: index1
+        max_num_segments: 1
 
   - do:
       bulk:
@@ -46,6 +50,30 @@ setup:
               query_vector: [2, 2, 2, 2, 3]
               k: 2
               num_candidates: 3
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.0.fields.name.0: "moose.jpg"}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1.fields.name.0: "rabbit.jpg"}
+
+---
+"kNN retrieve with visit_percentage":
+  - requires:
+      cluster_features: "mapper.bbq_disk_support"
+      reason: 'bbq disk support required'
+  - do:
+      search:
+        index: index1
+        body:
+          fields: [ "name" ]
+          retriever:
+            knn:
+              field: vector
+              query_vector: [2, 2, 2, 2, 3]
+              k: 2
+              num_candidates: 3
+              visit_percentage: 1.0
 
   - match: {hits.hits.0._id: "2"}
   - match: {hits.hits.0.fields.name.0: "moose.jpg"}

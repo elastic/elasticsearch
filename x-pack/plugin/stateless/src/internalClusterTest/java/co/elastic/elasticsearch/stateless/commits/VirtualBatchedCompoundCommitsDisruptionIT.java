@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
@@ -52,7 +53,6 @@ import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -103,6 +103,8 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).put("index.routing.allocation.exclude._name", indexNodeB).build());
         ensureGreen(indexName);
+        Index index = resolveIndex(indexName);
+
         indexDocsAndRefresh(indexName, 10);
 
         long initialIndexGeneration = findIndexShard(indexName).commitStats().getGeneration();
@@ -118,11 +120,12 @@ public class VirtualBatchedCompoundCommitsDisruptionIT extends AbstractStateless
         indicesAdmin().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA))
             .execute();
-        awaitClusterState(
-            indexNodeA,
-            clusterState -> clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId().equals(indexNodeBId)
-        );
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+
+        awaitClusterState(indexNodeA, clusterState -> {
+            var project = clusterState.metadata().projectFor(index).id();
+            var primary = clusterState.routingTable(project).index(indexName).shard(0).primaryShard();
+            return primary.currentNodeId().equals(indexNodeBId) && primary.started();
+        });
         logger.info("--> relocated primary");
 
         var indexShard = findIndexShard(indexName);

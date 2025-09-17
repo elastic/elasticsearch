@@ -97,6 +97,7 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatter
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -450,6 +451,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             );
         }
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withInlinestatsWarning(super.filteredWarnings());
     }
 
     public void testInlineStatsParsing() {

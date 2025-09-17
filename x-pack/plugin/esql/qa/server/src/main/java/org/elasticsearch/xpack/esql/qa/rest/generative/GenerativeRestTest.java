@@ -67,7 +67,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         // TS-command tests
         "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
         "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block", // https://github.com/elastic/elasticsearch/issues/134793
-        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
+        "Output has changed from \\[.*\\] to \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/134794
+        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/134882
+        "To perform a lookup join with index \\[.*\\], it must be a in lookup index mode" // https://github.com/elastic/elasticsearch/issues/134882
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()

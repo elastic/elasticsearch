@@ -48,6 +48,13 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
             return EMPTY_DESCRIPTION;
         }
 
+        // TODO: Switch back to using nonNull as possible arguments for aggregations. Using the timestamp field in both the bucket as well
+        // as as an argument in an aggregation causes all sorts of bizarre errors with confusing messages.
+        List<EsqlQueryGenerator.Column> acceptableFields = nonNull.stream()
+            .filter(c -> c.type().equals("datetime") == false && c.type().equals("date_nanos") == false)
+            .filter(c -> c.name().equals("@timestamp") == false)
+            .toList();
+
         StringBuilder cmd = new StringBuilder(" | stats ");
 
         // TODO: increase range max to 5
@@ -57,13 +64,15 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
             if (randomBoolean()) {
                 name = EsqlQueryGenerator.randomIdentifier();
             } else {
-                name = EsqlQueryGenerator.randomName(previousOutput);
+                name = EsqlQueryGenerator.randomName(acceptableFields);
                 if (name == null) {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
             // generate the aggregation
-            String expression = randomBoolean() ? EsqlQueryGenerator.metricsAgg(nonNull) : EsqlQueryGenerator.agg(nonNull);
+            String expression = randomBoolean()
+                ? EsqlQueryGenerator.metricsAgg(acceptableFields)
+                : EsqlQueryGenerator.agg(acceptableFields);
             if (i > 0) {
                 cmd.append(",");
             }
@@ -75,7 +84,7 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
 
         cmd.append(" by ");
         if (randomBoolean()) {
-            var col = EsqlQueryGenerator.randomGroupableName(nonNull);
+            var col = EsqlQueryGenerator.randomGroupableName(acceptableFields);
             if (col != null) {
                 cmd.append(col + ", ");
             }

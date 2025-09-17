@@ -73,7 +73,7 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
             "\\.ml-state-\\d+",
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
-            "\\.entities\\.v\\d+\\.latest\\..*",
+            "\\.entities\\.v\\d+\\..*",
             "\\.monitoring-es-8-.*",
             "\\.monitoring-logstash-8-.*",
             "\\.monitoring-kibana-8-.*",

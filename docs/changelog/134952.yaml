@@ -2,14 +2,10 @@ pr: 134952
 summary: Enable Lookup Join on Expression Tech Preview
 area: ES|QL
 type: enhancement
-issues: []
+issues: [ ]
 highlight:
   title: Enable Lookup Join on Expression Tech Preview
   body: |-
     Enable Lookup Join on Expression Tech Preview
-
-    ```
-    FROM index1
-    | LOOKUP JOIN lookup_index on left_field1 > right_field1 AND left_field2 <= right_field2 AND left_field3 == right_field1
-    ```
+    FROM index1 | LOOKUP JOIN lookup_index on left_field1 > right_field1 AND left_field2 <= right_field2
   notable: true

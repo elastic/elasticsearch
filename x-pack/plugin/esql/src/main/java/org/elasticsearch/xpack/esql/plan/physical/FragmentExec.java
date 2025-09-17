@@ -57,9 +57,6 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             this.estimatedRowSize = in.readVInt();
         } else {
             this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                in.readOptionalNamedWriteable(PhysicalPlan.class); // for old reducer
-            }
         }
     }
 
@@ -72,9 +69,6 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             out.writeVInt(estimatedRowSize);
         } else {
             out.writeOptionalVInt(estimatedRowSize());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeOptionalNamedWriteable(null);// for old reducer
-            }
         }
     }
 

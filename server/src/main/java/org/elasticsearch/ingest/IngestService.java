@@ -1396,7 +1396,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 updateIndexRequestMetadata(original, originalDocumentMetadata);
                 samplingService.maybeSample(projectMetadata, original, ingestDocument);
             } catch (IOException ex) {
-                logger.warn("unable to sample data");
+                logger.debug("Error attempting to sample data", ex);
             }
         }
     }

@@ -1514,6 +1514,7 @@ public class EsqlCapabilities {
         TS_COMMAND_V0(),
 
         ;
+
         private final boolean enabled;
 
         Cap() {

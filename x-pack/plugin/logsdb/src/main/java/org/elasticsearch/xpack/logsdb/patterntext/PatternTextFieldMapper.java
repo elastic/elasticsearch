@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Field;
@@ -48,13 +48,13 @@ import java.util.function.Supplier;
  * A {@link FieldMapper} for full-text log fields that internally splits text into a low cardinality template component
  * and high cardinality argument component. Separating these pieces allows the template component to be highly compressed.
  */
-public class PatternedTextFieldMapper extends FieldMapper {
+public class PatternTextFieldMapper extends FieldMapper {
 
-    public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
+    public static final FeatureFlag PATTERN_TEXT_MAPPER = new FeatureFlag("pattern_text");
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
 
     /**
-     * A setting that indicates that patterned text fields should disable templating, usually because there is
+     * A setting that indicates that pattern text fields should disable templating, usually because there is
      * no valid enterprise license.
      */
     public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(
@@ -94,7 +94,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final IndexVersion indexCreatedVersion;
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<String> indexOptions = patternedTextIndexOptions(m -> ((PatternedTextFieldMapper) m).indexOptions);
+        private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
         private final Parameter<NamedAnalyzer> analyzer;
         private final Parameter<Boolean> disableTemplating;
 
@@ -106,7 +106,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
-            this.analyzer = analyzerParam(name, m -> ((PatternedTextFieldMapper) m).analyzer);
+            this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
             this.disableTemplating = disableTemplatingParameter(indexSettings);
         }
 
@@ -115,10 +115,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
             return new Parameter<?>[] { meta, indexOptions, analyzer, disableTemplating };
         }
 
-        private PatternedTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
+        private PatternTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer analyzer = this.analyzer.get();
             TextSearchInfo tsi = new TextSearchInfo(fieldType, null, analyzer, analyzer);
-            return new PatternedTextFieldType(
+            return new PatternTextFieldType(
                 context.buildFullName(leafName()),
                 tsi,
                 analyzer,
@@ -133,7 +133,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             return indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ? Defaults.FIELD_TYPE_POSITIONS : Defaults.FIELD_TYPE_DOCS;
         }
 
-        private static Parameter<String> patternedTextIndexOptions(Function<FieldMapper, String> initializer) {
+        private static Parameter<String> patternTextIndexOptions(Function<FieldMapper, String> initializer) {
             return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
                 switch (v) {
                     case "positions":
@@ -164,7 +164,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         /**
-         * A parameter that indicates the patterned_text mapper should disable templating, usually
+         * A parameter that indicates the pattern_text mapper should disable templating, usually
          * because there is no valid enterprise license.
          * <p>
          * The parameter should only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
@@ -175,7 +175,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
             return Parameter.boolParam(
                 "disable_templating",
                 false,
-                m -> ((PatternedTextFieldMapper) m).fieldType().disableTemplating(),
+                m -> ((PatternTextFieldMapper) m).fieldType().disableTemplating(),
                 forceDisable
             ).addValidator(value -> {
                 if (value == false && forceDisable) {
@@ -189,17 +189,17 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public PatternedTextFieldMapper build(MapperBuilderContext context) {
+        public PatternTextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = buildLuceneFieldType(indexOptions);
-            PatternedTextFieldType patternedTextFieldType = buildFieldType(fieldType, context);
+            PatternTextFieldType patternTextFieldType = buildFieldType(fieldType, context);
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
-                patternedTextFieldType.templateIdFieldName(leafName()),
+                patternTextFieldType.templateIdFieldName(leafName()),
                 indexSettings.getMode(),
                 indexCreatedVersion,
                 true
             ).indexed(false).build(context);
-            return new PatternedTextFieldMapper(leafName(), fieldType, patternedTextFieldType, builderParams, this, templateIdMapper);
+            return new PatternTextFieldMapper(leafName(), fieldType, patternTextFieldType, builderParams, this, templateIdMapper);
         }
     }
 
@@ -212,10 +212,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
 
-    private PatternedTextFieldMapper(
+    private PatternTextFieldMapper(
         String simpleName,
         FieldType fieldType,
-        PatternedTextFieldType mappedFieldType,
+        PatternTextFieldType mappedFieldType,
         BuilderParams builderParams,
         Builder builder,
         KeywordFieldMapper templateIdMapper
@@ -273,7 +273,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
         }
 
         // Parse template and args
-        PatternedTextValueProcessor.Parts parts = PatternedTextValueProcessor.split(value);
+        PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split(value);
 
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
@@ -298,12 +298,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     protected String contentType() {
-        return PatternedTextFieldType.CONTENT_TYPE;
+        return PatternTextFieldType.CONTENT_TYPE;
     }
 
     @Override
-    public PatternedTextFieldType fieldType() {
-        return (PatternedTextFieldType) super.fieldType();
+    public PatternTextFieldType fieldType() {
+        return (PatternTextFieldType) super.fieldType();
     }
 
     @FunctionalInterface
@@ -329,9 +329,9 @@ public class PatternedTextFieldMapper extends FieldMapper {
         return new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
-            new PatternedTextSyntheticFieldLoaderLayer(
+            new PatternTextSyntheticFieldLoaderLayer(
                 fieldType().name(),
-                leafReader -> PatternedTextCompositeValues.from(leafReader, fieldType())
+                leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
             )
         );
     }

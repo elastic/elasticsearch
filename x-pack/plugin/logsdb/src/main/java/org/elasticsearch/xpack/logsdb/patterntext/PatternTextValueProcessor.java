@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MurmurHash3;
@@ -17,17 +17,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class PatternedTextValueProcessor {
+public class PatternTextValueProcessor {
     private static final Pattern DELIMITER = Pattern.compile("[\\s\\[\\]]");
     public static final int MAX_LOG_LEN_TO_STORE_AS_DOC_VALUE = 8 * 1024;
 
     public record Parts(String template, String templateId, List<String> args, List<Arg.Info> argsInfo, boolean useStoredField) {
         Parts(String template, List<String> args, List<Arg.Info> argsInfo) {
-            this(template, PatternedTextValueProcessor.templateId(template), args, argsInfo, false);
+            this(template, PatternTextValueProcessor.templateId(template), args, argsInfo, false);
         }
 
         static Parts lengthExceeded(String template) {
-            return new Parts(template, PatternedTextValueProcessor.templateId(template), null, null, true);
+            return new Parts(template, PatternTextValueProcessor.templateId(template), null, null, true);
         }
     }
 

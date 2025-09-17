@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -32,14 +32,14 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class PatternedTextBasicRestIT extends ESRestTestCase {
+public class PatternTextBasicRestIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.PATTERNED_TEXT)
+        .feature(FeatureFlag.PATTERN_TEXT)
         .build();
 
     @Override
@@ -54,7 +54,7 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
 
     private final boolean disableTemplating;
 
-    public PatternedTextBasicRestIT(boolean disableTemplating) {
+    public PatternTextBasicRestIT(boolean disableTemplating) {
         this.disableTemplating = disableTemplating;
     }
 
@@ -76,7 +76,7 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
                             "type": "date"
                         },
                         "message": {
-                            "type": "patterned_text",
+                            "type": "pattern_text",
                             "disable_templating": %disable_templating%
                         }
                     }
@@ -91,7 +91,7 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
         indexDocs(indexName, messages);
 
         var actualMapping = getIndexMappingAsMap(indexName);
-        assertThat("patterned_text", equalTo(ObjectPath.evaluate(actualMapping, "properties.message.type")));
+        assertThat("pattern_text", equalTo(ObjectPath.evaluate(actualMapping, "properties.message.type")));
 
         Request searchRequest = new Request("GET", "/" + indexName + "/_search");
         searchRequest.setJsonEntity("""

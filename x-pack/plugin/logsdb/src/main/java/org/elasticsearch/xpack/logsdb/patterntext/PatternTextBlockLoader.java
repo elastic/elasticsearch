@@ -5,18 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.logsdb.patternedtext;
+package org.elasticsearch.xpack.logsdb.patterntext;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.BlockDocValuesReader;
 
 import java.io.IOException;
 
-public class PatternedTextBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+public class PatternTextBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
-    private final PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier;
+    private final PatternTextFieldMapper.DocValuesSupplier docValuesSupplier;
 
-    PatternedTextBlockLoader(PatternedTextFieldMapper.DocValuesSupplier docValuesSupplier) {
+    PatternTextBlockLoader(PatternTextFieldMapper.DocValuesSupplier docValuesSupplier) {
         this.docValuesSupplier = docValuesSupplier;
     }
 

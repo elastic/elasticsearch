@@ -54,7 +54,7 @@ public class PatternTextBasicRestIT extends ESRestTestCase {
 
     private final boolean disableTemplating;
 
-    public PatternedTextBasicRestIT(boolean disableTemplating) {
+    public PatternTextBasicRestIT(boolean disableTemplating) {
         this.disableTemplating = disableTemplating;
     }
 

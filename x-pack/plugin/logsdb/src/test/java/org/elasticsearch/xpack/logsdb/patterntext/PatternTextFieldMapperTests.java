@@ -98,12 +98,12 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testPhraseQueryStandardSourceDisableTemplating() throws IOException {
-        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true))));
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true))));
     }
 
     public void testPhraseQuerySyntheticSourceDisableTemplating() throws IOException {
         assertPhraseQuery(
-            createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true)))
+            createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true)))
         );
     }
 
@@ -209,23 +209,23 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
 
     public void testDisableTemplatingParameter() throws IOException {
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text"));
             MapperService mapperService = createMapperService(mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertFalse(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true));
             MapperService mapperService = createMapperService(mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", false));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", false));
             MapperService mapperService = createMapperService(mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertFalse(mapper.fieldType().disableTemplating());
         }
     }
@@ -233,24 +233,24 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
     public void testDisableTemplatingParameterWhenDisallowedByLicense() throws IOException {
         Settings indexSettings = Settings.builder()
             .put(getIndexSettings())
-            .put(PatternedTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
+            .put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true)
             .build();
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text"));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text"));
             MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true));
             MapperService mapperService = createMapperService(getVersion(), indexSettings, () -> true, mapping);
-            var mapper = (PatternedTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+            var mapper = (PatternTextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
             assertTrue(mapper.fieldType().disableTemplating());
         }
 
         {
-            XContentBuilder mapping = fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", false));
+            XContentBuilder mapping = fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", false));
             Exception e = expectThrows(
                 MapperParsingException.class,
                 () -> createMapperService(getVersion(), indexSettings, () -> true, mapping)
@@ -259,7 +259,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                 e.getMessage(),
                 containsString(
                     "value [false] for mapping parameter [disable_templating] contradicts value [true] for index "
-                        + "setting [index.mapping.patterned_text.disable_templating]"
+                        + "setting [index.mapping.pattern_text.disable_templating]"
                 )
             );
         }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +47,17 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    @ParametersFactory(argumentFormatting = "disableTemplating=%b")
+    public static List<Object[]> args() {
+        return List.of(new Object[] { true }, new Object[] { false });
+    }
+
+    private final boolean disableTemplating;
+
+    public PatternedTextBasicRestIT(boolean disableTemplating) {
+        this.disableTemplating = disableTemplating;
+    }
+
     @SuppressWarnings("unchecked")
     public void testBulkInsertThenMatchAllSource() throws IOException {
 
@@ -63,11 +76,12 @@ public class PatternedTextBasicRestIT extends ESRestTestCase {
                             "type": "date"
                         },
                         "message": {
-                            "type": "patterned_text"
+                            "type": "patterned_text",
+                            "disable_templating": %disable_templating%
                         }
                     }
                 }
-            """;
+            """.replace("%disable_templating%", Boolean.toString(disableTemplating));
 
         String indexName = "test-index";
         createIndex(indexName, settings.build(), mapping);

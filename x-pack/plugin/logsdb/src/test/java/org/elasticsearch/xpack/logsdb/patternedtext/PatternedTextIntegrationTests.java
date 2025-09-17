@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb.patternedtext;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.DocWriteRequest;
@@ -41,6 +43,7 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +58,27 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 
 public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     private static final Logger logger = LogManager.getLogger(PatternedTextIntegrationTests.class);
+
+    @ParametersFactory(argumentFormatting = "indexOptions=%s, disableTemplating=%b")
+    public static List<Object[]> args() {
+        List<Object[]> args = new ArrayList<>();
+        for (var indexOption : new String[] { "docs", "positions" }) {
+            for (var templating : new boolean[] { true, false }) {
+                args.add(new Object[] { indexOption, templating });
+            }
+        }
+        return Collections.unmodifiableList(args);
+    }
+
+    private final String indexOptions;
+    private final boolean disableTemplating;
+    private final String mapping;
+
+    public PatternedTextIntegrationTests(String indexOptions, boolean disableTemplating) {
+        this.indexOptions = indexOptions;
+        this.disableTemplating = disableTemplating;
+        this.mapping = getMapping(indexOptions, disableTemplating);
+    }
 
     @Override
     protected Settings nodeSettings() {
@@ -75,16 +99,14 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
                 "@timestamp": { "type": "date" },
                 "field_match_only_text": { "type": "match_only_text" },
                 "field_patterned_text": {
-                    "type": "patterned_text",
-                    "index_options": "%",
-                    "analyzer": "standard"
+                  "type": "patterned_text",
+                  "index_options": "%index_options%",
+                  "disable_templating": "%disable_templating%",
+                  "analyzer": "standard"
                 }
               }
             }
         """;
-
-    private static final String MAPPING_DOCS_ONLY = MAPPING_TEMPLATE.replace("%", "docs");
-    private static final String MAPPING_POSITIONS = MAPPING_TEMPLATE.replace("%", "positions");
 
     private static final Settings LOGSDB_SETTING = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
 
@@ -100,8 +122,12 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         }
     }
 
+    private String getMapping(String indexOptions, boolean disableTemplating) {
+        return MAPPING_TEMPLATE.replace("%index_options%", indexOptions)
+            .replace("%disable_templating%", Boolean.toString(disableTemplating));
+    }
+
     public void testSourceMatchAllManyValues() throws IOException {
-        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         createIndex(INDEX, createRequest);
 
@@ -114,7 +140,6 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     }
 
     public void testLargeValueIsStored() throws IOException {
-        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         IndexService indexService = createIndex(INDEX, createRequest);
 
@@ -136,7 +161,6 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
     }
 
     public void testSmallValueNotStored() throws IOException {
-        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = indicesAdmin().prepareCreate(INDEX).setSettings(LOGSDB_SETTING).setMapping(mapping);
         IndexService indexService = createIndex(INDEX, createRequest);
 
@@ -148,17 +172,20 @@ public class PatternedTextIntegrationTests extends ESSingleNodeTestCase {
         assertMappings();
         assertMessagesInSource(messages);
 
-        // assert does not contain stored field
+        // assert only contains stored field if templating is disabled
         try (var searcher = indexService.getShard(0).acquireSearcher(INDEX)) {
             try (var indexReader = searcher.getIndexReader()) {
                 var document = indexReader.storedFields().document(0);
-                assertNull(document.getField("field_patterned_text.stored"));
+                if (disableTemplating) {
+                    assertEquals(document.getField("field_patterned_text.stored").binaryValue().utf8ToString(), message);
+                } else {
+                    assertNull(document.getField("field_patterned_text.stored"));
+                }
             }
         }
     }
 
     public void testQueryResultsSameAsMatchOnlyText() throws IOException {
-        var mapping = randomBoolean() ? MAPPING_DOCS_ONLY : MAPPING_POSITIONS;
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
 
         if (randomBoolean()) {

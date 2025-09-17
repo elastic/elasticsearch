@@ -1,5 +1,0 @@
-pr: 134235
-summary: Reserve memory for Lucene's TopN
-area: ES|QL
-type: bug
-issues: []

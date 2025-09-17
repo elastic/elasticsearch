@@ -119,6 +119,10 @@
         "type": "string",
         "description": "Specify the node or shard the operation should be performed on (default: random)"
       },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
+      },
       "q": {
         "type": "string",
         "description": "Query in the Lucene query string syntax"

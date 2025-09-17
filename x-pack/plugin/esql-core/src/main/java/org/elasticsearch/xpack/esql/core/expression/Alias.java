@@ -162,6 +162,6 @@ public final class Alias extends NamedExpression {
     @Override
     protected boolean innerEquals(Object o) {
         var other = (Alias) o;
-        return super.innerEquals(other) && Objects.equals(id(), other.id());
+        return Objects.equals(id(), other.id()) && super.innerEquals(other);
     }
 }

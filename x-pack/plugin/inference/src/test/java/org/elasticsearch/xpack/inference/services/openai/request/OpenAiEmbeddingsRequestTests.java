@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.is;
 public class OpenAiEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_WithUrlOrganizationUser_AndCustomHeadersDefined() throws IOException {
 
-        var model= new OpenAiEmbeddingsModel(
+        var model = new OpenAiEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",

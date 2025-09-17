@@ -34,13 +34,15 @@ The `LOOKUP JOIN` command adds fields from the lookup index as new columns to yo
 
 The command requires two parameters:
 * The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
-* The field(s) to join on. Can be either:
-  * A single field name
-  * A comma-separated list of field names {applies_to}`stack: ga 9.2`
+* The join on clause. Can be either
+    * A single field name
+    * A comma-separated list of field names {applies_to}`stack: ga 9.2`
+    * An expression with one or more join conditions linked by AND. Each condition compares a field from the left index with a field from the right index using binary operators (==, >=, <=, >, <, !=). Fields in the join conditions must be unique and come from exactly one of the indexes involved. {applies_to}`stack: preview 9.2 serverless: preview`
 
 ```esql
 LOOKUP JOIN <lookup_index> ON <field_name>  # Join on a single field
 LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Join on multiple fields
+LOOKUP JOIN <lookup_index> ON <left_field1> >= <right_field1> AND <left_field2> == <right_field2>  # Join on expression
 ```
 
 :::{image} ../images/esql-lookup-join.png

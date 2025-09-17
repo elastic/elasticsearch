@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -3271,7 +3272,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidJoinPatternWithRemote() {
-        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
         var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
         var plan = statement("FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier());
@@ -3971,7 +3971,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -3991,10 +3991,49 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
 
         assertThat(fuse.child(), instanceOf(Fork.class));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE RRF
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        assertThat(fuse.child(), instanceOf(Fork.class));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE LINEAR
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.LINEAR));
+
+        assertThat(fuse.child(), instanceOf(Fork.class));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE WITH {"rank_constant": 15, "weights": {"fork1": 0.33 } }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        MapExpression options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+        assertThat(options.get("weights"), instanceOf(MapExpression.class));
+        assertThat(((MapExpression) options.get("weights")).get("fork1"), equalTo(Literal.fromDouble(null, 0.33)));
+
+        assertThat(fuse.child(), instanceOf(Fork.class));
     }
 
     public void testInvalidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 

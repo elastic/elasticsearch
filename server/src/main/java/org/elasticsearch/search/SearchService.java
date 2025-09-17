@@ -615,7 +615,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shardId,
                 taskId
             );
-            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
+            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse.
+            // Besides, log at DEBUG level when the service is stopped or closed, as at that point the HttpServerTransport
+            // will already be closed and thus any error will not be reported or seen by the REST layer
             if (ExceptionsHelper.status(e).getStatus() < 500
                 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)
                 || lifecycle.stoppedOrClosed()) {

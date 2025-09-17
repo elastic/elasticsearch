@@ -348,9 +348,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
     }
 
-    /**
-     * Validates that field weights are non-negative for simplified syntax.
-     */
     private static void validateNonNegativeWeight(float w) {
         if (w < 0) {
             throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");

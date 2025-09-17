@@ -44,18 +44,21 @@ public class Values extends AggregateFunction implements ToAggregator {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
-        Map.entry(DataType.SEMANTIC_TEXT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.IP, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.VERSION, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
     );
 
@@ -69,15 +72,26 @@ public class Values extends AggregateFunction implements ToAggregator {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         preview = true,
-        description = "Returns all values in a group as a multivalued field. The order of the returned values isn’t guaranteed. "
-            + "If you need the values returned in order use <<esql-mv_sort>>.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        description = """
+            Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
+            If you need the values returned in order use
+            [`MV_SORT`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sort).""",
         appendix = """
+            ::::{tip}
+            Use [`TOP`](/reference/query-languages/esql/functions-operators/aggregation-functions.md#esql-top)
+            if you need to keep repeated values.
+            ::::
             ::::{warning}
             This can use a significant amount of memory and ES|QL doesn’t yet
             grow aggregations beyond memory. So this aggregation will work until
@@ -86,8 +100,7 @@ public class Values extends AggregateFunction implements ToAggregator {
             a [Circuit Breaker Error](docs-content://troubleshoot/elasticsearch/circuit-breaker-errors.md).
             ::::""",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "string", tag = "values-grouped"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) }
+        examples = @Example(file = "string", tag = "values-grouped")
     )
     public Values(
         Source source,
@@ -102,10 +115,14 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" }
         ) Expression v
@@ -148,7 +165,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isType(field(), SUPPLIERS::containsKey, sourceText(), DEFAULT, "any type except unsigned_long");
+        return TypeResolutions.isRepresentableExceptCounters(field(), sourceText(), DEFAULT);
     }
 
     @Override

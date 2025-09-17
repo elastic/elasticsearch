@@ -1,5 +1,0 @@
-pr: 124918
-summary: Fix EQL double invoking listener
-area: EQL
-type: bug
-issues: []

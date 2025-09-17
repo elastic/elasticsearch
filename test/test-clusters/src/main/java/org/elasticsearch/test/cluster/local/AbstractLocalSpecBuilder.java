@@ -105,7 +105,14 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     @Override
     public T environment(String key, Supplier<String> supplier) {
-        this.environmentProviders.add(s -> Map.of(key, supplier.get()));
+        this.environmentProviders.add(s -> {
+            final var value = supplier.get();
+            if (value == null) {
+                return Map.of();
+            } else {
+                return Map.of(key, value);
+            }
+        });
         return cast(this);
     }
 
@@ -285,6 +292,12 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     @Override
     public T version(Version version) {
         this.version = version;
+        return cast(this);
+    }
+
+    @Override
+    public T version(String version) {
+        this.version = Version.fromString(version);
         return cast(this);
     }
 

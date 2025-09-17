@@ -42,7 +42,7 @@ public class NestedValueFetcher implements ValueFetcher {
 
     @Override
     public List<Object> fetchValues(Source source, int doc, List<Object> includedValues) throws IOException {
-        List<Object> nestedEntriesToReturn = new ArrayList<>();
+        ArrayList<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
         List<?> nestedValues = XContentMapValues.extractNestedSources(nestedFieldPath, source.source());
@@ -69,6 +69,7 @@ public class NestedValueFetcher implements ValueFetcher {
                 nestedEntriesToReturn.add(nestedEntry);
             }
         }
+        nestedEntriesToReturn.trimToSize();
         return nestedEntriesToReturn;
     }
 

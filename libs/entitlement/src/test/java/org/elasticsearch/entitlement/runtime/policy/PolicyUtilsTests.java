@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
@@ -26,15 +27,13 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.entitlement.runtime.policy.PolicyUtils.mergeEntitlement;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyUtils.mergeEntitlements;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.SEPARATOR;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESTestCase.WithoutSecurityManager
 public class PolicyUtilsTests extends ESTestCase {
 
     public void testCreatePluginPolicyWithPatch() {
@@ -135,6 +134,7 @@ public class PolicyUtilsTests extends ESTestCase {
 
     public void testNoPatchWithValidationError() {
 
+        // Nonexistent module names
         var policyPatch = """
             versions:
               - 9.0.0
@@ -150,13 +150,15 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testNoPatchWithParsingError() {
 
+        // no <version> or <policy> field
         var policyPatch = """
             entitlement-module-name:
               - load_native_libraries
@@ -168,9 +170,10 @@ public class PolicyUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
-
-        assertThat(policy, nullValue());
+        assertThrows(
+            IllegalStateException.class,
+            () -> PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of())
+        );
     }
 
     public void testMergeScopes() {
@@ -207,7 +210,7 @@ public class PolicyUtilsTests extends ESTestCase {
         var e1 = new InboundNetworkEntitlement();
         var e2 = new InboundNetworkEntitlement();
 
-        assertThat(mergeEntitlement(e1, e2), equalTo(new InboundNetworkEntitlement()));
+        assertThat(PolicyUtils.mergeEntitlement(e1, e2), equalTo(new InboundNetworkEntitlement()));
     }
 
     public void testMergeFilesEntitlement() {
@@ -215,7 +218,7 @@ public class PolicyUtilsTests extends ESTestCase {
             List.of(
                 FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                 FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
+                FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ)
             )
         );
         var e2 = new FilesEntitlement(
@@ -226,7 +229,7 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
 
-        var merged = mergeEntitlement(e1, e2);
+        var merged = PolicyUtils.mergeEntitlement(e1, e2);
         assertThat(
             merged,
             transformedMatch(
@@ -235,7 +238,7 @@ public class PolicyUtilsTests extends ESTestCase {
                     FilesEntitlement.FileData.ofPath(Path.of("/a/b"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/a/c"), FilesEntitlement.Mode.READ_WRITE),
-                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), FilesEntitlement.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
+                    FilesEntitlement.FileData.ofRelativePath(Path.of("c/d"), PathLookup.BaseDir.CONFIG, FilesEntitlement.Mode.READ),
                     FilesEntitlement.FileData.ofPath(Path.of("/c/d"), FilesEntitlement.Mode.READ)
                 )
             )
@@ -246,7 +249,7 @@ public class PolicyUtilsTests extends ESTestCase {
         var e1 = new WriteSystemPropertiesEntitlement(List.of("a", "b", "c"));
         var e2 = new WriteSystemPropertiesEntitlement(List.of("b", "c", "d"));
 
-        var merged = mergeEntitlement(e1, e2);
+        var merged = PolicyUtils.mergeEntitlement(e1, e2);
         assertThat(
             merged,
             transformedMatch(x -> ((WriteSystemPropertiesEntitlement) x).properties(), containsInAnyOrder("a", "b", "c", "d"))
@@ -271,7 +274,7 @@ public class PolicyUtilsTests extends ESTestCase {
             new WriteSystemPropertiesEntitlement(List.of("a"))
         );
 
-        var merged = mergeEntitlements(a, b);
+        var merged = PolicyUtils.mergeEntitlements(a, b);
         assertThat(
             merged,
             containsInAnyOrder(
@@ -285,6 +288,97 @@ public class PolicyUtilsTests extends ESTestCase {
                     )
                 ),
                 new WriteSystemPropertiesEntitlement(List.of("a"))
+            )
+        );
+    }
+
+    /** Test that we can parse the set of entitlements correctly for a simple policy */
+    public void testFormatSimplePolicy() {
+        var pluginPolicy = new Policy(
+            "test-plugin",
+            List.of(new Scope("module1", List.of(new WriteSystemPropertiesEntitlement(List.of("property1", "property2")))))
+        );
+
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        assertThat(actual, containsInAnyOrder("write_system_properties [property1]", "write_system_properties [property2]"));
+    }
+
+    /** Test that we can format the set of entitlements correctly for a complex policy */
+    public void testFormatPolicyWithMultipleScopes() {
+        var pluginPolicy = new Policy(
+            "test-plugin",
+            List.of(
+                new Scope("module1", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("module2", List.of(new CreateClassLoaderEntitlement(), new OutboundNetworkEntitlement())),
+                new Scope("module3", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
+            )
+        );
+
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        assertThat(actual, containsInAnyOrder("create_class_loader", "outbound_network", "inbound_network"));
+    }
+
+    /** Test that we can format some simple files entitlement properly */
+    public void testFormatFilesEntitlement() {
+        var pathAB = Path.of("/a/b");
+        var pathCD = Path.of("c/d");
+        var policy = new Policy(
+            "test-plugin",
+            List.of(
+                new Scope(
+                    "module1",
+                    List.of(
+                        new FilesEntitlement(
+                            List.of(
+                                FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
+                                FilesEntitlement.FileData.ofRelativePath(pathCD, PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
+                            )
+                        )
+                    )
+                ),
+                new Scope(
+                    "module2",
+                    List.of(
+                        new FilesEntitlement(
+                            List.of(
+                                FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
+                                FilesEntitlement.FileData.ofPathSetting("setting", PathLookup.BaseDir.DATA, FilesEntitlement.Mode.READ)
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
+        var pathABString = pathAB.toAbsolutePath().toString();
+        var pathCDString = SEPARATOR + pathCD.toString();
+        var pathSettingString = SEPARATOR + "<setting>";
+        assertThat(
+            actual,
+            containsInAnyOrder(
+                "files [READ_WRITE] " + pathABString,
+                "files [READ] <DATA>" + pathCDString,
+                "files [READ] <DATA>" + pathSettingString
+            )
+        );
+    }
+
+    /** Test that we can format some simple files entitlement properly */
+    public void testFormatWriteSystemPropertiesEntitlement() {
+        var policy = new Policy(
+            "test-plugin",
+            List.of(
+                new Scope("module1", List.of(new WriteSystemPropertiesEntitlement(List.of("property1", "property2")))),
+                new Scope("module2", List.of(new WriteSystemPropertiesEntitlement(List.of("property2", "property3"))))
+            )
+        );
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
+        assertThat(
+            actual,
+            containsInAnyOrder(
+                "write_system_properties [property1]",
+                "write_system_properties [property2]",
+                "write_system_properties [property3]"
             )
         );
     }

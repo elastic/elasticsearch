@@ -47,13 +47,17 @@ import static org.hamcrest.Matchers.hasKey;
  */
 public class JwtWithOidcAuthIT extends C2IdOpTestCase {
 
-    // configured in the Elasticearch node test fixture
+    // configured in the Elasticsearch node test fixture
     private static final List<String> ALLOWED_AUDIENCES = List.of("elasticsearch-jwt1", "elasticsearch-jwt2");
-    private static final String JWT_REALM_NAME = "op-jwt";
+    private static final String JWT_FILE_REALM_NAME = "op-jwt";
+    private static final String JWT_PROXY_REALM_NAME = "op-jwt-proxy";
 
     // Constants for role mapping
-    private static final String ROLE_NAME = "jwt_role";
-    private static final String SHARED_SECRET = "jwt-realm-shared-secret";
+    private static final String FILE_ROLE_NAME = "jwt_role";
+    private static final String FILE_SHARED_SECRET = "jwt-realm-shared-secret";
+
+    private static final String PROXY_ROLE_NAME = "jwt_proxy_role";
+    private static final String PROXY_SHARED_SECRET = "jwt-proxy-realm-shared-secret";
 
     // Randomised values
     private static String clientId;
@@ -79,10 +83,10 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
     }
 
     @Before
-    public void setupRoleMapping() throws Exception {
+    public void setupRoleMappings() throws Exception {
         try (var restClient = getElasticsearchClient()) {
             var client = new TestSecurityClient(restClient);
-            final String mappingJson = Strings.format("""
+            String mappingJson = Strings.format("""
                 {
                   "roles": [ "%s" ],
                   "enabled": true,
@@ -93,8 +97,22 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
                     ]
                   }
                 }
-                """, ROLE_NAME, JWT_REALM_NAME, TEST_SUBJECT_ID);
-            client.putRoleMapping(getTestName(), mappingJson);
+                """, FILE_ROLE_NAME, JWT_FILE_REALM_NAME, TEST_SUBJECT_ID);
+            client.putRoleMapping(FILE_ROLE_NAME, mappingJson);
+
+            mappingJson = Strings.format("""
+                {
+                  "roles": [ "%s" ],
+                  "enabled": true,
+                  "rules": {
+                    "all": [
+                      { "field": { "realm.name": "%s" } },
+                      { "field": { "metadata.jwt_claim_sub": "%s" } }
+                    ]
+                  }
+                }
+                """, PROXY_ROLE_NAME, JWT_PROXY_REALM_NAME, TEST_SUBJECT_ID);
+            client.putRoleMapping(PROXY_ROLE_NAME, mappingJson);
         }
     }
 
@@ -127,15 +145,21 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         assertThat("Hash value of URI [" + implicitFlowURI + "] should be a JWT with an id Token", hashParams, hasKey("id_token"));
         String idJwt = hashParams.get("id_token");
 
-        final Map<String, Object> authenticateResponse = authenticateWithJwtAndSharedSecret(idJwt, SHARED_SECRET);
+        final Map<String, Object> authenticateResponse = authenticateWithJwtAndSharedSecret(idJwt, FILE_SHARED_SECRET);
         assertThat(authenticateResponse, Matchers.hasEntry(User.Fields.USERNAME.getPreferredName(), TEST_SUBJECT_ID));
         assertThat(authenticateResponse, Matchers.hasKey(User.Fields.ROLES.getPreferredName()));
-        assertThat((List<?>) authenticateResponse.get(User.Fields.ROLES.getPreferredName()), contains(ROLE_NAME));
+        assertThat((List<?>) authenticateResponse.get(User.Fields.ROLES.getPreferredName()), contains(FILE_ROLE_NAME));
+
+        // test that the proxy realm successfully loads the JWKS
+        final Map<String, Object> proxyAuthenticateResponse = authenticateWithJwtAndSharedSecret(idJwt, PROXY_SHARED_SECRET);
+        assertThat(proxyAuthenticateResponse, Matchers.hasEntry(User.Fields.USERNAME.getPreferredName(), TEST_SUBJECT_ID));
+        assertThat(proxyAuthenticateResponse, Matchers.hasKey(User.Fields.ROLES.getPreferredName()));
+        assertThat((List<?>) proxyAuthenticateResponse.get(User.Fields.ROLES.getPreferredName()), contains(PROXY_ROLE_NAME));
 
         // Use an incorrect shared secret and check it fails
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> authenticateWithJwtAndSharedSecret(idJwt, "not-" + SHARED_SECRET)
+            () -> authenticateWithJwtAndSharedSecret(idJwt, "not-" + FILE_SHARED_SECRET)
         );
         assertThat(ex.getResponse(), TestMatchers.hasStatusCode(RestStatus.UNAUTHORIZED));
 
@@ -144,7 +168,7 @@ public class JwtWithOidcAuthIT extends C2IdOpTestCase {
         assertThat(dot, greaterThan(0));
         // change the first character of the payload section of the encoded JWT
         final String corruptToken = idJwt.substring(0, dot) + "." + transformChar(idJwt.charAt(dot + 1)) + idJwt.substring(dot + 2);
-        ex = expectThrows(ResponseException.class, () -> authenticateWithJwtAndSharedSecret(corruptToken, SHARED_SECRET));
+        ex = expectThrows(ResponseException.class, () -> authenticateWithJwtAndSharedSecret(corruptToken, FILE_SHARED_SECRET));
         assertThat(ex.getResponse(), TestMatchers.hasStatusCode(RestStatus.UNAUTHORIZED));
     }
 

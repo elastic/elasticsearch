@@ -394,6 +394,6 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

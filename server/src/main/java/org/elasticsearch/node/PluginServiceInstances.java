@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
@@ -30,6 +31,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -55,5 +57,7 @@ public record PluginServiceInstances(
     DocumentParsingProvider documentParsingProvider,
     TaskManager taskManager,
     ProjectResolver projectResolver,
-    SlowLogFieldProvider slowLogFieldProvider
+    SlowLogFieldProvider slowLogFieldProvider,
+    IndexingPressure indexingPressure,
+    LinkedProjectConfigService linkedProjectConfigService
 ) implements Plugin.PluginServices {}

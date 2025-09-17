@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * IndexReshardingState is an abstract class holding the persistent state of a generic resharding operation. It contains
@@ -180,6 +181,9 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         private final TargetShardState[] targetShards;
 
         Split(SourceShardState[] sourceShards, TargetShardState[] targetShards) {
+            // The resharding metadata is deleted when the last source shard transitions to done
+            assert Arrays.stream(sourceShards).allMatch((state) -> state == SourceShardState.DONE) == false;
+
             this.sourceShards = sourceShards;
             this.targetShards = targetShards;
 
@@ -248,6 +252,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         // visible for testing
         TargetShardState[] targetShards() {
             return targetShards.clone();
+        }
+
+        public int sourceShard(int targetShard) {
+            return targetShard % shardCountBefore();
         }
 
         /**
@@ -345,6 +353,14 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return sourceShards[shardNum];
         }
 
+        public boolean isSourceShard(int shardId) {
+            return shardId < shardCountBefore();
+        }
+
+        public boolean isTargetShard(int shardId) {
+            return isSourceShard(shardId) == false;
+        }
+
         /**
          * Get the current target state of a shard
          * @param shardNum an index into shards greater than or equal to the old shard count and less than the new shard count
@@ -358,18 +374,16 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return targetShards[targetShardNum];
         }
 
-        /**
-         * Check whether this metadata represents an incomplete split
-         * @return true if the split is incomplete (not all source shards are DONE)
-         */
-        public boolean inProgress() {
-            for (int i = 0; i < oldShardCount; i++) {
-                if (sourceShards[i] == SourceShardState.SOURCE) {
-                    return true;
-                }
-            }
+        public boolean targetStateAtLeast(int shardNum, TargetShardState targetShardState) {
+            return getTargetShardState(shardNum).ordinal() >= targetShardState.ordinal();
+        }
 
-            return false;
+        public Stream<TargetShardState> targetStates() {
+            return Arrays.stream(targetShards);
+        }
+
+        public Stream<SourceShardState> sourceStates() {
+            return Arrays.stream(sourceShards);
         }
 
         /**

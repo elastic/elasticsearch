@@ -1,4 +1,4 @@
-## Less than or equal to `<=` [esql-less_than_or_equal]
+### Less than or equal to `<=` [esql-less_than_or_equal]
 
 :::{image} ../../../images/operators/less_than_or_equal.svg
 :alt: Embedded

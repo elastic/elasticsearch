@@ -12,14 +12,15 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Objects;
 
-public class InboundMessage extends AbstractRefCounted {
+public class InboundMessage implements Releasable {
 
     private final Header header;
     private final ReleasableBytesReference content;
@@ -27,6 +28,19 @@ public class InboundMessage extends AbstractRefCounted {
     private final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
+
+    @SuppressWarnings("unused") // updated via CLOSED (and _only_ via CLOSED)
+    private boolean closed;
+
+    private static final VarHandle CLOSED;
+
+    static {
+        try {
+            CLOSED = MethodHandles.lookup().findVarHandle(InboundMessage.class, "closed", boolean.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
@@ -84,7 +98,7 @@ public class InboundMessage extends AbstractRefCounted {
 
     public StreamInput openOrGetStreamInput() throws IOException {
         assert isPing == false && content != null;
-        assert hasReferences();
+        assert (boolean) CLOSED.getAcquire(this) == false;
         if (streamInput == null) {
             streamInput = content.streamInput();
             streamInput.setTransportVersion(header.getVersion());
@@ -98,7 +112,10 @@ public class InboundMessage extends AbstractRefCounted {
     }
 
     @Override
-    protected void closeInternal() {
+    public void close() {
+        if (CLOSED.compareAndSet(this, false, true) == false) {
+            return;
+        }
         try {
             IOUtils.close(streamInput, content, breakerRelease);
         } catch (Exception e) {

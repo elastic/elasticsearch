@@ -60,7 +60,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final ParseField INPUT_TYPE = new ParseField("input_type");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
         public static final ParseField QUERY = new ParseField("query");
+        public static final ParseField RETURN_DOCUMENTS = new ParseField("return_documents");
+        public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+
+        public static Builder builder(String inferenceEntityId, TaskType taskType) {
+            return new Builder().setInferenceEntityId(inferenceEntityId).setTaskType(taskType);
+        }
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
@@ -68,6 +74,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareString(Request.Builder::setInputType, INPUT_TYPE);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
             PARSER.declareString(Request.Builder::setQuery, QUERY);
+            PARSER.declareBoolean(Request.Builder::setReturnDocuments, RETURN_DOCUMENTS);
+            PARSER.declareInt(Request.Builder::setTopN, TOP_N);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
         }
 
@@ -89,6 +97,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final TaskType taskType;
         private final String inferenceEntityId;
         private final String query;
+        private final Boolean returnDocuments;
+        private final Integer topN;
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
@@ -99,6 +109,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TaskType taskType,
             String inferenceEntityId,
             String query,
+            Boolean returnDocuments,
+            Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
@@ -109,6 +121,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 taskType,
                 inferenceEntityId,
                 query,
+                returnDocuments,
+                topN,
                 input,
                 taskSettings,
                 inputType,
@@ -122,6 +136,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TaskType taskType,
             String inferenceEntityId,
             String query,
+            Boolean returnDocuments,
+            Integer topN,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
@@ -133,6 +149,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.query = query;
+            this.returnDocuments = returnDocuments;
+            this.topN = topN;
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
@@ -164,6 +182,15 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
 
+            if (in.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+                this.returnDocuments = in.readOptionalBoolean();
+                this.topN = in.readOptionalInt();
+            } else {
+                this.returnDocuments = null;
+                this.topN = null;
+            }
+
             // streaming is not supported yet for transport traffic
             this.stream = false;
         }
@@ -182,6 +209,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public String getQuery() {
             return query;
+        }
+
+        public Boolean getReturnDocuments() {
+            return returnDocuments;
+        }
+
+        public Integer getTopN() {
+            return topN;
         }
 
         public Map<String, Object> getTaskSettings() {
@@ -225,6 +260,17 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
                     return e;
                 }
+            } else if (taskType.equals(TaskType.ANY) == false) {
+                if (returnDocuments != null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [return_documents] cannot be specified for task type [%s]", taskType));
+                    return e;
+                }
+                if (topN != null) {
+                    var e = new ActionRequestValidationException();
+                    e.addValidationError(format("Field [top_n] cannot be specified for task type [%s]", taskType));
+                    return e;
+                }
             }
 
             if (taskType.equals(TaskType.TEXT_EMBEDDING) == false
@@ -258,6 +304,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.RERANK_COMMON_OPTIONS_ADDED)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.RERANK_COMMON_OPTIONS_ADDED_8_19)) {
+                out.writeOptionalBoolean(returnDocuments);
+                out.writeOptionalInt(topN);
+            }
         }
 
         // default for easier testing
@@ -283,6 +335,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(query, request.query)
+                && Objects.equals(returnDocuments, request.returnDocuments)
+                && Objects.equals(topN, request.topN)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
                 && inputType == request.inputType
@@ -296,6 +350,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 taskType,
                 inferenceEntityId,
                 query,
+                returnDocuments,
+                topN,
                 input,
                 taskSettings,
                 inputType,
@@ -312,6 +368,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
             private String query;
+            private Boolean returnDocuments;
+            private Integer topN;
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
             private InferenceContext context;
@@ -335,6 +393,16 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
             public Builder setQuery(String query) {
                 this.query = query;
+                return this;
+            }
+
+            public Builder setReturnDocuments(Boolean returnDocuments) {
+                this.returnDocuments = returnDocuments;
+                return this;
+            }
+
+            public Builder setTopN(Integer topN) {
+                this.topN = topN;
                 return this;
             }
 
@@ -373,7 +441,19 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream, context);
+                return new Request(
+                    taskType,
+                    inferenceEntityId,
+                    query,
+                    returnDocuments,
+                    topN,
+                    input,
+                    taskSettings,
+                    inputType,
+                    timeout,
+                    stream,
+                    context
+                );
             }
         }
 
@@ -384,6 +464,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInferenceEntityId()
                 + ", query="
                 + this.getQuery()
+                + ", returnDocuments="
+                + this.getReturnDocuments()
+                + ", topN="
+                + this.getTopN()
                 + ", input="
                 + this.getInput()
                 + ", taskSettings="
@@ -500,12 +584,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeNamedWriteable(results);
-            } else {
-                out.writeNamedWriteable(results.transformToLegacyFormat().get(0));
-            }
             // streaming isn't supported via Writeable yet
+            out.writeNamedWriteable(results);
         }
 
         @Override

@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,6 +37,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.mockScript;
@@ -266,11 +267,22 @@ public class RandomSearchRequestGenerator {
                 }
                 int k = randomIntBetween(1, 100);
                 int numCands = randomIntBetween(k, 1000);
+                Float visitPercentage = IVF_FORMAT.isEnabled() == false ? null
+                    : randomBoolean() ? null
+                    : randomFloatBetween(0.0f, 100.0f, true);
                 RescoreVectorBuilder rescoreVectorBuilder = randomBoolean()
                     ? null
                     : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
                 knnSearchBuilders.add(
-                    new KnnSearchBuilder(field, vector, k, numCands, rescoreVectorBuilder, randomBoolean() ? null : randomFloat())
+                    new KnnSearchBuilder(
+                        field,
+                        vector,
+                        k,
+                        numCands,
+                        visitPercentage,
+                        rescoreVectorBuilder,
+                        randomBoolean() ? null : randomFloat()
+                    )
                 );
             }
             builder.knnSearch(knnSearchBuilders);

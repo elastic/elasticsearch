@@ -16,11 +16,11 @@ public abstract class AbstractStringPattern implements StringPattern {
 
     private Automaton automaton;
 
-    public abstract Automaton createAutomaton();
+    public abstract Automaton createAutomaton(boolean ignoreCase);
 
     private Automaton automaton() {
         if (automaton == null) {
-            automaton = createAutomaton();
+            automaton = createAutomaton(false);
         }
         return automaton;
     }
@@ -32,7 +32,11 @@ public abstract class AbstractStringPattern implements StringPattern {
 
     @Override
     public String exactMatch() {
-        IntsRef singleton = Operations.getSingleton(automaton());
+        Automaton a = automaton();
+        if (a.getNumStates() == 0) { // workaround for https://github.com/elastic/elasticsearch/pull/128887
+            return null; // Empty automaton has no matches
+        }
+        IntsRef singleton = Operations.getSingleton(a);
         return singleton != null ? UnicodeUtil.newString(singleton.ints, singleton.offset, singleton.length) : null;
     }
 }

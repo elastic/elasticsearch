@@ -55,7 +55,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             ),
             @Example(
                 description = "To count the number of times an expression returns `TRUE` use "
-                    + "a <<esql-where>> command to remove rows that shouldn’t be included",
+                    + "a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included",
                 file = "stats",
                 tag = "count-where"
             ),
@@ -77,9 +77,15 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
+                "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
+                "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -146,7 +152,11 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
         var s = source();
         var field = field();
         if (field.dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Sum(s, FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT));
+            return new Sum(
+                s,
+                FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.COUNT),
+                filter()
+            );
         }
 
         if (field.foldable()) {
@@ -163,7 +173,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
             return new Mul(
                 s,
                 new Coalesce(s, new MvCount(s, field), List.of(new Literal(s, 0, DataType.INTEGER))),
-                new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD))
+                new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter())
             );
         }
 

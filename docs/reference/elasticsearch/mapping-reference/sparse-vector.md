@@ -24,19 +24,148 @@ PUT my-index
 }
 ```
 
+## Token pruning
+```{applies_to}
+stack: ga 9.1
+```
+
+With any new indices created, token pruning will be turned on by default with appropriate defaults. You can control this behaviour using the optional `index_options` parameters for the field:
+
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "text.tokens": {
+        "type": "sparse_vector",
+        "index_options": {
+          "prune": true,
+          "pruning_config": {
+            "tokens_freq_ratio_threshold": 5,
+            "tokens_weight_threshold": 0.4
+          }
+        }
+      }
+    }
+  }
+}
+```
+
 See [semantic search with ELSER](docs-content://solutions/search/semantic-search/semantic-search-elser-ingest-pipelines.md) for a complete example on adding documents to a `sparse_vector` mapped field using ELSER.
 
 ## Parameters for `sparse_vector` fields [sparse-vectors-params]
 
 The following parameters are accepted by `sparse_vector` fields:
 
-[store](/reference/elasticsearch/mapping-reference/mapping-store.md)
-:   Indicates whether the field value should be stored and retrievable independently of the [_source](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field. Accepted values: true or false (default). The field’s data is stored using term vectors, a disk-efficient structure compared to the original JSON input. The input map can be retrieved during a search request via the [`fields` parameter](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#search-fields-param). To benefit from reduced disk usage, you must either:
+index_options {applies_to}`stack: ga 9.1`
+:   (Optional, object) You can set index options for your  `sparse_vector` field to determine if you should prune tokens, and the parameter configurations for the token pruning. If pruning options are not set in your [`sparse_vector` query](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md), Elasticsearch will use the default options configured for the field, if any.
 
-    * Exclude the field from [_source](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering).
-    * Use [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source).
+Parameters for `index_options` are:
 
+`prune` {applies_to}`stack: ga 9.1`
+:   (Optional, boolean) Whether to perform pruning, omitting the non-significant tokens from the query to improve query performance. If `prune` is true but the `pruning_config` is not specified, pruning will occur but default values will be used. Default: true.
 
+`pruning_config` {applies_to}`stack: ga 9.1`
+:   (Optional, object) Optional pruning configuration. If enabled, this will omit non-significant tokens from the query in order to improve query performance. This is only used if `prune` is set to `true`. If `prune` is set to `true` but `pruning_config` is not specified, default values will be used. If `prune` is set to false but `pruning_config` is specified, an exception will occur.
+
+    Parameters for `pruning_config` include:
+
+    `tokens_freq_ratio_threshold` {applies_to}`stack: ga 9.1`
+    :   (Optional, integer) Tokens whose frequency is more than `tokens_freq_ratio_threshold` times the average frequency of all tokens in the specified field are considered outliers and pruned. This value must between 1 and 100. Default: `5`.
+
+    `tokens_weight_threshold` {applies_to}`stack: ga 9.1`
+    :   (Optional, float) Tokens whose weight is less than `tokens_weight_threshold` are considered insignificant and pruned. This value must be between 0 and 1. Default: `0.4`.
+
+    ::::{note}
+    The default values for `tokens_freq_ratio_threshold` and `tokens_weight_threshold` were chosen based on tests using ELSERv2 that provided the optimal results.
+    ::::
+
+When token pruning is applied, non-significant tokens will be pruned from the query.
+Non-significant tokens can be defined as tokens that meet both of the following criteria:
+* The token appears much more frequently than most tokens, indicating that it is a very common word and may not benefit the overall search results much.
+* The weight/score is so low that the token is likely not very relevant to the original term
+
+Both the token frequency threshold and weight threshold must show the token is non-significant in order for the token to be pruned.
+This ensures that:
+* The tokens that are kept are frequent enough and have significant scoring.
+* Very infrequent tokens that may not have as high of a score are removed.
+
+## Accessing `dense_vector` fields in search responses
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
+
+By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
+This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.
+
+To retrieve vector values explicitly, you can use:
+
+* The `fields` option to request specific vector fields directly:
+
+```console
+POST my-index-2/_search
+{
+  "fields": ["my_vector"]
+}
+```
+
+- The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
+
+```console
+POST my-index-2/_search
+{
+  "_source": {
+    "exclude_vectors": false
+  }
+}
+```
+
+### Storage behavior and `_source`
+
+By default, `sparse_vector` fields are not stored in `_source` on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
+This setting is enabled by default for newly created indices and can only be set at index creation time.
+
+When enabled:
+
+* `sparse_vector` fields are removed from `_source` and the rest of the `_source` is stored as usual.
+* If a request includes `_source` and vector values are needed (e.g., during recovery or reindex), the vectors are rehydrated from their internal format.
+
+This setting is compatible with synthetic `_source`, where the entire `_source` document is reconstructed from columnar storage. In full synthetic mode, no `_source` is stored on disk, and all fields — including vectors — are rebuilt when needed.
+
+### Rehydration and precision
+
+When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format.
+Internally, vectors are stored as floats with 9 significant bits for the precision, so the rehydrated values will have reduced precision.
+This lossy representation is intended to save space while preserving search quality.
+
+### Storing original vectors in `_source`
+
+If you want to preserve the original vector values exactly as they were provided, you can re-enable vector storage in `_source`:
+
+```console
+PUT my-index-include-vectors
+{
+  "settings": {
+    "index.mapping.exclude_source_vectors": false
+  },
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "sparse_vector"
+      }
+    }
+  }
+}
+```
+
+When this setting is disabled:
+
+* `sparse_vector` fields are stored as part of the `_source`, exactly as indexed.
+* The index will store both the original `_source` value and the internal representation used for vector search, resulting in increased storage usage.
+* Vectors are once again returned in `_source` by default in all relevant APIs, with no need to use `exclude_vectors` or `fields`.
+
+This configuration is appropriate when full source fidelity is required, such as for auditing or round-tripping exact input values.
 
 ## Multi-value sparse vectors [index-multi-value-sparse-vectors]
 

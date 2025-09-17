@@ -880,6 +880,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public void setBody(HttpBody body) {
+                throw new IllegalStateException("not allowed");
+            }
+
+            @Override
             public Map<String, List<String>> getHeaders() {
                 Map<String, List<String>> headers = new HashMap<>();
                 if (hasContent) {
@@ -901,6 +906,11 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public HttpRequest removeHeader(String header) {
                 return this;
+            }
+
+            @Override
+            public boolean hasContent() {
+                return hasContent;
             }
 
             @Override

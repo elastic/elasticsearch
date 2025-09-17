@@ -22,11 +22,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
@@ -40,6 +38,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
@@ -55,7 +54,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
-import org.junit.Assume;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -89,6 +87,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -128,7 +127,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testProjectConstant() {
         try (EsqlQueryResponse results = run("from test | eval x = 1 | keep x")) {
-            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("x", "integer"))));
+            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("x", "integer", null))));
             assertThat(getValuesList(results).size(), equalTo(40));
             assertThat(getValuesList(results).get(0).get(0), equalTo(1));
         }
@@ -136,7 +135,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testStatsOverConstant() {
         try (EsqlQueryResponse results = run("from test | eval x = 1 | stats x = count(x)")) {
-            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("x", "long"))));
+            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("x", "long", null))));
             assertThat(getValuesList(results).size(), equalTo(1));
             assertThat(getValuesList(results).get(0).get(0), equalTo(40L));
         }
@@ -145,6 +144,13 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testRow() {
         long value = randomLongBetween(0, Long.MAX_VALUE);
         try (EsqlQueryResponse response = run("row " + value)) {
+            assertEquals(List.of(List.of(value)), getValuesList(response));
+        }
+    }
+
+    public void testRowWithFilter() {
+        long value = randomLongBetween(0, Long.MAX_VALUE);
+        try (EsqlQueryResponse response = run(syncEsqlQueryRequest().query("row " + value).filter(new BoolQueryBuilder().boost(1.0f)))) {
             assertEquals(List.of(List.of(value)), getValuesList(response));
         }
     }
@@ -564,10 +570,14 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             logger.info(results);
             assertEquals(1, getValuesList(results).size());
             assertEquals(2, getValuesList(results).get(0).size());
-            assertEquals(50, (double) getValuesList(results).get(0).get(results.columns().indexOf(new ColumnInfoImpl("x", "double"))), 1d);
+            assertEquals(
+                50,
+                (double) getValuesList(results).get(0).get(results.columns().indexOf(new ColumnInfoImpl("x", "double", null))),
+                1d
+            );
             assertEquals(
                 43,
-                (double) getValuesList(results).get(0).get(results.columns().indexOf(new ColumnInfoImpl("avg_count", "double"))),
+                (double) getValuesList(results).get(0).get(results.columns().indexOf(new ColumnInfoImpl("avg_count", "double", null))),
                 1d
             );
         }
@@ -577,7 +587,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | where count > 40")) {
             logger.info(results);
             assertEquals(30, getValuesList(results).size());
-            var countIndex = results.columns().indexOf(new ColumnInfoImpl("count", "long"));
+            var countIndex = results.columns().indexOf(new ColumnInfoImpl("count", "long", null));
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(countIndex), greaterThan(40L));
             }
@@ -588,7 +598,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | keep count | where count > 40")) {
             logger.info(results);
             assertEquals(30, getValuesList(results).size());
-            int countIndex = results.columns().indexOf(new ColumnInfoImpl("count", "long"));
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("count", "long", null));
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(countIndex), greaterThan(40L));
             }
@@ -599,7 +609,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | eval x = count / 2 | where x > 20")) {
             logger.info(results);
             assertEquals(30, getValuesList(results).size());
-            int countIndex = results.columns().indexOf(new ColumnInfoImpl("x", "long"));
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("x", "long", null));
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(countIndex), greaterThan(20L));
             }
@@ -617,7 +627,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("row a = null | sort a")) {
             logger.info(results);
             assertEquals(1, getValuesList(results).size());
-            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null", null));
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
             assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
             assertNull(getValuesList(results).getFirst().get(countIndex));
@@ -628,7 +638,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("row a = null | stats by a")) {
             logger.info(results);
             assertEquals(1, getValuesList(results).size());
-            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null", null));
             assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
             assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
             assertNull(getValuesList(results).getFirst().get(countIndex));
@@ -639,7 +649,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | eval l = length(color)")) {
             logger.info(results);
             assertThat(getValuesList(results), hasSize(40));
-            int countIndex = results.columns().indexOf(new ColumnInfoImpl("l", "integer"));
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("l", "integer", null));
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Integer) values.get(countIndex), greaterThanOrEqualTo(3));
             }
@@ -658,11 +668,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | eval newCount = count + 1 | where newCount > 1")) {
             logger.info(results);
             assertEquals(40, getValuesList(results).size());
-            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("count", "long"))));
-            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("count_d", "double"))));
-            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("data", "long"))));
-            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("data_d", "double"))));
-            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("time", "long"))));
+            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("count", "long", null))));
+            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("count_d", "double", null))));
+            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("data", "long", null))));
+            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("data_d", "double", null))));
+            assertThat(results.columns(), hasItem(equalTo(new ColumnInfoImpl("time", "long", null))));
         }
     }
 
@@ -696,7 +706,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(40, getValuesList(results).size());
             assertEquals(1, results.columns().stream().filter(c -> c.name().equals("count")).count());
             int countIndex = results.columns().size() - 1;
-            assertEquals(new ColumnInfoImpl("count", "long"), results.columns().get(countIndex));
+            assertEquals(new ColumnInfoImpl("count", "long", null), results.columns().get(countIndex));
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(countIndex), greaterThanOrEqualTo(42L));
             }
@@ -707,7 +717,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (var results = run("from test | eval y = count | rename count as x | keep x, y")) {
             logger.info(results);
             assertEquals(40, getValuesList(results).size());
-            assertThat(results.columns(), contains(new ColumnInfoImpl("x", "long"), new ColumnInfoImpl("y", "long")));
+            assertThat(results.columns(), contains(new ColumnInfoImpl("x", "long", null), new ColumnInfoImpl("y", "long", null)));
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
                 assertThat(values.get(1), is(values.get(0)));
@@ -722,10 +732,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(
                 results.columns(),
                 contains(
-                    new ColumnInfoImpl("x", "long"),
-                    new ColumnInfoImpl("y", "long"),
-                    new ColumnInfoImpl("x2", "long"),
-                    new ColumnInfoImpl("y2", "long")
+                    new ColumnInfoImpl("x", "long", null),
+                    new ColumnInfoImpl("y", "long", null),
+                    new ColumnInfoImpl("x2", "long", null),
+                    new ColumnInfoImpl("y2", "long", null)
                 )
             );
             for (List<Object> values : getValuesList(results)) {
@@ -743,7 +753,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertEquals(40, getValuesList(results).size());
             assertThat(
                 results.columns(),
-                contains(new ColumnInfoImpl("x", "long"), new ColumnInfoImpl("y", "long"), new ColumnInfoImpl("z", "long"))
+                contains(
+                    new ColumnInfoImpl("x", "long", null),
+                    new ColumnInfoImpl("y", "long", null),
+                    new ColumnInfoImpl("z", "long", null)
+                )
             );
             for (List<Object> values : getValuesList(results)) {
                 assertThat((Long) values.get(0), greaterThanOrEqualTo(40L));
@@ -757,7 +771,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (var results = run("from test | eval cnt = count | rename count as data | keep cnt, data")) {
             logger.info(results);
             assertEquals(40, getValuesList(results).size());
-            assertThat(results.columns(), contains(new ColumnInfoImpl("cnt", "long"), new ColumnInfoImpl("data", "long")));
+            assertThat(results.columns(), contains(new ColumnInfoImpl("cnt", "long", null), new ColumnInfoImpl("data", "long", null)));
             for (List<Object> values : getValuesList(results)) {
                 assertThat(values.get(1), is(values.get(0)));
             }
@@ -927,7 +941,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testFromStatsLimit() {
         try (EsqlQueryResponse results = run("from test | stats ac = avg(count) by data | limit 1")) {
             logger.info(results);
-            assertThat(results.columns(), contains(new ColumnInfoImpl("ac", "double"), new ColumnInfoImpl("data", "long")));
+            assertThat(results.columns(), contains(new ColumnInfoImpl("ac", "double", null), new ColumnInfoImpl("data", "long", null)));
             assertThat(getValuesList(results), contains(anyOf(contains(42.0, 1L), contains(44.0, 2L))));
         }
     }
@@ -935,7 +949,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testFromLimit() {
         try (EsqlQueryResponse results = run("from test | keep data | limit 2")) {
             logger.info(results);
-            assertThat(results.columns(), contains(new ColumnInfoImpl("data", "long")));
+            assertThat(results.columns(), contains(new ColumnInfoImpl("data", "long", null)));
             assertThat(getValuesList(results), contains(anyOf(contains(1L), contains(2L)), anyOf(contains(1L), contains(2L))));
         }
     }
@@ -944,7 +958,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse results = run("from test | keep data | drop data | eval a = 1")) {
             logger.info(results);
             assertThat(results.columns(), hasSize(1));
-            assertThat(results.columns(), contains(new ColumnInfoImpl("a", "integer")));
+            assertThat(results.columns(), contains(new ColumnInfoImpl("a", "integer", null)));
             assertThat(getValuesList(results), is(empty()));
         }
     }
@@ -1019,8 +1033,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, Long> testCases = new HashMap<>();
         // Concrete data stream with each selector
         testCases.put("test_ds_patterns_1", 5L);
@@ -1068,8 +1080,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::data", 19L);
         testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 21L);
 
-        testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
-
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
             try (var results = run("from " + key + " | stats count(@timestamp)")) {
                 assertEquals(key, 1, getValuesList(results).size());
@@ -1079,8 +1089,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testDataStreamInvalidPatterns() throws Exception {
-        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
-
         Map<String, String> testCases = new HashMap<>();
         // === Errors
         // Only recognized components can be selected
@@ -1096,7 +1104,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Only one selector separator is allowed per expression
         testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
-        testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
+        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);
@@ -1131,13 +1139,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                                           }
                                         }"""))
                                     .dataStreamOptions(
-                                        ResettableValue.create(
-                                            new DataStreamOptions.Template(
-                                                ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true)))
-                                            )
-                                        )
+                                        new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(true).buildTemplate())
                                     )
-                                    .build()
                             )
                             .build()
                     )
@@ -1233,7 +1236,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testEmptyIndex() {
         assertAcked(client().admin().indices().prepareCreate("test_empty").setMapping("k", "type=keyword", "v", "type=long").get());
         try (EsqlQueryResponse results = run("from test_empty")) {
-            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("k", "keyword"), new ColumnInfoImpl("v", "long"))));
+            assertThat(
+                results.columns(),
+                equalTo(List.of(new ColumnInfoImpl("k", "keyword", null), new ColumnInfoImpl("v", "long", null)))
+            );
             assertThat(getValuesList(results), empty());
         }
     }
@@ -1244,9 +1250,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 results.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("version", "keyword"),
-                        new ColumnInfoImpl("date", "keyword"),
-                        new ColumnInfoImpl("hash", "keyword")
+                        new ColumnInfoImpl("version", "keyword", null),
+                        new ColumnInfoImpl("date", "keyword", null),
+                        new ColumnInfoImpl("hash", "keyword", null)
                     )
                 )
             );
@@ -1259,7 +1265,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testInWithNullValue() {
         try (EsqlQueryResponse results = run("from test | where null in (data, 2) | keep data")) {
-            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("data", "long"))));
+            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("data", "long", null))));
             assertThat(getValuesList(results).size(), equalTo(0));
         }
     }
@@ -1420,7 +1426,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     public void testLoadId() {
         try (EsqlQueryResponse results = run("from test metadata _id | keep _id | sort _id ")) {
-            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("_id", "keyword"))));
+            assertThat(results.columns(), equalTo(List.of(new ColumnInfoImpl("_id", "keyword", null))));
             ListMatcher values = matchesList();
             for (int i = 10; i < 50; i++) {
                 values = values.item(List.of(Integer.toString(i)));
@@ -1629,12 +1635,15 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse resp = run(from + "METADATA _source | EVAL x = 123")) {
             assertFalse(resp.values().hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("_source", "_source"), new ColumnInfoImpl("x", "integer"))));
+            assertThat(
+                resp.columns(),
+                equalTo(List.of(new ColumnInfoImpl("_source", "_source", null), new ColumnInfoImpl("x", "integer", null)))
+            );
         }
 
         try (EsqlQueryResponse resp = run(from)) {
             assertFalse(resp.values().hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("<no-fields>", "null"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("<no-fields>", "null", null))));
         }
     }
 
@@ -1664,9 +1673,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 resp.columns(),
                 equalTo(
                     List.of(
-                        new ColumnInfoImpl("name", "text"),
-                        new ColumnInfoImpl("_source", "_source"),
-                        new ColumnInfoImpl("x", "integer")
+                        new ColumnInfoImpl("name", "text", null),
+                        new ColumnInfoImpl("_source", "_source", null),
+                        new ColumnInfoImpl("x", "integer", null)
                     )
                 )
             );
@@ -1674,26 +1683,63 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse resp = run(from)) {
             assertFalse(resp.values().hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("name", "text"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("name", "text", null))));
+        }
+    }
+
+    public void testGroupingStatsOnMissingFields() {
+        assumeTrue("Pragmas are only allowed in snapshots", Build.current().isSnapshot());
+        assertAcked(client().admin().indices().prepareCreate("missing_field_index").setMapping("data", "type=long"));
+        long oneValue = between(1, 1000);
+        indexDoc("missing_field_index", "1", "data", oneValue);
+        refresh("missing_field_index");
+        QueryPragmas pragmas = randomPragmas();
+        pragmas = new QueryPragmas(
+            Settings.builder().put(pragmas.getSettings()).put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), 1).build()
+        );
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM missing_field_index,test | STATS s = sum(data) BY color, tag | SORT color");
+        request.pragmas(pragmas);
+        try (var r = run(request)) {
+            var rows = getValuesList(r);
+            assertThat(rows, hasSize(4));
+            for (List<Object> row : rows) {
+                assertThat(row, hasSize(3));
+            }
+            assertThat(rows.get(0).get(0), equalTo(20L));
+            assertThat(rows.get(0).get(1), equalTo("blue"));
+            assertNull(rows.get(0).get(2));
+            assertThat(rows.get(1).get(0), equalTo(10L));
+            assertThat(rows.get(1).get(1), equalTo("green"));
+            assertNull(rows.get(1).get(2));
+            assertThat(rows.get(2).get(0), equalTo(30L));
+            assertThat(rows.get(2).get(1), equalTo("red"));
+            assertNull(rows.get(2).get(2));
+            assertThat(rows.get(3).get(0), equalTo(oneValue));
+            assertNull(rows.get(3).get(1));
+            assertNull(rows.get(3).get(2));
         }
     }
 
     private void assertEmptyIndexQueries(String from) {
         try (EsqlQueryResponse resp = run(from + "METADATA _source | KEEP _source | LIMIT 1")) {
             assertFalse(resp.values().hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("_source", "_source"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("_source", "_source", null))));
         }
 
         try (EsqlQueryResponse resp = run(from + "| EVAL y = 1 | KEEP y | LIMIT 1 | EVAL x = 1")) {
             assertFalse(resp.values().hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("y", "integer"), new ColumnInfoImpl("x", "integer"))));
+            assertThat(
+                resp.columns(),
+                equalTo(List.of(new ColumnInfoImpl("y", "integer", null), new ColumnInfoImpl("x", "integer", null)))
+            );
         }
 
         try (EsqlQueryResponse resp = run(from + "| STATS c = count()")) {
             assertTrue(resp.values().hasNext());
             Iterator<Object> row = resp.values().next();
             assertThat(row.next(), equalTo((long) 0));
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("c", "long"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("c", "long", null))));
         }
 
         try (EsqlQueryResponse resp = run(from + "| STATS c = count() | EVAL x = 123")) {
@@ -1702,7 +1748,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             assertThat(row.next(), equalTo((long) 0));
             assertThat(row.next(), equalTo(123));
             assertFalse(row.hasNext());
-            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("c", "long"), new ColumnInfoImpl("x", "integer"))));
+            assertThat(resp.columns(), equalTo(List.of(new ColumnInfoImpl("c", "long", null), new ColumnInfoImpl("x", "integer", null))));
         }
     }
 
@@ -1779,7 +1825,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
 
     private void assertNoNestedDocuments(String query, int docsCount, long minValue, long maxValue) {
         try (EsqlQueryResponse results = run(query)) {
-            assertThat(results.columns(), contains(new ColumnInfoImpl("data", "long")));
+            assertThat(results.columns(), contains(new ColumnInfoImpl("data", "long", null)));
             assertThat(results.columns().size(), is(1));
             assertThat(getValuesList(results).size(), is(docsCount));
             for (List<Object> row : getValuesList(results)) {
@@ -1812,6 +1858,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                     "time",
                     "type=long",
                     "color",
+                    "type=keyword",
+                    "tag",
                     "type=keyword"
                 )
         );
@@ -1911,7 +1959,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             pragmaSettings.put("data_partitioning", "doc");
             pragmas = new QueryPragmas(pragmaSettings.build());
         }
-        try (EsqlQueryResponse resp = run("FROM test-script | SORT k1 | LIMIT " + numDocs, pragmas)) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest().query("FROM test-script | SORT k1 | LIMIT " + numDocs).pragmas(pragmas))) {
             List<Object> k1Column = Iterators.toList(resp.column(0));
             assertThat(k1Column, equalTo(LongStream.range(0L, numDocs).boxed().toList()));
             List<Object> k2Column = Iterators.toList(resp.column(1));

@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialOrGrid;
 
 public final class TypeResolutions {
 
@@ -69,6 +70,23 @@ public final class TypeResolutions {
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == DATETIME, operationName, paramOrd, "datetime");
+    }
+
+    /**
+     * @see DataType#isRepresentable(DataType)
+     */
+    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
+    }
+
+    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(
+            e,
+            (t) -> isSpatialOrGrid(t) == false && DataType.isRepresentable(t),
+            operationName,
+            paramOrd,
+            "any type except counter and spatial types"
+        );
     }
 
     public static TypeResolution isExact(Expression e, String message) {
@@ -131,36 +149,6 @@ public final class TypeResolutions {
             );
         }
         return TypeResolution.TYPE_RESOLVED;
-    }
-
-    /**
-     * Is this {@link Expression#foldable()} and not {@code null}.
-     *
-     * @deprecated instead of calling this, check for a {@link Literal} containing
-     *             {@code null}. Foldable expressions will be folded by other rules,
-     *             eventually, to a {@link Literal}.
-     */
-    @Deprecated
-    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
-
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (e.dataType() == DataType.NULL || e.fold(FoldContext.small()) == null) {
-            resolution = new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] cannot be null, received [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-
-        return resolution;
     }
 
     public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {

@@ -34,6 +34,7 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
@@ -304,7 +305,14 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
-            return formatter.format(resolution.toInstant(value).atZone(timeZone));
+            try {
+                return formatter.format(resolution.toInstant(value).atZone(timeZone));
+            } catch (DateTimeException dte) {
+                throw new IllegalArgumentException(
+                    "Failed formatting value [" + value + "] as date with pattern [" + formatter.pattern() + "]",
+                    dte
+                );
+            }
         }
 
         @Override

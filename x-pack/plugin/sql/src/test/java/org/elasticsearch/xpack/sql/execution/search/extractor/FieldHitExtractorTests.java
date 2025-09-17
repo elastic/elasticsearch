@@ -95,7 +95,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
 
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
             SearchHit hit = SearchHit.unpooled(1, null);
-            hit.setDocumentField(fieldName, field);
+            hit.setDocumentField(field);
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
             assertEquals(result, extractor.extract(hit));
         }
@@ -113,7 +113,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
             }
             DocumentField field = new DocumentField(fieldName, documentFieldValues);
             SearchHit hit = SearchHit.unpooled(1, null);
-            hit.setDocumentField(fieldName, field);
+            hit.setDocumentField(field);
             Object result = documentFieldValues.isEmpty() ? null : documentFieldValues.get(0);
             assertEquals(result, extractor.extract(hit));
         }
@@ -128,7 +128,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         List<Object> documentFieldValues = Collections.singletonList(StringUtils.toString(zdt));
         DocumentField field = new DocumentField("my_date_nanos_field", documentFieldValues);
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField("my_date_nanos_field", field);
+        hit.setDocumentField(field);
         FieldHitExtractor extractor = new FieldHitExtractor("my_date_nanos_field", DATETIME, zoneId, LENIENT);
         assertEquals(zdt, extractor.extract(hit));
     }
@@ -145,7 +145,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         FieldHitExtractor fe = getFieldHitExtractor(fieldName);
         DocumentField field = new DocumentField(fieldName, asList("a", "b"));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField(fieldName, field);
+        hit.setDocumentField(field);
         Exception ex = expectThrows(InvalidArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
     }
@@ -155,7 +155,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Object value = randomValue();
         DocumentField field = new DocumentField("a.b.c", singletonList(value));
         SearchHit hit = SearchHit.unpooled(1, null, null);
-        hit.setDocumentField("a.b.c", field);
+        hit.setDocumentField(field);
         assertThat(fe.extract(hit), is(value));
     }
 
@@ -164,7 +164,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Object value = randomValue();
         DocumentField field = new DocumentField("a", asList(value, value));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField("a", field);
+        hit.setDocumentField(field);
         Exception ex = expectThrows(InvalidArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [a]) are not supported"));
     }
@@ -175,7 +175,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         Object valueB = randomValue();
         DocumentField field = new DocumentField("a", asList(valueA, valueB));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField("a", field);
+        hit.setDocumentField(field);
         assertEquals(valueA, fe.extract(hit));
     }
 
@@ -188,7 +188,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         map.put("type", "Point");
         DocumentField field = new DocumentField(fieldName, singletonList(map));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField(fieldName, field);
+        hit.setDocumentField(field);
 
         assertEquals(new GeoShape(1, 2), fe.extract(hit));
     }
@@ -205,14 +205,14 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         map2.put("type", "Point");
         DocumentField field = new DocumentField(fieldName, asList(map1, map2));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField(fieldName, field);
+        hit.setDocumentField(field);
 
         Exception ex = expectThrows(InvalidArgumentException.class, () -> fe.extract(hit));
         assertThat(ex.getMessage(), is("Arrays (returned by [" + fieldName + "]) are not supported"));
 
         FieldHitExtractor lenientFe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, LENIENT);
         SearchHit searchHit = SearchHit.unpooled(1, "1");
-        searchHit.setDocumentField(fieldName, new DocumentField(fieldName, singletonList(map2)));
+        searchHit.setDocumentField(new DocumentField(fieldName, singletonList(map2)));
         assertEquals(new GeoShape(3, 4), lenientFe.extract(searchHit));
     }
 
@@ -224,7 +224,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         String fieldName = randomAlphaOfLength(10);
         DocumentField field = new DocumentField(fieldName, singletonList(value));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField(fieldName, field);
+        hit.setDocumentField(field);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, UNSIGNED_LONG, randomZone(), randomBoolean() ? NONE : LENIENT);
 
         assertEquals(bi, fe.extract(hit));
@@ -238,7 +238,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         String fieldName = randomAlphaOfLength(10);
         DocumentField field = new DocumentField(fieldName, singletonList(value));
         SearchHit hit = SearchHit.unpooled(1, null);
-        hit.setDocumentField(fieldName, field);
+        hit.setDocumentField(field);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, VERSION, randomZone(), randomBoolean() ? NONE : LENIENT);
 
         assertEquals(version.toString(), fe.extract(hit).toString());

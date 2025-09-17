@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-debugging.html
+products:
+  - id: painless
 ---
 
 # Painless debugging [painless-debugging]

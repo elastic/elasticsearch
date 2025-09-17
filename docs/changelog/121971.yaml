@@ -1,5 +1,0 @@
-pr: 121971
-summary: Do not fetch reserved roles from native store when Get Role API is called
-area: Authorization
-type: enhancement
-issues: []

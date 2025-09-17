@@ -73,7 +73,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
         assertDefaultRerankConfig(rerankModel);
 
-        putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING));
+        putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
         var registeredModels = getMinimalConfigs();
         assertThat(registeredModels.size(), equalTo(1));
         assertTrue(registeredModels.containsKey("my-model"));

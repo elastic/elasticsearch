@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -340,13 +339,24 @@ public interface AuthorizationEngine {
             if (index == null) {
                 validationException = addValidationError("indexPrivileges must not be null", validationException);
             } else {
-                for (int i = 0; i < index.length; i++) {
-                    BytesReference query = index[i].getQuery();
+                for (RoleDescriptor.IndicesPrivileges indicesPrivileges : index) {
+                    BytesReference query = indicesPrivileges.getQuery();
                     if (query != null) {
                         validationException = addValidationError(
                             "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",
                             validationException
                         );
+                    }
+                    // best effort prevent users from attempting to use selectors in privilege check
+                    for (String indexPattern : indicesPrivileges.getIndices()) {
+                        if (IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.FAILURES)
+                            || IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.DATA)) {
+                            validationException = addValidationError(
+                                "may only check index privileges without selectors in index patterns [" + indexPattern + "]",
+                                validationException
+                            );
+                            break;
+                        }
                     }
                 }
             }
@@ -368,31 +378,6 @@ public interface AuthorizationEngine {
                 && application != null
                 && application.length == 0) {
                 validationException = addValidationError("must specify at least one privilege", validationException);
-            }
-            if (index != null) {
-                // no need to validate failure-store related constraints if it's not enabled
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
-                        if (indexPrivilege.getIndices() != null
-                            && Arrays.stream(indexPrivilege.getIndices())
-                                // best effort prevent users from attempting to check failure selectors
-                                .anyMatch(idx -> IndexNameExpressionResolver.hasSelector(idx, IndexComponentSelector.FAILURES))) {
-                            validationException = addValidationError(
-                                // TODO adjust message once HasPrivileges check supports checking failure store privileges
-                                "failures selector is not supported in index patterns",
-                                validationException
-                            );
-                        }
-                        if (indexPrivilege.getPrivileges() != null
-                            && Arrays.stream(indexPrivilege.getPrivileges())
-                                .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
-                            validationException = addValidationError(
-                                "checking failure store privileges is not supported",
-                                validationException
-                            );
-                        }
-                    }
-                }
             }
             return validationException;
         }

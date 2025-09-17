@@ -13,7 +13,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -22,7 +22,10 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -68,6 +71,14 @@ public class IndexPrivilegeTests extends ESTestCase {
             equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
+
+        Predicate<IndexPrivilege> failuresOnly = p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES;
+        assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name(), failuresOnly), equalTo(List.of("read_failure_store")));
+        assertThat(findPrivilegesThatGrant(TransportIndexAction.NAME, failuresOnly), equalTo(List.of()));
+        assertThat(findPrivilegesThatGrant(TransportUpdateAction.NAME, failuresOnly), equalTo(List.of()));
+        assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME, failuresOnly), equalTo(List.of()));
+        assertThat(findPrivilegesThatGrant(IndicesStatsAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
+        assertThat(findPrivilegesThatGrant(RefreshAction.NAME, failuresOnly), equalTo(List.of("manage_failure_store")));
     }
 
     public void testGet() {
@@ -106,7 +117,6 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testResolveSameSelectorPrivileges() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             IndexPrivilege actual = resolvePrivilegeAndAssertSingleton(Set.of("read_failure_store"));
             assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
@@ -133,7 +143,6 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testResolveBySelectorAccess() {
-        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("read_failure_store"));
             assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));
@@ -229,6 +238,70 @@ public class IndexPrivilegeTests extends ESTestCase {
             List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
             assertThat(actualPredicates, containsInAnyOrder(IndexComponentSelectorPredicate.ALL));
         }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
+                Set.of("manage", "all", "read", "indices:data/read/search", "view_index_metadata")
+            );
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    resolvePrivilegeAndAssertSingleton(Set.of("manage", "all", "read", "indices:data/read/search", "view_index_metadata"))
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(actualPredicates, containsInAnyOrder(IndexComponentSelectorPredicate.ALL));
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
+                Set.of("manage", "read", "indices:data/read/search", "read_failure_store")
+            );
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    IndexPrivilege.MANAGE,
+                    IndexPrivilege.READ_FAILURE_STORE,
+                    resolvePrivilegeAndAssertSingleton(Set.of("read", "indices:data/read/search"))
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(
+                    IndexComponentSelectorPredicate.DATA,
+                    IndexComponentSelectorPredicate.FAILURES,
+                    IndexComponentSelectorPredicate.DATA_AND_FAILURES
+                )
+            );
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(Set.of("manage", "read", "indices:data/read/search"));
+            assertThat(
+                actual,
+                containsInAnyOrder(IndexPrivilege.MANAGE, resolvePrivilegeAndAssertSingleton(Set.of("read", "indices:data/read/search")))
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.DATA_AND_FAILURES)
+            );
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.resolveBySelectorAccess(
+                Set.of("manage", "read", "manage_data_stream_lifecycle", "indices:admin/*")
+            );
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    resolvePrivilegeAndAssertSingleton(Set.of("manage_data_stream_lifecycle", "manage")),
+                    resolvePrivilegeAndAssertSingleton(Set.of("read", "indices:admin/*"))
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.DATA_AND_FAILURES)
+            );
+        }
     }
 
     public void testPrivilegesForRollupFieldCapsAction() {
@@ -289,7 +362,11 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(
             Automatons.subsetOf(
                 crossClusterReplication.automaton,
-                resolvePrivilegeAndAssertSingleton(Set.of("manage", "read", "monitor")).automaton
+                IndexPrivilege.resolveBySelectorAccess(Set.of("manage", "read", "monitor"))
+                    .stream()
+                    .map(p -> p.automaton)
+                    .reduce((a1, a2) -> Automatons.unionAndMinimize(List.of(a1, a2)))
+                    .get()
             ),
             is(true)
         );
@@ -316,6 +393,28 @@ public class IndexPrivilegeTests extends ESTestCase {
             Automatons.subsetOf(crossClusterReplicationInternal.automaton, resolvePrivilegeAndAssertSingleton(Set.of("all")).automaton),
             is(true)
         );
+    }
+
+    public void testInvalidPrivilegeErrorMessage() {
+        final String unknownPrivilege = randomValueOtherThanMany(
+            i -> IndexPrivilege.values().containsKey(i),
+            () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT)
+        );
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexPrivilege.resolveBySelectorAccess(Set.of(unknownPrivilege))
+        );
+
+        final String expectedFullErrorMessage = "unknown index privilege ["
+            + unknownPrivilege
+            + "]. a privilege must be either "
+            + "one of the predefined fixed indices privileges ["
+            + Strings.collectionToCommaDelimitedString(IndexPrivilege.names().stream().sorted().collect(Collectors.toList()))
+            + "] or a pattern over one of the available index"
+            + " actions";
+
+        assertEquals(expectedFullErrorMessage, exception.getMessage());
     }
 
     public static IndexPrivilege resolvePrivilegeAndAssertSingleton(Set<String> names) {

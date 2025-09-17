@@ -8,10 +8,14 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class EmbeddingsInput extends InferenceInputs {
 
@@ -23,29 +27,50 @@ public class EmbeddingsInput extends InferenceInputs {
         return (EmbeddingsInput) inferenceInputs;
     }
 
-    private final List<String> input;
-
+    private final Supplier<List<ChunkInferenceInput>> listSupplier;
     private final InputType inputType;
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
+    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType) {
         this(input, inputType, false);
     }
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream) {
-        super(stream);
-        this.input = Objects.requireNonNull(input);
+    public EmbeddingsInput(Supplier<List<ChunkInferenceInput>> inputSupplier, @Nullable InputType inputType) {
+        super(false);
+        this.listSupplier = Objects.requireNonNull(inputSupplier);
         this.inputType = inputType;
     }
 
-    public List<String> getInputs() {
-        return this.input;
+    public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType) {
+        this(input.stream().map(i -> new ChunkInferenceInput(i, chunkingSettings)).collect(Collectors.toList()), inputType, false);
+    }
+
+    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType, boolean stream) {
+        super(stream);
+        Objects.requireNonNull(input);
+        this.listSupplier = () -> input;
+        this.inputType = inputType;
+    }
+
+    public List<ChunkInferenceInput> getInputs() {
+        return this.listSupplier.get();
+    }
+
+    public static EmbeddingsInput fromStrings(List<String> input, @Nullable InputType inputType) {
+        return new EmbeddingsInput(input, null, inputType);
+    }
+
+    public List<String> getStringInputs() {
+        return getInputs().stream().map(ChunkInferenceInput::input).collect(Collectors.toList());
     }
 
     public InputType getInputType() {
         return this.inputType;
     }
 
-    public int inputSize() {
-        return input.size();
+    @Override
+    public boolean isSingleInput() {
+        // We can't measure the size of the input list without executing
+        // the supplier.
+        return false;
     }
 }

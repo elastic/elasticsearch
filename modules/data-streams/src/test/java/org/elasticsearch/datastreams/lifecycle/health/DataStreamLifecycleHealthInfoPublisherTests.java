@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -25,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
@@ -93,8 +91,7 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishDslErrorEntries() {
-        @FixForMultiProject(description = "Once the health API becomes project-aware, we shouldn't use the default project ID")
-        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        final var projectId = randomProjectIdOrDefault();
         for (int i = 0; i < 11; i++) {
             errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
@@ -117,12 +114,12 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
         List<DslErrorInfo> dslErrorsInfo = dslHealthInfo.dslErrorsInfo();
         assertThat(dslErrorsInfo.size(), is(1));
         assertThat(dslErrorsInfo.get(0).indexName(), is("testIndexOverSignalThreshold"));
+        assertThat(dslErrorsInfo.get(0).projectId(), is(projectId));
         assertThat(dslHealthInfo.totalErrorEntriesCount(), is(2));
     }
 
     public void testPublishDslErrorEntriesNoHealthNode() {
-        @FixForMultiProject(description = "Once the health API becomes project-aware, we shouldn't use the default project ID")
-        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        final var projectId = randomProjectIdOrDefault();
         // no requests are being executed
         for (int i = 0; i < 11; i++) {
             errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -19,8 +20,7 @@ import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
-import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.util.Optional;
 
@@ -45,7 +45,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
         TransportService transportService,
         ActionFilters actionFilters,
         MockLicenseState licenseState,
-        ModelRegistry modelRegistry,
+        InferenceEndpointRegistry inferenceEndpointRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
@@ -57,7 +57,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
             transportService,
             actionFilters,
             licenseState,
-            modelRegistry,
+            inferenceEndpointRegistry,
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
@@ -75,7 +75,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
     public void testThrows_IncompatibleTaskTypeException_WhenUsingATextEmbeddingInferenceEndpoint() {
         var modelTaskType = TaskType.TEXT_EMBEDDING;
         var requestTaskType = TaskType.TEXT_EMBEDDING;
-        mockModelRegistry(modelTaskType);
+        mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
         var listener = doExecute(requestTaskType);
@@ -100,7 +100,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
     public void testThrows_IncompatibleTaskTypeException_WhenUsingRequestIsAny_ModelIsTextEmbedding() {
         var modelTaskType = TaskType.ANY;
         var requestTaskType = TaskType.TEXT_EMBEDDING;
-        mockModelRegistry(modelTaskType);
+        mockInferenceEndpointRegistry(modelTaskType);
         when(serviceRegistry.getService(any())).thenReturn(Optional.of(mock()));
 
         var listener = doExecute(requestTaskType);
@@ -123,7 +123,7 @@ public class TransportUnifiedCompletionActionTests extends BaseTransportInferenc
     }
 
     public void testMetricsAfterUnifiedInferSuccess_WithRequestTaskTypeAny() {
-        mockModelRegistry(TaskType.COMPLETION);
+        mockInferenceEndpointRegistry(TaskType.COMPLETION);
         mockService(listener -> listener.onResponse(mock()));
 
         var listener = doExecute(TaskType.ANY);

@@ -36,6 +36,23 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id-compatible-with-bbq
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 64,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-sparse-index
         body:
@@ -58,6 +75,35 @@ setup:
               body:
                 type: semantic_text
                 inference_id: dense-inference-id
+              another_body:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+---
+"Highlighting empty field":
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - match: { result: created }
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              another_body: { }
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - not_exists: hits.hits.0.highlight.another_body
 
 ---
 "Highlighting using a sparse embedding model":
@@ -66,7 +112,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          body: ["ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!"]
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
         refresh: true
 
   - match: { result: created }
@@ -85,10 +131,10 @@ setup:
                 type: "semantic"
                 number_of_fragments: 1
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 1 }
-  - match:  { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
 
   - do:
       search:
@@ -104,11 +150,11 @@ setup:
                 type: "semantic"
                 number_of_fragments: 2
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 2 }
-  - match:  { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
-  - match:  { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
 
   - do:
       search:
@@ -125,10 +171,10 @@ setup:
                 order: "score"
                 number_of_fragments: 1
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 1 }
-  - match:  { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
 
   - do:
       search:
@@ -158,7 +204,7 @@ setup:
         index: test-dense-index
         id: doc_1
         body:
-          body: ["ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!"]
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
         refresh: true
 
   - match: { result: created }
@@ -177,10 +223,10 @@ setup:
                 type: "semantic"
                 number_of_fragments: 1
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 1 }
-  - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.body.0: "You Know, for Search!" }
 
   - do:
       search:
@@ -196,11 +242,11 @@ setup:
                 type: "semantic"
                 number_of_fragments: 2
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 2 }
-  - match:  { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
-  - match:  { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
 
   - do:
       search:
@@ -217,10 +263,10 @@ setup:
                 order: "score"
                 number_of_fragments: 1
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 1 }
-  - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.body.0: "You Know, for Search!" }
 
   - do:
       search:
@@ -237,11 +283,11 @@ setup:
                 order: "score"
                 number_of_fragments: 2
 
-  - match:  { hits.total.value: 1 }
-  - match:  { hits.hits.0._id: "doc_1" }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
   - length: { hits.hits.0.highlight.body: 2 }
-  - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
-  - match:  { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.0: "You Know, for Search!" }
+  - match: { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
 
 ---
 "Highlighting and multi chunks with empty input":
@@ -266,7 +312,7 @@ setup:
         index: test-multi-chunk-index
         id: doc_1
         body:
-          semantic_text_field: ["some test data", "    ", "now with chunks"]
+          semantic_text_field: [ "some test data", "    ", "now with chunks" ]
         refresh: true
 
   - do:
@@ -288,3 +334,320 @@ setup:
   - length: { hits.hits.0.highlight.semantic_text_field: 2 }
   - match: { hits.hits.0.highlight.semantic_text_field.0: "some test data" }
   - match: { hits.hits.0.highlight.semantic_text_field.1: "now with chunks" }
+
+---
+"Highlighting with match_all query":
+  - requires:
+      cluster_features: "semantic_text.match_all_highlighter"
+      reason: semantic text field supports match_all query with semantic highlighter, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              body:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.body: 2 }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              body:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.body: 2 }
+  - match: { hits.hits.0.highlight.body.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - match: { hits.hits.0.highlight.body.1: "You Know, for Search!" }
+
+---
+"Highlighting with match_all and multi chunks with empty input":
+  - requires:
+      cluster_features: "semantic_text.match_all_highlighter"
+      reason: semantic text field supports match_all query with semantic highlighter, effective from 8.19 and 9.1.0.
+
+  - do:
+      indices.create:
+        index: test-index-sparse
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              semantic_text_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              text_field:
+                type: text
+
+  - do:
+      index:
+        index: test-index-sparse
+        id: doc_1
+        body:
+          semantic_text_field: [ "some test data", "    ", "now with chunks" ]
+          text_field: "some test data"
+        refresh: true
+
+  - do:
+      search:
+        index: test-index-sparse
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_text_field:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.semantic_text_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_text_field.0: "some test data" }
+  - match: { hits.hits.0.highlight.semantic_text_field.1: "now with chunks" }
+
+  - do:
+      indices.create:
+        index: test-index-dense
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              semantic_text_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              text_field:
+                type: text
+
+  - do:
+      index:
+        index: test-index-dense
+        id: doc_1
+        body:
+          semantic_text_field: [ "some test data", "    ", "now with chunks" ]
+          text_field: "some test data"
+        refresh: true
+
+  - do:
+      search:
+        index: test-index-dense
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              semantic_text_field:
+                type: "semantic"
+                number_of_fragments: 2
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.semantic_text_field: 2 }
+  - match: { hits.hits.0.highlight.semantic_text_field.0: "some test data" }
+  - match: { hits.hits.0.highlight.semantic_text_field.1: "now with chunks" }
+
+---
+"Highlighting with flat quantization index options":
+  - requires:
+      cluster_features: "semantic_text.highlighter.flat_index_options"
+      reason: semantic highlighter fix for flat index options
+
+  - do:
+      indices.create:
+        index: test-dense-index-flat
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              flat_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: flat
+              int4_flat_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int4_flat
+              int8_flat_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_flat
+              bbq_flat_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+                index_options:
+                  dense_vector:
+                    type: bbq_flat
+
+
+  - do:
+      index:
+        index: test-dense-index-flat
+        id: doc_1
+        body:
+          flat_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          int4_flat_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          int8_flat_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          bbq_flat_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-flat
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              flat_field:
+                type: "semantic"
+                number_of_fragments: 1
+              int4_flat_field:
+                type: "semantic"
+                number_of_fragments: 1
+              int8_flat_field:
+                type: "semantic"
+                number_of_fragments: 1
+              bbq_flat_field:
+                type: "semantic"
+                number_of_fragments: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight: 4 }
+  - length: { hits.hits.0.highlight.flat_field: 1 }
+  - match: { hits.hits.0.highlight.flat_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.int4_flat_field: 1 }
+  - match: { hits.hits.0.highlight.int4_flat_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.int8_flat_field: 1 }
+  - match: { hits.hits.0.highlight.int8_flat_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.bbq_flat_field: 1 }
+  - match: { hits.hits.0.highlight.bbq_flat_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+---
+"Highlighting with HNSW quantization index options":
+  - requires:
+      cluster_features: "semantic_text.highlighter.flat_index_options"
+      reason: semantic highlighter fix for flat index options
+
+  - do:
+      indices.create:
+        index: test-dense-index-hnsw
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              hnsw_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: hnsw
+              int4_hnsw_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int4_hnsw
+              int8_hnsw_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  dense_vector:
+                    type: int8_hnsw
+              bbq_hnsw_field:
+                type: semantic_text
+                inference_id: dense-inference-id-compatible-with-bbq
+                index_options:
+                  dense_vector:
+                    type: bbq_hnsw
+
+
+  - do:
+      index:
+        index: test-dense-index-hnsw
+        id: doc_1
+        body:
+          hnsw_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          int4_hnsw_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          int8_hnsw_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+          bbq_hnsw_field: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-hnsw
+        body:
+          query:
+            match_all: { }
+          highlight:
+            fields:
+              hnsw_field:
+                type: "semantic"
+                number_of_fragments: 1
+              int4_hnsw_field:
+                type: "semantic"
+                number_of_fragments: 1
+              int8_hnsw_field:
+                type: "semantic"
+                number_of_fragments: 1
+              bbq_hnsw_field:
+                type: "semantic"
+                number_of_fragments: 1
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight: 4 }
+  - length: { hits.hits.0.highlight.hnsw_field: 1 }
+  - match: { hits.hits.0.highlight.hnsw_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.int4_hnsw_field: 1 }
+  - match: { hits.hits.0.highlight.int4_hnsw_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.int8_hnsw_field: 1 }
+  - match: { hits.hits.0.highlight.int8_hnsw_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+  - length: { hits.hits.0.highlight.bbq_hnsw_field: 1 }
+  - match: { hits.hits.0.highlight.bbq_hnsw_field.0: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+
+

@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -105,7 +104,7 @@ public class SamplerIT extends ESIntegTestCase {
                 assertThat(genreBuckets.size(), greaterThan(1));
                 double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
                 for (Terms.Bucket genreBucket : genres.getBuckets()) {
-                    Sampler sample = genreBucket.getAggregations().get("sample");
+                    SingleBucketAggregation sample = genreBucket.getAggregations().get("sample");
                     Max maxPriceInGenre = sample.getAggregations().get("max_price");
                     double price = maxPriceInGenre.value();
                     if (asc) {
@@ -129,7 +128,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 Terms authors = sample.getAggregations().get("authors");
                 List<? extends Bucket> testBuckets = authors.getBuckets();
 
@@ -152,7 +151,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setSize(60)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 assertThat(sample.getDocCount(), equalTo(0L));
                 Terms authors = sample.getAggregations().get("authors");
                 assertThat(authors.getBuckets().size(), equalTo(0));
@@ -171,7 +170,7 @@ public class SamplerIT extends ESIntegTestCase {
                 .setExplain(true)
                 .addAggregation(sampleAgg),
             response -> {
-                Sampler sample = response.getAggregations().get("sample");
+                SingleBucketAggregation sample = response.getAggregations().get("sample");
                 assertThat(sample.getDocCount(), greaterThan(0L));
                 Terms authors = sample.getAggregations().get("authors");
                 assertThat(authors.getBuckets().size(), greaterThan(0));

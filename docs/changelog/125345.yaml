@@ -1,6 +1,0 @@
-pr: 125345
-summary: ESQL - date nanos range bug?
-area: ES|QL
-type: bug
-issues:
- - 125439

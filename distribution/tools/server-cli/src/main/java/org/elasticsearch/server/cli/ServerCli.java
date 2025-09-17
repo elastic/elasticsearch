@@ -33,6 +33,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -168,7 +169,7 @@ class ServerCli extends EnvironmentAwareCommand {
         assert secureSettingsLoader(env) instanceof KeyStoreLoader;
 
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command cmd = loadTool("auto-configure-node", autoConfigLibs);
+        Command cmd = loadTool(processInfo.sysprops(), "auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var autoConfigNode = (EnvironmentAwareCommand) cmd;
@@ -210,7 +211,7 @@ class ServerCli extends EnvironmentAwareCommand {
     // package private for testing
     void syncPlugins(Terminal terminal, Environment env, ProcessInfo processInfo) throws Exception {
         String pluginCliLibs = "lib/tools/plugin-cli";
-        Command cmd = loadTool("sync-plugins", pluginCliLibs);
+        Command cmd = loadTool(processInfo.sysprops(), "sync-plugins", pluginCliLibs);
         assert cmd instanceof EnvironmentAwareCommand;
         @SuppressWarnings("raw")
         var syncPlugins = (EnvironmentAwareCommand) cmd;
@@ -258,8 +259,8 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected Command loadTool(String toolname, String libs) {
-        return CliToolProvider.load(toolname, libs).create();
+    protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
+        return CliToolProvider.load(sysprops, toolname, libs).create();
     }
 
     // protected to allow tests to override

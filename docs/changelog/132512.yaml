@@ -1,0 +1,5 @@
+pr: 132512
+summary: Rewrite `RoundTo` to `QueryAndTags`
+area: ES|QL
+type: enhancement
+issues: []

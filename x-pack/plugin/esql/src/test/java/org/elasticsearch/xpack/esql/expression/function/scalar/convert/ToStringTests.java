@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -87,7 +88,7 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             "ToStringFromDatetimeEvaluator[datetime=" + read + "]",
             TestCaseSupplier.dateCases(),
             DataType.KEYWORD,
-            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(((Instant) i).toEpochMilli())),
+            i -> new BytesRef(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DateUtils.toLongMillis((Instant) i))),
             List.of()
         );
         TestCaseSupplier.unary(
@@ -141,6 +142,17 @@ public class ToStringTests extends AbstractScalarFunctionTestCase {
             v -> new BytesRef(v.toString()),
             List.of()
         );
+        // Geo-Grid types
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            TestCaseSupplier.forUnaryGeoGrid(
+                suppliers,
+                "ToStringFromGeoGridEvaluator[gridId=Attribute[channel=0], dataType=" + gridType + "]",
+                gridType,
+                DataType.KEYWORD,
+                v -> new BytesRef(EsqlDataTypeConverter.geoGridToString((long) v, gridType)),
+                List.of()
+            );
+        }
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 

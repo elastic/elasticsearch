@@ -16,6 +16,7 @@ import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.testing.Test;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
 
@@ -26,21 +27,22 @@ public class MutedTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
+
+        File settingsRoot = project.getLayout().getSettingsDirectory().getAsFile();
         String additionalFilePaths = project.hasProperty(ADDITIONAL_FILES_PROPERTY)
             ? project.property(ADDITIONAL_FILES_PROPERTY).toString()
             : "";
         List<RegularFile> additionalFiles = Arrays.stream(additionalFilePaths.split(","))
             .filter(p -> p.isEmpty() == false)
-            .map(p -> project.getRootProject().getLayout().getProjectDirectory().file(p))
+            .map(p -> project.getLayout().getSettingsDirectory().file(p))
             .toList();
-
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        var buildParams = loadBuildParams(project).get();
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
             .registerIfAbsent("mutedTests", MutedTestsBuildService.class, spec -> {
-                spec.getParameters().getInfoPath().set(project.getRootProject().getProjectDir());
+                spec.getParameters().getInfoPath().set(settingsRoot);
                 spec.getParameters().getAdditionalFiles().set(additionalFiles);
             });
 

@@ -8,10 +8,17 @@
  */
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 /**
  * Coordinates of an operation that modifies a repository, assuming that repository at a specific generation.
  */
 public interface RepositoryOperation {
+
+    /**
+     * Project for which repository belongs to.
+     */
+    ProjectId projectId();
 
     /**
      * Name of the repository affected.
@@ -22,4 +29,5 @@ public interface RepositoryOperation {
      * The repository state id at the time the operation began.
      */
     long repositoryStateId();
+
 }

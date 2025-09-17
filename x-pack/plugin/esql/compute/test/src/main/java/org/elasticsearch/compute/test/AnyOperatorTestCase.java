@@ -12,31 +12,52 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.both;
-import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.hasKey;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Superclass for testing any {@link Operator}, including {@link SourceOperator}s.
  */
 public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
+     * @param requiresDeterministicFactory
+     *          True if the returned {@link Operator.OperatorFactory} should always generate an identical deterministic operator.
+     *          That is, for two different calls, both operators should do "exactly" the same.
+     */
+    protected record SimpleOptions(boolean requiresDeterministicFactory) {
+        public static final SimpleOptions DEFAULT = new SimpleOptions(false);
+    }
+
+    /**
      * The operator configured a "simple" or basic way, used for smoke testing
      * descriptions, {@link CircuitBreaker}s, and scatter/gather.
      */
-    protected abstract Operator.OperatorFactory simple();
+    protected abstract Operator.OperatorFactory simple(SimpleOptions options);
+
+    /**
+     * Calls {@link #simple(SimpleOptions)} with the default options.
+     */
+    protected final Operator.OperatorFactory simple() {
+        return simple(SimpleOptions.DEFAULT);
+    }
 
     /**
      * The description of the operator produced by {@link #simple}.
@@ -66,7 +87,7 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     /**
      * Makes sure the description of {@link #simple} matches the {@link #expectedDescriptionOfSimple}.
      */
-    public final void testSimpleDescription() {
+    public void testSimpleDescription() {
         Operator.OperatorFactory factory = simple();
         String description = factory.describe();
         assertThat(description, expectedDescriptionOfSimple());
@@ -89,41 +110,65 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
     }
 
     /**
-     * Ensures that the Operator.Status of this operator has the standard fields.
+     * Ensures that the Operator.Status of this operator has the standard fields, set to 0.
      */
-    public void testOperatorStatus() throws IOException {
+    public void testEmptyOperatorStatus() {
         DriverContext driverContext = driverContext();
         try (var operator = simple().get(driverContext)) {
-            Operator.Status status = operator.status();
-
-            assumeTrue("Operator does not provide a status", status != null);
-
-            var xContent = XContentType.JSON.xContent();
-            try (var xContentBuilder = XContentBuilder.builder(xContent)) {
-                status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-
-                var bytesReference = BytesReference.bytes(xContentBuilder);
-                var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
-
-                if (operator instanceof SourceOperator) {
-                    assertThat(map, hasKey("pages_emitted"));
-                    assertThat(map, hasKey("rows_emitted"));
-                } else if (operator instanceof SinkOperator) {
-                    assertThat(map, hasKey("pages_received"));
-                    assertThat(map, hasKey("rows_received"));
-                } else {
-                    assertThat(map, either(hasKey("pages_processed")).or(both(hasKey("pages_received")).and(hasKey("pages_emitted"))));
-                    assertThat(map, hasKey("rows_received"));
-                    assertThat(map, hasKey("rows_emitted"));
-                }
-            }
+            assertOperatorStatus(operator, List.of(), List.of());
         }
+    }
+
+    /**
+     * Extracts and asserts the operator status.
+     */
+    protected final void assertOperatorStatus(Operator operator, List<Page> input, List<Page> output) {
+        Operator.Status status = operator.status();
+
+        if (status == null) {
+            assertStatus(null, input, output);
+            return;
+        }
+
+        var xContent = XContentType.JSON.xContent();
+        try (var xContentBuilder = XContentBuilder.builder(xContent)) {
+            status.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+
+            var bytesReference = BytesReference.bytes(xContentBuilder);
+            var map = XContentHelper.convertToMap(bytesReference, false, xContentBuilder.contentType()).v2();
+
+            assertStatus(map, input, output);
+        } catch (IOException e) {
+            fail(e, "Failed to convert operator status to XContent");
+        }
+    }
+
+    /**
+     * Assert that the status is sane.
+     * <p>
+     *     This method should be overridden with custom logics and for better assertions and for operators without status.
+     * </p>
+     */
+    protected void assertStatus(@Nullable Map<String, Object> map, List<Page> input, List<Page> output) {
+        assertThat(map, notNullValue());
+
+        var totalInputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+        var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
+
+        MapMatcher matcher = matchesMap().extraOk();
+        if (map.containsKey("pages_processed")) {
+            matcher = matcher.entry("pages_processed", greaterThanOrEqualTo(0));
+        } else {
+            matcher = matcher.entry("pages_received", input.size()).entry("pages_emitted", output.size());
+        }
+        matcher = matcher.entry("rows_received", totalInputRows).entry("rows_emitted", totalOutputRows);
+        assertMap(map, matcher);
     }
 
     /**
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
-    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
+    protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
         return new DriverContext(blockFactory.bigArrays(), blockFactory);
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
 import org.elasticsearch.cluster.ClusterInfo.ReservedSpace;
+import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -22,6 +23,10 @@ import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -43,11 +48,15 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -57,6 +66,8 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,6 +80,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -88,6 +104,10 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -683,7 +703,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .stream()
             .collect(toMap(Map.Entry::getKey, it -> new DiskUsage(it.getKey(), it.getKey(), "/data", diskSize, diskSize - it.getValue())));
 
-        var clusterInfo = new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), dataPath, Map.of());
+        var clusterInfo = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(diskUsage)
+            .mostAvailableSpaceUsage(diskUsage)
+            .shardSizes(shardSizes)
+            .dataPath(dataPath)
+            .build();
 
         var settings = Settings.EMPTY;
 
@@ -802,19 +827,19 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .withNode("node-1", 1000, 100)
             .withNode("node-2", 1000, 1000)
             // node-0 & node-1
-            .withShard(findShardId(clusterState, "index-0"), true, 500)
-            .withShard(findShardId(clusterState, "index-0"), false, 500)
+            .withShard(findShard(clusterState, "index-0", true), 500)
+            .withShard(findShard(clusterState, "index-0", false), 500)
             // node-0
-            .withShard(findShardId(clusterState, "index-1"), true, 400)
+            .withShard(findShard(clusterState, "index-1", true), 400)
             // node-1
-            .withShard(findShardId(clusterState, "index-2"), true, 50)
-            .withShard(findShardId(clusterState, "index-3"), true, 50)
-            .withShard(findShardId(clusterState, "index-4"), true, 50)
-            .withShard(findShardId(clusterState, "index-5"), true, 50)
-            .withShard(findShardId(clusterState, "index-6"), true, 50)
-            .withShard(findShardId(clusterState, "index-7"), true, 50)
-            .withShard(findShardId(clusterState, "index-8"), true, 50)
-            .withShard(findShardId(clusterState, "index-9"), true, 50)
+            .withShard(findShard(clusterState, "index-2", true), 50)
+            .withShard(findShard(clusterState, "index-3", true), 50)
+            .withShard(findShard(clusterState, "index-4", true), 50)
+            .withShard(findShard(clusterState, "index-5", true), 50)
+            .withShard(findShard(clusterState, "index-6", true), 50)
+            .withShard(findShard(clusterState, "index-7", true), 50)
+            .withShard(findShard(clusterState, "index-8", true), 50)
+            .withShard(findShard(clusterState, "index-9", true), 50)
             .build();
 
         var settings = Settings.builder()
@@ -1164,6 +1189,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         private final Map<String, DiskUsage> diskUsage = new HashMap<>();
         private final Map<String, Long> shardSizes = new HashMap<>();
         private final Map<NodeAndPath, ReservedSpace> reservedSpace = new HashMap<>();
+        private final Map<NodeAndShard, String> dataPath = new HashMap<>();
 
         public ClusterInfoTestBuilder withNode(String nodeId, long totalBytes, long freeBytes) {
             diskUsage.put(nodeId, new DiskUsage(nodeId, nodeId, "/path", totalBytes, freeBytes));
@@ -1183,13 +1209,27 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             return this;
         }
 
+        public ClusterInfoTestBuilder withShard(ShardRouting shard, long size) {
+            shardSizes.put(shardIdentifierFromRouting(shard), size);
+            if (shard.unassigned() == false) {
+                dataPath.put(NodeAndShard.from(shard), "/data/path");
+            }
+            return this;
+        }
+
         public ClusterInfoTestBuilder withReservedSpace(String nodeId, long size, ShardId... shardIds) {
             reservedSpace.put(new NodeAndPath(nodeId, "/path"), new ReservedSpace(size, Set.of(shardIds)));
             return this;
         }
 
         public ClusterInfo build() {
-            return new ClusterInfo(diskUsage, diskUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
+            return ClusterInfo.builder()
+                .leastAvailableSpaceUsage(diskUsage)
+                .mostAvailableSpaceUsage(diskUsage)
+                .shardSizes(shardSizes)
+                .reservedSpace(reservedSpace)
+                .dataPath(dataPath)
+                .build();
         }
     }
 
@@ -1231,7 +1271,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
-                "Desired balance computation for [*] is still not converged after [1m] and [60] iterations"
+                "Desired balance computation for [*] is still not converged after [1m] and [59] iterations"
             )
         );
     }
@@ -1271,9 +1311,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
-        });
+        }, TEST_ONLY_EXPLAINER);
 
-        assertThatLogger(() -> {
+        assertLoggerExpectationsFor(() -> {
             var iteration = new AtomicInteger(0);
             desiredBalanceComputer.compute(
                 DesiredBalance.BECOME_MASTER_INITIAL,
@@ -1281,7 +1321,405 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 queue(),
                 input -> iteration.incrementAndGet() < iterations
             );
-        }, DesiredBalanceComputer.class, expectation);
+        }, expectation);
+    }
+
+    private void assertLoggerExpectationsFor(Runnable action, MockLog.LoggingExpectation... expectations) {
+        assertThatLogger(action, DesiredBalanceComputer.class, expectations);
+    }
+
+    public void testLoggingOfComputeCallsAndIterationsSinceConvergence() {
+        final var clusterSettings = new ClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.PROGRESS_LOG_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(5L)).build(),
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
+        );
+        final var timeInMillis = new AtomicLong(-1L);
+        final var iterationCounter = new AtomicInteger(0);
+        final var requiredIterations = new AtomicInteger(2);
+        final var desiredBalance = new AtomicReference<DesiredBalance>(DesiredBalance.BECOME_MASTER_INITIAL);
+        final var indexSequence = new AtomicLong(0);
+        final var clusterState = createInitialClusterState(1, 1, 0);
+
+        final var computer = new DesiredBalanceComputer(
+            clusterSettings,
+            TimeProviderUtils.create(timeInMillis::incrementAndGet),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            TEST_ONLY_EXPLAINER
+        ) {
+            @Override
+            boolean hasEnoughIterations(int currentIteration) {
+                iterationCounter.incrementAndGet();
+                return currentIteration >= requiredIterations.get();
+            }
+        };
+        computer.setConvergenceLogMsgLevel(Level.INFO);
+
+        record ExpectedLastConvergenceInfo(int numComputeCalls, int numTotalIterations, long timestampMillis) {}
+
+        Consumer<ExpectedLastConvergenceInfo> assertLastConvergenceInfo = data -> {
+            assertEquals(data.numComputeCalls(), computer.getNumComputeCallsSinceLastConverged());
+            assertEquals(data.numTotalIterations(), computer.getNumIterationsSinceLastConverged());
+            assertEquals(data.timestampMillis(), computer.getLastConvergedTimeMillis());
+        };
+
+        final Function<Predicate<DesiredBalanceInput>, Runnable> getComputeRunnableForIsFreshPredicate = isFreshFunc -> {
+            final var input = new DesiredBalanceInput(indexSequence.incrementAndGet(), routingAllocationOf(clusterState), List.of());
+            return () -> desiredBalance.set(computer.compute(desiredBalance.get(), input, queue(), isFreshFunc));
+        };
+
+        record LogExpectationData(
+            boolean isConverged,
+            String timeSinceConverged,
+            int totalIterations,
+            int totalComputeCalls,
+            int currentIterations,
+            String currentDuration
+        ) {
+            LogExpectationData(boolean isConverged, String timeSinceConverged, int totalIterations) {
+                this(isConverged, timeSinceConverged, totalIterations, 0, 0, "");
+            }
+        }
+
+        Function<LogExpectationData, MockLog.SeenEventExpectation> getLogExpectation = data -> {
+            final var singleComputeCallMsg = "Desired balance computation for [%d] "
+                + (data.isConverged ? "" : "is still not ")
+                + "converged after [%s] and [%d] iterations";
+            return new MockLog.SeenEventExpectation(
+                "expected a " + (data.isConverged ? "converged" : "not converged") + " log message",
+                DesiredBalanceComputer.class.getCanonicalName(),
+                Level.INFO,
+                (data.totalComputeCalls > 1
+                    ? Strings.format(
+                        singleComputeCallMsg + ", resumed computation [%d] times with [%d] iterations since the last resumption [%s] ago",
+                        indexSequence.get(),
+                        data.timeSinceConverged,
+                        data.totalIterations,
+                        data.totalComputeCalls,
+                        data.currentIterations,
+                        data.currentDuration
+                    )
+                    : Strings.format(singleComputeCallMsg, indexSequence.get(), data.timeSinceConverged, data.totalIterations))
+            );
+        };
+
+        final Consumer<DesiredBalance.ComputationFinishReason> assertFinishReason = reason -> {
+            assertEquals(reason, desiredBalance.get().finishReason());
+            if (DesiredBalance.ComputationFinishReason.CONVERGED == reason) {
+                // Verify the number of compute() calls and total iterations have been reset after converging.
+                assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(0, 0, timeInMillis.get()));
+            }
+        };
+
+        // No compute() calls yet, last convergence timestamp is the startup time.
+        assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(0, 0, timeInMillis.get()));
+
+        // Converges right away, verify the debug level convergence message.
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
+            getLogExpectation.apply(new LogExpectationData(true, "3ms", 2))
+        );
+        assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
+        final var lastConvergenceTimestampMillis = computer.getLastConvergedTimeMillis();
+
+        // Test a series of compute() calls that don't converge.
+        iterationCounter.set(0);
+        requiredIterations.set(10);
+        // This INFO is triggered from the interval since last convergence timestamp.
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 6),
+            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4))
+        );
+        assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
+        assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(1, 6, lastConvergenceTimestampMillis));
+
+        iterationCounter.set(0);
+        // The next INFO is triggered from the interval since last INFO message logged, and then another after the interval period.
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> iterationCounter.get() < 8),
+            getLogExpectation.apply(new LogExpectationData(false, "10ms", 8, 2, 2, "2ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "15ms", 13, 2, 7, "7ms"))
+        );
+        assertFinishReason.accept(DesiredBalance.ComputationFinishReason.YIELD_TO_NEW_INPUT);
+        assertLastConvergenceInfo.accept(new ExpectedLastConvergenceInfo(2, 14, lastConvergenceTimestampMillis));
+
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
+            getLogExpectation.apply(new LogExpectationData(false, "20ms", 17, 3, 3, "3ms")),
+            getLogExpectation.apply(new LogExpectationData(false, "25ms", 22, 3, 8, "8ms")),
+            getLogExpectation.apply(new LogExpectationData(true, "27ms", 24, 3, 10, "10ms"))
+        );
+        assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
+
+        // First INFO is triggered from interval since last converged, second is triggered from the inverval since the last INFO log.
+        assertLoggerExpectationsFor(
+            getComputeRunnableForIsFreshPredicate.apply(ignored -> true),
+            getLogExpectation.apply(new LogExpectationData(false, "5ms", 4)),
+            getLogExpectation.apply(new LogExpectationData(false, "10ms", 9)),
+            getLogExpectation.apply(new LogExpectationData(true, "11ms", 10))
+        );
+        assertFinishReason.accept(DesiredBalance.ComputationFinishReason.CONVERGED);
+
+        // Verify the final assignment mappings after converging.
+        final var index = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(TEST_INDEX).getIndex();
+        final var expectedAssignmentsMap = Map.of(new ShardId(index, 0), new ShardAssignment(Set.of("node-0"), 1, 0, 0));
+        assertDesiredAssignments(desiredBalance.get(), expectedAssignmentsMap);
+    }
+
+    @TestLogging(
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer.allocation_explain:DEBUG",
+        reason = "test logging for allocation explain"
+    )
+    public void testLogAllocationExplainForUnassigned() {
+        final ClusterSettings clusterSettings = createBuiltInClusterSettings();
+        final var computer = new DesiredBalanceComputer(
+            clusterSettings,
+            TimeProviderUtils.create(() -> 0L),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            createAllocationService()::explainShardAllocation
+        );
+        final String loggerName = DesiredBalanceComputer.class.getCanonicalName() + ".allocation_explain";
+
+        // No logging since no unassigned shard
+        {
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                createInitialClusterState(1, 1, 0),
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain since all shards are assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard * with allocation decision *"
+                    )
+                );
+                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+        var initialState = createInitialClusterState(1, 1, 1);
+        // Logging for unassigned primary shard (preferred over unassigned replica)
+        {
+            final DiscoveryNode dataNode = initialState.nodes().getDataNodes().values().iterator().next();
+            final var clusterState = initialState.copyAndUpdateMetadata(
+                b -> b.putCustom(
+                    NodesShutdownMetadata.TYPE,
+                    new NodesShutdownMetadata(
+                        Map.of(
+                            dataNode.getId(),
+                            SingleNodeShutdownMetadata.builder()
+                                .setNodeId(dataNode.getId())
+                                .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                .setReason("test")
+                                .setStartedAtMillis(0L)
+                                .build()
+                        )
+                    )
+                )
+            );
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                clusterState,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            final DesiredBalance newDesiredBalance;
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log allocation explain for unassigned primary shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
+                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                    )
+                );
+                newDesiredBalance = computer.compute(
+                    DesiredBalance.BECOME_MASTER_INITIAL,
+                    DesiredBalanceInput.create(1, allocation),
+                    queue(),
+                    ignore -> true
+                );
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            // No logging since the same tracked primary is still unassigned
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Should NOT log allocation explain again for existing tracked unassigned shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [P], * with allocation decision *"
+                            + "\"decider\":\"node_shutdown\",\"decision\":\"NO\"*"
+                    )
+                );
+                computer.compute(newDesiredBalance, DesiredBalanceInput.create(2, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+        // Logging for unassigned replica shard (since primary is now assigned)
+        {
+            final var allocation = new RoutingAllocation(
+                randomAllocationDeciders(Settings.EMPTY, clusterSettings),
+                initialState,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                0L
+            );
+            try (var mockLog = MockLog.capture(loggerName)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log for previously unassigned shard becomes assigned",
+                        loggerName,
+                        Level.DEBUG,
+                        "previously tracked unassigned shard [[test-index][0], node[null], [P],* is now assigned"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "Should log allocation explain for unassigned replica shard",
+                        loggerName,
+                        Level.DEBUG,
+                        "unassigned shard [[test-index][0], node[null], [R], * with allocation decision *"
+                            + "\"decider\":\"same_shard\",\"decision\":\"NO\"*"
+                    )
+                );
+                computer.compute(DesiredBalance.BECOME_MASTER_INITIAL, DesiredBalanceInput.create(1, allocation), queue(), ignore -> true);
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+    }
+
+    public void testMaybeSimulateAlreadyStartedShards() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+        final var routingChangesObserver = mock(RoutingChangesObserver.class);
+
+        final ClusterState initialState = createInitialClusterState(3, 3, 1);
+        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
+
+        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
+
+        final List<ShardRouting> existingStartedShards = new ArrayList<>();
+
+        // Shard 0 - primary started
+        final String shard0PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        existingStartedShards.add(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(0).primaryShard(),
+                    shard0PrimaryNodeId,
+                    null,
+                    randomLongBetween(100, 999),
+                    routingChangesObserver
+                ),
+                routingChangesObserver,
+                randomLongBetween(100, 999)
+            )
+        );
+        if (randomBoolean()) {
+            existingStartedShards.add(
+                routingNodes.startShard(
+                    routingNodes.initializeShard(
+                        indexRoutingTable.shard(0).replicaShards().getFirst(),
+                        randomValueOtherThan(shard0PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
+                        null,
+                        randomLongBetween(100, 999),
+                        routingChangesObserver
+                    ),
+                    routingChangesObserver,
+                    randomLongBetween(100, 999)
+                )
+            );
+        }
+
+        // Shard 1 - initializing primary or replica
+        final String shard1PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        ShardRouting initializingShard = routingNodes.initializeShard(
+            indexRoutingTable.shard(1).primaryShard(),
+            shard1PrimaryNodeId,
+            null,
+            randomLongBetween(100, 999),
+            routingChangesObserver
+        );
+        if (randomBoolean()) {
+            existingStartedShards.add(routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999)));
+            initializingShard = routingNodes.initializeShard(
+                indexRoutingTable.shard(1).replicaShards().getFirst(),
+                randomValueOtherThan(shard1PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
+                null,
+                randomLongBetween(100, 999),
+                routingChangesObserver
+            );
+        }
+
+        // Shard 2 - Relocating primary
+        final String shard2PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        final Tuple<ShardRouting, ShardRouting> relocationTuple = routingNodes.relocateShard(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(2).primaryShard(),
+                    shard2PrimaryNodeId,
+                    null,
+                    randomLongBetween(100, 999),
+                    routingChangesObserver
+                ),
+                routingChangesObserver,
+                randomLongBetween(100, 999)
+            ),
+            randomValueOtherThan(shard2PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
+            randomLongBetween(100, 999),
+            "test",
+            routingChangesObserver
+        );
+        existingStartedShards.add(relocationTuple.v1());
+
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .dataPath(
+                existingStartedShards.stream()
+                    .collect(Collectors.toUnmodifiableMap(NodeAndShard::from, ignore -> "/data/" + randomIdentifier()))
+            )
+            .build();
+
+        // No extra simulation calls since there is no new shard or relocated shard that are not in ClusterInfo
+        {
+            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            verifyNoInteractions(clusterInfoSimulator);
+        }
+
+        // Start the initializing shard and it should be identified and simulated
+        final var startedShard = routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999));
+        {
+            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
+            verifyNoMoreInteractions(clusterInfoSimulator);
+        }
+
+        // Also start the relocating shard and both should be identified and simulated
+        {
+            Mockito.clearInvocations(clusterInfoSimulator);
+            final var startedRelocatingShard = routingNodes.startShard(
+                relocationTuple.v2(),
+                routingChangesObserver,
+                randomLongBetween(100, 999)
+            );
+            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
+            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
+            verifyNoMoreInteractions(clusterInfoSimulator);
+        }
+    }
+
+    private static ShardRouting findShard(ClusterState clusterState, String name, boolean primary) {
+        final var indexShardRoutingTable = clusterState.getRoutingTable().index(name).shard(0);
+        return primary ? indexShardRoutingTable.primaryShard() : indexShardRoutingTable.replicaShards().getFirst();
     }
 
     private static ShardId findShardId(ClusterState clusterState, String name) {
@@ -1289,12 +1727,18 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     static ClusterState createInitialClusterState(int dataNodesCount) {
+        return createInitialClusterState(dataNodesCount, 2, 1);
+    }
+
+    static ClusterState createInitialClusterState(int dataNodesCount, int numShards, int numReplicas) {
         var discoveryNodes = DiscoveryNodes.builder().add(newNode("master", Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         for (int i = 0; i < dataNodesCount; i++) {
             discoveryNodes.add(newNode("node-" + i, Set.of(DiscoveryNodeRole.DATA_ROLE)));
         }
 
-        var indexMetadata = IndexMetadata.builder(TEST_INDEX).settings(indexSettings(IndexVersion.current(), 2, 1)).build();
+        var indexMetadata = IndexMetadata.builder(TEST_INDEX)
+            .settings(indexSettings(IndexVersion.current(), numShards, numReplicas))
+            .build();
 
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes.masterNodeId("master").localNodeId("master"))
@@ -1379,7 +1823,12 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator);
+        return new DesiredBalanceComputer(
+            createBuiltInClusterSettings(),
+            TimeProviderUtils.create(() -> 0L),
+            allocator,
+            TEST_ONLY_EXPLAINER
+        );
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

@@ -71,7 +71,7 @@ See [Multi-level nested queries](#multi-level-nested-query-ex) for an example.
 
 
 `score_mode`
-:   (Optional, string) Indicates how scores for matching child objects affect the root parent document’s [relevance score](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores). Valid values are:
+:   (Optional, string) Indicates how scores for matching child objects affect the root parent document’s [relevance score](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores). Default is `avg`, but nested `knn` queries only support `score_mode=max`. Valid values are:
 
 `avg` (Default)
 :   Use the mean relevance score of all matching child objects.

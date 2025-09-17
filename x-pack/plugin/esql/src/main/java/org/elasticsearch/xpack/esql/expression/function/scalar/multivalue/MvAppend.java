@@ -39,6 +39,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -60,6 +61,9 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -82,6 +86,9 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -101,6 +108,9 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -137,14 +147,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field1, DataType::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isRepresentableExceptCounters(field1, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
             dataType = field2.dataType().noText();
-            return isType(field2, DataType::isRepresentable, sourceText(), SECOND, "representable");
+            return isRepresentableExceptCounters(field2, sourceText(), SECOND);
         }
         return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }

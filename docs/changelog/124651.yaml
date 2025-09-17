@@ -1,5 +1,0 @@
-pr: 124651
-summary: "Fix system data streams to be restorable from a snapshot"
-area: Infra/Core
-type: bug
-issues: [89261]

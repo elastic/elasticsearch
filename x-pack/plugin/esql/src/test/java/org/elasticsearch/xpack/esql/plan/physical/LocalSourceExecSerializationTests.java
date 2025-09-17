@@ -19,7 +19,7 @@ public class LocalSourceExecSerializationTests extends AbstractPhysicalPlanSeria
     public static LocalSourceExec randomLocalSourceExec() {
         Source source = randomSource();
         List<Attribute> output = randomFieldAttributes(1, 9, false);
-        LocalSupplier supplier = randomBoolean() ? LocalSupplier.EMPTY : LocalSupplierTests.randomNonEmpty();
+        LocalSupplier supplier = LocalSupplierTests.randomLocalSupplier();
         return new LocalSourceExec(source, output, supplier);
     }
 
@@ -35,7 +35,7 @@ public class LocalSourceExecSerializationTests extends AbstractPhysicalPlanSeria
         if (randomBoolean()) {
             output = randomValueOtherThan(output, () -> randomFieldAttributes(1, 9, false));
         } else {
-            supplier = randomValueOtherThan(supplier, () -> randomBoolean() ? LocalSupplier.EMPTY : LocalSupplierTests.randomNonEmpty());
+            supplier = randomValueOtherThan(supplier, () -> LocalSupplierTests.randomLocalSupplier());
         }
         return new LocalSourceExec(instance.source(), output, supplier);
     }

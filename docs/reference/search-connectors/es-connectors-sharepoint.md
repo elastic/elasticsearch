@@ -27,8 +27,7 @@ As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer avai
 This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.9.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
-This connector is in **beta** and is subject to change. Beta features are subject to change and are not covered by the support SLA of generally available (GA) features. Elastic plans to promote this feature to GA in a future release.
-
+This connector is in **beta** and is subject to change. Beta features are subject to change and are not covered by the support SLA of generally available (GA) features.
 ::::
 
 
@@ -148,6 +147,7 @@ The following configuration fields are required to set up the connector:
     * `collection1`
     * `collection1, collection2`
 
+To index from the root of all site collections, simply specify your SharePoint server URL in the `site_collections` field.
 
 `ssl_enabled`
 :   Whether SSL verification will be enabled. Default value is `False`.
@@ -231,13 +231,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

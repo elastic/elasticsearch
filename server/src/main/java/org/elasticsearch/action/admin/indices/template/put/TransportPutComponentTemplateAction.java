@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -67,7 +68,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     @Override
     protected ClusterBlockException checkBlock(PutComponentTemplateAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     public static ComponentTemplate normalizeComponentTemplate(
@@ -85,7 +86,9 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
                 template,
                 componentTemplate.version(),
                 componentTemplate.metadata(),
-                componentTemplate.deprecated()
+                componentTemplate.deprecated(),
+                componentTemplate.createdDateMillis().orElse(null),
+                componentTemplate.modifiedDateMillis().orElse(null)
             );
         }
 
@@ -128,7 +131,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         super.validateForReservedState(request, state);
 
         validateForReservedState(
-            projectResolver.getProjectMetadata(state).reservedStateMetadata().values(),
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
             request.toString()

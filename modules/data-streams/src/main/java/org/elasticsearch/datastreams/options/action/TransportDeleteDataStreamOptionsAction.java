@@ -81,7 +81,13 @@ public class TransportDeleteDataStreamOptionsAction extends AcknowledgedTranspor
         for (String name : dataStreamNames) {
             systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
         }
-        metadataDataStreamsService.removeDataStreamOptions(dataStreamNames, request.ackTimeout(), request.masterNodeTimeout(), listener);
+        metadataDataStreamsService.removeDataStreamOptions(
+            state.projectId(),
+            dataStreamNames,
+            request.ackTimeout(),
+            request.masterNodeTimeout(),
+            listener
+        );
     }
 
     @Override

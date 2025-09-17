@@ -78,7 +78,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         Set<String> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices(project.id());
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
         for (DataStream dataStream : project.dataStreams().values()) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().enabled()) {
+            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {
@@ -105,6 +105,6 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamLifecycleStatsAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

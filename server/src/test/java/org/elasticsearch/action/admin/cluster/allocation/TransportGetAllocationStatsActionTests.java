@@ -23,7 +23,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelHelper;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -34,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -48,6 +51,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -126,26 +130,22 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             EnumSet.allOf(Metric.class),
             EnumSet.copyOf(randomSubsetOf(between(1, Metric.values().length), EnumSet.allOf(Metric.class)))
         )) {
-            var request = new TransportGetAllocationStatsAction.Request(
-                TimeValue.ONE_MINUTE,
-                new TaskId(randomIdentifier(), randomNonNegativeLong()),
-                metrics
-            );
+            var request = new TransportGetAllocationStatsAction.Request(TimeValue.ONE_MINUTE, TaskId.EMPTY_TASK_ID, metrics);
 
-            when(allocationStatsService.stats()).thenReturn(
+            when(allocationStatsService.stats(any())).thenReturn(
                 Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats())
             );
 
             var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
-            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
+            action.masterOperation(getTask(), request, ClusterState.EMPTY_STATE, future);
             var response = future.get();
 
             if (metrics.contains(Metric.ALLOCATIONS)) {
                 assertThat(response.getNodeAllocationStats(), not(anEmptyMap()));
-                verify(allocationStatsService, times(++expectedNumberOfStatsServiceCalls)).stats();
+                verifyAllocationStatsServiceNumCallsEqualTo(++expectedNumberOfStatsServiceCalls);
             } else {
                 assertThat(response.getNodeAllocationStats(), anEmptyMap());
-                verify(allocationStatsService, times(expectedNumberOfStatsServiceCalls)).stats();
+                verifyAllocationStatsServiceNumCallsEqualTo(expectedNumberOfStatsServiceCalls);
             }
 
             if (metrics.contains(Metric.FS)) {
@@ -160,7 +160,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         disableAllocationStatsCache();
         final var requestCounter = new AtomicInteger();
         final var isExecuting = new AtomicBoolean();
-        when(allocationStatsService.stats()).thenAnswer(invocation -> {
+        when(allocationStatsService.stats(any())).thenAnswer(invocation -> {
             try {
                 assertTrue(isExecuting.compareAndSet(false, true));
                 assertThat(Thread.currentThread().getName(), containsString("[management]"));
@@ -180,16 +180,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
                 final var minRequestIndex = requestCounter.get();
 
                 final TransportGetAllocationStatsAction.Response response = safeAwait(
-                    l -> action.masterOperation(
-                        mock(Task.class),
-                        new TransportGetAllocationStatsAction.Request(
-                            TEST_REQUEST_TIMEOUT,
-                            TaskId.EMPTY_TASK_ID,
-                            EnumSet.of(Metric.ALLOCATIONS)
-                        ),
-                        ClusterState.EMPTY_STATE,
-                        l
-                    )
+                    l -> action.masterOperation(getTask(), getRequest(), ClusterState.EMPTY_STATE, l)
                 );
 
                 final var requestIndex = Integer.valueOf(response.getNodeAllocationStats().keySet().iterator().next());
@@ -203,6 +194,65 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         }
     }
 
+    public void testAllTasksCancelledCacheEnabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), false, true);
+    }
+
+    public void testAllTasksCancelledCacheDisabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), true, true);
+    }
+
+    public void testSomeTasksCancelledCacheEnabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), false, false);
+    }
+
+    public void testSomeTasksCancelledCacheDisabled() throws InterruptedException {
+        runTestWithCancelledTasks(between(2, 10), true, false);
+    }
+
+    private void runTestWithCancelledTasks(final int numThreads, final boolean cacheDisabled, final boolean cancelAllTasks)
+        throws InterruptedException {
+        if (cacheDisabled) {
+            disableAllocationStatsCache();
+        }
+        final var isExecuting = new AtomicBoolean();
+        final var ensureNotCancelledCaptor = ArgumentCaptor.forClass(Runnable.class);
+        final var tasks = new CancellableTask[numThreads];
+        final var cancellations = new boolean[numThreads];
+        final var stats = Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats());
+
+        when(allocationStatsService.stats(ensureNotCancelledCaptor.capture())).thenAnswer(invocation -> {
+            try {
+                assertTrue(isExecuting.compareAndSet(false, true));
+                for (int i = 0; i < numThreads; ++i) {
+                    if (cancellations[i]) {
+                        TaskCancelHelper.cancel(tasks[i], "cancelled");
+                    }
+                }
+                ensureNotCancelledCaptor.getValue().run();
+                return stats;
+            } finally {
+                Thread.yield();
+                assertTrue(isExecuting.compareAndSet(true, false));
+            }
+        });
+
+        ESTestCase.startInParallel(numThreads, threadNumber -> {
+            tasks[threadNumber] = getTask();
+            cancellations[threadNumber] = cancelAllTasks || randomBoolean();
+            final ActionListener<TransportGetAllocationStatsAction.Response> listener = ActionListener.wrap(response -> {
+                assertSame(stats, response.getNodeAllocationStats());
+            }, e -> {
+                if (e instanceof TaskCancelledException) {
+                    assertTrue("got an unexpected cancellation exception for thread " + threadNumber, cancellations[threadNumber]);
+                } else {
+                    fail(e);
+                }
+            });
+            ActionListener.run(listener, l -> action.masterOperation(tasks[threadNumber], getRequest(), ClusterState.EMPTY_STATE, l));
+        });
+    }
+
     public void testGetStatsWithCachingEnabled() throws Exception {
 
         final AtomicReference<Map<String, NodeAllocationStats>> allocationStats = new AtomicReference<>();
@@ -211,17 +261,11 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         final Runnable resetExpectedAllocationStats = () -> {
             final var stats = Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats());
             allocationStats.set(stats);
-            when(allocationStatsService.stats()).thenReturn(stats);
+            when(allocationStatsService.stats(any())).thenReturn(stats);
         };
 
         final CheckedConsumer<ActionListener<Void>, Exception> threadTask = l -> {
-            final var request = new TransportGetAllocationStatsAction.Request(
-                TEST_REQUEST_TIMEOUT,
-                new TaskId(randomIdentifier(), randomNonNegativeLong()),
-                EnumSet.of(Metric.ALLOCATIONS)
-            );
-
-            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, l.map(response -> {
+            action.masterOperation(getTask(), getRequest(), ClusterState.EMPTY_STATE, l.map(response -> {
                 assertSame("Expected the cached allocation stats to be returned", response.getNodeAllocationStats(), allocationStats.get());
                 return null;
             }));
@@ -230,12 +274,12 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         // Initial cache miss, all threads should get the same value.
         resetExpectedAllocationStats.run();
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
-        verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();
+        verifyAllocationStatsServiceNumCallsEqualTo(++numExpectedAllocationStatsServiceCalls);
 
         // Advance the clock to a time less than or equal to the TTL and verify we still get the cached stats.
         threadPool.setCurrentTimeInMillis(startTimeMillis + between(0, (int) allocationStatsCacheTTL.millis()));
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
-        verify(allocationStatsService, times(numExpectedAllocationStatsServiceCalls)).stats();
+        verifyAllocationStatsServiceNumCallsEqualTo(numExpectedAllocationStatsServiceCalls);
 
         // Force the cached stats to expire.
         threadPool.setCurrentTimeInMillis(startTimeMillis + allocationStatsCacheTTL.getMillis() + 1);
@@ -243,20 +287,34 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         // Expect a single call to the stats service on the cache miss.
         resetExpectedAllocationStats.run();
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
-        verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();
+        verifyAllocationStatsServiceNumCallsEqualTo(++numExpectedAllocationStatsServiceCalls);
 
         // Update the TTL setting to disable the cache, we expect a service call each time.
         setAllocationStatsCacheTTL(TimeValue.ZERO);
         safeAwait(threadTask);
         safeAwait(threadTask);
         numExpectedAllocationStatsServiceCalls += 2;
-        verify(allocationStatsService, times(numExpectedAllocationStatsServiceCalls)).stats();
+        verifyAllocationStatsServiceNumCallsEqualTo(numExpectedAllocationStatsServiceCalls);
 
         // Re-enable the cache, only one thread should call the stats service.
-        setAllocationStatsCacheTTL(TimeValue.timeValueMinutes(5));
+        final var newTTL = TimeValue.timeValueMinutes(5);
+        setAllocationStatsCacheTTL(newTTL);
+        threadPool.setCurrentTimeInMillis(threadPool.relativeTimeInMillis() + newTTL.getMillis() + 1);
         resetExpectedAllocationStats.run();
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
-        verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();
+        verifyAllocationStatsServiceNumCallsEqualTo(++numExpectedAllocationStatsServiceCalls);
+    }
+
+    private void verifyAllocationStatsServiceNumCallsEqualTo(int numCalls) {
+        verify(allocationStatsService, times(numCalls)).stats(any());
+    }
+
+    private static TransportGetAllocationStatsAction.Request getRequest() {
+        return new TransportGetAllocationStatsAction.Request(TEST_REQUEST_TIMEOUT, TaskId.EMPTY_TASK_ID, EnumSet.of(Metric.ALLOCATIONS));
+    }
+
+    private static CancellableTask getTask() {
+        return new CancellableTask(randomLong(), "type", "action", "desc", null, Map.of());
     }
 
     private static class ControlledRelativeTimeThreadPool extends ThreadPool {

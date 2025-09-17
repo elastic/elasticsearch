@@ -22,16 +22,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCase<ModelRegistryMetadata> {
     public static ModelRegistryMetadata randomInstance() {
-        return randomInstance(randomBoolean());
+        return randomInstance(randomBoolean(), true);
     }
 
-    public static ModelRegistryMetadata randomInstance(boolean isUpgraded) {
-        if (rarely()) {
-            return ModelRegistryMetadata.EMPTY;
+    public static ModelRegistryMetadata randomInstance(boolean isUpgraded, boolean acceptsEmpty) {
+        if (rarely() && acceptsEmpty) {
+            return isUpgraded ? ModelRegistryMetadata.EMPTY_UPGRADED : ModelRegistryMetadata.EMPTY_NOT_UPGRADED;
         }
         int size = randomIntBetween(1, 5);
 
@@ -82,7 +83,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
     }
 
     public void testUpgrade() {
-        var metadata = randomInstance(false);
+        var metadata = randomInstance(false, false);
         var metadataWithTombstones = metadata.withRemovedModel(Set.of(randomFrom(metadata.getModelMap().keySet())));
 
         var indexMetadata = metadata.withAddedModel(randomAlphanumericOfLength(10), MinimalServiceSettingsTests.randomInstance());
@@ -99,9 +100,10 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
     }
 
     public void testAlreadyUpgraded() {
-        var metadata = randomInstance(true);
-        var indexMetadata = randomInstance(true);
+        var metadata = randomInstance(true, true);
+        var indexMetadata = randomInstance(true, true);
 
         var exc = expectThrows(IllegalArgumentException.class, () -> metadata.withUpgradedModels(indexMetadata.getModelMap()));
+        assertThat(exc.getMessage(), containsString("upgraded"));
     }
 }

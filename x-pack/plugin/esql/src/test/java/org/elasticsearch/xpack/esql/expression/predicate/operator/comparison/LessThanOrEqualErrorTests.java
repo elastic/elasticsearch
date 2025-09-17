@@ -36,7 +36,7 @@ public class LessThanOrEqualErrorTests extends ErrorsForCasesWithoutExamplesTest
             errorMessageStringForBinaryOperators(
                 validPerPosition,
                 signature,
-                (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, semantic_text, text, unsigned_long or version"
+                (l, p) -> "date_nanos, datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
             )
         );
     }

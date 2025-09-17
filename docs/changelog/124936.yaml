@@ -1,5 +1,0 @@
-pr: 124936
-summary: Indicate when errors represent timeouts
-area: Infra/REST API
-type: enhancement
-issues: []

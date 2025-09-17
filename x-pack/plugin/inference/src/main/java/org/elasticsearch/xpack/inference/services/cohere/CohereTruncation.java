@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
+import java.util.EnumSet;
 import java.util.Locale;
 
 /**
@@ -30,6 +31,8 @@ public enum CohereTruncation {
      * Discard the end of the input
      */
     END;
+
+    public static final EnumSet<CohereTruncation> ALL = EnumSet.allOf(CohereTruncation.class);
 
     @Override
     public String toString() {

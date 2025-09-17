@@ -17,8 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -179,13 +178,13 @@ public class AucRoc extends AbstractAucRoc {
         if (result.get() != null) {
             return;
         }
-        Filter classAgg = aggs.get(TRUE_AGG_NAME);
-        Nested classNested = classAgg.getAggregations().get(NESTED_AGG_NAME);
-        Filter classNestedFilter = classNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
+        SingleBucketAggregation classAgg = aggs.get(TRUE_AGG_NAME);
+        SingleBucketAggregation classNested = classAgg.getAggregations().get(NESTED_AGG_NAME);
+        SingleBucketAggregation classNestedFilter = classNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
 
-        Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
-        Nested restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
-        Filter restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
+        SingleBucketAggregation restAgg = aggs.get(NON_TRUE_AGG_NAME);
+        SingleBucketAggregation restNested = restAgg.getAggregations().get(NESTED_AGG_NAME);
+        SingleBucketAggregation restNestedFilter = restNested.getAggregations().get(NESTED_FILTER_AGG_NAME);
 
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(

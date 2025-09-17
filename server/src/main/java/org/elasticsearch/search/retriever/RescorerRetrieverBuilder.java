@@ -78,7 +78,7 @@ public final class RescorerRetrieverBuilder extends CompoundRetrieverBuilder<Res
     private final List<RescorerBuilder<?>> rescorers;
 
     public RescorerRetrieverBuilder(RetrieverBuilder retriever, List<RescorerBuilder<?>> rescorers) {
-        super(List.of(new RetrieverSource(retriever, null)), extractMinWindowSize(rescorers));
+        super(List.of(RetrieverSource.from(retriever)), extractMinWindowSize(rescorers));
         if (rescorers.isEmpty()) {
             throw new IllegalArgumentException("Missing rescore definition");
         }

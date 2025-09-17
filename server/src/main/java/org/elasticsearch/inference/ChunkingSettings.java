@@ -12,6 +12,18 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.Map;
+
 public interface ChunkingSettings extends ToXContentObject, VersionedNamedWriteable {
+
     ChunkingStrategy getChunkingStrategy();
+
+    Map<String, Object> asMap();
+
+    /**
+     * @return The max chunk size specified, or null if not specified
+     */
+    Integer maxChunkSize();
+
+    default void validate() {}
 }

@@ -35,8 +35,8 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.Index;
@@ -47,6 +47,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -301,8 +302,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RolloverRequest rolloverRequest = new RolloverRequest("ds", null);
         RolloverResponse rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
         assertThat(rolloverResponse.isRolledOver(), is(true));
-        String backingIndexAfterSnapshot = DataStream.getDefaultBackingIndexName("ds", 2);
-        assertThat(rolloverResponse.getNewIndex(), equalTo(backingIndexAfterSnapshot));
+        String backingIndexAfterSnapshot = getDataStreamBackingIndexNames("ds").getFirst();
+        assertThat(rolloverResponse.getNewIndex(), DataStreamTestHelper.backingIndexEqualTo("ds", 2));
 
         // Close all backing indices of ds data stream:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(".ds-ds-*");
@@ -337,7 +338,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         rolloverRequest = new RolloverRequest("ds", null);
         rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
         assertThat(rolloverResponse.isRolledOver(), is(true));
-        assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 3)));
+        assertThat(rolloverResponse.getNewIndex(), DataStreamTestHelper.backingIndexEqualTo("ds", 3));
     }
 
     public void testFailureStoreSnapshotAndRestore() {
@@ -915,7 +916,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = getDataStreamInfo("test-ds");
         assertThat(
             dataStreamInfos.get(0).getDataStream().getIndices().get(0).getName(),
-            is(DataStream.getDefaultBackingIndexName("test-ds", 1L))
+            DataStreamTestHelper.backingIndexEqualTo("test-ds", 1)
         );
 
         // data stream "ds" should still exist in the system
@@ -1394,7 +1395,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
-        SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+        Snapshot snapshot = createSnapshotResponse.getSnapshotInfo().snapshot();
         assertEquals(RestStatus.OK, status);
 
         assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
@@ -1423,7 +1424,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             client,
             request,
             "Snapshot ["
-                + snapshotId
+                + snapshot
                 + "] contains data stream ["
                 + datastreamName
                 + "] but custer does not have a matching index "

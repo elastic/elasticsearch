@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -30,7 +31,6 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     public static final String NAME = "SentenceBoundaryChunkingSettings";
     private static final ChunkingStrategy STRATEGY = ChunkingStrategy.SENTENCE;
     private static final int MAX_CHUNK_SIZE_LOWER_LIMIT = 20;
-    private static final int MAX_CHUNK_SIZE_UPPER_LIMIT = 300;
     private static final Set<String> VALID_KEYS = Set.of(
         ChunkingSettingsOptions.STRATEGY.toString(),
         ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
@@ -54,6 +54,44 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         }
     }
 
+    @Override
+    public Integer maxChunkSize() {
+        return maxChunkSize;
+    }
+
+    @Override
+    public void validate() {
+        ValidationException validationException = new ValidationException();
+
+        if (maxChunkSize < MAX_CHUNK_SIZE_LOWER_LIMIT) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.MAX_CHUNK_SIZE + "[" + maxChunkSize + "] must be above " + MAX_CHUNK_SIZE_LOWER_LIMIT
+            );
+        }
+
+        if (sentenceOverlap > 1 || sentenceOverlap < 0) {
+            validationException.addValidationError(
+                ChunkingSettingsOptions.SENTENCE_OVERLAP + "[" + sentenceOverlap + "] must be either 0 or 1"
+            );
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+    }
+
+    @Override
+    public Map<String, Object> asMap() {
+        return Map.of(
+            ChunkingSettingsOptions.STRATEGY.toString(),
+            STRATEGY.toString().toLowerCase(Locale.ROOT),
+            ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            maxChunkSize,
+            ChunkingSettingsOptions.SENTENCE_OVERLAP.toString(),
+            sentenceOverlap
+        );
+    }
+
     public static SentenceBoundaryChunkingSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
@@ -64,11 +102,10 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
             );
         }
 
-        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerBetween(
+        Integer maxChunkSize = ServiceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
             map,
             ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
             MAX_CHUNK_SIZE_LOWER_LIMIT,
-            MAX_CHUNK_SIZE_UPPER_LIMIT,
             ModelConfigurations.CHUNKING_SETTINGS,
             validationException
         );
@@ -134,11 +171,16 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SentenceBoundaryChunkingSettings that = (SentenceBoundaryChunkingSettings) o;
-        return Objects.equals(maxChunkSize, that.maxChunkSize);
+        return Objects.equals(maxChunkSize, that.maxChunkSize) && Objects.equals(sentenceOverlap, that.sentenceOverlap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxChunkSize);
+        return Objects.hash(maxChunkSize, sentenceOverlap);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

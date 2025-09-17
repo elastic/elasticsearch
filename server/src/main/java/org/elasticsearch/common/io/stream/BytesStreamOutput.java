@@ -106,6 +106,7 @@ public class BytesStreamOutput extends BytesStream {
         // nothing to do
     }
 
+    @Override
     public void seek(long position) {
         ensureCapacity(position);
         count = (int) position;

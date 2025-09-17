@@ -1,5 +1,0 @@
-pr: 124690
-summary: Avoid creating known_fields for every check in Alias
-area: Indices APIs
-type: enhancement
-issues: []

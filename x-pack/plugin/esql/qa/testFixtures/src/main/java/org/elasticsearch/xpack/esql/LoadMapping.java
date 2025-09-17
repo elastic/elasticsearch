@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -99,21 +100,33 @@ public class LoadMapping {
                 properties = fromEs(content);
             }
             boolean docValues = boolSetting(content.get("doc_values"), esDataType.hasDocValues());
+            boolean isDimension = boolSetting(content.get("time_series_dimension"), false);
+            boolean isMetric = content.containsKey("time_series_metric");
+            if (isDimension && isMetric) {
+                throw new IllegalStateException("Field configured as both dimension and metric:" + value);
+            }
+            EsField.TimeSeriesFieldType tsType = EsField.TimeSeriesFieldType.NONE;
+            if (isDimension) {
+                tsType = EsField.TimeSeriesFieldType.DIMENSION;
+            }
+            if (isMetric) {
+                tsType = EsField.TimeSeriesFieldType.METRIC;
+            }
             final EsField field;
             if (esDataType == TEXT) {
-                field = new TextEsField(name, properties, docValues);
+                field = new TextEsField(name, properties, docValues, false, tsType);
             } else if (esDataType == KEYWORD) {
                 int length = intSetting(content.get("ignore_above"), Short.MAX_VALUE);
                 boolean normalized = Strings.hasText(textSetting(content.get("normalizer"), null));
-                field = new KeywordEsField(name, properties, docValues, length, normalized);
+                field = new KeywordEsField(name, properties, docValues, length, normalized, false, tsType);
             } else if (esDataType == DATETIME) {
-                field = DateEsField.dateEsField(name, properties, docValues);
+                field = DateEsField.dateEsField(name, properties, docValues, tsType);
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
-                field = new UnsupportedEsField(name, type, null, properties);
+                field = new UnsupportedEsField(name, List.of(type), null, properties);
                 propagateUnsupportedType(name, type, properties);
             } else {
-                field = new EsField(name, esDataType, properties, docValues);
+                field = new EsField(name, esDataType, properties, docValues, tsType);
             }
             mapping.put(name, field);
         } else {
@@ -165,9 +178,9 @@ public class LoadMapping {
                 UnsupportedEsField u;
                 if (field instanceof UnsupportedEsField) {
                     u = (UnsupportedEsField) field;
-                    u = new UnsupportedEsField(u.getName(), originalType, inherited, u.getProperties());
+                    u = new UnsupportedEsField(u.getName(), List.of(originalType), inherited, u.getProperties());
                 } else {
-                    u = new UnsupportedEsField(field.getName(), originalType, inherited, field.getProperties());
+                    u = new UnsupportedEsField(field.getName(), List.of(originalType), inherited, field.getProperties());
                 }
                 entry.setValue(u);
                 propagateUnsupportedType(inherited, originalType, u.getProperties());

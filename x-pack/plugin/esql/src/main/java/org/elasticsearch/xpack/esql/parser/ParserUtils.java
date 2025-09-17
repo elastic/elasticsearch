@@ -144,10 +144,10 @@ public final class ParserUtils {
      */
     public static String nameOrPosition(Token token) {
         int tokenType = token.getType();
-        String s = token.getText();
+        // Retrieve text from the token only when necessary, when the token type is known.
         return switch (tokenType) {
-            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> s.substring(SINGLE_PARAM);
-            case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> s.substring(DOUBLE_PARAM);
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> token.getText().substring(DOUBLE_PARAM);
             default -> EMPTY;
         };
     }

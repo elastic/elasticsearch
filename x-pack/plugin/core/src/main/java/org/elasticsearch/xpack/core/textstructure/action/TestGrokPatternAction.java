@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.textstructure.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,22 +30,20 @@ import java.util.Objects;
 
 public class TestGrokPatternAction {
 
-    public static final ActionType<TestGrokPatternAction.Response> INSTANCE = new ActionType<>(
-        "cluster:monitor/text_structure/test_grok_pattern"
-    );
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:monitor/text_structure/test_grok_pattern");
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
         public static final ParseField TEXT = new ParseField("text");
         public static final ParseField ECS_COMPATIBILITY = new ParseField("ecs_compatibility");
 
-        private static final ObjectParser<Request.Builder, Void> PARSER = createParser();
+        private static final ObjectParser<Builder, Void> PARSER = createParser();
 
-        private static ObjectParser<Request.Builder, Void> createParser() {
-            ObjectParser<Request.Builder, Void> parser = new ObjectParser<>("textstructure/testgrokpattern", false, Request.Builder::new);
-            parser.declareString(Request.Builder::grokPattern, GROK_PATTERN);
-            parser.declareStringArray(Request.Builder::text, TEXT);
+        private static ObjectParser<Builder, Void> createParser() {
+            ObjectParser<Builder, Void> parser = new ObjectParser<>("textstructure/testgrokpattern", false, Builder::new);
+            parser.declareString(Builder::grokPattern, GROK_PATTERN);
+            parser.declareStringArray(Builder::text, TEXT);
             return parser;
         }
 

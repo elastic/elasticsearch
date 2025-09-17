@@ -10,8 +10,28 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.core.Streams;
+
+import java.io.IOException;
 
 public abstract class BytesStream extends StreamOutput {
 
+    @Override
+    public void writeWithSizePrefix(Writeable writeable) throws IOException {
+        long pos = position();
+        seek(pos + Integer.BYTES);
+        try (var out = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(this)))) {
+            out.setTransportVersion(getTransportVersion());
+            writeable.writeTo(out);
+        }
+        long newPos = position();
+        seek(pos);
+        writeInt(Math.toIntExact(newPos - pos - Integer.BYTES));
+        seek(newPos);
+    }
+
     public abstract BytesReference bytes();
+
+    public abstract void seek(long position);
 }

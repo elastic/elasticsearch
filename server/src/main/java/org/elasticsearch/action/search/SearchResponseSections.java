@@ -61,7 +61,6 @@ public class SearchResponseSections implements Releasable {
         int numReducePhases
     ) {
         this.hits = hits;
-        hits.incRef();
         this.aggregations = aggregations;
         this.suggest = suggest;
         this.profileResults = profileResults;

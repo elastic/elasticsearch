@@ -33,8 +33,12 @@ public class StringPatternTests extends ESTestCase {
         return rlike(pattern).matchesAll();
     }
 
+    private String exactMatchRLike(String pattern) {
+        return rlike(pattern).exactMatch();
+    }
+
     private boolean rlikeExactMatch(String pattern) {
-        return pattern.equals(rlike(pattern).exactMatch());
+        return pattern.equals(exactMatchRLike(pattern));
     }
 
     public void testWildcardMatchAll() {
@@ -85,5 +89,21 @@ public class StringPatternTests extends ESTestCase {
 
         assertTrue(rlikeExactMatch("abc"));
         assertTrue(rlikeExactMatch("12345"));
+    }
+
+    public void testRegexExactMatchWithEmptyMatch() {
+        // As soon as there's one no conditional `#` in the pattern, it'll match nothing
+        assertNull(exactMatchRLike("#"));
+        assertNull(exactMatchRLike("##"));
+        assertNull(exactMatchRLike("#foo"));
+        assertNull(exactMatchRLike("#foo#"));
+        assertNull(exactMatchRLike("f#oo"));
+        assertNull(exactMatchRLike("foo#"));
+        assertNull(exactMatchRLike("#[A-Z]*"));
+        assertNull(exactMatchRLike("foo(#)"));
+
+        assertNotNull(exactMatchRLike("foo#?"));
+        assertNotNull(exactMatchRLike("#|foo"));
+        assertNotNull(exactMatchRLike("foo|#"));
     }
 }

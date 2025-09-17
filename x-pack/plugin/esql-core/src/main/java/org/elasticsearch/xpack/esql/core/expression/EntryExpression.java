@@ -99,7 +99,6 @@ public class EntryExpression extends Expression {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-
         EntryExpression other = (EntryExpression) obj;
         return Objects.equals(key, other.key) && Objects.equals(value, other.value);
     }

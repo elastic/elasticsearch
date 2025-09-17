@@ -1,4 +1,6 @@
 project: 'Elasticsearch'
+products:
+  - id: elasticsearch
 max_toc_depth: 2
 exclude:
   - README.md
@@ -11,6 +13,7 @@ cross_links:
   - docs-content
   - ecs
   - eland
+  - elasticsearch
   - elasticsearch-hadoop
   - elasticsearch-java
   - elasticsearch-js
@@ -22,6 +25,7 @@ cross_links:
   - go-elasticsearch
   - kibana
   - logstash
+  - logstash-docs-md
 toc:
   - toc: reference
   - toc: release-notes
@@ -31,7 +35,6 @@ subs:
   api-prereq-title:   "Prerequisites"
   api-description-title:   "Description"
   api-path-parms-title:   "Path parameters"
-  api-query-parms-title:   "Query parameters"
   api-request-body-title:   "Request body"
   api-examples-title:   "Examples"
   ecloud:   "Elastic Cloud"
@@ -39,11 +42,12 @@ subs:
   ece:   "Elastic Cloud Enterprise"
   eck:   "Elastic Cloud on Kubernetes"
   ech:   "Elastic Cloud Hosted"
+  es-apis: https://www.elastic.co/docs/api/doc/elasticsearch/
+  es-serverless-apis: https://www.elastic.co/docs/api/doc/elasticsearch-serverless/
   es-issue:   "https://github.com/elastic/elasticsearch/issues/"
   serverless-full:   "Elastic Cloud Serverless"
   serverless-short:   "Serverless"
   es-serverless:   "Elasticsearch Serverless"
-  ess-utm-params:   "?page=docs&placement=docs-body"
   cloud-only:   "This feature is designed for indirect use by Elasticsearch Service, Elastic Cloud Enterprise, and Elastic Cloud on Kubernetes. Direct use is not supported."
   security-app:   "Elastic Security app"
   stack-monitor-app:   "Stack Monitoring"
@@ -81,20 +85,17 @@ subs:
   search-snaps:   "searchable snapshots"
   slm:   "snapshot lifecycle management"
   slm-init:   "SLM"
-  dfeed:   "datafeed"
   dfeeds:   "datafeeds"
   dfeeds-cap:   "Datafeeds"
   anomaly-detect:   "anomaly detection"
   anomaly-jobs:   "anomaly detection jobs"
-  dataframe:   "data frame"
-  dataframe-cap:   "Data frame"
   transform:   "transform"
   transforms:   "transforms"
   transforms-cap:   "Transforms"
   dfanalytics-cap:   "Data frame analytics"
   dfanalytics:   "data frame analytics"
-  dfanalytics-job:   "'{dataframe} analytics job'"
-  dfanalytics-jobs:   "'{dataframe} analytics jobs'"
+  dfanalytics-job:   "data frame analytics job"
+  dfanalytics-jobs:   "data frame analytics jobs"
   ctransforms:   "continuous transforms"
   regression:   "regression"
   regression-cap:   "Regression"
@@ -105,3 +106,5 @@ subs:
   feat-imp:   "feature importance"
   feat-imp-cap:   "Feature importance"
   nlp:   "natural language processing"
+  index-manage-app:   "Index Management"
+  connectors-app:   "Connectors"

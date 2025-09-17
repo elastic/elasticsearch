@@ -11,9 +11,9 @@ The `reroute` processor allows to route a document to another target index or da
 
 When setting the `destination` option, the target is explicitly specified and the `dataset` and `namespace` options can’t be set.
 
-When the `destination` option is not set, this processor is in a data stream mode. Note that in this mode, the `reroute` processor can only be used on data streams that follow the [data stream naming scheme](docs-content://reference/ingestion-tools/fleet/data-streams.md#data-streams-naming-scheme). Trying to use this processor on a data stream with a non-compliant name will raise an exception.
+When the `destination` option is not set, this processor is in a data stream mode. Note that in this mode, the `reroute` processor can only be used on data streams that follow the [data stream naming scheme](docs-content://reference/fleet/data-streams.md#data-streams-naming-scheme). Trying to use this processor on a data stream with a non-compliant name will raise an exception.
 
-The name of a data stream consists of three parts: `<type>-<dataset>-<namespace>`. See the [data stream naming scheme](docs-content://reference/ingestion-tools/fleet/data-streams.md#data-streams-naming-scheme) documentation for more details.
+The name of a data stream consists of three parts: `<type>-<dataset>-<namespace>`. See the [data stream naming scheme](docs-content://reference/fleet/data-streams.md#data-streams-naming-scheme) documentation for more details.
 
 This processor can use both static values or reference fields from the document to determine the `dataset` and `namespace` components of the new target. See [Table 40](#reroute-options) for more details.
 

@@ -1,9 +1,10 @@
+import org.elasticsearch.gradle.OS
+
 plugins {
   id 'application'
 }
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /asm-.*/, to: 'asm'
@@ -41,14 +42,18 @@ application {
   ]
 }
 
+tasks.named("run").configure {
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+}
+
 repositories {
   mavenCentral()
 }
 
 dependencies {
   compileOnly(project(':libs:core'))
-  implementation 'org.ow2.asm:asm:9.7.1'
-  implementation 'org.ow2.asm:asm-util:9.7.1'
+  implementation 'org.ow2.asm:asm:9.8'
+  implementation 'org.ow2.asm:asm-util:9.8'
   implementation(project(':libs:entitlement:tools:common'))
 }
 

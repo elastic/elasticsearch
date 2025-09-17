@@ -67,7 +67,6 @@ public final class FetchSearchResult extends SearchPhaseResult {
             existing.decRef();
         }
         this.hits = hits;
-        hits.mustIncRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }

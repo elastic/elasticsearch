@@ -40,6 +40,17 @@ metadata1_read2:
     - names: [ 'index-user2', 'lookup-user2' ]
       privileges: [ 'read' ]
 
+metadata1_alias_read2:
+  cluster: []
+  indices:
+    - names: [ 'index-user1', 'lookup-first-alias' ]
+      privileges: [ 'view_index_metadata' ]
+    - names: [ 'index-user2' ]
+      privileges: [ 'read' ]
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
 alias_user1:
   cluster: []
   indices:
@@ -101,6 +112,14 @@ fls_user2:
       field_security:
         grant: [ "org", "value" ]
 
+fls_user2_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value" ]
+
 fls_user3:
   cluster: []
   indices:
@@ -108,6 +127,15 @@ fls_user3:
       privileges: [ 'read' ]
       field_security:
         grant: [ "org", "value", "other" ]
+
+fls_user3_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value", "other" ]
+
 
 fls_user4_1:
   cluster: []
@@ -117,10 +145,26 @@ fls_user4_1:
       field_security:
         grant: [ "org" ]
 
+fls_user4_1_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org" ]
+
 fls_user4_2:
   cluster: []
   indices:
     - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
+fls_user4_2_alias:
+  cluster: []
+  indices:
+    - names: [ 'lookup-second-alias' ]
       privileges: [ 'read' ]
       field_security:
         grant: [ "value" ]
@@ -193,3 +237,10 @@ logs_foo_after_2021_alias:
             "@timestamp": {"gte": "2021-01-01T00:00:00"}
           }
         }
+
+user_without_monitor_privileges:
+  cluster: []
+
+user_with_monitor_privileges:
+  cluster:
+    - monitor_esql

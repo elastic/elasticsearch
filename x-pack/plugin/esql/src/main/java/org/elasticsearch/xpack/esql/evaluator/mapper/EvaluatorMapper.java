@@ -103,6 +103,11 @@ public interface EvaluatorMapper {
                     }
 
                     @Override
+                    public long baseRamBytesUsed() {
+                        throw new UnsupportedOperationException("no used");
+                    }
+
+                    @Override
                     public void close() {}
                 };
             }

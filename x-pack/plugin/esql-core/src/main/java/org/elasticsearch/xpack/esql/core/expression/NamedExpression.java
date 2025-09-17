@@ -61,17 +61,26 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return Objects.hash(super.hashCode(), name, synthetic);
     }
 
+    /**
+     * Polymorphic equality is a pain and are likely slower than a regular ones.
+     * This equals shortcuts `this == o` and type checks (important when we expect only a few non-equal objects).
+     * Here equals is final to ensure we are not duplicating those checks.
+     * For actual equality check override `innerEquals` instead.
+     */
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
+    public final boolean equals(Object o) {
+        if (this == o) {
             return true;
         }
-        if (obj == null || getClass() != obj.getClass()) {
+        if (o == null || getClass() != o.getClass()) {
             return false;
         }
+        return innerEquals(o);
+    }
 
-        NamedExpression other = (NamedExpression) obj;
-        return Objects.equals(synthetic, other.synthetic)
+    protected boolean innerEquals(Object o) {
+        var other = (NamedExpression) o;
+        return synthetic == other.synthetic
             /*
              * It is important that the line below be `name`
              * and not `name()` because subclasses might override

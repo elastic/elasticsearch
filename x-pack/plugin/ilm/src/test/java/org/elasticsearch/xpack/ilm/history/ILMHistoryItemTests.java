@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ILMHistoryItemTests extends ESTestCase {
@@ -135,15 +137,15 @@ public class ILMHistoryItemTests extends ESTestCase {
             try (XContentParser p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json)) {
                 Map<String, Object> item = p.map();
                 assertThat(
-                    item.get("error_details"),
-                    equalTo(
+                    (String) item.get("error_details"),
+                    containsString(
                         "{\"type\":\"illegal_argument_exception\",\"reason\":\""
                             // We subtract a number of characters here due to the truncation being based
                             // on the length of the whole string, not just the "reason" part.
                             + longError.substring(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 47)
-                            + "... (5126 chars truncated)\"}"
                     )
                 );
+                assertThat((String) item.get("error_details"), matchesPattern(".*\\.\\.\\. \\(\\d+ chars truncated\\).*"));
             }
         }
     }

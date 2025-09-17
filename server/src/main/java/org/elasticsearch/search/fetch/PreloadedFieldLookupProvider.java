@@ -65,7 +65,7 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             : "Provided stored field that was not expected to be preloaded? "
                 + preloadedStoredFieldValues.keySet()
                 + " - "
-                + preloadedStoredFieldNames;
+                + preloadedStoredFieldNames.get();
         this.preloadedStoredFieldValues = preloadedStoredFieldValues;
         this.id = id;
     }

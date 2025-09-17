@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -19,18 +16,18 @@ import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.plugin.QueryStringIT.createAndPopulateIndex;
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class TermIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        createAndPopulateIndex();
+        createAndPopulateIndex(this::ensureYellow);
     }
 
     @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
         assumeTrue("term function capability not available", EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled());
         return super.run(request);
     }
@@ -57,7 +54,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE commands"));
+        assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE and STATS commands"));
     }
 
     public void testMultipleTerm() {
@@ -90,50 +87,20 @@ public class TermIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void createAndPopulateIndex() {
-        var indexName = "test";
-        var client = client().admin().indices();
-        var CreateRequest = client.prepareCreate(indexName)
-            .setSettings(Settings.builder().put("index.number_of_shards", 1))
-            .setMapping("id", "type=integer", "content", "type=text");
-        assertAcked(CreateRequest);
-        client().prepareBulk()
-            .add(
-                new IndexRequest(indexName).id("1")
-                    .source("id", 1, "content", "The quick brown animal swiftly jumps over a lazy dog", "title", "A Swift Fox's Journey")
+    public void testTermWithLookupJoin() {
+        var query = """
+            FROM test
+            | LOOKUP JOIN test_lookup ON id
+            | WHERE id > 0 AND TERM(lookup_content, "fox")
+            """;
+
+        var error = expectThrows(VerificationException.class, () -> run(query));
+        assertThat(
+            error.getMessage(),
+            containsString(
+                "line 3:25: [Term] function cannot operate on [lookup_content], supplied by an index [test_lookup] "
+                    + "in non-STANDARD mode [lookup]"
             )
-            .add(
-                new IndexRequest(indexName).id("2")
-                    .source("id", 2, "content", "A speedy brown fox hops effortlessly over a sluggish canine", "title", "The Fox's Leap")
-            )
-            .add(
-                new IndexRequest(indexName).id("3")
-                    .source("id", 3, "content", "Quick and nimble, the fox vaults over the lazy dog", "title", "Brown Fox in Action")
-            )
-            .add(
-                new IndexRequest(indexName).id("4")
-                    .source(
-                        "id",
-                        4,
-                        "content",
-                        "A fox that is quick and brown jumps over a dog that is quite lazy",
-                        "title",
-                        "Speedy Animals"
-                    )
-            )
-            .add(
-                new IndexRequest(indexName).id("5")
-                    .source(
-                        "id",
-                        5,
-                        "content",
-                        "With agility, a quick brown fox bounds over a slow-moving dog",
-                        "title",
-                        "Foxes and Canines"
-                    )
-            )
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        ensureYellow(indexName);
+        );
     }
 }

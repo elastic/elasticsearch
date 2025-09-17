@@ -29,6 +29,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -88,6 +90,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -103,7 +106,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 /**
- * Test case that lets you easilly build {@link MapperService} based on some
+ * Test case that lets you easily build {@link MapperService} based on some
  * mapping. Useful when you don't need to spin up an entire index but do
  * need most of the trapping of the mapping.
  */
@@ -207,6 +210,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return mapperService;
     }
 
+    protected final MapperService createMapperService(IndexVersion indexVersion, Settings settings, XContentBuilder mappings)
+        throws IOException {
+        MapperService mapperService = createMapperService(indexVersion, settings, () -> true, mappings);
+        return mapperService;
+    }
+
     protected final MapperService createMapperService(IndexVersion version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
@@ -276,10 +285,15 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         }
 
         public MapperService build() {
-            IndexSettings indexSettings = createIndexSettings(indexVersion, settings);
+            Collection<? extends Plugin> plugins = getPlugins();
+            Collection<Setting<?>> pluginIndexSettings = plugins.stream()
+                .flatMap(plugin -> plugin.getSettings().stream())
+                .filter(Setting::hasIndexScope)
+                .toList();
+            IndexSettings indexSettings = createIndexSettings(indexVersion, settings, pluginIndexSettings);
             SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
             MapperRegistry mapperRegistry = new IndicesModule(
-                getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
+                plugins.stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
             ).getMapperRegistry();
 
             BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
@@ -321,9 +335,19 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected static IndexSettings createIndexSettings(IndexVersion version, Settings settings) {
+        return createIndexSettings(version, settings, List.of());
+    }
+
+    protected static IndexSettings createIndexSettings(
+        IndexVersion version,
+        Settings settings,
+        Collection<Setting<?>> pluginIndexSettings
+    ) {
         settings = indexSettings(1, 0).put(settings).put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
-        return new IndexSettings(meta, settings);
+        Set<Setting<?>> indexSettings = new HashSet<>(IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
+        indexSettings.addAll(pluginIndexSettings);
+        return new IndexSettings(meta, settings, new IndexScopedSettings(Settings.EMPTY, indexSettings));
     }
 
     protected MapperMetrics createTestMapperMetrics() {
@@ -852,7 +876,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         final String synthetic1;
         final XContent xContent;
         {
-            SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), filter, SourceFieldMetrics.NOOP);
+            SourceProvider provider = SourceProvider.fromLookup(mapper.mappers(), filter, SourceFieldMetrics.NOOP);
             var source = provider.getSource(leafReader.getContext(), docId);
             synthetic1 = source.internalSourceRef().utf8ToString();
             xContent = source.sourceContentType().xContent();
@@ -864,7 +888,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             SourceLoader sourceLoader = new SourceLoader.Synthetic(
                 filter,
                 () -> mapper.mapping().syntheticFieldLoader(filter),
-                SourceFieldMetrics.NOOP
+                SourceFieldMetrics.NOOP,
+                mapper.mapping().ignoredSourceFormat()
             );
             var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);
             var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())

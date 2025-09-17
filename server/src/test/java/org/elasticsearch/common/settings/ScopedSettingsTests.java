@@ -20,6 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.transport.TransportSettings;
 import org.mockito.Mockito;
 
@@ -48,6 +49,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutEntitlements // Entitlement logging interferes
 public class ScopedSettingsTests extends ESTestCase {
 
     public void testResetSetting() {
@@ -465,8 +467,14 @@ public class ScopedSettingsTests extends ESTestCase {
         String group2 = randomAlphaOfLength(4);
         String group3 = randomAlphaOfLength(5);
         BiConsumer<String, Settings> listConsumer = results::put;
+        BiConsumer<String, Settings> validator = (group, settings) -> {
+            var val = intSetting.getConcreteSettingForNamespace(group).get(settings);
+            if (val > 10) {
+                throw new IllegalArgumentException("int too large");
+            }
+        };
 
-        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer);
+        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer, validator);
         assertEquals(0, results.size());
         service.applySettings(
             Settings.builder()
@@ -539,6 +547,21 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(Arrays.asList(16, 17), listSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings));
         assertEquals(1, results.size());
         assertEquals(2, groupOneSettings.size());
+
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> service.applySettings(
+                Settings.builder()
+                    .put(intBuilder.apply(group1), 2)
+                    .put(intBuilder.apply(group2), 11) // fails validation
+                    .putList(listBuilder.apply(group1), "16", "17")
+                    .putList(listBuilder.apply(group3), "5", "6")
+                    .build()
+            )
+        );
+
+        assertThat(exception.getMessage(), containsString("int too large"));
+
         results.clear();
     }
 

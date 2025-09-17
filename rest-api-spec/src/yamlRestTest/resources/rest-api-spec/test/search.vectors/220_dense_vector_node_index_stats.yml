@@ -1,0 +1,868 @@
+"index node stats non-quantized":
+   - requires:
+       capabilities:
+         - method: GET
+           path: /_nodes/stats
+           capabilities: [ dense_vector_off_heap_stats ]
+       test_runner_features: [ capabilities ]
+       reason: Capability required to run test
+
+   - do:
+      indices.create:
+        index: non_quantized
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                "element_type": "float"
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+              vector2:
+                type: dense_vector
+                "element_type": "float"
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+              vector3:
+                type: dense_vector
+                "element_type": "byte"
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+              vector4:
+                type: dense_vector
+                "element_type": "byte"
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+   - do:
+      index:
+        index: non_quantized
+        id: "1"
+        body:
+          vector1: [1, 2, 3, 4]
+          vector2: [1, 2, 3, 4]
+          vector3: [1, 2, 3, 4]
+          vector4: [1, 2, 3, 4]
+   - do:
+      index:
+        index: non_quantized
+        id: "2"
+        body:
+          vector1: [ 3, 4, 5, 6 ]
+          vector2: [ 3, 4, 5, 6 ]
+          vector3: [ 3, 4, 5, 6 ]
+          vector4: [ 3, 4, 5, 6 ]
+
+   - do:
+      index:
+        index: non_quantized
+        id: "3"
+        body:
+          vector1: [ 2, 3, 4, 5 ]
+          vector2: [ 2, 3, 4, 5 ]
+          vector3: [ 2, 3, 4, 5 ]
+          vector4: [ 2, 3, 4, 5 ]
+
+   - do:
+      indices.refresh: {}
+
+   - do:
+      cat.shards:
+        format: "json"
+        h: [ id ]
+        index: "non_quantized"
+
+   - do:
+      nodes.stats:
+        metric: [ indices ]
+        node_id: $body.0.id
+
+   - set:
+      nodes._arbitrary_key_: node_id
+
+   - is_true: cluster_name
+   - is_true: nodes
+   - is_true: nodes.$node_id.name
+   - is_true: nodes.$node_id.indices.dense_vector
+   - match: { nodes.$node_id.indices.dense_vector.value_count: 12 }
+   - is_true: nodes.$node_id.indices.dense_vector.off_heap
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+   - do:
+      indices.stats: { index: _all }
+
+   - is_true:  _all.primaries.dense_vector.off_heap
+   - is_false: _all.primaries.dense_vector.off_heap.fielddata
+   - is_true:  _all.total.dense_vector.off_heap
+   - is_false: _all.total.dense_vector.off_heap.fielddata
+
+   - is_true: indices.non_quantized.primaries.dense_vector
+   - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { indices.non_quantized.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.non_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { indices.non_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   # vector1, hnsw (float)
+   - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1
+   - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
+   - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   # vector2, flat (float)
+   - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2
+   - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   # vector3, hnsw (byte)
+   - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3
+   - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
+   - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes: 0 }
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes
+   # vector4, flat (byte)
+   - is_true:  indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4
+   - gt:     { indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vec_size_bytes: 0 }
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veb_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veq_size_bytes
+   - is_false: indices.non_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vex_size_bytes
+
+---
+"index node stats int8_and int4_quantized":
+   - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+   - do:
+      indices.create:
+        index: int8_and_4_quantized
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int8_hnsw
+              vector2:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int8_flat
+              vector3:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int4_hnsw
+              vector4:
+                type: dense_vector
+                dims: 4
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int4_flat
+
+   - do:
+      index:
+        index: int8_and_4_quantized
+        id: "1"
+        body:
+          vector1: [1, 2, 3, 4]
+          vector2: [1, 2, 3, 4]
+          vector3: [1, 2, 3, 4]
+          vector4: [1, 2, 3, 4]
+   - do:
+      index:
+        index: int8_and_4_quantized
+        id: "2"
+        body:
+          vector1: [ 3, 4, 5, 6 ]
+          vector2: [ 3, 4, 5, 6 ]
+          vector3: [ 3, 4, 5, 6 ]
+          vector4: [ 3, 4, 5, 6 ]
+
+   - do:
+      index:
+        index: int8_and_4_quantized
+        id: "3"
+        body:
+          vector1: [ 2, 3, 4, 5 ]
+          vector2: [ 2, 3, 4, 5 ]
+          vector3: [ 2, 3, 4, 5 ]
+          vector4: [ 2, 3, 4, 5 ]
+
+   - do:
+      indices.refresh: {}
+
+   - do:
+       cat.shards:
+         format: "json"
+         h: [ id ]
+         index: "int8_and_4_quantized"
+
+   - do:
+       nodes.stats:
+         metric: [ indices ]
+         node_id: $body.0.id
+
+   - set:
+      nodes._arbitrary_key_: node_id
+
+   - is_true: cluster_name
+   - is_true: nodes
+   - is_true: nodes.$node_id.name
+   - is_true: nodes.$node_id.indices.dense_vector
+   - match: { nodes.$node_id.indices.dense_vector.value_count: 12 }
+   - is_true: nodes.$node_id.indices.dense_vector.off_heap
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+   - do:
+      indices.stats: { index: _all }
+
+   - is_true:  _all.primaries.dense_vector.off_heap
+   - is_false: _all.primaries.dense_vector.off_heap.fielddata
+   - is_true:  _all.total.dense_vector.off_heap
+   - is_false: _all.total.dense_vector.off_heap.fielddata
+
+   - is_true: indices.int8_and_4_quantized.primaries.dense_vector
+   - gt:    { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - gt:    { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   # vector1, int8_hnsw
+   - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes: 0 }
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
+   # vector2, int8_flat
+   - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes: 0 }
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+   # vector3, int4_hnsw
+   - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vec_size_bytes: 0 }
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veq_size_bytes: 0 }
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.vex_size_bytes: 0 }
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector3.veb_size_bytes
+   # vector4, int4_flat
+   - is_true: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vec_size_bytes: 0 }
+   - gt: { indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veq_size_bytes: 0 }
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.veb_size_bytes
+   - is_false: indices.int8_and_4_quantized.primaries.dense_vector.off_heap.fielddata.vector4.vex_size_bytes
+
+---
+"index node stats bbq_quantized":
+   - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+   - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ optimized_scalar_quantization_bbq ]
+      test_runner_features: capabilities
+      reason: "Uses bbq"
+
+   - do:
+      indices.create:
+        index: bbq_quantized
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
+              vector2:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_flat
+
+   - do:
+      index:
+        index: bbq_quantized
+        id: "1"
+        body:
+          vector1: [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ]
+          vector2: [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ]
+
+   - do:
+      index:
+        index: bbq_quantized
+        id: "2"
+        body:
+          vector1: [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 ]
+          vector2: [ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+                     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 ]
+
+   - do:
+      index:
+        index: bbq_quantized
+        id: "3"
+        body:
+          vector1: [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ]
+          vector2: [ 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+                     3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3 ]
+
+   - do:
+      indices.refresh: {}
+
+   - do:
+       cat.shards:
+         format: "json"
+         h: [ id ]
+         index: "bbq_quantized"
+
+   - do:
+       nodes.stats:
+         metric: [ indices ]
+         node_id: $body.0.id
+
+   - set:
+      nodes._arbitrary_key_: node_id
+
+   - is_true: cluster_name
+   - is_true: nodes
+   - is_true: nodes.$node_id.name
+   - is_true: nodes.$node_id.indices.dense_vector
+   - match: { nodes.$node_id.indices.dense_vector.value_count: 6 }
+   - is_true: nodes.$node_id.indices.dense_vector.off_heap
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+   - do:
+      indices.stats: { index: _all }
+
+   - is_true:  _all.primaries.dense_vector.off_heap
+   - is_false: _all.primaries.dense_vector.off_heap.fielddata
+   - is_true:  _all.total.dense_vector.off_heap
+   - is_false: _all.total.dense_vector.off_heap.fielddata
+
+   - is_true: indices.bbq_quantized.primaries.dense_vector
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.bbq_quantized.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   # vector1, bbq_hnsw
+   - is_true: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   # vector2, bbq_flat
+   - is_true: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2
+   - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes: 0 }
+   - gt: { indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
+   - is_false: indices.bbq_quantized.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+
+---
+"index node stats bit_vectors":
+   - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+   - do:
+      indices.create:
+        index: bit_vectors
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                "element_type": "bit"
+                dims: 16
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+              vector2:
+                type: dense_vector
+                "element_type": "bit"
+                dims: 16
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: flat
+
+   - do:
+      index:
+        index: bit_vectors
+        id: "1"
+        body:
+          vector1: [ 1, 1 ]
+          vector2: [ 1, 1 ]
+
+   - do:
+      index:
+        index: bit_vectors
+        id: "2"
+        body:
+          vector1: [ 8, 8 ]
+          vector2: [ 8, 8 ]
+
+   - do:
+      indices.refresh: {}
+
+   - do:
+       cat.shards:
+         format: "json"
+         h: [ id ]
+         index: "bit_vectors"
+
+   - do:
+       nodes.stats:
+         metric: [ indices ]
+         node_id: $body.0.id
+
+   - set:
+      nodes._arbitrary_key_: node_id
+
+   - is_true: cluster_name
+   - is_true: nodes
+   - is_true: nodes.$node_id.name
+   - is_true: nodes.$node_id.indices.dense_vector
+   - match: { nodes.$node_id.indices.dense_vector.value_count: 4 }
+   - is_true: nodes.$node_id.indices.dense_vector.off_heap
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+   - do:
+      indices.stats: { index: _all }
+
+   - is_true:  _all.primaries.dense_vector.off_heap
+   - is_false: _all.primaries.dense_vector.off_heap.fielddata
+   - is_true:  _all.total.dense_vector.off_heap
+   - is_false: _all.total.dense_vector.off_heap.fielddata
+
+   - is_true: indices.bit_vectors.primaries.dense_vector
+   - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { indices.bit_vectors.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.bit_vectors.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   # vector1, hnsw
+   - is_true: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1
+   - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.vec_size_bytes: 0 }
+   - gt:    { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.vex_size_bytes: 0 }
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.veb_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector1.veq_size_bytes
+   # vector2, flat
+   - is_true: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2
+   - gt: { indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.vec_size_bytes: 0 }
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.veb_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.veq_size_bytes
+   - is_false: indices.bit_vectors.primaries.dense_vector.off_heap.fielddata.vector2.vex_size_bytes
+
+---
+"index node stats empty":
+   - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+   - do:
+      indices.create:
+        index: empty_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int8_hnsw
+              vector2:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: int8_hnsw
+
+   - do:
+      nodes.stats:
+        metric: [ indices ]
+   - set:
+      nodes._arbitrary_key_: node_id
+
+   - is_true: cluster_name
+   - is_true: nodes
+   - is_true: nodes.$node_id.name
+   - is_true: nodes.$node_id.indices.dense_vector
+   - match: { nodes.$node_id.indices.dense_vector.value_count: 0 }
+   - is_true: nodes.$node_id.indices.dense_vector.off_heap
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - match: { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+   - do:
+      indices.stats: { index: _all }
+
+   - is_true:  _all.primaries.dense_vector.off_heap
+   - is_false: _all.primaries.dense_vector.off_heap.fielddata
+   - is_true:  _all.total.dense_vector.off_heap
+   - is_false: _all.total.dense_vector.off_heap.fielddata
+
+   - is_true: indices.empty_index.primaries.dense_vector
+   - match: { indices.empty_index.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { indices.empty_index.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - match: { indices.empty_index.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.empty_index.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - match: { indices.empty_index.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_false: indices.empty_index.primaries.dense_vector.off_heap.fielddata
+
+---
+"index node stats multiple indices":
+   - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+   - requires:
+       capabilities:
+         - method: POST
+           path: /_search
+           capabilities: [ optimized_scalar_quantization_bbq ]
+       test_runner_features: capabilities
+       reason: "Uses bbq"
+
+   - do:
+      indices.create:
+        index: bbq_quantized1
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo.foo:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_hnsw
+
+   - do:
+      indices.create:
+        index: bbq_quantized2
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              bar:
+                type: dense_vector
+                dims: 64
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: bbq_flat
+
+   - do:
+      indices.create:
+        index: hnsw_idx
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              baz:
+                type: dense_vector
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+
+   - do:
+      index:
+        index: bbq_quantized1
+        id: "1"
+        body:
+          foo.foo: [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ]
+   - do:
+      index:
+        index: bbq_quantized2
+        id: "1"
+        body:
+          bar: [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 ]
+
+   - do:
+      index:
+        index: hnsw_idx
+        id: "1"
+        body:
+          baz: [ 1, 2, 3, 4, 5, 6]
+
+   - do:
+      indices.refresh: {}
+
+   - do:
+       cat.shards:
+         format: "json"
+         h: [ id ]
+         index: "bbq_quantized2"
+
+   - do:
+       nodes.stats:
+         metric: [ indices ]
+         node_id: $body.0.id
+
+   - set:
+      nodes._arbitrary_key_: node_id
+
+   - is_true: cluster_name
+   - is_true: nodes
+   - is_true: nodes.$node_id.name
+   - is_true: nodes.$node_id.indices.dense_vector
+   - gt:    { nodes.$node_id.indices.shard_stats.total_count: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.value_count: 0 }
+   - is_true: nodes.$node_id.indices.dense_vector.off_heap
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+   - gt:    { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+   - do:
+       indices.stats:
+         index: _all
+         metric: [ dense_vector ]
+
+   # index type bbq_hnsw
+   - is_true: indices.bbq_quantized1.primaries.dense_vector
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_true: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata
+   # foo.foo, bbq_hnsw
+   - is_true: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.veb_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.vec_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.vex_size_bytes: 0 }
+   - is_false: indices.bbq_quantized1.primaries.dense_vector.off_heap.fielddata.foo\.foo.veq_size_bytes
+
+   # index type bbq_flat
+   - is_true: indices.bbq_quantized2.primaries.dense_vector
+   - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.bbq_quantized2.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - match: { indices.bbq_quantized2.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_true: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata
+   # bar, bbq_flat
+   - is_true: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar
+   - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.veb_size_bytes: 0 }
+   - gt:    { indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.vec_size_bytes: 0 }
+   - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.veq_size_bytes
+   - is_false: indices.bbq_quantized2.primaries.dense_vector.off_heap.fielddata.bar.vex_size_bytes
+
+   # index type hnsw_idx
+   - is_true: indices.hnsw_idx.primaries.dense_vector
+   - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+   - match: { indices.hnsw_idx.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+   - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+   - match: { indices.hnsw_idx.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+   - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }
+   - is_true: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata
+   # baz, hnsw (float)
+   - is_true: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz
+   - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.vec_size_bytes: 0 }
+   - gt:    { indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.vex_size_bytes: 0 }
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.veb_size_bytes
+   - is_false: indices.hnsw_idx.primaries.dense_vector.off_heap.fielddata.baz.veq_size_bytes
+
+---
+"index node stats non-indexed":
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_nodes/stats
+          capabilities: [ dense_vector_off_heap_stats ]
+      test_runner_features: [ capabilities ]
+      reason: Capability required to run test
+
+  - do:
+      indices.create:
+        index: non_indexed
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              vector1:
+                type: dense_vector
+                "element_type": "float"
+                dims: 4
+                index: false
+
+  - do:
+      index:
+        index: non_indexed
+        id: "1"
+        body:
+          vector1: [1, 2, 3, 4]
+
+  - do:
+      index:
+        index: non_indexed
+        id: "2"
+        body:
+          vector1: [ 3, 4, 5, 6 ]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      nodes.stats:
+        metric: [ indices ]
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: cluster_name
+  - is_true: nodes
+  - is_true: nodes.$node_id.name
+  - is_true: nodes.$node_id.indices.dense_vector
+  - match: { nodes.$node_id.indices.dense_vector.value_count: 0 }
+  - is_true: nodes.$node_id.indices.dense_vector.off_heap
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veb_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_vec_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_veq_size_bytes: 0 }
+  - match: { nodes.$node_id.indices.dense_vector.off_heap.total_vex_size_bytes: 0 }
+  - is_false: nodes.$node_id.indices.dense_vector.off_heap.fielddata
+
+  - do:
+      indices.stats: { index: _all }
+
+  - is_true:  _all.primaries.dense_vector.off_heap
+  - is_false: _all.primaries.dense_vector.off_heap.fielddata
+  - is_true:  _all.total.dense_vector.off_heap
+  - is_false: _all.total.dense_vector.off_heap.fielddata
+
+  - is_true: indices.non_indexed.primaries.dense_vector
+  - match: { indices.non_indexed.primaries.dense_vector.off_heap.total_size_bytes: 0 }
+  - match: { indices.non_indexed.primaries.dense_vector.off_heap.total_veb_size_bytes: 0 }
+  - match: { indices.non_indexed.primaries.dense_vector.off_heap.total_vec_size_bytes: 0 }
+  - match: { indices.non_indexed.primaries.dense_vector.off_heap.total_veq_size_bytes: 0 }
+  - match: { indices.non_indexed.primaries.dense_vector.off_heap.total_vex_size_bytes: 0 }

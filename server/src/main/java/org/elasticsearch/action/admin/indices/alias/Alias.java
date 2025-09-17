@@ -257,12 +257,32 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.indexRouting(parser.text());
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported String type value ["
+                            + parser.text()
+                            + "] for field ["
+                            + currentFieldName
+                            + "] in alias ["
+                            + alias.name
+                            + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.writeIndex(parser.booleanValue());
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.isHidden(parser.booleanValue());
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported boolean type value ["
+                            + parser.text()
+                            + "] for field ["
+                            + currentFieldName
+                            + "] in alias ["
+                            + alias.name
+                            + "]"
+                    );
                 }
             } else {
                 throw new IllegalArgumentException("Unknown token [" + token + "] in alias [" + alias.name + "]");

@@ -336,10 +336,10 @@ public class MemoryMetricsService implements ClusterStateListener {
         long totalLiveDocsBytes = 0;
         for (var entry : shardMemoryMetrics.entrySet()) {
             var metric = entry.getValue();
-            // once per index
-            if (entry.getKey().id() == 0) {
-                mappingSizeInBytes += metric.mappingSizeInBytes;
-            }
+            // Mapping overhead is incurred on each node that contains a shard from the index,
+            // assume each shard is on a different node, so total overhead = num shards.
+            // This will be an overestimate in either tier when there are fewer nodes than shards.
+            mappingSizeInBytes += metric.mappingSizeInBytes;
             totalSegments += metric.getNumSegments();
             totalFields += metric.getTotalFields();
             totalLiveDocsBytes += metric.getLiveDocsBytes();

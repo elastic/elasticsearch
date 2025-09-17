@@ -950,7 +950,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             }
         });
         // We use a fixed estimate 1024 bytes per index mapping field
-        final long mappingSizeInBytes = totalMappingFields * 1024L;
+        final long mappingSizeInBytes = totalMappingFields * defaultNoOfShards * 1024L;
         // defaults to the fixed method
         {
             var fixedEstimate = mappingSizeInBytes + totalShards * FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes();

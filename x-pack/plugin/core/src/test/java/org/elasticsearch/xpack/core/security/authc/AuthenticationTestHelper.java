@@ -287,9 +287,12 @@ public class AuthenticationTestHelper {
 
         assert user.principal().equals(apiKeyId) : "user principal must match cloud API key ID";
 
-        return Authentication.newCloudApiKeyAuthentication(
+        return Authentication.newCloudAuthentication(
+            Authentication.AuthenticationType.API_KEY,
+            Subject.Type.CLOUD_API_KEY,
             AuthenticationResult.success(user, user.metadata()),
-            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8)
+            "node_" + ESTestCase.randomAlphaOfLengthBetween(3, 8),
+            null
         );
 
     }

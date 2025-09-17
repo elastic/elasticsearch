@@ -16,6 +16,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -29,8 +30,11 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,6 +52,17 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     public static final FeatureFlag PATTERN_TEXT_MAPPER = new FeatureFlag("pattern_text");
     private static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
+
+    /**
+     * A setting that indicates that patterned text fields should disable templating, usually because there is
+     * no valid enterprise license.
+     */
+    public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(
+        "index.mapping.patterned_text.disable_templating",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE_DOCS;
@@ -81,6 +96,7 @@ public class PatternTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<String> indexOptions = patternTextIndexOptions(m -> ((PatternTextFieldMapper) m).indexOptions);
         private final Parameter<NamedAnalyzer> analyzer;
+        private final Parameter<Boolean> disableTemplating;
 
         public Builder(String name, MappingParserContext context) {
             this(name, context.indexVersionCreated(), context.getIndexSettings());
@@ -91,17 +107,25 @@ public class PatternTextFieldMapper extends FieldMapper {
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
             this.analyzer = analyzerParam(name, m -> ((PatternTextFieldMapper) m).analyzer);
+            this.disableTemplating = disableTemplatingParameter(indexSettings);
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { meta, indexOptions, analyzer };
+            return new Parameter<?>[] { meta, indexOptions, analyzer, disableTemplating };
         }
 
         private PatternTextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer analyzer = this.analyzer.get();
             TextSearchInfo tsi = new TextSearchInfo(fieldType, null, analyzer, analyzer);
-            return new PatternTextFieldType(context.buildFullName(leafName()), tsi, analyzer, context.isSourceSynthetic(), meta.getValue());
+            return new PatternTextFieldType(
+                context.buildFullName(leafName()),
+                tsi,
+                analyzer,
+                context.isSourceSynthetic(),
+                disableTemplating.getValue(),
+                meta.getValue()
+            );
         }
 
         private static FieldType buildLuceneFieldType(Supplier<String> indexOptionSupplier) {
@@ -137,6 +161,31 @@ public class PatternTextFieldMapper extends FieldMapper {
                         );
                 }
             }, initializer, (b, n, v) -> b.field(n, v.name()), NamedAnalyzer::name);
+        }
+
+        /**
+         * A parameter that indicates the patterned_text mapper should disable templating, usually
+         * because there is no valid enterprise license.
+         * <p>
+         * The parameter should only be explicitly enabled or left unset. When left unset, it defaults to the value determined from the
+         * associated index setting, which is set from the current license status.
+         */
+        private static Parameter<Boolean> disableTemplatingParameter(IndexSettings indexSettings) {
+            boolean forceDisable = indexSettings.getValue(DISABLE_TEMPLATING_SETTING);
+            return Parameter.boolParam(
+                "disable_templating",
+                false,
+                m -> ((PatternTextFieldMapper) m).fieldType().disableTemplating(),
+                forceDisable
+            ).addValidator(value -> {
+                if (value == false && forceDisable) {
+                    throw new MapperParsingException(
+                        "value [false] for mapping parameter [disable_templating] contradicts value [true] for index setting ["
+                            + DISABLE_TEMPLATING_SETTING.getKey()
+                            + "]"
+                    );
+                }
+            }).setSerializerCheck((includeDefaults, isConfigured, value) -> includeDefaults || isConfigured || value);
         }
 
         @Override
@@ -215,11 +264,16 @@ public class PatternTextFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Multiple values are not allowed for field [" + fieldType().name() + "].");
         }
 
-        // Parse template and args
-        PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split(value);
-
         // Add index on original value
         context.doc().add(new Field(fieldType().name(), value, fieldType));
+
+        if (fieldType().disableTemplating()) {
+            context.doc().add(new StoredField(fieldType().storedNamed(), new BytesRef(value)));
+            return;
+        }
+
+        // Parse template and args
+        PatternTextValueProcessor.Parts parts = PatternTextValueProcessor.split(value);
 
         // Add template_id doc_values
         context.doc().add(templateIdMapper.buildKeywordField(new BytesRef(parts.templateId())));
@@ -259,14 +313,25 @@ public class PatternTextFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new SyntheticSourceSupport.Native(
-            () -> new CompositeSyntheticFieldLoader(
-                leafName(),
-                fullPath(),
-                new PatternTextSyntheticFieldLoaderLayer(
-                    fieldType().name(),
-                    leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
-                )
+        return new SyntheticSourceSupport.Native(this::getSyntheticFieldLoader);
+    }
+
+    private SourceLoader.SyntheticFieldLoader getSyntheticFieldLoader() {
+        if (fieldType().disableTemplating()) {
+            return new StringStoredFieldFieldLoader(fieldType().storedNamed(), fieldType().name(), leafName()) {
+                @Override
+                protected void write(XContentBuilder b, Object value) throws IOException {
+                    b.value(((BytesRef) value).utf8ToString());
+                }
+            };
+        }
+
+        return new CompositeSyntheticFieldLoader(
+            leafName(),
+            fullPath(),
+            new PatternTextSyntheticFieldLoaderLayer(
+                fieldType().name(),
+                leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
             )
         );
     }

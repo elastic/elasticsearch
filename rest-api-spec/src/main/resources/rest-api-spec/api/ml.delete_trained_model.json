@@ -30,13 +30,11 @@
     "params": {
       "timeout": {
         "type": "time",
-        "required": false,
         "description": "Controls the amount of time to wait for the model to be deleted.",
         "default": "30s"
       },
       "force": {
         "type": "boolean",
-        "required": false,
         "description": "True if the model should be forcefully deleted"
       }
     }

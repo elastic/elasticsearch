@@ -30,8 +30,7 @@
     "params": {
       "usernames": {
         "type": "list",
-        "description": "Comma-separated list of usernames to clear from the cache",
-        "required": false
+        "description": "Comma-separated list of usernames to clear from the cache"
       }
     }
   }

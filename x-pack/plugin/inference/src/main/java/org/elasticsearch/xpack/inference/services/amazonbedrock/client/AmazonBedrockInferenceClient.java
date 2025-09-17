@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -33,6 +31,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
 import org.slf4j.LoggerFactory;

@@ -7,20 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-
-import software.amazon.awssdk.core.document.Document;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.SpecificToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.Tool;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolChoice;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolConfiguration;
-import software.amazon.awssdk.services.bedrockruntime.model.ToolInputSchema;
 import software.amazon.awssdk.services.bedrockruntime.model.ToolSpecification;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.request.AmazonBedrockRequest;

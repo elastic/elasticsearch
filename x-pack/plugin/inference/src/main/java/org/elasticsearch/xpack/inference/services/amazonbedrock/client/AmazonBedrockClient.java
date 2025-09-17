@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseResponse;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
@@ -18,6 +16,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.InvokeModelResponse;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.time.Instant;
 import java.util.concurrent.Flow;

@@ -79,7 +79,12 @@ public class StatelessBalancingWeightsFactoryTests extends ESAllocationTestCase 
         );
 
         final StatelessTier tierToSetToZero = randomFrom(StatelessTier.values());
-        clusterSettings.applySettings(Settings.builder().put(tierToSetToZero.writeLoadBalanceSetting.getKey(), 0.0).build());
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(tierToSetToZero.writeLoadBalanceSetting.getKey(), 0.0)
+                .put(tierToSetToZero.other().writeLoadBalanceSetting.getKey(), 10.0)
+                .build()
+        );
         var clusterState = applyStartedShardsUntilNoChange(
             createStateWithIndices(
                 randomFrom(InitialState.values()),

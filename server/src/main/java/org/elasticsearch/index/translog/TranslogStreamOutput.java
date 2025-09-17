@@ -31,8 +31,9 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
             BytesRef first = writeOperation.next();
             int firstLength = first.length;
             BytesRef second = writeOperation.next();
-            int offset = bytesRefOffset + preWritePageOffset;
-            byte[] localBytesRef = bytesRefBytes;
+            BytesRef currentPage = currentBytesRef;
+            int offset = currentPage.offset + preWritePageOffset;
+            byte[] localBytesRef = currentPage.bytes;
             System.arraycopy(first.bytes, first.offset, localBytesRef, offset, firstLength);
             if (second != null) {
                 int secondLength = second.length;
@@ -59,8 +60,9 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
         if (FIXED_INDEX_HEADER_SIZE <= (pageSize - currentPageOffset)) {
             String routing = indexOperation.routing();
 
-            int off = bytesRefOffset + currentPageOffset;
-            byte[] localBytesRef = bytesRefBytes;
+            BytesRef currentPage = currentBytesRef;
+            int off = currentPage.offset + currentPageOffset;
+            byte[] localBytesRef = currentPage.bytes;
             localBytesRef[off + 4] = Translog.Operation.Type.INDEX.id();
             // This is technically a vInt in the serialization, but until we advance past 127 we can just directly serialize as a byte
             localBytesRef[off + 5] = (byte) Translog.Index.SERIALIZATION_FORMAT;
@@ -111,8 +113,9 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
     public void writeDeleteHeader(Translog.Delete delete) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (FIXED_DELETE_HEADER_SIZE <= (pageSize - currentPageOffset)) {
-            int off = bytesRefOffset + currentPageOffset;
-            byte[] localBytesRef = bytesRefBytes;
+            BytesRef currentPage = currentBytesRef;
+            int off = currentPage.offset + currentPageOffset;
+            byte[] localBytesRef = currentPage.bytes;
             localBytesRef[off + 4] = Translog.Operation.Type.DELETE.id();
             // This is technically a vInt in the serialization, but until we advance past 127 we can just directly serialize as a byte
             localBytesRef[off + 5] = (byte) Translog.Delete.SERIALIZATION_FORMAT;
@@ -152,8 +155,9 @@ public class TranslogStreamOutput extends RecyclerBytesStreamOutput {
     public void writeNoOpHeader(Translog.NoOp noop) throws IOException {
         final int currentPageOffset = this.currentPageOffset;
         if (FIXED_NO_OP_HEADER_SIZE <= (pageSize - currentPageOffset)) {
-            int off = bytesRefOffset + currentPageOffset;
-            byte[] localBytesRef = bytesRefBytes;
+            BytesRef currentPage = currentBytesRef;
+            int off = currentPage.offset + currentPageOffset;
+            byte[] localBytesRef = currentPage.bytes;
             localBytesRef[off + 4] = Translog.Operation.Type.NO_OP.id();
             VH_BE_LONG.set(localBytesRef, off + 5, noop.seqNo());
             VH_BE_LONG.set(localBytesRef, off + 13, noop.primaryTerm());

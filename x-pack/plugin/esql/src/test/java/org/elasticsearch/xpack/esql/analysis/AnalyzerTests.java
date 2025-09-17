@@ -3624,7 +3624,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
@@ -3648,7 +3648,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test

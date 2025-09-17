@@ -31,7 +31,7 @@ public class FuseWithInvalidLicenseIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         var indexName = "test";
         var client = client().admin().indices();
         var CreateRequest = client.prepareCreate(indexName)

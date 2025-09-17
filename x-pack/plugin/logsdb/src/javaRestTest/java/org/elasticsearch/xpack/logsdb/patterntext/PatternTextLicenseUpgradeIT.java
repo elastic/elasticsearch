@@ -47,7 +47,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
 
         String backingIndex0 = getDataStreamBackingIndex(client(), dataStreamName, 0);
         {
-            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
+            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "pattern_field"
@@ -59,7 +59,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
         rolloverDataStream(client(), dataStreamName);
 
         {
-            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.pattern_text.disable_templating"));
+            assertEquals("true", getSetting(client(), backingIndex0, "index.mapping.patterned_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex0);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "pattern_field"
@@ -69,7 +69,7 @@ public class PatternTextLicenseUpgradeIT extends DataStreamLicenseChangeTestCase
 
         String backingIndex1 = getDataStreamBackingIndex(client(), dataStreamName, 1);
         {
-            assertEquals("false", getSetting(client(), backingIndex1, "index.mapping.pattern_text.disable_templating"));
+            assertEquals("false", getSetting(client(), backingIndex1, "index.mapping.patterned_text.disable_templating"));
             Map<String, Object> mapping = getMapping(client(), backingIndex1);
             Map<String, Object> patternFieldMapping = (Map<String, Object>) ((Map<String, Object>) mapping.get("properties")).get(
                 "pattern_field"

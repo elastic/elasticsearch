@@ -58,7 +58,7 @@ public class PatternTextFieldMapper extends FieldMapper {
      * no valid enterprise license.
      */
     public static final Setting<Boolean> DISABLE_TEMPLATING_SETTING = Setting.boolSetting(
-        "index.mapping.pattern_text.disable_templating",
+        "index.mapping.patterned_text.disable_templating",
         false,
         Setting.Property.IndexScope,
         Setting.Property.PrivateIndex

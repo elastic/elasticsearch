@@ -17,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.DiskIoBufferPool;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -582,7 +581,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private synchronized ReleasableBytesReference pollOpsToWrite() {
         ensureOpen();
         if (this.buffer != null) {
-            try (RecyclerBytesStreamOutput toWrite = this.buffer) {
+            try (TranslogStreamOutput toWrite = this.buffer) {
                 this.buffer = null;
                 this.bufferedBytes = 0;
                 return toWrite.moveToBytesReference();

@@ -35,7 +35,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,10 +93,8 @@ public class StatelessReshardDisruptionIT extends AbstractStatelessIntegTestCase
 
             try {
                 logger.info("--> resharding an index [{}] under disruption", indexName);
-                assertAcked(
-                    client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple))
-                        .actionGet(TEST_REQUEST_TIMEOUT)
-                );
+                client(masterNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple))
+                    .actionGet(TEST_REQUEST_TIMEOUT);
                 waitForReshardCompletion(indexName);
                 logger.info("--> done resharding an index [{}]", indexName);
             } finally {

@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexResponse;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
 import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
@@ -31,6 +30,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
@@ -240,7 +240,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
 
         logger.info("starting reshard");
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
 
         logger.info("getting reshard metadata");
         var reshardingMetadata = splitState.actionGet(SAFE_AWAIT_TIMEOUT)
@@ -378,7 +378,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertSearch(searchCoordinator, indexName, initialSearchAssertion, useEsql);
 
         ReshardIndexRequest reshardRequest = new ReshardIndexRequest(indexName, multiple);
-        assertAcked(client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet());
+        client(masterNode).execute(TransportReshardAction.TYPE, reshardRequest).actionGet();
 
         CyclicBarrier startStateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + the test itself
         CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple);
@@ -754,7 +754,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         });
 
         // Start split and block transition to HANDOFF.
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
 
         CyclicBarrier stateTransitionBlock = new CyclicBarrier(multiple); // (multiple - 1) target shards + test itself
         CyclicBarrier resetStateTransitionBlock = new CyclicBarrier(multiple);
@@ -929,7 +929,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         final int multiple = randomIntBetween(2, 10);
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, multiple)).actionGet();
         waitForReshardCompletion(indexName);
 
         checkNumberOfShardsSetting(indexNode, indexName, multiple);
@@ -971,7 +971,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         assertBusy(() -> {
             GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -1164,7 +1164,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
 
         logger.info("starting reshard");
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
         waitForReshardCompletion(indexName);
 
         checkNumberOfShardsSetting(indexNode, indexName, 2);
@@ -1232,7 +1232,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
                 try {
                     Thread.sleep(randomIntBetween(0, 200));
 
-                    assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+                    client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
                     waitForReshardCompletion(indexName);
                     success.set(true);
                 } catch (Exception e) {
@@ -1333,7 +1333,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             currentPrimaryTerm = getCurrentPrimaryTerm(index, 0);
         }
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
         waitForReshardCompletion(indexName);
         ensureGreen(indexName);
 
@@ -1376,7 +1376,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         handoffAttemptedLatch.await();
 
@@ -1465,7 +1465,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         stateChangeAttemptedLatch.await();
 
@@ -1540,7 +1540,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         handoffAttemptedLatch.await();
 
@@ -1573,7 +1573,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         assertBusy(() -> {
             GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -1650,7 +1650,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         assertBusy(() -> {
             GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -1704,7 +1704,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         // start first resharding operation
         var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         // wait until we know it's in progress
         var ignored = splitState.actionGet(SAFE_AWAIT_TIMEOUT).projectState().metadata().index(indexName).getReshardingMetadata();
@@ -1724,7 +1724,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, 2);
 
         // now we should be able to resplit
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
         waitForReshardCompletion(indexName);
         checkNumberOfShardsSetting(indexNode, indexName, 4);
     }
@@ -1750,7 +1750,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         setDisruptionScheme(disruption);
         disruption.startDisrupting();
 
-        var futures = new ArrayList<ActionFuture<ReshardIndexResponse>>();
+        var futures = new ArrayList<ActionFuture<ActionResponse>>();
         for (int i = 0; i < indexCount; i++) {
             final String indexName = indexNameTemplate + i;
             futures.add(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)));
@@ -1759,7 +1759,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         disruption.stopDisrupting();
 
         for (int i = 0; i < indexCount; i++) {
-            assertAcked(futures.get(i).actionGet());
+            futures.get(i).actionGet();
             waitForReshardCompletion(indexNameTemplate + i);
         }
 
@@ -1817,7 +1817,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request1, options);
         });
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         handoffAttemptedLatch.await();
 
@@ -1893,7 +1893,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             }
         });
 
-        assertAcked(client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet());
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet();
 
         preHandoffEnteredLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
 

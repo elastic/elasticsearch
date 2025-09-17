@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.client;
 
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.net.URI;
 import java.util.Arrays;
@@ -89,9 +90,10 @@ public class UriUtilsTests extends ESTestCase {
     }
 
     public void testMalformedWhiteSpace() throws Exception {
-        assertEquals(
-            "Invalid connection configuration: Illegal character in authority at index 7: http:// ",
-            expectThrows(IllegalArgumentException.class, () -> parseURI(" ", DEFAULT_URI)).getMessage()
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> parseURI(" ", DEFAULT_URI)).getMessage(),
+            // Use a lenient regex here since later JDKs trim exception message whitespace
+            Matchers.matchesPattern("^Invalid connection configuration: Illegal character in authority at index 7: http:// ?")
         );
     }
 

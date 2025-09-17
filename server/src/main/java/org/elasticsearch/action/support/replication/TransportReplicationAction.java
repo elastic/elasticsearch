@@ -317,6 +317,13 @@ public abstract class TransportReplicationAction<
     );
 
     /**
+     * During Resharding, we might need to split
+     */
+    protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
+        return Map.of(request.shardId(), request);
+    }
+
+    /**
      * Cluster level block to check before request execution. Returning null means that no blocks need to be checked.
      */
     @Nullable
@@ -500,6 +507,23 @@ public abstract class TransportReplicationAction<
                             }
                         }
                     );
+                    // Replace false with a Reshard shard count mismatch test
+                    // (an abstract API that will be implemented by bulk, refresh and flush)
+                } else if (false) {
+                    // Split Request
+                    Map<ShardId, Request> splitRequests = splitRequestOnPrimary(primaryRequest.getRequest());
+                    int numSplitRequests = splitRequests.size();
+
+                    // splitRequestOnPrimary must handle the case when the request has no items
+                    assert numSplitRequests > 0 : "expected atleast 1 split request";
+                    assert numSplitRequests <= 2 : "number of split requests too many";
+
+                    if (numSplitRequests == 1) {
+                        // If the request is for source, same behaviour as before
+                        // If the request is for target, similar behaviour to relocated
+                    } else {  // We have requests for both source and target shards
+                        // Merge responses from source and target
+                    }
                 } else {
                     setPhase(replicationTask, "primary");
 

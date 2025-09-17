@@ -48,7 +48,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
                 if (p instanceof MvExpand || (p instanceof Join join && join.config().type() == JoinTypes.LEFT)
                 // this will fail the verifier anyway, so no need to continue
                     || (p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
-                    || p instanceof Enrich
+                    || (p instanceof Enrich e && e.mode() != Enrich.Mode.ANY)
                     || p instanceof PipelineBreaker) {
                     stop.set(true);
                 }

@@ -148,34 +148,33 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
 
     @Override
     public JsonToken nextToken() throws IOException {
-        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
-            _inputPtr = stringEnd;
-            _tokenIncomplete = false;
-            lastOptimisedValue = null;
-        }
+        maybeResetCurrentTokenState();
         stringEnd = -1;
         return super.nextToken();
     }
 
     @Override
     public boolean nextFieldName(SerializableString str) throws IOException {
-        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
-            _inputPtr = stringEnd;
-            _tokenIncomplete = false;
-            lastOptimisedValue = null;
-        }
+        maybeResetCurrentTokenState();
         stringEnd = -1;
         return super.nextFieldName(str);
     }
 
     @Override
     public String nextFieldName() throws IOException {
+        maybeResetCurrentTokenState();
+        stringEnd = -1;
+        return super.nextFieldName();
+    }
+
+    /**
+     * Resets the current token state before moving to the next.
+     */
+    private void maybeResetCurrentTokenState() {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
             _inputPtr = stringEnd;
             _tokenIncomplete = false;
             lastOptimisedValue = null;
         }
-        stringEnd = -1;
-        return super.nextFieldName();
     }
 }

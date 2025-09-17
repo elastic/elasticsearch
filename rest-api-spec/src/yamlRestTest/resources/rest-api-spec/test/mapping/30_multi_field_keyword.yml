@@ -35,6 +35,7 @@ Keyword with escaped characters as multi-field:
   - match:
       hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"
 
+  # Test that optimisation works the same for the multi-fields as well.
   - do:
       search:
         index: test

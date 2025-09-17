@@ -116,7 +116,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             taskType,
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
-            new OpenAiChatCompletionTaskSettings(user),
+            new OpenAiChatCompletionTaskSettings(user, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

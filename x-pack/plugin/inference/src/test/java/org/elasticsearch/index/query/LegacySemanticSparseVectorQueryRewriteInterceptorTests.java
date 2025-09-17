@@ -18,24 +18,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.QueryVectorBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.LegacySemanticSparseVectorQueryRewriteInterceptor;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
-
-public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
+public class LegacySemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
@@ -57,21 +53,13 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         threadPool.close();
     }
 
-    public void testKnnQueryWithVectorBuilderIsInterceptedAndRewritten() throws IOException {
+    public void testSparseVectorQueryOnInferenceFieldIsInterceptedAndRewritten() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), INFERENCE_ID, new String[] { FIELD_NAME }, null)
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(INFERENCE_ID, QUERY);
-        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(
-            FIELD_NAME,
-            queryVectorBuilder,
-            10,
-            100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null
-        );
+        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
         if (randomBoolean()) {
             float boost = randomFloatBetween(1, 10, randomBoolean());
             original.boost(boost);
@@ -83,21 +71,13 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         testRewrittenInferenceQuery(context, original);
     }
 
-    public void testKnnWithQueryBuilderWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
+    public void testSparseVectorQueryOnInferenceFieldWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), INFERENCE_ID, new String[] { FIELD_NAME }, null)
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        KnnVectorQueryBuilder original = new KnnVectorQueryBuilder(
-            FIELD_NAME,
-            queryVectorBuilder,
-            10,
-            100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null
-        );
+        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, null, QUERY);
         if (randomBoolean()) {
             float boost = randomFloatBetween(1, 10, randomBoolean());
             original.boost(boost);
@@ -109,7 +89,18 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         testRewrittenInferenceQuery(context, original);
     }
 
-    private void testRewrittenInferenceQuery(QueryRewriteContext context, KnnVectorQueryBuilder original) throws IOException {
+    public void testSparseVectorQueryOnNonInferenceFieldRemainsUnchanged() throws IOException {
+        QueryRewriteContext context = createQueryRewriteContext(Map.of()); // No inference fields
+        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to remain sparse_vector but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof SparseVectorQueryBuilder
+        );
+        assertEquals(original, rewritten);
+    }
+
+    private void testRewrittenInferenceQuery(QueryRewriteContext context, QueryBuilder original) throws IOException {
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
@@ -118,44 +109,21 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
         assertEquals(original.boost(), intercepted.boost(), 0.0f);
         assertEquals(original.queryName(), intercepted.queryName());
-        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
 
+        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
         NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
+        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
         assertEquals(original.boost(), nestedQueryBuilder.boost(), 0.0f);
         assertEquals(original.queryName(), nestedQueryBuilder.queryName());
-        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
 
         QueryBuilder innerQuery = nestedQueryBuilder.query();
-        assertTrue(innerQuery instanceof KnnVectorQueryBuilder);
-        KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) innerQuery;
-        assertEquals(1.0f, knnVectorQueryBuilder.boost(), 0.0f);
-        assertNull(knnVectorQueryBuilder.queryName());
-        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), knnVectorQueryBuilder.getFieldName());
-        assertTrue(knnVectorQueryBuilder.queryVectorBuilder() instanceof TextEmbeddingQueryVectorBuilder);
-
-        TextEmbeddingQueryVectorBuilder textEmbeddingQueryVectorBuilder = (TextEmbeddingQueryVectorBuilder) knnVectorQueryBuilder
-            .queryVectorBuilder();
-        assertEquals(QUERY, textEmbeddingQueryVectorBuilder.getModelText());
-        assertEquals(INFERENCE_ID, textEmbeddingQueryVectorBuilder.getModelId());
-    }
-
-    public void testKnnVectorQueryOnNonInferenceFieldRemainsUnchanged() throws IOException {
-        QueryRewriteContext context = createQueryRewriteContext(Map.of()); // No inference fields
-        QueryVectorBuilder queryVectorBuilder = new TextEmbeddingQueryVectorBuilder(null, QUERY);
-        QueryBuilder original = new KnnVectorQueryBuilder(
-            FIELD_NAME,
-            queryVectorBuilder,
-            10,
-            100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null
-        );
-        QueryBuilder rewritten = original.rewrite(context);
-        assertTrue(
-            "Expected query to remain knn but was [" + rewritten.getClass().getName() + "]",
-            rewritten instanceof KnnVectorQueryBuilder
-        );
-        assertEquals(original, rewritten);
+        assertTrue(innerQuery instanceof SparseVectorQueryBuilder);
+        SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) innerQuery;
+        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
+        assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
+        assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
+        assertEquals(1.0f, sparseVectorQueryBuilder.boost(), 0.0f);
+        assertNull(sparseVectorQueryBuilder.queryName());
     }
 
     private QueryRewriteContext createQueryRewriteContext(Map<String, InferenceFieldMetadata> inferenceFields) {
@@ -189,7 +157,8 @@ public class SemanticKnnVectorQueryRewriteInterceptorTests extends ESTestCase {
         );
     }
 
+    @SuppressWarnings("deprecation")
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new SemanticKnnVectorQueryRewriteInterceptor();
+        return new LegacySemanticSparseVectorQueryRewriteInterceptor();
     }
 }

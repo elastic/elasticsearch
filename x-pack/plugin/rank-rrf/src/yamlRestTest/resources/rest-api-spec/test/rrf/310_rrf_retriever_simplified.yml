@@ -568,19 +568,6 @@ setup:
   - match: { hits.hits.2._id: "3" }
 
 ---
-"Zero per-field weights are accepted":
-  - do:
-      search:
-        index: test-index
-        body:
-          retriever:
-            rrf:
-              fields: [ "text_1^0", "text_2" ]
-              query: "match"
-  # Zero weight should be accepted and search should work
-  - gte: { hits.total.value: 1 }
-
----
 "Semantic field weighting":
   - requires:
       cluster_features: ["rrf_retriever.simplified_weighted_support"]

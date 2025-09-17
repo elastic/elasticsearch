@@ -791,6 +791,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteFailureInlinestats() throws IOException {
+        assumeTrue("requires inlinestats", EsqlCapabilities.Cap.INLINESTATS_SUPPORTS_REMOTE.isEnabled());
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");

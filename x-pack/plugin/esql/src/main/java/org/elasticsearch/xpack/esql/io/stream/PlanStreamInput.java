@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -37,8 +36,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.LongFunction;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
 
 /**
  * A customized stream input used to deserialize ESQL physical plan fragments. Complements stream
@@ -183,19 +180,15 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
     @Override
     @SuppressWarnings("unchecked")
     public <A extends Attribute> A readAttributeWithCache(CheckedFunction<StreamInput, A, IOException> constructor) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
-            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
-            int cacheId = Math.toIntExact(readZLong());
-            if (cacheId < 0) {
-                cacheId = -1 - cacheId;
-                Attribute result = constructor.apply(this);
-                cacheAttribute(cacheId, result);
-                return (A) result;
-            } else {
-                return (A) attributeFromCache(cacheId);
-            }
+        // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+        int cacheId = Math.toIntExact(readZLong());
+        if (cacheId < 0) {
+            cacheId = -1 - cacheId;
+            Attribute result = constructor.apply(this);
+            cacheAttribute(cacheId, result);
+            return (A) result;
         } else {
-            return constructor.apply(this);
+            return (A) attributeFromCache(cacheId);
         }
     }
 
@@ -222,23 +215,17 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @SuppressWarnings("unchecked")
     public <A extends EsField> A readEsFieldWithCache() throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
-            // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
-            int cacheId = Math.toIntExact(readZLong());
-            if (cacheId < 0) {
-                String className = readCachedStringWithVersionCheck(this);
-                Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
-                cacheId = -1 - cacheId;
-                EsField result = reader.read(this);
-                cacheEsField(cacheId, result);
-                return (A) result;
-            } else {
-                return (A) esFieldFromCache(cacheId);
-            }
-        } else {
-            String className = readCachedStringWithVersionCheck(this);
+        // it's safe to cast to int, since the max value for this is {@link PlanStreamOutput#MAX_SERIALIZED_ATTRIBUTES}
+        int cacheId = Math.toIntExact(readZLong());
+        if (cacheId < 0) {
+            String className = readCachedString();
             Writeable.Reader<? extends EsField> reader = EsField.getReader(className);
-            return (A) reader.read(this);
+            cacheId = -1 - cacheId;
+            EsField result = reader.read(this);
+            cacheEsField(cacheId, result);
+            return (A) result;
+        } else {
+            return (A) esFieldFromCache(cacheId);
         }
     }
 

@@ -301,9 +301,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 String name = storedFieldNameForSyntheticSource();
                 return storedFieldFetcher(name);
             }
+            ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
+            SourceProvider sourceProvider = searchExecutionContext.lookup();
             return context -> {
-                ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
-                SourceProvider sourceProvider = searchExecutionContext.lookup();
                 valueFetcher.setNextReader(context);
                 return docID -> {
                     try {

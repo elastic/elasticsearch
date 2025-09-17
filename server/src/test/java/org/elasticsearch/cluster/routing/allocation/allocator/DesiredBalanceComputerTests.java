@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndPath;
 import org.elasticsearch.cluster.ClusterInfo.NodeAndShard;
 import org.elasticsearch.cluster.ClusterInfo.ReservedSpace;
+import org.elasticsearch.cluster.ClusterInfoSimulator;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -54,6 +56,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -64,6 +67,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -80,6 +84,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
@@ -99,6 +104,10 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -818,19 +827,19 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .withNode("node-1", 1000, 100)
             .withNode("node-2", 1000, 1000)
             // node-0 & node-1
-            .withShard(findShardId(clusterState, "index-0"), true, 500)
-            .withShard(findShardId(clusterState, "index-0"), false, 500)
+            .withShard(findShard(clusterState, "index-0", true), 500)
+            .withShard(findShard(clusterState, "index-0", false), 500)
             // node-0
-            .withShard(findShardId(clusterState, "index-1"), true, 400)
+            .withShard(findShard(clusterState, "index-1", true), 400)
             // node-1
-            .withShard(findShardId(clusterState, "index-2"), true, 50)
-            .withShard(findShardId(clusterState, "index-3"), true, 50)
-            .withShard(findShardId(clusterState, "index-4"), true, 50)
-            .withShard(findShardId(clusterState, "index-5"), true, 50)
-            .withShard(findShardId(clusterState, "index-6"), true, 50)
-            .withShard(findShardId(clusterState, "index-7"), true, 50)
-            .withShard(findShardId(clusterState, "index-8"), true, 50)
-            .withShard(findShardId(clusterState, "index-9"), true, 50)
+            .withShard(findShard(clusterState, "index-2", true), 50)
+            .withShard(findShard(clusterState, "index-3", true), 50)
+            .withShard(findShard(clusterState, "index-4", true), 50)
+            .withShard(findShard(clusterState, "index-5", true), 50)
+            .withShard(findShard(clusterState, "index-6", true), 50)
+            .withShard(findShard(clusterState, "index-7", true), 50)
+            .withShard(findShard(clusterState, "index-8", true), 50)
+            .withShard(findShard(clusterState, "index-9", true), 50)
             .build();
 
         var settings = Settings.builder()
@@ -1180,6 +1189,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         private final Map<String, DiskUsage> diskUsage = new HashMap<>();
         private final Map<String, Long> shardSizes = new HashMap<>();
         private final Map<NodeAndPath, ReservedSpace> reservedSpace = new HashMap<>();
+        private final Map<NodeAndShard, String> dataPath = new HashMap<>();
 
         public ClusterInfoTestBuilder withNode(String nodeId, long totalBytes, long freeBytes) {
             diskUsage.put(nodeId, new DiskUsage(nodeId, nodeId, "/path", totalBytes, freeBytes));
@@ -1199,6 +1209,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             return this;
         }
 
+        public ClusterInfoTestBuilder withShard(ShardRouting shard, long size) {
+            shardSizes.put(shardIdentifierFromRouting(shard), size);
+            if (shard.unassigned() == false) {
+                dataPath.put(NodeAndShard.from(shard), "/data/path");
+            }
+            return this;
+        }
+
         public ClusterInfoTestBuilder withReservedSpace(String nodeId, long size, ShardId... shardIds) {
             reservedSpace.put(new NodeAndPath(nodeId, "/path"), new ReservedSpace(size, Set.of(shardIds)));
             return this;
@@ -1210,6 +1228,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 .mostAvailableSpaceUsage(diskUsage)
                 .shardSizes(shardSizes)
                 .reservedSpace(reservedSpace)
+                .dataPath(dataPath)
                 .build();
         }
     }
@@ -1577,6 +1596,130 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 mockLog.assertAllExpectationsMatched();
             }
         }
+    }
+
+    public void testMaybeSimulateAlreadyStartedShards() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+        final var routingChangesObserver = mock(RoutingChangesObserver.class);
+
+        final ClusterState initialState = createInitialClusterState(3, 3, 1);
+        final RoutingNodes routingNodes = initialState.mutableRoutingNodes();
+
+        final IndexRoutingTable indexRoutingTable = initialState.routingTable(ProjectId.DEFAULT).index(TEST_INDEX);
+
+        final List<ShardRouting> existingStartedShards = new ArrayList<>();
+
+        // Shard 0 - primary started
+        final String shard0PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        existingStartedShards.add(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(0).primaryShard(),
+                    shard0PrimaryNodeId,
+                    null,
+                    randomLongBetween(100, 999),
+                    routingChangesObserver
+                ),
+                routingChangesObserver,
+                randomLongBetween(100, 999)
+            )
+        );
+        if (randomBoolean()) {
+            existingStartedShards.add(
+                routingNodes.startShard(
+                    routingNodes.initializeShard(
+                        indexRoutingTable.shard(0).replicaShards().getFirst(),
+                        randomValueOtherThan(shard0PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
+                        null,
+                        randomLongBetween(100, 999),
+                        routingChangesObserver
+                    ),
+                    routingChangesObserver,
+                    randomLongBetween(100, 999)
+                )
+            );
+        }
+
+        // Shard 1 - initializing primary or replica
+        final String shard1PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        ShardRouting initializingShard = routingNodes.initializeShard(
+            indexRoutingTable.shard(1).primaryShard(),
+            shard1PrimaryNodeId,
+            null,
+            randomLongBetween(100, 999),
+            routingChangesObserver
+        );
+        if (randomBoolean()) {
+            existingStartedShards.add(routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999)));
+            initializingShard = routingNodes.initializeShard(
+                indexRoutingTable.shard(1).replicaShards().getFirst(),
+                randomValueOtherThan(shard1PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
+                null,
+                randomLongBetween(100, 999),
+                routingChangesObserver
+            );
+        }
+
+        // Shard 2 - Relocating primary
+        final String shard2PrimaryNodeId = randomFrom(initialState.nodes().getDataNodes().values()).getId();
+        final Tuple<ShardRouting, ShardRouting> relocationTuple = routingNodes.relocateShard(
+            routingNodes.startShard(
+                routingNodes.initializeShard(
+                    indexRoutingTable.shard(2).primaryShard(),
+                    shard2PrimaryNodeId,
+                    null,
+                    randomLongBetween(100, 999),
+                    routingChangesObserver
+                ),
+                routingChangesObserver,
+                randomLongBetween(100, 999)
+            ),
+            randomValueOtherThan(shard2PrimaryNodeId, () -> randomFrom(initialState.nodes().getDataNodes().values()).getId()),
+            randomLongBetween(100, 999),
+            "test",
+            routingChangesObserver
+        );
+        existingStartedShards.add(relocationTuple.v1());
+
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .dataPath(
+                existingStartedShards.stream()
+                    .collect(Collectors.toUnmodifiableMap(NodeAndShard::from, ignore -> "/data/" + randomIdentifier()))
+            )
+            .build();
+
+        // No extra simulation calls since there is no new shard or relocated shard that are not in ClusterInfo
+        {
+            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            verifyNoInteractions(clusterInfoSimulator);
+        }
+
+        // Start the initializing shard and it should be identified and simulated
+        final var startedShard = routingNodes.startShard(initializingShard, routingChangesObserver, randomLongBetween(100, 999));
+        {
+            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
+            verifyNoMoreInteractions(clusterInfoSimulator);
+        }
+
+        // Also start the relocating shard and both should be identified and simulated
+        {
+            Mockito.clearInvocations(clusterInfoSimulator);
+            final var startedRelocatingShard = routingNodes.startShard(
+                relocationTuple.v2(),
+                routingChangesObserver,
+                randomLongBetween(100, 999)
+            );
+            DesiredBalanceComputer.maybeSimulateAlreadyStartedShards(clusterInfo, routingNodes, clusterInfoSimulator);
+            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedShard, null);
+            verify(clusterInfoSimulator).simulateAlreadyStartedShard(startedRelocatingShard, relocationTuple.v1().currentNodeId());
+            verifyNoMoreInteractions(clusterInfoSimulator);
+        }
+    }
+
+    private static ShardRouting findShard(ClusterState clusterState, String name, boolean primary) {
+        final var indexShardRoutingTable = clusterState.getRoutingTable().index(name).shard(0);
+        return primary ? indexShardRoutingTable.primaryShard() : indexShardRoutingTable.replicaShards().getFirst();
     }
 
     private static ShardId findShardId(ClusterState clusterState, String name) {

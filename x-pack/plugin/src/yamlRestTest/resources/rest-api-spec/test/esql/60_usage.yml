@@ -34,16 +34,7 @@ setup:
           parameters: []
           # A snapshot function was removed in match_function_options, it can't work on mixed cluster tests otherwise.
           capabilities:
-            - snapshot_test_for_telemetry_v2
-            - fn_byte_length
-            - match_function_options
-            - first_over_time
-            - sum_over_time
-            - count_over_time
-            - count_distinct_over_time
-            - cosine_vector_similarity_function
-            - present_over_time
-            - absent_over_time
+            - ts_command_v0
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
@@ -140,7 +131,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ non_snapshot_test_for_telemetry_v2, fn_contains ]
+          capabilities: [ ts_command_v0 ]
       reason: "Test that should only be executed on release versions"
 
   - do: {xpack.usage: {}}
@@ -226,7 +217,7 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  - length: {esql.functions: 151} # check the "sister" test above for a likely update to the same esql.functions length check
+  - length: {esql.functions: 179} # check the "sister" test above for a likely update to the same esql.functions length check
 
 ---
 took:

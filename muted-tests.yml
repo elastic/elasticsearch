@@ -453,15 +453,9 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
   issue: https://github.com/elastic/elasticsearch/issues/127302
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/133449
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
   method: testFilterWithUnavailableRemote
   issue: https://github.com/elastic/elasticsearch/issues/133450
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/133461
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/133481

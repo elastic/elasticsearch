@@ -139,21 +139,6 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         }
     }
 
-    private static CrossClusterAccessAuthenticationService getCrossClusterAccessAuthenticationService(String nodeName) {
-        RemoteClusterAuthenticationService service = internalCluster().getInstance(RemoteClusterAuthenticationService.class, nodeName);
-        if (service instanceof CrossClusterAccessAuthenticationService) {
-            return (CrossClusterAccessAuthenticationService) service;
-        } else {
-            throw new AssertionError(
-                "expected ["
-                    + CrossClusterAccessAuthenticationService.class.getCanonicalName()
-                    + "] but got  ["
-                    + service.getClass().getSimpleName()
-                    + "]"
-            );
-        }
-    }
-
     public void testAuthenticateHeadersSuccess() throws IOException {
         final String encodedCrossClusterAccessApiKey = getEncodedCrossClusterAccessApiKey();
         final String nodeName = internalCluster().getRandomNodeName();
@@ -365,6 +350,21 @@ public class CrossClusterAccessAuthenticationServiceIntegTests extends SecurityI
         assertThat(actualException.getCause(), instanceOf(ElasticsearchSecurityException.class));
         assertThat(actualException.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         errorMessageAssertion.accept(actualException.getCause().getCause().getMessage());
+    }
+
+    private static CrossClusterAccessAuthenticationService getCrossClusterAccessAuthenticationService(String nodeName) {
+        RemoteClusterAuthenticationService service = internalCluster().getInstance(RemoteClusterAuthenticationService.class, nodeName);
+        if (service instanceof CrossClusterAccessAuthenticationService) {
+            return (CrossClusterAccessAuthenticationService) service;
+        } else {
+            throw new AssertionError(
+                "expected ["
+                    + CrossClusterAccessAuthenticationService.class.getCanonicalName()
+                    + "] but got  ["
+                    + service.getClass().getSimpleName()
+                    + "]"
+            );
+        }
     }
 
 }

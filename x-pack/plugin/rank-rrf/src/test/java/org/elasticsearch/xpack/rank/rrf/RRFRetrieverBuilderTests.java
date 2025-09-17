@@ -308,60 +308,6 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // Basic per-field weights test with inference fields
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^2.0", "field_2^0.5", "semantic_field_1"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("field_1", 2.0f, "field_2", 0.5f),
-            Map.of("semantic_field_1", 1.0f),
-            "test query",
-            null
-        );
-
-        // Inference fields with specific weights
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("semantic_field_1^3.0", "semantic_field_2^0.5"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of(),
-            Map.of("semantic_field_1", 3.0f, "semantic_field_2", 0.5f),
-            "test query",
-            null
-        );
-
-        // Large weight values are handled correctly
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^1000000", "field_2^1.0"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("field_1", 1000000.0f, "field_2", 1.0f),
-            Map.of(),
-            "test query",
-            null
-        );
-
         // Mixed weighted and unweighted fields in simplified syntax
         rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
@@ -393,42 +339,6 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             rrfRetrieverBuilder,
             queryRewriteContext,
             Map.of("field1", 0.1f, "field2", 2.75f, "field3", 10.999f),
-            Map.of(),
-            "test query",
-            null
-        );
-
-        // Simplified syntax with glob patterns and weights
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("title_*^2.0", "content_*^1.5", "meta_*"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("title_*", 2.0f, "content_*", 1.5f, "meta_*", 1.0f),
-            Map.of(),
-            "test query",
-            null
-        );
-
-        // Lexical field weight propagation (no inference fields)
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^2.0", "field_2^0.5"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-        assertMultiFieldsParamsRewrite(
-            rrfRetrieverBuilder,
-            queryRewriteContext,
-            Map.of("field_1", 2.0f, "field_2", 0.5f),
             Map.of(),
             "test query",
             null

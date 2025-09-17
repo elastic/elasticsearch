@@ -556,9 +556,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                         )
                     )
                 );
-                if (id == 0) {
-                    totalMappingSizeInBytes += mappingSizeInBytes;
-                }
+                totalMappingSizeInBytes += mappingSizeInBytes;
             }
         }
         // defaults to the fixed method

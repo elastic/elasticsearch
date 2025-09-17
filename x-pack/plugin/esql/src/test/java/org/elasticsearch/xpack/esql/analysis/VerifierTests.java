@@ -2543,7 +2543,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
@@ -2556,6 +2556,10 @@ public class VerifierTests extends ESTestCase {
         query(queryPrefix + " | fuse with { \"rank_constant\": 123 } ");
         query(queryPrefix + " | fuse with { \"weights\": { \"fork1\":  123 } }");
         query(queryPrefix + " | fuse with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse linear");
+        query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
 
         assertThat(error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
@@ -2579,26 +2583,48 @@ public class VerifierTests extends ESTestCase {
             containsString("expected rank_constant to be positive, got [0]")
         );
 
-        assertThat(error(queryPrefix + " | fuse rrf WITH { \"weights\": 123 }"), containsString("expected weights to be a MapExpression"));
+        for (var fuseMethod : List.of("rrf", "linear")) {
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": 123 }"),
+                containsString("expected weights to be a MapExpression")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": \"a\" } }"),
+                containsString("expected weight to be numeric")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
+                containsString("expected weight to be a literal")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": -123 } }"),
+                containsString("expected weight to be positive, got [-123]")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
+                containsString("expected weight to be positive, got [0]")
+            );
+        }
+
+        assertThat(error(queryPrefix + " | fuse linear WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": \"a\" } }"),
-            containsString("expected weight to be numeric")
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": 123 }"),
+            containsString("expected normalizer to be a string, got [123]")
         );
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
-            containsString("expected weight to be a literal")
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": { \"a\": 123 } }"),
+            containsString("expected normalizer to be a literal")
         );
 
         assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": -123 } }"),
-            containsString("expected weight to be positive, got [-123]")
-        );
-
-        assertThat(
-            error(queryPrefix + " | fuse rrf WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
-            containsString("expected weight to be positive, got [0]")
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
+            containsString("[\"foo\"] is not a valid normalizer")
         );
     }
 

@@ -38,7 +38,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
@@ -51,6 +50,10 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator.ExchangeSinkOperatorFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator.ExchangeSourceOperatorFactory;
+import org.elasticsearch.compute.operator.fuse.LinearConfig;
+import org.elasticsearch.compute.operator.fuse.LinearScoreEvalOperator;
+import org.elasticsearch.compute.operator.fuse.RrfConfig;
+import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -93,7 +96,6 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.fuse.RrfConfig;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -348,15 +350,16 @@ public class LocalExecutionPlanner {
             throw new IllegalStateException("can't find score attribute position");
         }
         if (discriminatorPosition == -1) {
-            throw new IllegalStateException("can'find discriminator attribute position");
+            throw new IllegalStateException("can't find discriminator attribute position");
         }
 
-        RrfConfig config = (RrfConfig) fuse.fuseConfig();
+        if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
+            return source.with(new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig), source.layout);
+        } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
+            return source.with(new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig), source.layout);
+        }
 
-        return source.with(
-            new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, config.rankConstant(), config.weights()),
-            source.layout
-        );
+        throw new EsqlIllegalArgumentException("unknown FUSE score method [" + fuse.fuseConfig() + "]");
     }
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {

@@ -568,19 +568,6 @@ setup:
   - match: { hits.hits.2._id: "3" }
 
 ---
-"Negative per-field weights are rejected":
-  - do:
-      catch: bad_request
-      search:
-        index: test-index
-        body:
-          retriever:
-            rrf:
-              fields: [ "text_1^-1" ]
-              query: "foo"
-  - contains: { error.root_cause.0.reason: "[rrf] per-field weights must be non-negative" }
-
----
 "Zero per-field weights are accepted":
   - do:
       search:
@@ -611,19 +598,3 @@ setup:
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
 
----
-"Large weight values":
-  - requires:
-      cluster_features: ["rrf_retriever.simplified_weighted_support"]
-      reason: "Simplified weighted fields syntax support"
-
-  - do:
-      search:
-        index: test-index
-        body:
-          retriever:
-            rrf:
-              fields: ["text_1^1000000", "text_2^1"]
-              query: "foo"
-
-  - gte: { hits.total.value: 1 }

@@ -32,8 +32,13 @@ public class SamplingService implements ClusterStateListener {
         this.clusterService = clusterService;
     }
 
+    /**
+     * Potentially samples the given indexRequest, depending on the existing sampling configuration.
+     * @param projectMetadata Used to get the sampling configuration
+     * @param indexRequest The raw request to potentially sample
+     */
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) {
-        maybeSample(projectMetadata, indexRequest, () -> {
+        maybeSample(projectMetadata, indexRequest.index(), () -> indexRequest, () -> {
             Map<String, Object> sourceAsMap;
             try {
                 sourceAsMap = indexRequest.sourceAsMap();
@@ -52,11 +57,27 @@ public class SamplingService implements ClusterStateListener {
         });
     }
 
-    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        maybeSample(projectMetadata, indexRequest, () -> ingestDocument);
+    /**
+     *
+     * @param projectMetadata Used to get the sampling configuration
+     * @param indexRequestSupplier A supplier for the raw request to potentially sample
+     * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
+     */
+    public void maybeSample(
+        ProjectMetadata projectMetadata,
+        String indexName,
+        Supplier<IndexRequest> indexRequestSupplier,
+        IngestDocument ingestDocument
+    ) {
+        maybeSample(projectMetadata, indexName, indexRequestSupplier, () -> ingestDocument);
     }
 
-    private void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, Supplier<IngestDocument> ingestDocumentSupplier) {
+    private void maybeSample(
+        ProjectMetadata projectMetadata,
+        String indexName,
+        Supplier<IndexRequest> indexRequest,
+        Supplier<IngestDocument> ingestDocumentSupplier
+    ) {
         // TODO Sampling logic to go here in the near future
     }
 

@@ -83,7 +83,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
@@ -1387,27 +1386,32 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Metadata originalDocumentMetadata
     ) {
         if (samplingService != null && samplingService.atLeastOneSampleConfigured()) {
-            try {
-                /*
-                 * We need both the original document and the fully updated document for sampling, so we make a copy of the original
-                 * before overwriting it here. We can discard it after sampling.
-                 */
-                IndexRequest original = copyIndexRequest(indexRequest);
+            /*
+             * We need both the original document and the fully updated document for sampling, so we make a copy of the original
+             * before overwriting it here. We can discard it after sampling.
+             */
+            samplingService.maybeSample(projectMetadata, indexRequest.index(), () -> {
+                IndexRequest original = copyIndexRequestForSampling(indexRequest);
                 updateIndexRequestMetadata(original, originalDocumentMetadata);
-                samplingService.maybeSample(projectMetadata, original, ingestDocument);
-            } catch (IOException ex) {
-                logger.debug("Error attempting to sample data", ex);
-            }
+                return original;
+            }, ingestDocument);
+
         }
     }
 
-    private IndexRequest copyIndexRequest(IndexRequest original) throws IOException {
+    /**
+     * Creates a copy of an IndexRequest to be used by random sampling.
+     * @param original The IndexRequest to be copied
+     * @return A copy of the IndexRequest
+     */
+    private IndexRequest copyIndexRequestForSampling(IndexRequest original) {
         IndexRequest clonedRequest = new IndexRequest(original.index());
         clonedRequest.id(original.id());
         clonedRequest.routing(original.routing());
         clonedRequest.version(original.version());
         clonedRequest.versionType(original.versionType());
         clonedRequest.setPipeline(original.getPipeline());
+        clonedRequest.setFinalPipeline(original.getFinalPipeline());
         clonedRequest.setIfSeqNo(original.ifSeqNo());
         clonedRequest.setIfPrimaryTerm(original.ifPrimaryTerm());
         clonedRequest.setRefreshPolicy(original.getRefreshPolicy());
@@ -1415,6 +1419,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         clonedRequest.timeout(original.timeout());
         clonedRequest.opType(original.opType());
         clonedRequest.setParentTask(original.getParentTask());
+        clonedRequest.setRequireDataStream(original.isRequireDataStream());
+        clonedRequest.setRequireAlias(original.isRequireAlias());
+        clonedRequest.setIncludeSourceOnError(original.getIncludeSourceOnError());
         BytesReference source = original.source();
         if (source != null) {
             clonedRequest.source(source, original.getContentType());

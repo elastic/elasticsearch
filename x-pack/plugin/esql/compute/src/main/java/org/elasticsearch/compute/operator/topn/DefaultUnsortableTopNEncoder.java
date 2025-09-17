@@ -143,7 +143,7 @@ public final class DefaultUnsortableTopNEncoder implements TopNEncoder {
     public void encodeDouble(double value, BreakingBytesRefBuilder bytesRefBuilder) {
         bytesRefBuilder.grow(bytesRefBuilder.length() + Double.BYTES);
         DOUBLE.set(bytesRefBuilder.bytes(), bytesRefBuilder.length(), value);
-        bytesRefBuilder.setLength(bytesRefBuilder.length() + Long.BYTES);
+        bytesRefBuilder.setLength(bytesRefBuilder.length() + Double.BYTES);
     }
 
     @Override

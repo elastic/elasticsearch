@@ -44,6 +44,7 @@ setup:
             - cosine_vector_similarity_function
             - present_over_time
             - absent_over_time
+            - inline_stats
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}

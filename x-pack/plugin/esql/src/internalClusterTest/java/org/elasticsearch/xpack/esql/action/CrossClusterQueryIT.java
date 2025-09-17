@@ -808,7 +808,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertClusterInfoSkipped(remoteCluster);
             assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
         }
-        // This will fail in the INLINESTATS subplan, skipping should still work the same
+        // This will fail in the INLINE STATS subplan, skipping should still work the same
         q = Strings.format("FROM cluster-a:%s* | INLINE STATS SUM(fail_me) | SORT fail_me", remote1Index);
 
         try (EsqlQueryResponse resp = runQuery(q, randomBoolean())) {

@@ -1635,7 +1635,7 @@ emp_no:integer
 5
 ;
 ///////////////////////////
-// inlinestats with filters
+// INLINE STATS with filters
 ///////////////////////////
 
 doubleFilterOnInlineStats

@@ -688,7 +688,7 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
+// INLINE STATS is under development, we enable this once it will be available
 forkBeforeInlineStats-Ignore
 required_capability: fork_v9
 required_capability: inline_stats
@@ -706,7 +706,7 @@ emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:k
 1 | 2 | 3 | 4 | 5
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
+// INLINE STATS is under development, we enable this once it will be available
 forkBranchWithInlineStats-Ignore
 required_capability: fork_v9
 required_capability: inline_stats
@@ -729,7 +729,7 @@ emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
 10087          | 5                 | 2         | F              | fork2
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
+// INLINE STATS is under development, we enable this once it will be available
 forkAfterInlineStats-Ignore
 required_capability: fork_v9
 required_capability: inline_stats

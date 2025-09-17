@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -411,5 +412,11 @@ public class TransportVersionTests extends ESTestCase {
                     + "If this is a new transport version, run './gradle generateTransportVersion'."
             )
         );
+    }
+
+    public void testTransportVersionsLocked() {
+        assertThat("TransportVersions.java is locked. Generate transport versions with TransportVersion.fromName " +
+            "and generateTransportVersion gradle task",
+            TransportVersions.DEFINED_VERSIONS.getLast().id(), equalTo(9_162_0_00));
     }
 }

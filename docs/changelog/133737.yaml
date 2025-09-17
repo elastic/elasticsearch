@@ -1,6 +1,0 @@
-pr: 133737
-summary: "KQL: Support boolean operators in field queries"
-area: Search
-type: bug
-issues:
- - 132366

@@ -9,9 +9,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -28,7 +25,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -38,16 +34,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  * A wrapping processor that adds 'if' logic around the wrapped processor.
  */
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
-        deprecationLogger.warn(
-            DeprecationCategory.INDICES,
-            "conditional-processor__type",
-            "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        return value;
-    });
 
     static final String TYPE = "conditional";
 
@@ -144,10 +130,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         if (factory == null) {
             factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
         }
-        return factory.newInstance(
-            condition.getParams(),
-            new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS))
-        ).execute();
+        return factory.newInstance(condition.getParams(), new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata())).execute();
     }
 
     public Processor getInnerProcessor() {

@@ -1,0 +1,49 @@
+---
+Keyword with escaped characters as multi-field:
+  - requires:
+      cluster_features: [ "mapper.multi_field.unicode_optimisation_fix" ]
+      reason: "requires a fix (#134770)"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                fields:
+                  bar:
+                    type: keyword
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "c:\\windows\\system32\\svchost.exe"
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              foo: "c:\\windows\\system32\\svchost.exe"
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"
+
+  # Test that optimisation works the same for the multi-fields as well.
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            term:
+              foo.bar: "c:\\windows\\system32\\svchost.exe"
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "c:\\windows\\system32\\svchost.exe"

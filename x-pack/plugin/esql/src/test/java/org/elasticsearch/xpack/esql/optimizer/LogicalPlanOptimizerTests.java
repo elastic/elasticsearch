@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -1032,10 +1033,10 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var rightChild = new LocalRelation(Source.EMPTY, List.of(fieldAttribute()), EmptyLocalSupplier.EMPTY);
         assertNotEquals(leftChild, rightChild);
 
-        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), List.of());
+        var joinConfig = new JoinConfig(JoinTypes.LEFT, List.of(), List.of(), null);
         var join = switch (randomIntBetween(0, 2)) {
             case 0 -> new Join(EMPTY, leftChild, rightChild, joinConfig);
-            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig);
+            case 1 -> new LookupJoin(EMPTY, leftChild, rightChild, joinConfig, false);
             case 2 -> new InlineJoin(EMPTY, leftChild, rightChild, joinConfig);
             default -> throw new IllegalArgumentException();
         };
@@ -2511,6 +2512,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
+     * Project[[emp_no{f}#10, first_name{f}#11, languages{f}#13, language_code_left{r}#3, language_code{r}#21, language_name{
+     * r}#22]]
+     * \_Eval[[null[INTEGER] AS language_code_left#3, null[INTEGER] AS language_code#21, null[KEYWORD] AS language_name#22]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     * }</pre>
+     */
+    public void testPruneJoinOnNullMatchingFieldExpressionJoin() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        var plan = optimizedPlan("""
+            from test
+            | eval language_code_left = null::integer
+            | keep emp_no, first_name, languages, language_code_left
+            | lookup join languages_lookup on language_code_left == language_code
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(
+            Expressions.names(project.output()),
+            contains("emp_no", "first_name", "languages", "language_code_left", "language_code", "language_name")
+        );
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
      * Project[[emp_no{f}#15, first_name{f}#16, my_null{r}#3 AS language_code#9, language_name{r}#27]]
      * \_Eval[[null[INTEGER] AS my_null#3, null[KEYWORD] AS language_name#27]]
      *   \_Limit[1000[INTEGER],false]
@@ -2524,6 +2556,35 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | rename languages as language_code
             | eval language_code = my_null
             | lookup join languages_lookup on language_code
+            | keep emp_no, first_name, language_code, language_name
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.output()), contains("emp_no", "first_name", "language_code", "language_name"));
+        var eval = as(project.child(), Eval.class);
+        var limit = asLimit(eval.child(), 1000, false);
+        var source = as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Project[[emp_no{f}#16, first_name{f}#17, language_code{r}#27, language_name{r}#28]]
+     * \_Eval[[null[INTEGER] AS language_code#27, null[KEYWORD] AS language_name#28]]
+     *   \_Limit[1000[INTEGER],false]
+     *     \_EsRelation[test][_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, ..]
+     * }</pre>
+     */
+    public void testPruneJoinOnNullAssignedMatchingFieldExpr() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        var plan = optimizedPlan("""
+            from test
+            | eval my_null = null::integer
+            | rename languages as language_code_right
+            | eval language_code_right = my_null
+            | lookup join languages_lookup on language_code_right > language_code
             | keep emp_no, first_name, language_code, language_name
             """);
 
@@ -5819,7 +5880,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var ref = as(order.child(), FieldAttribute.class);
         assertThat(ref.name(), is("emp_no"));
         var inlineJoin = as(topN.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("salaryK")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("salaryK")));
         // Left
         var eval = as(inlineJoin.left(), Eval.class);
         assertThat(Expressions.names(eval.fields()), is(List.of("salaryK")));
@@ -5885,7 +5946,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
         var upperLimit = asLimit(project.child(), 1, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
@@ -5914,7 +5975,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(project.projections()), is(List.of("x", "a", "emp_no")));
         var upperLimit = asLimit(project.child(), 1, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
@@ -6214,7 +6275,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
         assertThat(Expressions.name(order.child()), equalTo("abbrev"));
         var join = as(topN.child(), Join.class);
-        assertThat(Expressions.names(join.config().matchFields()), is(List.of("scalerank")));
+        assertThat(Expressions.names(join.config().leftFields()), is(List.of("scalerank")));
         var left = as(join.left(), EsRelation.class);
         assertThat(left.concreteIndices(), is(Set.of("airports")));
         var right = as(join.right(), EsRelation.class);
@@ -6249,7 +6310,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(Expressions.names(esqlProject.projections()), is(List.of("avg", "emp_no", "first_name")));
         var upperLimit = asLimit(esqlProject.child(), 10, false);
         var inlineJoin = as(upperLimit.child(), InlineJoin.class);
-        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        assertThat(Expressions.names(inlineJoin.config().leftFields()), is(List.of("emp_no")));
         // Left
         var relation = as(inlineJoin.left(), EsRelation.class);
         // Right
@@ -6840,7 +6901,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
 
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
         Attribute lhs = join.config().leftFields().get(0);
@@ -6929,7 +6990,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(left.child(), EsRelation.class);
 
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-        assertThat(join.config().matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(join.config().leftFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
         assertThat(join.config().leftFields().size(), equalTo(1));
         assertThat(join.config().rightFields().size(), equalTo(1));
         Attribute lhs = join.config().leftFields().get(0);
@@ -9083,5 +9144,96 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             () -> logicalOptimizer.optimize(defaultAnalyzer().analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)))
         );
         assertThat(e.getMessage(), containsString("has non-literal value [scale]"));
+    }
+
+    /**
+     *
+     * Project[[languages{f}#8, language_code{f}#16, language_name{f}#17]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#8, language_code{f}#16],[languages{f}#8],[language_code{f}#16],languages{f}#8 == language_code{
+     * f}#16]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#16, language_name{f}#17]
+     *
+     */
+    public void testLookupJoinExpressionSwapped() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        LogicalPlan plan = optimizedPlan("""
+            from test
+            | keep languages
+            | lookup join languages_lookup ON language_code == languages
+            """);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var join = as(limit.child(), Join.class);
+        assertEquals("language_code == languages", join.config().joinOnConditions().toString());
+        var equals = as(join.config().joinOnConditions(), Equals.class);
+        // we expect left and right to be swapped
+        var left = as(equals.left(), Attribute.class);
+        var right = as(equals.right(), Attribute.class);
+        assertEquals("language_code", right.name());
+        assertEquals("languages", left.name());
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+        as(join.right(), EsRelation.class);
+    }
+
+    /**
+     *
+     * Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18, la
+     * nguages{f}#12 AS language_code_left#4, last_name{f}#13, long_noidx{f}#19, salary{f}#14, language_code{f}#20, language_name{f}#21]]
+     * \_Limit[1000[INTEGER],true]
+     *   \_Join[LEFT,[languages{f}#12, languages{f}#12],[language_code{f}#20, language_code{f}#20],languages{f}#12 != language_co
+     * de{f}#20 AND languages{f}#12 > language_code{f}#20]
+     *     |_Limit[1000[INTEGER],false]
+     *     | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#20, language_name{f}#21]
+     *
+     */
+    public void testLookupJoinExpressionSameAttrsDifferentConditions() {
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String query = """
+            from test
+            | rename languages as language_code_left
+            | lookup join languages_lookup ON language_code_left != language_code and language_code_left > language_code
+            """;
+
+        LogicalPlan plan = optimizedPlan(query);
+        var project = as(plan, Project.class);
+        var limit = asLimit(project.child(), 1000, true);
+        var join = as(limit.child(), Join.class);
+
+        // Verify the join conditions contain both != and > operators
+        var joinConditions = join.config().joinOnConditions();
+        assertThat(joinConditions, instanceOf(And.class));
+        var and = as(joinConditions, And.class);
+
+        // Check the left condition (should be !=)
+        var notEquals = as(and.left(), NotEquals.class);
+        var leftAttr = as(notEquals.left(), Attribute.class);
+        var rightAttr = as(notEquals.right(), Attribute.class);
+        assertEquals("languages", leftAttr.name());
+        assertEquals("language_code", rightAttr.name());
+
+        // Check the right condition (should be >)
+        var greaterThan = as(and.right(), GreaterThan.class);
+        var leftAttrGT = as(greaterThan.left(), Attribute.class);
+        var rightAttrGT = as(greaterThan.right(), Attribute.class);
+        assertEquals("languages", leftAttrGT.name());
+        assertEquals("language_code", rightAttrGT.name());
+
+        // Verify the left side of join has Limit then EsRelation
+        var limitPastJoin = asLimit(join.left(), 1000, false);
+        as(limitPastJoin.child(), EsRelation.class);
+
+        // Verify the right side of join is EsRelation with LOOKUP
+        as(join.right(), EsRelation.class);
     }
 }

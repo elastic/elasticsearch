@@ -5,20 +5,22 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.security.transport.extension;
+package org.elasticsearch.xpack.security.transport;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
-import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
-import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
+import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityExtension;
 
 /**
  * Remote cluster security extension point which is based on cross-cluster API keys.
  */
 public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurityExtension, ReloadableSecurityComponent {
+
+    private static final Logger logger = LogManager.getLogger(CrossClusterAccessSecurityExtension.class);
 
     private final CrossClusterAccessAuthenticationService authenticationService;
     private final CrossClusterAccessTransportInterceptor transportInterceptor;
@@ -63,8 +65,8 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
     }
 
     @Override
-    public void reload(Settings settings) {
-        this.crossClusterApiKeySignerReloader.reload(settings);
+    public void reload(final Settings settings) {
+        crossClusterApiKeySignerReloader.reload(settings);
     }
 
     public static class Provider implements RemoteClusterSecurityExtension.Provider {
@@ -73,6 +75,7 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
 
         @Override
         public RemoteClusterSecurityExtension getExtension(Components components) {
+            logger.trace("Creating remote cluster security extension for [{}]", CrossClusterAccessSecurityExtension.class);
             if (extension.get() == null) {
                 extension.set(new CrossClusterAccessSecurityExtension(components));
             }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.transport.extension;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.RemoteClusterAuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 
 /**
@@ -83,6 +85,8 @@ public interface RemoteClusterSecurityExtension {
         ThreadPool threadPool();
 
         Settings settings();
+
+        Client client();
 
     }
 

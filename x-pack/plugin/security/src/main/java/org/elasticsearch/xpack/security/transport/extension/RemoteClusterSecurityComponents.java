@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.transport.extension;
 
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +33,7 @@ public class RemoteClusterSecurityComponents implements RemoteClusterSecurityExt
     private final Environment environment;
     private final ThreadPool threadPool;
     private final Settings settings;
+    private final Client client;
 
     public RemoteClusterSecurityComponents(
         AuthenticationService authenticationService,
@@ -44,7 +46,8 @@ public class RemoteClusterSecurityComponents implements RemoteClusterSecurityExt
         ClusterService clusterService,
         Environment environment,
         ThreadPool threadPool,
-        Settings settings
+        Settings settings,
+        Client client
     ) {
         this.authenticationService = authenticationService;
         this.authorizationService = authorizationService;
@@ -57,6 +60,7 @@ public class RemoteClusterSecurityComponents implements RemoteClusterSecurityExt
         this.environment = environment;
         this.threadPool = threadPool;
         this.settings = settings;
+        this.client = client;
     }
 
     @Override
@@ -112,5 +116,10 @@ public class RemoteClusterSecurityComponents implements RemoteClusterSecurityExt
     @Override
     public Settings settings() {
         return settings;
+    }
+
+    @Override
+    public Client client() {
+        return client;
     }
 }

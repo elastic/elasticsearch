@@ -418,11 +418,11 @@ import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronize
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
 import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
-import org.elasticsearch.xpack.security.transport.extension.CrossClusterAccessSecurityExtension;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityComponents;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityExtension;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -1188,7 +1188,8 @@ public class Security extends Plugin
             clusterService,
             environment,
             threadPool,
-            settings
+            settings,
+            client
         );
         remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
         remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());

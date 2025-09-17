@@ -32,7 +32,6 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             }
 
             String notQuery = wrapWithRandomWhitespaces("NOT ") + baseQuery;
-            logger.info("testParseNotQuery [{}]", notQuery);
             BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(notQuery));
             assertThat(parsedQuery.filter(), empty());
             assertThat(parsedQuery.should(), empty());
@@ -150,8 +149,6 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
 
             // <QueryA> AND <QueryB> OR <QueryC> is equivalent to <QueryA> AND (<QueryB> OR <QueryC>)
             {
-                logger.info(Strings.format("%s AND %s OR %s", queryA, queryB, queryC));
-
                 QueryBuilder parsedQuery = parseKqlQuery(Strings.format("%s AND %s OR %s", queryA, queryB, queryC));
                 assertThat(
                     parsedQuery,

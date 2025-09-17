@@ -229,10 +229,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         } // else default value is true
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_INCLUDE_TSID)) {
-            tsid = in.readBytesRef();
-            if (tsid.length == 0) {
-                tsid = null; // no tsid set
-            }
+            tsid = in.readBytesRefOrNullIfEmpty();
         }
     }
 

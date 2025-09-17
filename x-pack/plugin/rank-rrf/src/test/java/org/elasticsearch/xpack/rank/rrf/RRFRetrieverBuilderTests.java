@@ -319,6 +319,159 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             Map.of(),
             "zero_test"
         );
+
+        // Basic per-field weights test with inference fields
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^2.0", "field_2^0.5", "semantic_field_1"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 2.0f, "field_2", 0.5f),
+            Map.of("semantic_field_1", 1.0f),
+            "test query"
+        );
+
+        // Inference fields with specific weights
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("semantic_field_1^3.0", "semantic_field_2^0.5"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of(),
+            Map.of("semantic_field_1", 3.0f, "semantic_field_2", 0.5f),
+            "test query"
+        );
+
+        // Zero weights are accepted (additional test beyond the earlier zero_test)
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field^0"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field", 0.0f),
+            Map.of(),
+            "test query"
+        );
+
+        // Large weight values are handled correctly
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^1000000", "field_2^1.0"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 1000000.0f, "field_2", 1.0f),
+            Map.of(),
+            "test query"
+        );
+
+        // Mixed weighted and unweighted fields in simplified syntax
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("title^2.5", "content", "tags^1.5", "description"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("title", 2.5f, "content", 1.0f, "tags", 1.5f, "description", 1.0f),
+            Map.of(),
+            "test query"
+        );
+
+        // Decimal weight precision handling
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field1^0.1", "field2^2.75", "field3^10.999"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field1", 0.1f, "field2", 2.75f, "field3", 10.999f),
+            Map.of(),
+            "test query"
+        );
+
+        // Simplified syntax with glob patterns and weights
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("title_*^2.0", "content_*^1.5", "meta_*"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("title_*", 2.0f, "content_*", 1.5f, "meta_*", 1.0f),
+            Map.of(),
+            "test query"
+        );
+
+        // Extremely large weight values handling
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^1e20", "field_2^1.0"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 1e20f, "field_2", 1.0f),
+            Map.of(),
+            "test query"
+        );
+
+        // Lexical field weight propagation (no inference fields)
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^2.0", "field_2^0.5"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewriteWithWeights(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 2.0f, "field_2", 0.5f),
+            Map.of(),
+            "test query"
+        );
     }
 
     public void testNegativeWeightValidation() {
@@ -389,137 +542,8 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertEquals("[rrf] cannot specify [query] when querying remote indices", iae.getMessage());
     }
 
-    public void testPerFieldWeightsBasic() {
-        // Test that per-field weights are accepted and parsed correctly
-        final String indexName = "test-index";
-        final List<String> testInferenceFields = List.of("semantic_field_1");
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
 
-        // Test with per-field weights in the simplified format
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^2.0", "field_2^0.5", "semantic_field_1"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
 
-        // This should not throw an exception anymore
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
-
-    public void testLexicalFieldWeightPropagation() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^2.0", "field_2^0.5"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-        RRFRetrieverBuilder rewrittenRrf = (RRFRetrieverBuilder) rewritten;
-
-        // Find the StandardRetrieverBuilder with MultiMatchQuery
-        StandardRetrieverBuilder standardRetriever = null;
-        for (CompoundRetrieverBuilder.RetrieverSource source : rewrittenRrf.innerRetrievers()) {
-            if (source.retriever() instanceof StandardRetrieverBuilder stdRetriever) {
-                QueryBuilder topDocsQuery = stdRetriever.topDocsQuery();
-                if (topDocsQuery instanceof MultiMatchQueryBuilder) {
-                    standardRetriever = stdRetriever;
-                    break;
-                }
-            }
-        }
-
-        assertNotNull("StandardRetrieverBuilder with MultiMatchQuery should exist", standardRetriever);
-        MultiMatchQueryBuilder multiMatch = (MultiMatchQueryBuilder) standardRetriever.topDocsQuery();
-        Map<String, Float> actualFields = multiMatch.fields();
-        Map<String, Float> expectedFields = Map.of("field_1", 2.0f, "field_2", 0.5f);
-        assertEquals(expectedFields, actualFields);
-    }
-
-    public void testInferenceFieldWeights() {
-        final String indexName = "test-index";
-        final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, testInferenceFields, null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("semantic_field_1^3.0", "semantic_field_2^0.5"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-        RRFRetrieverBuilder rewrittenRrf = (RRFRetrieverBuilder) rewritten;
-
-        // Find the inner RRFRetrieverBuilder produced by innerNormalizerGenerator
-        RRFRetrieverBuilder innerRrf = null;
-        for (CompoundRetrieverBuilder.RetrieverSource source : rewrittenRrf.innerRetrievers()) {
-            if (source.retriever() instanceof RRFRetrieverBuilder) {
-                innerRrf = (RRFRetrieverBuilder) source.retriever();
-                break;
-            }
-        }
-
-        assertNotNull("Inner RRFRetrieverBuilder should exist", innerRrf);
-        float[] actualWeights = innerRrf.weights();
-        assertEquals("Should have exactly 2 weights", 2, actualWeights.length);
-
-        // Sort both arrays to ensure deterministic comparison regardless of HashMap iteration order
-        float[] expectedWeights = new float[] { 3.0f, 0.5f };
-        Arrays.sort(actualWeights);
-        Arrays.sort(expectedWeights);
-        assertArrayEquals(expectedWeights, actualWeights, 0.001f);
-    }
 
     public void testNegativeWeightsRejected() {
         final String indexName = "test-index";
@@ -553,197 +577,11 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
         assertEquals("[rrf] per-field weights must be non-negative", iae.getMessage());
     }
 
-    public void testZeroWeightsAccepted() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
 
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field^0"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
 
-        // This should not throw an exception
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
 
-    public void testLargeWeightValues() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
 
-        // Test very large weight values
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^1000000", "field_2^1.0"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
 
-        // This should not throw an exception
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
-
-    public void testMixedWeightedAndUnweightedFields() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        // Test mixing weighted and unweighted fields in simplified syntax
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("title^2.5", "content", "tags^1.5", "description"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        // Should successfully rewrite mixed weighted/unweighted fields
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
-
-    public void testDecimalWeightPrecision() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        // Test various decimal weight precisions
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field1^0.1", "field2^2.75", "field3^10.999"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        // Should handle decimal precision correctly
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
-
-    public void testSimplifiedSyntaxWithGlobPatterns() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        // Test glob patterns with weights in simplified syntax
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("title_*^2.0", "content_*^1.5", "meta_*"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        // Should handle glob patterns with weights correctly
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
-
-    public void testExtremelyLargeWeights() {
-        final String indexName = "test-index";
-        final ResolvedIndices resolvedIndices = createMockResolvedIndices(indexName, List.of(), null);
-        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
-            parserConfig(),
-            null,
-            null,
-            TransportVersion.current(),
-            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-            resolvedIndices,
-            new PointInTimeBuilder(new BytesArray("pitid")),
-            null,
-            null,
-            false
-        );
-
-        // Test potential overflow scenarios with very large float values
-        float largeWeight = 1e20f;
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
-            null,
-            List.of("field_1^" + largeWeight, "field_2^1.0"),
-            "test query",
-            DEFAULT_RANK_WINDOW_SIZE,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            new float[0]
-        );
-
-        // This should not throw an exception - large weights should be handled gracefully
-        RetrieverBuilder rewritten = rrfRetrieverBuilder.doRewrite(queryRewriteContext);
-        assertNotSame(rrfRetrieverBuilder, rewritten);
-        assertTrue(rewritten instanceof RRFRetrieverBuilder);
-    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

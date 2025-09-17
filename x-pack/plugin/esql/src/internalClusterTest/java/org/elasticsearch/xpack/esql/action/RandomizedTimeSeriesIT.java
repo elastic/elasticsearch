@@ -56,8 +56,8 @@ import static org.hamcrest.Matchers.not;
 @SuppressWarnings("unchecked")
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
 public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
-    private static final Long NUM_DOCS = 10L;
-    private static final Long TIME_RANGE_SECONDS = 60L;
+    private static final Long NUM_DOCS = 2000L;
+    private static final Long TIME_RANGE_SECONDS = 3600L;
     private static final String DATASTREAM_NAME = "tsit_ds";
     private static final Integer SECONDS_IN_WINDOW = 60;
     private static final List<Tuple<String, Integer>> WINDOW_OPTIONS = List.of(
@@ -468,12 +468,21 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     checkWithin((Double) row.get(3), rateAgg.min);
                     checkWithin((Double) row.get(4), rateAgg.sum);
                 } catch (AssertionError e) {
-                    failedWindows.add("ROWS: " + rows.size() + "|Failed for row:\n" + row + "\nWanted: " + rateAgg +
-                    "\nRow times and values:\n\tTS:" + docsPerTimeseries.values().stream().map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", "))).collect(Collectors.joining("\n\tTS:")) +
-                        "\nException: " + e.getMessage());
-                } finally {
-//                    failedWindows.add("ROWS: " + rows.size() + "|PASSED for row:\n" + row + "\nWanted: " + rateAgg
-//                    + "\nRow times and values:\n\tTS:" + docsPerTimeseries.values().stream().map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", "))).collect(Collectors.joining("\n\tTS:")));
+                    failedWindows.add(
+                        "ROWS: "
+                            + rows.size()
+                            + "|Failed for row:\n"
+                            + row
+                            + "\nWanted: "
+                            + rateAgg
+                            + "\nRow times and values:\n\tTS:"
+                            + docsPerTimeseries.values()
+                                .stream()
+                                .map(ts -> ts.stream().map(t -> t.v2().v1() + "=" + t.v2().v2()).collect(Collectors.joining(", ")))
+                                .collect(Collectors.joining("\n\tTS:"))
+                            + "\nException: "
+                            + e.getMessage()
+                    );
                 }
             }
             assertNoFailedWindows(failedWindows, rows, deltaAgg.v2().name());

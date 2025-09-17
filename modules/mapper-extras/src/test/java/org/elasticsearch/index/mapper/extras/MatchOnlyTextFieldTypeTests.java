@@ -271,7 +271,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we delegate block loading to the synthetic source delegate
-        assertTrue(blockLoader instanceof BlockLoader.Delegating);
+        assertThat(blockLoader, Matchers.instanceOf(BlockLoader.Delegating.class));
     }
 
     public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set() {
@@ -319,7 +319,7 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertFalse(blockLoader instanceof BlockLoader.Delegating);
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
     }
 
     public void test_block_loader_does_not_use_synthetic_source_delegate_when_ignore_above_is_set_at_index_level() {
@@ -367,6 +367,6 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         // verify that we don't delegate anything
-        assertFalse(blockLoader instanceof BlockLoader.Delegating);
+        assertThat(blockLoader, Matchers.not(Matchers.instanceOf(BlockLoader.Delegating.class)));
     }
 }

@@ -10,7 +10,6 @@
 package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -90,6 +90,8 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
     }
 
     public void testIndexing() throws Exception {
+        assumeTrue("Match only text block loader fix is not present in this cluster",
+                   oldClusterHasFeature(MapperFeatures.MATCH_ONLY_TEXT_BLOCK_LOADER_FIX));
 
         if (isOldCluster()) {
             // given - enable logsdb and create a template

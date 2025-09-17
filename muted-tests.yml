@@ -519,8 +519,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.FiveFork}
   issue: https://github.com/elastic/elasticsearch/issues/134560
-- class: org.elasticsearch.upgrades.MatchOnlyTextRollingUpgradeIT
-  issue: https://github.com/elastic/elasticsearch/issues/134097
 - class: org.elasticsearch.upgrades.TextRollingUpgradeIT
   method: testIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/134600

@@ -38,6 +38,8 @@ public class MapperFeatures implements FeatureSpecification {
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
     public static final NodeFeature DOC_VALUES_SKIPPER = new NodeFeature("mapper.doc_values_skipper");
+    public static final NodeFeature MATCH_ONLY_TEXT_BLOCK_LOADER_FIX = new NodeFeature("mapper.match_only_text_block_loader_fix");
+
     static final NodeFeature UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE = new NodeFeature(
         "mapper.unknown_field_mapping_update_error_message"
     );
@@ -82,7 +84,8 @@ public class MapperFeatures implements FeatureSpecification {
             SEARCH_LOAD_PER_SHARD,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
             PATTERNED_TEXT,
-            IGNORED_SOURCE_FIELDS_PER_ENTRY
+            IGNORED_SOURCE_FIELDS_PER_ENTRY,
+            MATCH_ONLY_TEXT_BLOCK_LOADER_FIX
         );
     }
 }

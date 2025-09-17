@@ -35,8 +35,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(taskSettings);
-        return new OpenAiChatCompletionModel(model, OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new OpenAiChatCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
@@ -73,7 +72,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             taskType,
             service,
             OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
-            OpenAiChatCompletionTaskSettings.fromMap(taskSettings),
+            new OpenAiChatCompletionTaskSettings(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
     }

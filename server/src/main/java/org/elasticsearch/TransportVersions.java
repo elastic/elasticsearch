@@ -327,6 +327,7 @@ public class TransportVersions {
     public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
     public static final TransportVersion INFERENCE_API_OPENAI_HEADERS = def(9_161_0_00);
     public static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = def(9_162_0_00);
+    public static final TransportVersion INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS = def(9_163_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

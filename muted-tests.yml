@@ -468,12 +468,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.inference.rerank.RerankOperatorTests
   method: testSimpleCircuitBreaking
   issue: https://github.com/elastic/elasticsearch/issues/133619
-- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
-  method: testParseOrQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133863
-- class: org.elasticsearch.xpack.kql.parser.KqlParserBooleanQueryTests
-  method: testParseAndQuery
-  issue: https://github.com/elastic/elasticsearch/issues/133871
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
@@ -552,9 +546,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/134407
-- class: org.elasticsearch.xpack.security.transport.CrossClusterSigningConfigReloaderIntegTests
-  method: testValidationFailsWhenUpdateWithInvalidPath
-  issue: https://github.com/elastic/elasticsearch/issues/134805
 - class: org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorTests
   method: testSliceIndex
   issue: https://github.com/elastic/elasticsearch/issues/134808
@@ -573,6 +564,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/134865
+- class: org.elasticsearch.xpack.ml.integration.InferenceIT
+  method: testInferRegressionModel
+  issue: https://github.com/elastic/elasticsearch/issues/133603
 
 # Examples:
 #

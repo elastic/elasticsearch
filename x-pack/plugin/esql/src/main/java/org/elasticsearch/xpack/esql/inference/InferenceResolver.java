@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -30,13 +31,16 @@ public class InferenceResolver {
 
     private final Client client;
 
+    private final ThreadPool threadPool;
+
     /**
      * Constructs a new {@code InferenceResolver}.
      *
      * @param client The Elasticsearch client for executing inference deployment lookups
      */
-    public InferenceResolver(Client client) {
+    public InferenceResolver(Client client, ThreadPool threadPool) {
         this.client = client;
+        this.threadPool = threadPool;
     }
 
     /**
@@ -99,10 +103,10 @@ public class InferenceResolver {
 
         final InferenceResolution.Builder inferenceResolutionBuilder = InferenceResolution.builder();
 
-        final CountDownActionListener countdownListener = new CountDownActionListener(
-            inferenceIds.size(),
-            ActionListener.wrap(_r -> listener.onResponse(inferenceResolutionBuilder.build()), listener::onFailure)
-        );
+        final CountDownActionListener countdownListener = new CountDownActionListener(inferenceIds.size(), ActionListener.wrap(_r -> {
+            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
+                .execute(() -> listener.onResponse(inferenceResolutionBuilder.build()));
+        }, listener::onFailure));
 
         for (var inferenceId : inferenceIds) {
             client.execute(
@@ -145,18 +149,20 @@ public class InferenceResolver {
     }
 
     public static Factory factory(Client client) {
-        return new Factory(client);
+        return new Factory(client, client.threadPool());
     }
 
     public static class Factory {
         private final Client client;
+        private final ThreadPool threadPool;
 
-        private Factory(Client client) {
+        private Factory(Client client, ThreadPool threadPool) {
             this.client = client;
+            this.threadPool = threadPool;
         }
 
         public InferenceResolver create() {
-            return new InferenceResolver(client);
+            return new InferenceResolver(client, threadPool);
         }
     }
 }

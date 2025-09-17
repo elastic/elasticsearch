@@ -52,7 +52,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.telemetry.InferenceStats.modelAndResponseAttributes;
 import static org.elasticsearch.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.inference.telemetry.InferenceStats.responseAttributes;
-import static org.elasticsearch.inference.telemetry.InferenceStats.routingAttributes;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 
 /**
@@ -272,7 +271,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private void recordRequestCountMetrics(Model model, Request request, String localNodeId) {
         Map<String, Object> requestCountAttributes = new HashMap<>();
         requestCountAttributes.putAll(modelAttributes(model));
-        requestCountAttributes.putAll(routingAttributes(request.hasBeenRerouted(), localNodeId));
 
         inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
     }
@@ -286,7 +284,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     ) {
         Map<String, Object> metricAttributes = new HashMap<>();
         metricAttributes.putAll(modelAndResponseAttributes(model, unwrapCause(t)));
-        metricAttributes.putAll(routingAttributes(request.hasBeenRerouted(), localNodeId));
 
         inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
     }

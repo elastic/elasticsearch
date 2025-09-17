@@ -1991,7 +1991,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            builder.close();
+        }
     }
 
 }

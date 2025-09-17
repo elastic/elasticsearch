@@ -46,6 +46,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
@@ -72,6 +73,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
@@ -103,6 +105,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -122,6 +125,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -145,6 +149,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -2028,6 +2033,120 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(findIndexShard(indexName).docStats().getCount(), equalTo((long) numDocs * 2));
         // The bulk request should not have been acknowledged, since node B is isolated
         assertFalse(bulkFuture.isDone());
+    }
+
+    public void testDataStreamStatsActionBroadcastedToSearchNodesOnly() throws Exception {
+        final var lowTtlSettings = Settings.builder()
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        startMasterOnlyNode();
+        final var indexingNodeA = startIndexNode(lowTtlSettings);
+        startSearchNode();
+        ensureStableCluster(3);
+
+        // Assert the action is not called on the indexing node
+        final Consumer<String> assertNodeDoesNotReceiveAction = (node) -> {
+            MockTransportService.getInstance(node)
+                .addRequestHandlingBehavior(DataStreamsStatsAction.NAME + "[n]", (handler, request, channel, task) -> {
+                    assert false : "DataStreamsStatsAction should not be broadcasted to an indexing node";
+                });
+        };
+        assertNodeDoesNotReceiveAction.accept(indexingNodeA);
+
+        // Create data stream
+        final String dataStreamName = "data-stream-" + randomIdentifier();
+        final String composableTemplateName = "composable-template-" + randomIdentifier();
+        final var templateRequest = new TransportPutComposableIndexTemplateAction.Request(composableTemplateName);
+        templateRequest.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(dataStreamName + "*"))
+                .template(Template.builder().settings(indexSettings(1, 1)).mappings(CompressedXContent.fromJSON("""
+                    {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date",
+                          "format": "date_optional_time||epoch_millis"
+                        },
+                        "message": {
+                          "type": "text"
+                        }
+                      }
+                    }""")))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
+        );
+        assertAcked(client().execute(TransportPutComposableIndexTemplateAction.TYPE, templateRequest));
+
+        // Ingest a document with a timestamp. This also creates the data stream.
+        long timeSeed = System.currentTimeMillis();
+        long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
+        client().index(
+            new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+                .source(
+                    JsonXContent.contentBuilder()
+                        .startObject()
+                        .field("@timestamp", timestamp)
+                        .field("data", randomAlphaOfLength(25))
+                        .endObject()
+                )
+        ).get();
+
+        // Refresh data stream so max timestamp can be searched on the search node
+        refresh(dataStreamName);
+
+        // Call the action and assert that it goes only to the search node and the max timestamp is calculated
+        final Runnable assertDataStreamsActionResponse = () -> {
+            try {
+                assertResponse(client().execute(DataStreamsStatsAction.INSTANCE, new DataStreamsStatsAction.Request()), response -> {
+                    assertThat(response.getDataStreamCount(), equalTo(1));
+                    assertThat(response.getTotalShards(), equalTo(1)); // only the search shard should be counted
+                    final var dataStreamsStats = response.getDataStreams();
+                    assertThat(dataStreamsStats.length, equalTo(1));
+                    final var dataStreamStats = dataStreamsStats[0];
+                    assertThat(dataStreamStats.getStoreSize().getBytes(), greaterThan(0L));
+                    assertThat(dataStreamStats.getStoreSize().getBytes(), equalTo(response.getTotalStoreSize().getBytes()));
+                    assertThat(dataStreamStats.getMaximumTimestamp(), greaterThan(0L));
+                });
+
+                // The GetDataStreamAction also calls the DataStreamsStatsAction for max timestamps, so lets confirm that also
+                final var request = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStreamName }).verbose(true);
+                assertResponse(client().execute(GetDataStreamAction.INSTANCE, request), response -> {
+                    assertThat(response.getDataStreams().size(), equalTo(1));
+                    final var dataStreamInfo = response.getDataStreams().getFirst();
+                    assertThat(dataStreamInfo.getMaximumTimestamp(), greaterThan(0L));
+                });
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        };
+        assertDataStreamsActionResponse.run();
+
+        // Wait until the backing index is hollowable
+        final var backingIndices = getBackingIndices(dataStreamName, false).stream().map(Index::getName).toList();
+        assertThat(backingIndices.size(), equalTo(1));
+        final var backingIndex = backingIndices.get(0);
+        final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNodeA);
+        assertBusy(() -> {
+            final var indexShard = findIndexShard(backingIndex);
+            assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true));
+        });
+
+        // Start a new indexing node and relocate the index from the first indexing node to this one so it is hollowed
+        final var indexingNodeB = startIndexNode(lowTtlSettings);
+        ensureStableCluster(4);
+        assertNodeDoesNotReceiveAction.accept(indexingNodeB);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexingNodeA), backingIndex);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(backingIndex), not(hasItem(indexingNodeA))));
+        ensureGreen(backingIndex);
+
+        // Ensure the shard was hollowed
+        final var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexingNodeB);
+        final var indexShard = findIndexShard(backingIndex);
+        assertThat(hollowShardsServiceB.isHollowShard(indexShard.shardId()), equalTo(true));
+
+        // Assert the action again on the hollow shard
+        assertDataStreamsActionResponse.run();
     }
 
     // A mix of threads that do indexing, updates, gets, force merges, and one thread moving shards so they can be hollowed.

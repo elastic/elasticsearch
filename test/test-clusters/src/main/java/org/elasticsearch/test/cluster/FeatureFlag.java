@@ -22,7 +22,7 @@ public enum FeatureFlag {
     USE_LUCENE101_POSTINGS_FORMAT("es.use_lucene101_postings_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
     IVF_FORMAT("es.ivf_format_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
     LOGS_STREAM("es.logs_stream_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
-    PATTERN_TEXT("es.pattern_text_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
+    PATTERN_TEXT("es.patterned_text_feature_flag_enabled=true", Version.fromString("9.1.0"), null),
     SYNTHETIC_VECTORS("es.mapping_synthetic_vectors=true", Version.fromString("9.2.0"), null),
     RERANK_SNIPPETS("es.text_similarity_reranker_snippets=true", Version.fromString("9.2.0"), null);
 

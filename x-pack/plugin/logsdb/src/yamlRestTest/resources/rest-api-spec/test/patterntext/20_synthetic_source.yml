@@ -1,6 +1,6 @@
 setup:
   - requires:
-      cluster_features: [ "mapper.pattern_text" ]
+      cluster_features: [ "mapper.patterned_text" ]
       reason: "pattern_text mappings are used in this test"
 
 ---

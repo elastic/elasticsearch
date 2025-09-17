@@ -302,3 +302,4 @@ setup:
               query: "test query"
               fields: [ "title", "content" ]
               type: "phrase_prefix"
+              

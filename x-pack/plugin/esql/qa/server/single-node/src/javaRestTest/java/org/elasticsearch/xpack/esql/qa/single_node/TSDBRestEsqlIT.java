@@ -67,7 +67,6 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
-        builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
         @SuppressWarnings("unchecked")
         List<Map<?, ?>> columns = (List<Map<?, ?>>) result.get("columns");

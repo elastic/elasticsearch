@@ -45,7 +45,7 @@ public class ServerTransportFilter {
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
 
-    ServerTransportFilter(
+    public ServerTransportFilter(
         AuthenticationService authcService,
         AuthorizationService authzService,
         ThreadContext threadContext,

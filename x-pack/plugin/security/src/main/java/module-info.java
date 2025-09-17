@@ -78,6 +78,7 @@ module org.elasticsearch.security {
     exports org.elasticsearch.xpack.security.authc.service;
     exports org.elasticsearch.xpack.security.transport.extension to org.elasticsearch.internal.security;
     exports org.elasticsearch.xpack.security.transport to org.elasticsearch.internal.security;
+    exports org.elasticsearch.xpack.security.audit to org.elasticsearch.internal.security;
 
     provides org.elasticsearch.index.SlowLogFieldProvider with org.elasticsearch.xpack.security.slowlog.SecuritySlowLogFieldProvider;
 

@@ -3170,13 +3170,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
     }
 
-    public void testExpressionJoinNonSnapshotBuild() {
-        assumeFalse("LOOKUP JOIN is not yet in non-snapshot builds", Build.current().isSnapshot());
-        expectThrows(
-            ParsingException.class,
-            startsWith("line 1:31: JOIN ON clause only supports fields at the moment."),
-            () -> statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field")
-        );
+    /**
+     * Verify that both in snapshot and in release build the feature is enabled and the parsing works
+     * without checking for the capability
+     */
+    public void testExpressionJoinEnabled() {
+        var plan = statement("FROM test | LOOKUP JOIN test2 ON left_field >= right_field");
+        var join = as(plan, LookupJoin.class);
     }
 
     public void testValidJoinPatternExpressionJoin() {
@@ -3210,7 +3210,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
         }
 
-        // add a check that the feature is disabled on non-snaphsot build
         String query = "FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onExpressionString;
         var plan = statement(query);
 

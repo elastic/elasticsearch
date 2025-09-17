@@ -27,9 +27,10 @@ import java.util.stream.Collectors;
 /**
  * Intercepts and adapts a query to be rewritten to work seamlessly on a semantic_text field.
  */
-public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInterceptor {
+@Deprecated
+public abstract class LegacySemanticQueryRewriteInterceptor implements QueryRewriteInterceptor {
 
-    public SemanticQueryRewriteInterceptor() {}
+    public LegacySemanticQueryRewriteInterceptor() {}
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {

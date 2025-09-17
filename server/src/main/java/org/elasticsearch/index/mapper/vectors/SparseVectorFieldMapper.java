@@ -333,8 +333,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
     @Override
     public SourceLoader.SyntheticVectorsLoader syntheticVectorsLoader() {
         if (isExcludeSourceVectors) {
-            var syntheticField = new SparseVectorSyntheticFieldLoader(fullPath(), leafName());
-            return new SyntheticVectorsPatchFieldLoader(syntheticField, syntheticField::copyAsMap);
+            return new SyntheticVectorsPatchFieldLoader<>(
+                // Recreate the object for each leaf so that different segments can be searched concurrently.
+                () -> new SparseVectorSyntheticFieldLoader(fullPath(), leafName()),
+                SparseVectorSyntheticFieldLoader::copyAsMap
+            );
         }
         return null;
     }

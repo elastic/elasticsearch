@@ -120,6 +120,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     private AsyncRefresh currentRefresh;
     private RefreshScheduler refreshScheduler;
 
+    private volatile ClusterInfo currentClusterInfo = ClusterInfo.EMPTY;
+
     @SuppressWarnings("this-escape")
     public InternalClusterInfoService(
         Settings settings,
@@ -453,7 +455,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void callListeners() {
             try {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                final ClusterInfo clusterInfo = getClusterInfo();
+                final ClusterInfo clusterInfo = updateAndGetCurrentClusterInfo();
                 boolean anyListeners = false;
                 for (final Consumer<ClusterInfo> listener : listeners) {
                     anyListeners = true;
@@ -537,6 +539,17 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     @Override
     public ClusterInfo getClusterInfo() {
+        return currentClusterInfo;
+    }
+
+    /**
+     * Compute and return a new ClusterInfo from the most recently fetched stats and update {@link #currentClusterInfo} to it.
+     * Note the method is called when a {@link AsyncRefresh} has received all the stats it requested. Since there can only be
+     * a single AsyncRefresh at a time, the various stats used to compose the final results are guaranteed to be from a single
+     * refresh cycle for consistency. Note that users of this class must call {@link #getClusterInfo()} to get the latest
+     * computed and cached ClusterInfo and avoid accessing individual stats directly.
+     */
+    private ClusterInfo updateAndGetCurrentClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
         final Map<String, EstimatedHeapUsage> estimatedHeapUsages = new HashMap<>();
         final var currentMaxHeapPerNode = this.maxHeapPerNode; // Make sure we use a consistent view
@@ -546,7 +559,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }
         });
-        return new ClusterInfo(
+        final var newClusterInfo = new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
             indicesStatsSummary.shardSizes,
@@ -558,6 +571,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.shardWriteLoads(),
             currentMaxHeapPerNode
         );
+        currentClusterInfo = newClusterInfo;
+        return newClusterInfo;
     }
 
     // allow tests to adjust the node stats on receipt

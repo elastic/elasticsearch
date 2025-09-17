@@ -130,8 +130,13 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  # Testing for the entire function set isn't feasible, so we just check that we return the correct count as an approximation.
-  - length: {esql.functions: 179} # check the "sister" test below for a likely update to the same esql.functions length check
+
+  # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
+  - exists: esql.functions.delay
+  - exists: esql.functions.idelta
+  - exists: esql.functions.mv_sum
+  - exists: esql.functions.to_dateperiod
+
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
   - requires:
@@ -226,7 +231,12 @@ setup:
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
   - gt: {esql.functions.categorize: $functions_categorize}
-  - length: {esql.functions: 151} # check the "sister" test above for a likely update to the same esql.functions length check
+
+  # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
+  - not_exists: esql.functions.delay
+  - not_exists: esql.functions.idelta
+  - exists: esql.functions.mv_sum
+  - exists: esql.functions.to_dateperiod
 
 ---
 took:

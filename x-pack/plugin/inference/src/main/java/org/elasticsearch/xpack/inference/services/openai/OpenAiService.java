@@ -485,9 +485,8 @@ public class OpenAiService extends SenderService {
 
                 configurationMap.put(
                     HEADERS,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)).setDescription(
-                        "Custom headers to include in the requests to OpenAI."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
+                        .setDescription("Custom headers to include in the requests to OpenAI.")
                         .setLabel("Custom Headers")
                         .setRequired(false)
                         .setSensitive(false)

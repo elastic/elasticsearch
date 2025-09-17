@@ -67,11 +67,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportTimeSeriesCommand() {
-        return hasCapabilities(adminClient(), List.of(TS_COMMAND_V0.capabilityName()));
-    }
-
-    @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }

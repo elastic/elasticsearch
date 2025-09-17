@@ -1505,6 +1505,9 @@ public class EsqlCapabilities {
          */
         ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
+        /** INLINESTATS supports remote indices */
+        INLINESTATS_SUPPORTS_REMOTE,
+
         /**
          * Support TS command in non-snapshot builds
          */

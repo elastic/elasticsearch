@@ -91,7 +91,7 @@ public class KnnSemanticTextTestCase extends ESRestTestCase {
 
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlQuery(knnQuery));
         assertThat(re.getResponse().getStatusLine().getStatusCode(), is(BAD_REQUEST.getStatus()));
-        assertThat(re.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
+        assertThat(re.getMessage(), containsString("Field [sparse_semantic] does not use a [text_embedding] model"));
     }
 
     @Before

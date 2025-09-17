@@ -176,16 +176,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (supportsSourceFieldMapping() == false) {
             assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
         }
-        if (testCase.requiredCapabilities.contains(TS_COMMAND_V0.capabilityName())) {
-            assumeTrue("require TS command", supportTimeSeriesCommand());
-        }
-    }
-
-    /**
-     * Skip time-series tests in mixed clusters until the development stabilizes
-     */
-    protected boolean supportTimeSeriesCommand() {
-        return true;
     }
 
     protected static void checkCapabilities(

@@ -22,24 +22,24 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
-import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
-import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.LegacySemanticMatchQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase {
+public class LegacySemanticMatchQueryRewriteInterceptorTests extends ESTestCase {
 
     private TestThreadPool threadPool;
     private NoOpClient client;
     private Index index;
 
     private static final String FIELD_NAME = "fieldName";
-    private static final String INFERENCE_ID = "inferenceId";
-    private static final String QUERY = "query";
+    private static final String VALUE = "value";
+    private static final String QUERY_NAME = "match_query";
+    private static final float BOOST = 5.0f;
 
     @Before
     public void setup() {
@@ -53,77 +53,61 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         threadPool.close();
     }
 
-    public void testSparseVectorQueryOnInferenceFieldIsInterceptedAndRewritten() throws IOException {
+    public void testMatchQueryOnInferenceFieldIsInterceptedAndRewrittenToSemanticQuery() throws IOException {
         Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
             FIELD_NAME,
             new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
         );
         QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
-        if (randomBoolean()) {
-            float boost = randomFloatBetween(1, 10, randomBoolean());
-            original.boost(boost);
-        }
-        if (randomBoolean()) {
-            String queryName = randomAlphaOfLength(5);
-            original.queryName(queryName);
-        }
-        testRewrittenInferenceQuery(context, original);
-    }
-
-    public void testSparseVectorQueryOnInferenceFieldWithoutInferenceIdIsInterceptedAndRewritten() throws IOException {
-        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
-            FIELD_NAME,
-            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
-        );
-        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
-        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, null, QUERY);
-        if (randomBoolean()) {
-            float boost = randomFloatBetween(1, 10, randomBoolean());
-            original.boost(boost);
-        }
-        if (randomBoolean()) {
-            String queryName = randomAlphaOfLength(5);
-            original.queryName(queryName);
-        }
-        testRewrittenInferenceQuery(context, original);
-    }
-
-    public void testSparseVectorQueryOnNonInferenceFieldRemainsUnchanged() throws IOException {
-        QueryRewriteContext context = createQueryRewriteContext(Map.of()); // No inference fields
-        QueryBuilder original = new SparseVectorQueryBuilder(FIELD_NAME, INFERENCE_ID, QUERY);
-        QueryBuilder rewritten = original.rewrite(context);
-        assertTrue(
-            "Expected query to remain sparse_vector but was [" + rewritten.getClass().getName() + "]",
-            rewritten instanceof SparseVectorQueryBuilder
-        );
-        assertEquals(original, rewritten);
-    }
-
-    private void testRewrittenInferenceQuery(QueryRewriteContext context, QueryBuilder original) throws IOException {
+        QueryBuilder original = createTestQueryBuilder();
         QueryBuilder rewritten = original.rewrite(context);
         assertTrue(
             "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
             rewritten instanceof InterceptedQueryBuilderWrapper
         );
         InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
-        assertEquals(original.boost(), intercepted.boost(), 0.0f);
-        assertEquals(original.queryName(), intercepted.queryName());
+        assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
+        SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;
+        assertEquals(FIELD_NAME, semanticQueryBuilder.getFieldName());
+        assertEquals(VALUE, semanticQueryBuilder.getQuery());
+    }
 
-        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
-        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
-        assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
-        assertEquals(original.boost(), nestedQueryBuilder.boost(), 0.0f);
-        assertEquals(original.queryName(), nestedQueryBuilder.queryName());
+    public void testMatchQueryOnNonInferenceFieldRemainsMatchQuery() throws IOException {
+        QueryRewriteContext context = createQueryRewriteContext(Map.of()); // No inference fields
+        QueryBuilder original = createTestQueryBuilder();
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to remain match but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof MatchQueryBuilder
+        );
+        assertEquals(original, rewritten);
+    }
 
-        QueryBuilder innerQuery = nestedQueryBuilder.query();
-        assertTrue(innerQuery instanceof SparseVectorQueryBuilder);
-        SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) innerQuery;
-        assertEquals(SemanticTextField.getEmbeddingsFieldName(FIELD_NAME), sparseVectorQueryBuilder.getFieldName());
-        assertEquals(INFERENCE_ID, sparseVectorQueryBuilder.getInferenceId());
-        assertEquals(QUERY, sparseVectorQueryBuilder.getQuery());
-        assertEquals(1.0f, sparseVectorQueryBuilder.boost(), 0.0f);
-        assertNull(sparseVectorQueryBuilder.queryName());
+    public void testBoostAndQueryNameInMatchQueryRewrite() throws IOException {
+        Map<String, InferenceFieldMetadata> inferenceFields = Map.of(
+            FIELD_NAME,
+            new InferenceFieldMetadata(index.getName(), "inferenceId", new String[] { FIELD_NAME }, null)
+        );
+        QueryRewriteContext context = createQueryRewriteContext(inferenceFields);
+        QueryBuilder original = createTestQueryBuilder();
+        original.boost(BOOST);
+        original.queryName(QUERY_NAME);
+        QueryBuilder rewritten = original.rewrite(context);
+        assertTrue(
+            "Expected query to be intercepted, but was [" + rewritten.getClass().getName() + "]",
+            rewritten instanceof InterceptedQueryBuilderWrapper
+        );
+        InterceptedQueryBuilderWrapper intercepted = (InterceptedQueryBuilderWrapper) rewritten;
+        assertEquals(BOOST, intercepted.boost(), 0.0f);
+        assertEquals(QUERY_NAME, intercepted.queryName());
+        assertTrue(intercepted.queryBuilder instanceof SemanticQueryBuilder);
+        SemanticQueryBuilder semanticQueryBuilder = (SemanticQueryBuilder) intercepted.queryBuilder;
+        assertEquals(FIELD_NAME, semanticQueryBuilder.getFieldName());
+        assertEquals(VALUE, semanticQueryBuilder.getQuery());
+    }
+
+    private MatchQueryBuilder createTestQueryBuilder() {
+        return new MatchQueryBuilder(FIELD_NAME, VALUE);
     }
 
     private QueryRewriteContext createQueryRewriteContext(Map<String, InferenceFieldMetadata> inferenceFields) {
@@ -157,7 +141,8 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         );
     }
 
+    @SuppressWarnings("deprecation")
     private QueryRewriteInterceptor createRewriteInterceptor() {
-        return new SemanticSparseVectorQueryRewriteInterceptor();
+        return new LegacySemanticMatchQueryRewriteInterceptor();
     }
 }

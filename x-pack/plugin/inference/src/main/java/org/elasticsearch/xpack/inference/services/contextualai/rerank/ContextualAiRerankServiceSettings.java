@@ -49,19 +49,35 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject im
         ValidationException validationException = new ValidationException();
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        
+        // Handle model_id differently based on context
+        String modelId = switch (context) {
+            case REQUEST -> {
+                // For POST requests, model_id is optional - use from persisted settings if not provided
+                yield extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            }
+            case PERSISTENT -> {
+                // For PUT requests (registration), model_id is required
+                yield extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+            }
+        };
+        
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, null, validationException, "contextualai", context);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ContextualAiRerankServiceSettings(ServiceUtils.createUri(url != null ? url : DEFAULT_URL), modelId, rateLimitSettings);
+        return new ContextualAiRerankServiceSettings(
+            ServiceUtils.createUri(url != null ? url : DEFAULT_URL), 
+            modelId, // Can be null for REQUEST context
+            rateLimitSettings
+        );
     }
 
-    public ContextualAiRerankServiceSettings(URI uri, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public ContextualAiRerankServiceSettings(URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.uri = Objects.requireNonNull(uri);
-        this.modelId = Objects.requireNonNull(modelId);
+        this.modelId = modelId; // Can be null for REQUEST context
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

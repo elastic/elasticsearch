@@ -41,6 +41,10 @@ sleep 2
 # Create debug config - disable security for easier debugging
 cd build/distribution/local/elasticsearch-9.2.0-SNAPSHOT
 
+# Clear all persistent data (cluster state, inference endpoints, indices, etc.)
+rm -rf data/
+echo "Cleared cluster state and data for fresh start"
+
 cat > config/elasticsearch.yml << EOF
 # Debug configuration - NO SECURITY for easier debugging
 xpack.security.enabled: false

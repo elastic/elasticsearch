@@ -64,8 +64,9 @@ dependencies {
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
-// The annotation processor is configured via the annotationProcessor dependency above
+// needs to be added separately otherwise Gradle will quote it and javac will fail
 tasks.named("compileJava").configure {
+  options.compilerArgs.addAll(["-processor", "org.openjdk.jmh.generators.BenchmarkProcessor"])
   // org.elasticsearch.plugins.internal is used in signatures classes used in benchmarks but we don't want to expose it publicly
   // adding an export to allow compilation with gradle. This does not solve a problem in intellij as it does not use compileJava task
   options.compilerArgs.addAll(["--add-exports", "org.elasticsearch.server/org.elasticsearch.plugins.internal=ALL-UNNAMED"])

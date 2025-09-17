@@ -197,7 +197,7 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         indexDocs(logMessages);
         assertMappings();
 
-        var query = QueryBuilders.matchPhraseQuery("field_patterned_text", "dog 123 house");
+        var query = QueryBuilders.matchPhraseQuery("field_pattern_text", "dog 123 house");
         var searchRequest = client().prepareSearch(INDEX).setQuery(query);
 
         assertNoFailuresAndResponse(searchRequest, searchResponse -> { assertEquals(1, searchResponse.getHits().getTotalHits().value()); });

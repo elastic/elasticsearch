@@ -313,12 +313,12 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        return PatternedTextIntegrationTests.randomMessageMaybeLarge();
+        return PatternTextIntegrationTests.randomMessageMaybeLarge();
     }
 
     @Override
     protected void assertFetchMany(MapperService mapperService, String field, Object value, String format, int count) throws IOException {
-        assumeFalse("patterned_text currently don't support multiple values in the same field", false);
+        assumeFalse("pattern_text currently don't support multiple values in the same field", false);
     }
 
     /**

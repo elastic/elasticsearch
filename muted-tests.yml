@@ -585,6 +585,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryInlinestats
   issue: https://github.com/elastic/elasticsearch/issues/134854
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<1000000000 ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/134855
 
 # Examples:
 #

@@ -543,9 +543,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.function.scalar.score.DecayTests
   method: "testEvaluateBlockWithNulls {TestCase=<integer>, <integer>, <integer>, <_source> #2}"
   issue: https://github.com/elastic/elasticsearch/issues/134679
-- class: org.elasticsearch.action.support.nodes.TransportNodesActionTests
-  method: testConcurrentlyCompletionAndCancellation
-  issue: https://github.com/elastic/elasticsearch/issues/134277
 - class: org.elasticsearch.search.vectors.CachingEnableFilterQueryTests
   method: testTermQuery
   issue: https://github.com/elastic/elasticsearch/issues/134723
@@ -582,6 +579,15 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/134853
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryInlinestats
+  issue: https://github.com/elastic/elasticsearch/issues/134854
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<1000000000 ints>}
+  issue: https://github.com/elastic/elasticsearch/issues/134855
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.RateTests
+  method: testGroupingAggregate {TestCase=<positive longs>}
+  issue: https://github.com/elastic/elasticsearch/issues/134856
 
 # Examples:
 #

@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.DoubleStream;
@@ -148,33 +147,7 @@ public class IngestDocumentTests extends ESTestCase {
      * @throws Exception Any exception thrown from the provided consumer
      */
     private void doWithAccessPattern(IngestPipelineFieldAccessPattern accessPattern, Consumer<IngestDocument> action) throws Exception {
-        AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>(null);
-        document.executePipeline(
-            new Pipeline(
-                randomAlphanumericOfLength(10),
-                null,
-                null,
-                null,
-                new CompoundProcessor(new TestProcessor(action)),
-                accessPattern,
-                null,
-                null,
-                null
-            ),
-            (ignored, ex) -> {
-                if (ex != null) {
-                    if (ex instanceof IngestProcessorException ingestProcessorException) {
-                        exceptionAtomicReference.set((Exception) ingestProcessorException.getCause());
-                    } else {
-                        exceptionAtomicReference.set(ex);
-                    }
-                }
-            }
-        );
-        Exception exception = exceptionAtomicReference.get();
-        if (exception != null) {
-            throw exception;
-        }
+        IngestPipelineTestUtils.doWithAccessPattern(accessPattern, document, action);
     }
 
     /**
@@ -184,7 +157,7 @@ public class IngestDocumentTests extends ESTestCase {
      * @throws Exception Any exception thrown from the provided consumer
      */
     private void doWithRandomAccessPattern(Consumer<IngestDocument> action) throws Exception {
-        doWithAccessPattern(randomFrom(IngestPipelineFieldAccessPattern.values()), action);
+        IngestPipelineTestUtils.doWithRandomAccessPattern(document, action);
     }
 
     private void assertPathValid(IngestDocument doc, String path) {

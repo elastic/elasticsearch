@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -32,20 +34,19 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(docId);
 
-        var outputIterator = plan.output().iterator();
-        Attribute score = null;
-        while (score == null && outputIterator.hasNext()) {
-            Attribute attr = outputIterator.next();
-            if (attr instanceof MetadataAttribute ma) {
-                if (ma.name().equals(MetadataAttribute.SCORE)) {
-                    score = attr;
+        if (plan.indexMode() == IndexMode.TIME_SERIES) {
+            for (EsField field : EsQueryExec.TIME_SERIES_SOURCE_FIELDS) {
+                attributes.add(new FieldAttribute(plan.source(), null, null, field.getName(), field));
+            }
+        } else {
+            for (Attribute attr : plan.output()) {
+                if (attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE)) {
+                    attributes.add(attr);
+                    break;
                 }
             }
         }
-        // TODO: Add timestamp_watermark for time-series
-        if (score != null) {
-            attributes.add(score);
-        }
+
         return new EsQueryExec(
             plan.source(),
             plan.indexPattern(),

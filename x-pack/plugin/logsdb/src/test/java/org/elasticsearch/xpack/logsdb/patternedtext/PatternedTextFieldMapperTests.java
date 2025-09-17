@@ -97,6 +97,16 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
         assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text"))));
     }
 
+    public void testPhraseQueryStandardSourceDisableTemplating() throws IOException {
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true))));
+    }
+
+    public void testPhraseQuerySyntheticSourceDisableTemplating() throws IOException {
+        assertPhraseQuery(
+            createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "patterned_text").field("disable_templating", true)))
+        );
+    }
+
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
@@ -322,6 +332,9 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             b.field("type", "patterned_text");
+            if (randomBoolean()) {
+                b.field("disable_templating", true);
+            }
         }
 
         @Override

@@ -52,6 +52,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_FO
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_SUPPORTS_REMOTE;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V11;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
@@ -138,9 +139,18 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
         Version oldVersion = Version.min(Clusters.localClusterVersion(), Clusters.remoteClusterVersion());
         assumeTrue("Test " + testName + " is skipped on " + oldVersion, isEnabled(testName, instructions, oldVersion));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName()));
+        if (testCase.requiredCapabilities.contains(INLINESTATS.capabilityName())
+            || testCase.requiredCapabilities.contains(INLINESTATS_V11.capabilityName())
+            || testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName())) {
+            assumeTrue(
+                "INLINESTATS in CCS not supported for this version",
+                hasCapabilities(adminClient(), List.of(INLINESTATS_SUPPORTS_REMOTE.capabilityName()))
+            );
+            assumeTrue(
+                "INLINESTATS in CCS not supported for this version",
+                hasCapabilities(remoteClusterClient(), List.of(INLINESTATS_SUPPORTS_REMOTE.capabilityName()))
+            );
+        }
         if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",

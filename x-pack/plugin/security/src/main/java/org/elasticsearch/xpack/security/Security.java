@@ -197,13 +197,13 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authc.apikey.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -302,6 +302,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
+import org.elasticsearch.xpack.security.authc.PluggableAuthenticatorChain;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -421,6 +422,9 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessTransportInterceptor;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigner;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningConfigReloader;
 import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
@@ -1090,6 +1094,8 @@ public class Security extends Plugin
         }
 
         final List<CustomAuthenticator> customAuthenticators = getCustomAuthenticatorFromExtensions(extensionComponents);
+        PluggableAuthenticatorChain pluggableAuthenticatorChain = new PluggableAuthenticatorChain(customAuthenticators);
+        components.add(pluggableAuthenticatorChain);
         components.addAll(customAuthenticators);
 
         authcService.set(
@@ -1104,7 +1110,7 @@ public class Security extends Plugin
                 apiKeyService,
                 serviceAccountService,
                 operatorPrivilegesService.get(),
-                customAuthenticators,
+                pluggableAuthenticatorChain,
                 telemetryProvider.getMeterRegistry()
             )
         );
@@ -1183,6 +1189,18 @@ public class Security extends Plugin
             crossClusterAccessAuthcService.get(),
             getLicenseState()
         );
+
+        var crossClusterApiKeySignerReloader = new CrossClusterApiKeySigningConfigReloader(
+            environment,
+            resourceWatcherService,
+            clusterService.getClusterSettings()
+        );
+        components.add(crossClusterApiKeySignerReloader);
+
+        var crossClusterApiKeySigner = new CrossClusterApiKeySigner(environment);
+        crossClusterApiKeySignerReloader.setApiKeySigner(crossClusterApiKeySigner);
+        components.add(crossClusterApiKeySigner);
+
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,
@@ -1560,6 +1578,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
         settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
         settingsList.add(NativeRoleMappingStore.LAST_LOAD_CACHE_ENABLED_SETTING);
+        settingsList.addAll(CrossClusterApiKeySignerSettings.getSettings());
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));

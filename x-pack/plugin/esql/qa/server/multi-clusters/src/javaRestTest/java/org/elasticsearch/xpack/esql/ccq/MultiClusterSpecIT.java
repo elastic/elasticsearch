@@ -57,6 +57,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_V1;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -158,6 +159,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Unmapped fields require a correct capability response from every cluster, which isn't currently implemented.
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
+        // Views require a correct capability response from every cluster, which isn't currently implemented.
+        assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_V1.capabilityName()));
         // Tests that use capabilities not supported in CCS
         assumeFalse(
             "This syntax is not supported with remote LOOKUP JOIN",

@@ -78,6 +78,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
+                    mMapDirectory.setGroupingFunction(MMapDirectory.NO_GROUPING);
                     Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
                     if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
                         dir = disableRandomAdvice(dir);
@@ -87,7 +88,9 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                Directory dir = setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+                MMapDirectory mMapDirectory = new MMapDirectory(location, lockFactory);
+                mMapDirectory.setGroupingFunction(MMapDirectory.NO_GROUPING);
+                Directory dir = setPreload(mMapDirectory, preLoadExtensions);
                 if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
                     dir = disableRandomAdvice(dir);
                 }

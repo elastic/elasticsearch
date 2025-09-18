@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -26,10 +26,12 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Encapsulates enrich policies as custom metadata inside cluster state.
+ * Encapsulates view definitions as custom metadata inside cluster state.
  */
 public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
     public static final String TYPE = "esql_view";
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(ViewMetadata.class, TYPE, ViewMetadata::new);
+    private static final TransportVersion ESQL_VIEWS = TransportVersion.fromName("esql_views");
 
     static final ParseField VIEWS = new ParseField("views");
 
@@ -65,8 +67,7 @@ public final class ViewMetadata extends AbstractNamedDiffable<Metadata.ClusterCu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        // TODO set this to something sane, perhaps once the new TransportVersion mechanism is in place
-        return TransportVersions.INDEX_SOURCE;
+        return ESQL_VIEWS;
     }
 
     @Override

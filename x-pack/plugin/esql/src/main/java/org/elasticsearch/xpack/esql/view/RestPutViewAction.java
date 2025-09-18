@@ -19,13 +19,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutViewAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_query/view/{name}"));
+        return List.of(new Route(PUT, "/_query/view/{name}"));
     }
 
     @Override

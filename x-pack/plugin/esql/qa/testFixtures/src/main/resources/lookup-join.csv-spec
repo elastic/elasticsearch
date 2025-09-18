@@ -247,11 +247,12 @@ FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | WHERE emp_no > 10090 AND emp_no < 10096
+| EVAL country = MV_SORT(country)
 | SORT emp_no, country
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
     10091      | 1                     | English               | Canada
     10091      | 1                     | null                  | United Kingdom
     10091      | 1                     | English               | United States of America
@@ -272,11 +273,12 @@ FROM employees
 | LIMIT 5
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL country = MV_SORT(country)
 | KEEP emp_no, language_code, language_name, country
 ;
 
 ignoreOrder:true
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
@@ -324,7 +326,7 @@ ROW language_code = 2
 
 ignoreOrder:true
 language_code:integer | country:text       | language_name:keyword
-2                     | [Austria, Germany] | German
+2                     | [Germany, Austria] | German
 2                     | Switzerland        | German
 2                     | null               | German
 ;

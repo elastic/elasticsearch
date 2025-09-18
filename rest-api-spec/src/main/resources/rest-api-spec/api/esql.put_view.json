@@ -15,7 +15,7 @@
         {
           "path":"/_query/view/{name}",
           "methods":[
-            "POST"
+            "PUT"
           ],
           "parts": {
             "name": {

@@ -353,6 +353,7 @@ public class PlannerUtils {
             case PARTIAL_AGG -> ElementType.COMPOSITE;
             case AGGREGATE_METRIC_DOUBLE -> ElementType.AGGREGATE_METRIC_DOUBLE;
             case DENSE_VECTOR -> ElementType.FLOAT;
+            case COLUMNS -> ElementType.COLUMNS;
             case SHORT, BYTE, DATE_PERIOD, TIME_DURATION, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT -> throw EsqlIllegalArgumentException
                 .illegalDataType(dataType);
         };

@@ -40,7 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
 
@@ -207,7 +208,7 @@ public class EsqlCCSUtils {
         // NOTE: we assume that updateExecutionInfoWithUnavailableClusters() was already run and took care of unavailable clusters.
         final Set<String> clustersWithNoMatchingIndices = executionInfo.getClusterStates(Cluster.Status.RUNNING)
             .map(Cluster::getClusterAlias)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithNoMatchingIndices.remove(RemoteClusterAware.parseClusterAlias(indexName));
         }
@@ -323,10 +324,10 @@ public class EsqlCCSUtils {
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        IndexPattern pattern,
+        IndexPattern indexPattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (pattern == null) {
+        if (indexPattern == null) {
             return;
         }
         try {
@@ -335,7 +336,7 @@ public class EsqlCCSUtils {
                 // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                pattern.indexPattern()
+                indexPattern.indexPattern()
             );
 
             executionInfo.clusterInfoInitializing(true);
@@ -413,5 +414,9 @@ public class EsqlCCSUtils {
         } else {
             return "in remote cluster [" + clusterAlias + "]";
         }
+    }
+
+    public static Set<String> getRemotesOf(Set<String> concreteIndices) {
+        return concreteIndices.stream().map(RemoteClusterAware::parseClusterAlias).collect(toSet());
     }
 }

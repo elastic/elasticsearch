@@ -1191,25 +1191,52 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testRateNotEnclosedInAggregate() {
+    public void testTimeseriesAggregate() {
         assertThat(
             error("TS tests | STATS rate(network.bytes_in)", tsdb),
-            equalTo("1:18: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
+            equalTo(
+                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used with the TS command "
+                    + "and inside another aggregate function"
+            )
+        );
+        assertThat(
+            error("TS tests | STATS avg_over_time(network.connections)", tsdb),
+            equalTo(
+                "1:18: time-series aggregate function [avg_over_time(network.connections)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
         );
         assertThat(
             error("TS tests | STATS avg(rate(network.bytes_in)), rate(network.bytes_in)", tsdb),
-            equalTo("1:47: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command and inside another aggregate")
+            equalTo(
+                "1:47: time-series aggregate function [rate(network.bytes_in)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
         );
+
         assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
-             [max(avg(rate(network.bytes_in)))]
-            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
-             and inside another aggregate"""));
+            1:22: nested aggregations [avg(rate(network.bytes_in))] \
+            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside over-time aggregation function [rate(network.bytes_in)]"""));
+
         assertThat(error("TS tests | STATS max(avg(rate(network.bytes_in)))", tsdb), equalTo("""
-            1:22: nested aggregations [avg(rate(network.bytes_in))] not allowed inside other aggregations\
-             [max(avg(rate(network.bytes_in)))]
-            line 1:26: the rate aggregate [rate(network.bytes_in)] can only be used with the TS command\
-             and inside another aggregate"""));
+            1:22: nested aggregations [avg(rate(network.bytes_in))] \
+            not allowed inside other aggregations [max(avg(rate(network.bytes_in)))]
+            line 1:12: cannot use aggregate function [avg(rate(network.bytes_in))] \
+            inside over-time aggregation function [rate(network.bytes_in)]"""));
+
+        assertThat(
+            error("TS tests | STATS rate(network.bytes_in) BY bucket(@timestamp, 1 hour)", tsdb),
+            equalTo(
+                "1:18: time-series aggregate function [rate(network.bytes_in)] can only be used "
+                    + "with the TS command and inside another aggregate function"
+            )
+        );
+        assertThat(
+            error("TS tests | STATS COUNT(*)", tsdb),
+            equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
+        );
     }
 
     public void testWeightedAvg() {
@@ -2624,6 +2651,28 @@ public class VerifierTests extends ESTestCase {
             error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
             containsString("[\"foo\"] is not a valid normalizer")
         );
+    }
+
+    public void testSortInTimeSeries() {
+        assertThat(
+            error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),
+            equalTo(
+                "1:11: sorting [SORT host] between the time-series source "
+                    + "and the first aggregation [STATS avg(last_over_time(network.connections))] is not allowed"
+            )
+        );
+        assertThat(
+            error("TS test | LIMIT 10 | STATS avg(network.connections)", tsdb),
+            equalTo(
+                "1:11: limiting [LIMIT 10] the time-series source before the first aggregation "
+                    + "[STATS avg(network.connections)] is not allowed; filter data with a WHERE command instead"
+            )
+        );
+        assertThat(error("TS test | SORT host | LIMIT 10 | STATS avg(network.connections)", tsdb), equalTo("""
+            1:23: limiting [LIMIT 10] the time-series source \
+            before the first aggregation [STATS avg(network.connections)] is not allowed; filter data with a WHERE command instead
+            line 1:11: sorting [SORT host] between the time-series source \
+            and the first aggregation [STATS avg(network.connections)] is not allowed"""));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

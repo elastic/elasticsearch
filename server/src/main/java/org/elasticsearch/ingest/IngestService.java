@@ -83,7 +83,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
@@ -981,6 +980,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
+                            samplingService.maybeSample(state.metadata().projects().get(pipelines.projectId()), indexRequest);
                             continue;
                         }
 
@@ -1199,11 +1199,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         };
         AtomicBoolean haveAttemptedSampling = new AtomicBoolean(false);
+        final var project = state.metadata().projects().get(pipelines.projectId());
         try {
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            final var project = state.metadata().projects().get(pipelines.projectId());
             if (project == null) {
                 throw new IllegalArgumentException("project with id [" + pipelines.projectId() + "] does not exist");
             }
@@ -1355,37 +1355,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (newPipelines.hasNext()) {
                     executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener, originalDocumentMetadata);
                 } else {
-                    try {
-                        /*
-                         * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
-                         * We need both the original document and the fully updated document for sampling, so we make a copy of the original
-                         * before overwriting it here. We can discard it after sampling.
-                         */
-                        haveAttemptedSampling.set(true);
-                        IndexRequest original = copyIndexRequest(indexRequest);
-                        updateIndexRequestMetadata(original, originalDocumentMetadata);
-                        samplingService.maybeSample(project, original, ingestDocument);
-                    } catch (IOException ex) {
-                        logger.warn("unable to sample data");
-                    }
-
+                    /*
+                     * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
+                     * This is our chance to sample with both the original document and all changes.
+                     */
+                    haveAttemptedSampling.set(true);
+                    attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
             });
         } catch (Exception e) {
-            try {
-                if (haveAttemptedSampling.get() == false) {
-                    IndexRequest original = copyIndexRequest(indexRequest);
-                    updateIndexRequestMetadata(original, originalDocumentMetadata);
-                    samplingService.maybeSample(state.projectState(projectResolver.getProjectId()).metadata(), original, ingestDocument);
-                }
-            } catch (IOException ex) {
-                logger.warn("unable to sample data");
+            if (haveAttemptedSampling.get() == false) {
+                // It is possible that an exception happened after we sampled. We do not want to sample the same document twice.
+                attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
             }
-            // Maybe also sample here? Or put it in the exceptionHandler? We want to make sure the exception didn't come of out the
-            // listener though.
             logger.debug(
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
@@ -1394,13 +1379,39 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
-    private IndexRequest copyIndexRequest(IndexRequest original) throws IOException {
+    private void attemptToSampleData(
+        ProjectMetadata projectMetadata,
+        IndexRequest indexRequest,
+        IngestDocument ingestDocument,
+        Metadata originalDocumentMetadata
+    ) {
+        if (samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+            /*
+             * We need both the original document and the fully updated document for sampling, so we make a copy of the original
+             * before overwriting it here. We can discard it after sampling.
+             */
+            samplingService.maybeSample(projectMetadata, indexRequest.index(), () -> {
+                IndexRequest original = copyIndexRequestForSampling(indexRequest);
+                updateIndexRequestMetadata(original, originalDocumentMetadata);
+                return original;
+            }, ingestDocument);
+
+        }
+    }
+
+    /**
+     * Creates a copy of an IndexRequest to be used by random sampling.
+     * @param original The IndexRequest to be copied
+     * @return A copy of the IndexRequest
+     */
+    private IndexRequest copyIndexRequestForSampling(IndexRequest original) {
         IndexRequest clonedRequest = new IndexRequest(original.index());
         clonedRequest.id(original.id());
         clonedRequest.routing(original.routing());
         clonedRequest.version(original.version());
         clonedRequest.versionType(original.versionType());
         clonedRequest.setPipeline(original.getPipeline());
+        clonedRequest.setFinalPipeline(original.getFinalPipeline());
         clonedRequest.setIfSeqNo(original.ifSeqNo());
         clonedRequest.setIfPrimaryTerm(original.ifPrimaryTerm());
         clonedRequest.setRefreshPolicy(original.getRefreshPolicy());
@@ -1408,6 +1419,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         clonedRequest.timeout(original.timeout());
         clonedRequest.opType(original.opType());
         clonedRequest.setParentTask(original.getParentTask());
+        clonedRequest.setRequireDataStream(original.isRequireDataStream());
+        clonedRequest.setRequireAlias(original.isRequireAlias());
+        clonedRequest.setIncludeSourceOnError(original.getIncludeSourceOnError());
         BytesReference source = original.source();
         if (source != null) {
             clonedRequest.source(source, original.getContentType());

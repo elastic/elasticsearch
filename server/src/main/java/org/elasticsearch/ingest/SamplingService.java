@@ -184,8 +184,13 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         );
     }
 
+    /**
+     * Potentially samples the given indexRequest, depending on the existing sampling configuration.
+     * @param projectMetadata Used to get the sampling configuration
+     * @param indexRequest The raw request to potentially sample
+     */
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) {
-        maybeSample(projectMetadata, indexRequest, () -> {
+        maybeSample(projectMetadata, indexRequest.index(), () -> indexRequest, () -> {
             Map<String, Object> sourceAsMap;
             try {
                 sourceAsMap = indexRequest.sourceAsMap();
@@ -204,11 +209,12 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         });
     }
 
-    public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, IngestDocument ingestDocument) {
-        maybeSample(projectMetadata, indexRequest, () -> ingestDocument);
-    }
-
-    private void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest, Supplier<IngestDocument> ingestDocumentSupplier) {
+    private void maybeSample(
+        ProjectMetadata projectMetadata,
+        String indexName,
+        Supplier<IndexRequest> indexRequestSupplier,
+        Supplier<IngestDocument> ingestDocumentSupplier
+    ) {
         long startTime = relativeNanoTimeSupplier.getAsLong();
         TransportPutSampleConfigAction.SamplingConfigCustomMetadata samplingConfig = projectMetadata.custom(
             TransportPutSampleConfigAction.SamplingConfigCustomMetadata.NAME
@@ -216,7 +222,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         ProjectId projectId = projectMetadata.id();
         if (samplingConfig != null) {
             String samplingIndex = samplingConfig.indexName;
-            if (samplingIndex.equals(indexRequest.index())) {
+            if (samplingIndex.equals(indexName)) {
                 SoftReference<SampleInfo> sampleInfoReference = samples.compute(
                     new ProjectIndex(projectId, samplingIndex),
                     (k, v) -> v == null || v.get() == null
@@ -266,6 +272,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
                                         sampleInfo.stats
                                     )) {
                                     stats.timeEvaluatingCondition.add((relativeNanoTimeSupplier.getAsLong() - conditionStartTime));
+                                    IndexRequest indexRequest = indexRequestSupplier.get();
                                     indexRequest.incRef();
                                     if (indexRequest.source() instanceof ReleasableBytesReference releaseableSource) {
                                         releaseableSource.incRef();
@@ -369,6 +376,25 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     private boolean isClusterServiceStoppedOrClosed() {
         final Lifecycle.State state = clusterService.lifecycleState();
         return state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED;
+    }
+
+    /**
+     *
+     * @param projectMetadata Used to get the sampling configuration
+     * @param indexRequestSupplier A supplier for the raw request to potentially sample
+     * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
+     */
+    public void maybeSample(
+        ProjectMetadata projectMetadata,
+        String indexName,
+        Supplier<IndexRequest> indexRequestSupplier,
+        IngestDocument ingestDocument
+    ) {
+        maybeSample(projectMetadata, indexName, indexRequestSupplier, () -> ingestDocument);
+    }
+
+    public boolean atLeastOneSampleConfigured() {
+        return false; // TODO Return true if there is at least one sample in the cluster state
     }
 
     @Override
@@ -609,4 +635,5 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     }
 
     record ProjectIndex(ProjectId projectId, String indexName) {};
+
 }

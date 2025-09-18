@@ -90,7 +90,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
     protected final FeatureService featureService;
-    private final SamplingService samplingService;
+    protected final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -207,7 +207,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, true);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, false);
             }
         });
     }
@@ -217,7 +217,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        boolean firstTime
+        boolean haveRunIngestService
     ) throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
@@ -311,8 +311,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
-        } else if (samplingService != null && firstTime) {
-            // else sample, but only if this is the first time through. Otherwise we had pipelines and sampled in IngestService
+        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+            /*
+             * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
+             * bulk had pipelines and we sampled in IngestService already.
+             */
             for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
                 if (actionRequest instanceof IndexRequest ir) {
                     samplingService.maybeSample(project, ir);
@@ -353,7 +356,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                         @Override
                         protected void doRun() throws IOException {
-                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, false);
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, true);
                         }
 
                         @Override
@@ -432,7 +435,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         BulkRequest bulkRequest,
         Executor executor,
         ActionListener<BulkResponse> listener,
-        boolean firstTime
+        boolean haveRunIngestService
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
 
@@ -450,7 +453,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
         var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
 
-        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, firstTime) == false) {
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, haveRunIngestService) == false) {
             doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }

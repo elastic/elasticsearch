@@ -246,11 +246,18 @@ public class IngestServiceTests extends ESTestCase {
             assertThat(status, equalTo(fsStatus));
         };
 
+        // This is due to a quirk of IngestService. It uses a cluster state from the most recent cluster change event:
+        ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
+
         @SuppressWarnings("unchecked")
         final ActionListener<Void> listener = mock(ActionListener.class);
 
         ingestService.executeBulkRequest(
-            randomProjectIdOrDefault(),
+            projectId,
             1,
             List.of(indexRequest),
             indexReq -> {},
@@ -1836,7 +1843,8 @@ public class IngestServiceTests extends ESTestCase {
                 "set",
                 (factories, tag, description, config, projectId) -> new FakeProcessor("set", "", "", (ingestDocument) -> fail())
             ),
-            Predicates.never()
+            Predicates.never(),
+            mock(SamplingService.class)
         );
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", "{\"processors\": [{\"mock\" : {}}]}");
         // given that set -> fail() above, it's a failure if a document executes against this pipeline
@@ -3342,6 +3350,64 @@ public class IngestServiceTests extends ESTestCase {
         }
     }
 
+    public void testSampling() {
+        SamplingService samplingService = mock(SamplingService.class);
+        IngestService ingestService = createWithProcessors(
+            Map.of("mock", (factories, tag, description, config, projectId) -> mockCompoundProcessor()),
+            Predicates.never(),
+            samplingService
+        );
+        when(samplingService.atLeastOneSampleConfigured()).thenReturn(true);
+        PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"mock\" : {}}]}");
+        var projectId = randomProjectIdOrDefault();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = executePut(projectId, putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+
+        IndexRequest indexRequest1 = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_none").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest1);
+        IndexRequest indexRequest2 = new IndexRequest("_index").id("_id2").source(Map.of()).setPipeline("_id").setFinalPipeline("_none");
+        bulkRequest.add(indexRequest2);
+        IndexRequest indexRequest3 = new IndexRequest("_index").id("_id3")
+            .source(Map.of())
+            .setPipeline("does_not_exist")
+            .setFinalPipeline("_none");
+        bulkRequest.add(indexRequest3);
+        @SuppressWarnings("unchecked")
+        TriConsumer<Integer, Exception, IndexDocFailureStoreStatus> failureHandler = mock(TriConsumer.class);
+        @SuppressWarnings("unchecked")
+        final ActionListener<Void> listener = mock(ActionListener.class);
+
+        Boolean noRedirect = randomBoolean() ? false : null;
+        IndexDocFailureStoreStatus fsStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+
+        ingestService.executeBulkRequest(
+            projectId,
+            bulkRequest.numberOfActions(),
+            bulkRequest.requests(),
+            indexReq -> {},
+            (s) -> noRedirect,
+            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+            failureHandler,
+            listener
+        );
+        verify(failureHandler, times(1)).apply(
+            argThat(item -> item == 2),
+            argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage())),
+            argThat(fsStatus::equals)
+        );
+        verify(listener, times(1)).onResponse(null);
+        // In the case where there is a pipeline, or there is a pipeline failure, there will be an IngestDocument so this verion is called:
+        verify(samplingService, times(2)).maybeSample(any(), any(), any(), any());
+        // When there is no pipeline, we have no IngestDocument, and the maybeSample that does not require an IngestDocument is called:
+        verify(samplingService, times(1)).maybeSample(any(), any());
+    }
+
     private static Tuple<String, Object> randomMapEntry() {
         return tuple(randomAlphaOfLength(5), randomObject());
     }
@@ -3382,10 +3448,14 @@ public class IngestServiceTests extends ESTestCase {
     }
 
     private static IngestService createWithProcessors(Map<String, Processor.Factory> processors) {
-        return createWithProcessors(processors, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals);
+        return createWithProcessors(processors, DataStream.DATA_STREAM_FAILURE_STORE_FEATURE::equals, mock(SamplingService.class));
     }
 
-    private static IngestService createWithProcessors(Map<String, Processor.Factory> processors, Predicate<NodeFeature> featureTest) {
+    private static IngestService createWithProcessors(
+        Map<String, Processor.Factory> processors,
+        Predicate<NodeFeature> featureTest,
+        SamplingService samplingService
+    ) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -3412,7 +3482,7 @@ public class IngestServiceTests extends ESTestCase {
                     return featureTest.test(feature);
                 }
             },
-            mock(SamplingService.class)
+            samplingService
         );
         if (randomBoolean()) {
             /*

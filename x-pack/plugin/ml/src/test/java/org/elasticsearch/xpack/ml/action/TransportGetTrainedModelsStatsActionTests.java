@@ -31,6 +31,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -160,7 +161,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
             },
-            null
+            mock(SamplingService.class)
         );
     }
 

@@ -82,6 +82,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -93,6 +94,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
@@ -154,8 +157,14 @@ public class TransportBulkActionTests extends ESTestCase {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
                 },
-                mock(SamplingService.class)
+                initializeSamplingService()
             );
+        }
+
+        private static SamplingService initializeSamplingService() {
+            SamplingService samplingService = mock(SamplingService.class);
+            when(samplingService.atLeastOneSampleConfigured()).thenReturn(true);
+            return samplingService;
         }
 
         @Override
@@ -733,6 +742,19 @@ public class TransportBulkActionTests extends ESTestCase {
         assertTrue(failureStoreFailure.isFailed());
         assertEquals("failure-store-rollover-exception", failureStoreFailure.getFailure().getCause().getMessage());
         assertNull(bulkRequest.requests.get(2));
+    }
+
+    public void testSampling() throws ExecutionException, InterruptedException {
+        // This test makes sure that the sampling service is called once per IndexRequest
+        BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id1").source(Collections.emptyMap()))
+            .add(new IndexRequest("index").id("id2").source(Collections.emptyMap()))
+            .add(new DeleteRequest("index2").id("id3"));
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+        ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
+        future.get();
+        assertTrue(bulkAction.indexCreated);
+        // We expect 2 sampling calls since there are 2 index requests:
+        verify(bulkAction.samplingService, times(2)).maybeSample(any(), any());
     }
 
     private BulkRequest buildBulkRequest(List<String> indices) {

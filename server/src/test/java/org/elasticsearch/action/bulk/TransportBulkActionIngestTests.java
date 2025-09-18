@@ -174,8 +174,14 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                         return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                     }
                 },
-                mock(SamplingService.class)
+                initializeSamplingService()
             );
+        }
+
+        private static SamplingService initializeSamplingService() {
+            SamplingService samplingService = mock(SamplingService.class);
+            when(samplingService.atLeastOneSampleConfigured()).thenReturn(true);
+            return samplingService;
         }
 
         @Override

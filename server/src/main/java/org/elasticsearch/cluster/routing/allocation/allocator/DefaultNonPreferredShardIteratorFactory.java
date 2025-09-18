@@ -32,13 +32,9 @@ import java.util.stream.StreamSupport;
  * Any nodes missing queue latency information are considered to have a queue latency of 0.
  * Any shards missing write load information are considered to have a write load of 0.
  */
-public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShardIteratorFactory {
-
-    private final WriteLoadConstraintSettings writeLoadConstraintSettings;
-
-    public DefaultNonPreferredShardIteratorFactory(WriteLoadConstraintSettings writeLoadConstraintSettings) {
-        this.writeLoadConstraintSettings = writeLoadConstraintSettings;
-    }
+public record DefaultNonPreferredShardIteratorFactory(WriteLoadConstraintSettings writeLoadConstraintSettings)
+    implements
+        NonPreferredShardIteratorFactory {
 
     @Override
     public Iterable<ShardRouting> createNonPreferredShardIterator(RoutingAllocation allocation) {

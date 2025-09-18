@@ -14,3 +14,4 @@
 * [`TOP`](../../functions-operators/aggregation-functions.md#esql-top)
 * [preview] [`VALUES`](../../functions-operators/aggregation-functions.md#esql-values)
 * [`WEIGHTED_AVG`](../../functions-operators/aggregation-functions.md#esql-weighted_avg)
+* [`PRESENT`](../../functions-operators/aggregation-functions.md#esql-present)

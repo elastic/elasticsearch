@@ -209,9 +209,4 @@ public class MinTests extends AbstractAggregationTestCase {
             );
         });
     }
-
-    @Override
-    protected boolean optIntoToAggregatorToStringChecks() {
-        return true;
-    }
 }

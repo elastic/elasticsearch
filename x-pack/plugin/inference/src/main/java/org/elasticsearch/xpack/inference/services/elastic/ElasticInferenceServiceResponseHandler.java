@@ -32,7 +32,7 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
         }
 
         int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode == 500) {
+        if (statusCode == 500 || statusCode == 503) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 400) {
             throw new RetryException(false, buildError(BAD_REQUEST, request, result));

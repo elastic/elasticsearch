@@ -1,0 +1,5 @@
+pr: 133675
+summary: Support using the semantic query across multiple inference IDs
+area: Vector Search
+type: enhancement
+issues: []

@@ -209,9 +209,4 @@ public class MaxTests extends AbstractAggregationTestCase {
             );
         });
     }
-
-    @Override
-    protected boolean optIntoToAggregatorToStringChecks() {
-        return true;
-    }
 }

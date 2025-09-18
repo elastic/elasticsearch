@@ -387,7 +387,7 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Returns a Lucine pushable Query for the current field
+     * Returns a Lucene pushable Query for the current field
      * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
      */
     public Query automatonQuery(

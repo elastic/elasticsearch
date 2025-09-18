@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -225,20 +226,39 @@ public class Mapper {
                     join.source(),
                     left,
                     localData,
-                    config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),
                     join.rightOutputFields()
                 );
             }
-            if (right instanceof FragmentExec fragment
-                && fragment.fragment() instanceof EsRelation relation
-                && relation.indexMode() == IndexMode.LOOKUP) {
-                return new LookupJoinExec(join.source(), left, right, config.leftFields(), config.rightFields(), join.rightOutputFields());
+            if (right instanceof FragmentExec fragment) {
+                boolean isIndexModeLookup = isIndexModeLookup(fragment);
+                if (isIndexModeLookup) {
+                    return new LookupJoinExec(
+                        join.source(),
+                        left,
+                        right,
+                        config.leftFields(),
+                        config.rightFields(),
+                        join.rightOutputFields(),
+                        config.joinOnConditions()
+                    );
+                }
             }
         }
-
         return MapperUtils.unsupported(bp);
+    }
+
+    private static boolean isIndexModeLookup(FragmentExec fragment) {
+        // we support 2 cases:
+        // EsRelation in index_mode=lookup
+        boolean isIndexModeLookup = fragment.fragment() instanceof EsRelation relation && relation.indexMode() == IndexMode.LOOKUP;
+        // or Filter(EsRelation) in index_mode=lookup
+        isIndexModeLookup = isIndexModeLookup
+            || fragment.fragment() instanceof Filter filter
+                && filter.child() instanceof EsRelation relation
+                && relation.indexMode() == IndexMode.LOOKUP;
+        return isIndexModeLookup;
     }
 
     private PhysicalPlan mapFork(Fork fork) {

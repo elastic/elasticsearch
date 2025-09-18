@@ -205,3 +205,33 @@ row a=0
 constant_single:double
 5
 ;
+
+percentile precision tests with table read
+required_capability: fix_percentile_precision
+
+FROM employees 
+| SORT emp_no
+| LIMIT 10
+| KEEP emp_no
+| STATS p1 = percentile(emp_no, 50), p2 = percentile(emp_no, 50.55), p3 = percentile(emp_no, 51.0),
+        p4 = percentile(emp_no, 97), p5 = percentile(emp_no, 97.30), p6 = percentile(emp_no, 97.6)
+;
+
+p1:double | p2:double  | p3:double | p4:double | p5:double | p6:double
+10005.5   | 10005.5495 | 10005.59  | 10009.73  | 10009.757 | 10009.784
+;
+
+percentile precision tests with row
+required_capability: fix_percentile_precision
+
+ROW x = [1.1, 2.71, 3.14, 4.0, 5.55, 6, 7, 8, 9, 10, 11.99] 
+| STATS p1=percentile(x, 10.5), p2=percentile(x, 10.55), p3=percentile(x, 11.0),
+        p4=percentile(x, 90.0), p5=percentile(x, 90.28), p6=percentile(x, 90.7)
+;
+
+p1:double | p2:double | p3:double | p4:double | p5:double | p6:double
+2.7315    | 2.73365   | 2.753     | 10.0      | 10.05572  | 10.1393
+;
+
+
+

@@ -269,12 +269,12 @@ public class EsqlCapabilities {
         /**
          * Support for the {@code INLINESTATS} syntax.
          */
-        INLINESTATS(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support for the expressions in grouping in {@code INLINESTATS} syntax.
          */
-        INLINESTATS_V2(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V2(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support for aggregation function {@code TOP}.
@@ -353,7 +353,7 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting for union typed fields that are mixed with date and date_nanos type.
          */
-        IMPLICIT_CASTING_DATE_AND_DATE_NANOS(Build.current().isSnapshot()),
+        IMPLICIT_CASTING_DATE_AND_DATE_NANOS,
 
         /**
          * Support for named or positional parameters in EsqlQueryRequest.
@@ -414,12 +414,17 @@ public class EsqlCapabilities {
         /**
          * Support ST_GEOHASH, ST_GEOTILE and ST_GEOHEX functions
          */
-        SPATIAL_GRID(Build.current().isSnapshot()),
+        SPATIAL_GRID,
 
         /**
          * Support geohash, geotile and geohex data types. Done in #129581
          */
-        SPATIAL_GRID_TYPES(Build.current().isSnapshot()),
+        SPATIAL_GRID_TYPES,
+
+        /**
+         * Support geohash, geotile and geohex in ST_INTERSECTS and ST_DISJOINT. Done in #133546
+         */
+        SPATIAL_GRID_INTERSECTS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -798,12 +803,12 @@ public class EsqlCapabilities {
         /**
          * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
          */
-        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+        SNAPSHOT_TEST_FOR_TELEMETRY_V2(Build.current().isSnapshot()),
 
         /**
          * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
          */
-        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false),
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY_V2(Build.current().isSnapshot() == false),
 
         /**
          * Support simplified syntax for named parameters for field and function names.
@@ -983,7 +988,12 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V11(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
+
+        /**
+         * Renamed `INLINESTATS` to `INLINE STATS`.
+         */
+        INLINE_STATS(EsqlPlugin.INLINE_STATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1044,6 +1054,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1094,6 +1105,11 @@ public class EsqlCapabilities {
          * Support for FORK out of snapshot
          */
         FORK_V9,
+
+        /**
+         * Support for union types in FORK
+         */
+        FORK_UNION_TYPES,
 
         /**
          * Support for the {@code leading_zeros} named parameter.
@@ -1275,7 +1291,7 @@ public class EsqlCapabilities {
         /**
          * Enable support for cross-cluster lookup joins.
          */
-        ENABLE_LOOKUP_JOIN_ON_REMOTE(Build.current().isSnapshot()),
+        ENABLE_LOOKUP_JOIN_ON_REMOTE,
 
         /**
          * Fix the planning of {@code | ENRICH _remote:policy} when there's a preceding {@code | LOOKUP JOIN},
@@ -1291,7 +1307,7 @@ public class EsqlCapabilities {
         /**
          * Support knn function
          */
-        KNN_FUNCTION_V3(Build.current().isSnapshot()),
+        KNN_FUNCTION_V5(Build.current().isSnapshot()),
 
         /**
          * Support for the LIKE operator with a list of wildcards.
@@ -1320,6 +1336,11 @@ public class EsqlCapabilities {
         FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
 
         /**
+         * Support for the SET command.
+         */
+        SET_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1331,7 +1352,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE(Build.current().isSnapshot()),
+        FUSE_V3(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1379,6 +1400,11 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
+         * Decay function for custom scoring
+         */
+        DECAY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * FIRST and LAST aggregate functions.
          */
         AGG_FIRST_LAST(Build.current().isSnapshot()),
@@ -1398,6 +1424,11 @@ public class EsqlCapabilities {
          * Byte elements dense vector field type support.
          */
         DENSE_VECTOR_FIELD_TYPE_BYTE_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+
+        /**
+         * Bit elements dense vector field type support.
+         */
+        DENSE_VECTOR_FIELD_TYPE_BIT_ELEMENTS(EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
 
         /**
          * Support null elements on vector similarity functions
@@ -1427,7 +1458,72 @@ public class EsqlCapabilities {
         /**
          * URL decoding function.
          */
-        URL_DECODE(Build.current().isSnapshot());
+        URL_DECODE(Build.current().isSnapshot()),
+
+        /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+
+        /**
+         * FORK with remote indices
+         */
+        ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
+
+        /**
+         * Implicitly applies last_over_time in time-series aggregations when no specific over_time function is provided.
+         */
+        IMPLICIT_LAST_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Support for the Present function
+         */
+        FN_PRESENT,
+
+        /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
+
+        /**
+         * TO_DENSE_VECTOR function.
+         */
+        TO_DENSE_VECTOR_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support present_over_time aggregation that gets evaluated per time-series
+         */
+        PRESENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /**
+         * Multivalued query parameters
+         */
+        QUERY_PARAMS_MULTI_VALUES(),
+
+        FIX_PERCENTILE_PRECISION(),
+
+        /**
+         * Support for the Absent function
+         */
+        FN_ABSENT,
+
+        /**
+         * Support absent_over_time aggregation that gets evaluated per time-series
+         */
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /** INLINE STATS supports remote indices */
+        INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0(),
+
+        ;
 
         private final boolean enabled;
 

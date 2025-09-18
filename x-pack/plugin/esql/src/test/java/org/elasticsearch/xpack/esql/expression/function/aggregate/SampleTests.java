@@ -89,7 +89,7 @@ public class SampleTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, limitTypedData),
-                "Sample[field=Attribute[channel=0], limit=Attribute[channel=1]]",
+                standardAggregatorNameAllBytesTheSame("Sample", fieldSupplier.type()),
                 fieldSupplier.type(),
                 subsetOfSize(rows, limit)
             );

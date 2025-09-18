@@ -109,7 +109,22 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        var fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.DOUBLE,
+            BlockLoader.BlockFactory::doubles,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.DoubleBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendDouble(value.doubleValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
     }
 
     @Override

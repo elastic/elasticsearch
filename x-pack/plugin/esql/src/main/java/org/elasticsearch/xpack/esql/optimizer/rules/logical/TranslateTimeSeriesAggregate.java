@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
@@ -180,7 +179,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
         Map<AggregateFunction, Alias> timeSeriesAggs = new HashMap<>();
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
-        Holder<Boolean> hasRateAggregates = new Holder<>(Boolean.FALSE);
+        Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
         var internalNames = new InternalNames();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction af) {
@@ -201,8 +200,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
                         throw new IllegalStateException("unexpected inline filter in time-series aggregation");
                     }
                     changed.set(Boolean.TRUE);
-                    if (tsAgg instanceof Rate) {
-                        hasRateAggregates.set(Boolean.TRUE);
+                    if (tsAgg.requiredTimeSeriesSource()) {
+                        requiredTimeSeriesSource.set(Boolean.TRUE);
                     }
                     AggregateFunction firstStageFn = tsAgg.perTimeSeriesAggregation();
                     Alias newAgg = timeSeriesAggs.computeIfAbsent(firstStageFn, k -> {
@@ -279,7 +278,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Optimizer
             secondPassGroupings.add(new Alias(g.source(), g.name(), newFinalGroup.toAttribute(), g.id()));
         }
         LogicalPlan newChild = aggregate.child().transformUp(EsRelation.class, r -> {
-            IndexMode indexMode = hasRateAggregates.get() ? r.indexMode() : IndexMode.STANDARD;
+            IndexMode indexMode = requiredTimeSeriesSource.get() ? r.indexMode() : IndexMode.STANDARD;
             if (r.output().contains(tsid.get()) == false) {
                 return new EsRelation(
                     r.source(),

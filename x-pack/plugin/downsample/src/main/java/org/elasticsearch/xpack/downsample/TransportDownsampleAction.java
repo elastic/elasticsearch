@@ -961,7 +961,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             projectId,
             downsampleIndexName,
             downsampleIndexName
-        ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
+        ).settings(builder.build()).settingsSystemProvided(true).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override

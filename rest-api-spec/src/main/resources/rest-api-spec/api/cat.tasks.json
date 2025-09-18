@@ -25,6 +25,7 @@
     "params": {
       "format": {
         "type": "string",
+        "default": "text",
         "description": "a short version of the Accept header, e.g. json, yaml"
       },
       "nodes": {
@@ -83,6 +84,18 @@
         "type": "boolean",
         "default": false,
         "description": "If `true`, the request blocks until the task has completed."
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
       }
     }
   }

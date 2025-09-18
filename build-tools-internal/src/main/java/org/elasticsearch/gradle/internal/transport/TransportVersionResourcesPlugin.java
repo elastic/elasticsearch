@@ -24,7 +24,6 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 import java.util.Properties;
-import java.util.function.Consumer;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 

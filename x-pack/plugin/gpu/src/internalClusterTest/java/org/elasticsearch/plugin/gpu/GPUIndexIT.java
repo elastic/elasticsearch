@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.Assert;
+import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,8 +36,12 @@ public class GPUIndexIT extends ESIntegTestCase {
         return List.of(GPUPlugin.class);
     }
 
-    public void testBasic() {
+    @Before
+    public void checkGPUSupport() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+    }
+
+    public void testBasic() {
         String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
         final int[] numDocs = new int[] { randomIntBetween(1, 100), 1, 2, randomIntBetween(1, 100) };
@@ -51,7 +56,6 @@ public class GPUIndexIT extends ESIntegTestCase {
     }
 
     public void testSortedIndexReturnsSameResultsAsUnsorted() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
         String indexName1 = "index_unsorted";
         String indexName2 = "index_sorted";
         final int dims = randomIntBetween(4, 128);
@@ -139,7 +143,6 @@ public class GPUIndexIT extends ESIntegTestCase {
     }
 
     public void testSearchWithoutGPU() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
         String indexName = "index1";
         final int dims = randomIntBetween(4, 128);
         final int numDocs = randomIntBetween(1, 500);

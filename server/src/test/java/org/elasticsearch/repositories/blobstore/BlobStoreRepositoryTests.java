@@ -42,7 +42,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -66,7 +65,6 @@ import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotShutdownProgressTracker;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -820,11 +818,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 );
 
                 expectedShardGenerations.put(indexId, shardId, shardGeneration);
-                final var indexPath = repo.basePath()
-                    .add("indices")
-                    .add(indexId.getId())
-                    .add(Integer.toString(shardId))
-                    .buildAsString();
+                final var indexPath = repo.basePath().add("indices").add(indexId.getId()).add(Integer.toString(shardId)).buildAsString();
 
                 countDownLatch = new CountDownLatch(1);
                 try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {

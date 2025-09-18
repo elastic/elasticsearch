@@ -147,7 +147,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.Closeable;
-import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;

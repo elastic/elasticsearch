@@ -809,6 +809,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocatePreferredOnly);
         }
 
+        private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {
+            Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+            // not-preferred means no here
+            if (decision.type() == Type.NOT_PREFERRED) {
+                return Decision.NO;
+            }
+            return decision;
+        }
+
         /**
          * Move started shards that can not be allocated to a node anymore
          *
@@ -935,15 +944,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 targetNode != null ? targetNode.node() : null,
                 nodeResults
             );
-        }
-
-        private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {
-            Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
-            // not-preferred means no here
-            if (decision.type() == Type.NOT_PREFERRED) {
-                return Decision.NO;
-            }
-            return decision;
         }
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {

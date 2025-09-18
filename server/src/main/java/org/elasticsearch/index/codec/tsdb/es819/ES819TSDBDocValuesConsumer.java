@@ -169,6 +169,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     // Special case for maxOrd of 1, signal -1 that no blocks will be written
                     meta.writeInt(-1);
                 } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue, numValues)) {
+                    assert offsetsAccumulator == null;
                     // When a field is sorted, use ordinal range encode for long runs of the same ordinal.
                     meta.writeInt(-2);
                     meta.writeVInt(Math.toIntExact(maxOrd));
@@ -188,9 +189,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                     for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                         if (disiAccumulator != null) {
                             disiAccumulator.addDocId(doc);
-                        }
-                        if (offsetsAccumulator != null) {
-                            offsetsAccumulator.addDoc(1);
                         }
                         final long nextOrd = values.nextValue();
                         if (nextOrd != lastOrd) {

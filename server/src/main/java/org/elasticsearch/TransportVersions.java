@@ -325,6 +325,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_4 = def(9_112_0_07);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_5 = def(9_112_0_08);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -445,13 +445,13 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // Non-default rank window size
+        // Non-default rank window size and non-default rank_constant
         retriever = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT * 2,
             new float[0]
         );
         assertMultiIndexMultiFieldsParamsRewrite(

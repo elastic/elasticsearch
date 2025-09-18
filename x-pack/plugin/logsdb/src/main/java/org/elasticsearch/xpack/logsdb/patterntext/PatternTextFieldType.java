@@ -75,7 +75,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean isSyntheticSource,
         boolean isWithinMultiField
     ) {
-        // Though this type is based on doc_values, hasDocValues is set to false as the patterned_text type is not aggregatable.
+        // Though this type is based on doc_values, hasDocValues is set to false as the pattern_text type is not aggregatable.
         // This does not stop its child .template type from being aggregatable.
         super(name, true, false, false, tsi, meta, isSyntheticSource, isWithinMultiField);
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);

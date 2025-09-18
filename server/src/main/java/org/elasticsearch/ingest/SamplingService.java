@@ -324,8 +324,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         IngestConditionalScript.Factory factory,
         SampleStats stats
     ) {
-        return factory.newInstance(script.getParams(), ConditionalProcessor.wrapUnmodifiableMap(ingestDocument.getSourceAndMetadata()))
-            .execute();
+        return factory.newInstance(script.getParams(), ingestDocument.getUnmodifiableSourceAndMetadata()).execute();
     }
 
     private static Script getScript(String conditional) throws IOException {

@@ -50,7 +50,9 @@ import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEI
 public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetrieverBuilder> {
     public static final NodeFeature MULTI_FIELDS_QUERY_FORMAT_SUPPORT = new NodeFeature("rrf_retriever.multi_fields_query_format_support");
     public static final NodeFeature WEIGHTED_SUPPORT = new NodeFeature("rrf_retriever.weighted_support");
-
+    public static final NodeFeature MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT = new NodeFeature(
+        "rrf_retriever.multi_index_simplified_format_support"
+    );
     public static final String NAME = "rrf";
 
     public static final ParseField RETRIEVERS_FIELD = new ParseField("retrievers");
@@ -253,11 +255,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             // TODO: Refactor duplicate code
             // Using the multi-fields query format
             var localIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata();
-            if (localIndicesMetadata.size() > 1) {
-                throw new IllegalArgumentException(
-                    "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying multiple indices"
-                );
-            } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+            if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
                 throw new IllegalArgumentException(
                     "[" + NAME + "] cannot specify [" + QUERY_FIELD.getPreferredName() + "] when querying remote indices"
                 );

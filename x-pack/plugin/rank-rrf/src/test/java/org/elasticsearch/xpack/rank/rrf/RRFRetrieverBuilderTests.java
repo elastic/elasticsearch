@@ -200,11 +200,29 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
             "foo2"
         );
+    }
 
-        // Glob matching on inference and non-inference fields
-        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+    public void testMultiFieldsParamsRewriteWithWeights() {
+        final String indexName = "test-index";
+        final List<String> testInferenceFields = List.of("semantic_field_1", "semantic_field_2");
+        final ResolvedIndices resolvedIndices = createMockResolvedIndices(Map.of(indexName, testInferenceFields), null, Map.of());
+        final QueryRewriteContext queryRewriteContext = new QueryRewriteContext(
+            parserConfig(),
             null,
-            List.of("field_*", "*_field_1"),
+            null,
+            TransportVersion.current(),
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            resolvedIndices,
+            new PointInTimeBuilder(new BytesArray("pitid")),
+            null,
+            null,
+            false
+        );
+
+        // Simple per-field boosting
+        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1", "field_2^1.5", "semantic_field_1", "semantic_field_2^2"),
             "bar",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
@@ -213,15 +231,16 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
-            Map.of("field_*", 1.0f, "*_field_1", 1.0f),
-            Map.of("semantic_field_1", 1.0f),
-            "bar"
+            Map.of("field_1", 1.0f, "field_2", 1.5f),
+            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 2.0f),
+            "bar",
+            null
         );
 
-        // All-fields wildcard
+        // Glob matching on inference and non-inference fields with per-field boosting
         rrfRetrieverBuilder = new RRFRetrieverBuilder(
             null,
-            List.of("*"),
+            List.of("field_*^1.5", "*_field_1^2.5"),
             "baz",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
@@ -230,10 +249,117 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
             queryRewriteContext,
-            Map.of("*", 1.0f),
-            Map.of("semantic_field_1", 1.0f, "semantic_field_2", 1.0f),
-            "baz"
+            Map.of("field_*", 1.5f, "*_field_1", 2.5f),
+            Map.of("semantic_field_1", 2.5f),
+            "baz",
+            null
         );
+
+        // Multiple boosts defined on the same field
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_*^1.5", "field_1^3.0", "*_field_1^2.5", "semantic_*^1.5"),
+            "baz2",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_*", 1.5f, "field_1", 3.0f, "*_field_1", 2.5f, "semantic_*", 1.5f),
+            Map.of("semantic_field_1", 3.75f, "semantic_field_2", 1.5f),
+            "baz2",
+            null
+        );
+
+        // All-fields wildcard with weights
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("*^2.0"),
+            "qux",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("*", 2.0f),
+            Map.of("semantic_field_1", 2.0f, "semantic_field_2", 2.0f),
+            "qux",
+            null
+        );
+
+        // Zero weights (testing that zero is allowed as non-negative)
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^0", "field_2^1.0"),
+            "zero_test",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field_1", 0.0f, "field_2", 1.0f),
+            Map.of(),
+            "zero_test",
+            null
+        );
+
+        // Mixed weighted and unweighted fields in simplified syntax
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("title^2.5", "content", "tags^1.5", "description"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("title", 2.5f, "content", 1.0f, "tags", 1.5f, "description", 1.0f),
+            Map.of(),
+            "test query",
+            null
+        );
+
+        // Decimal weight precision handling
+        rrfRetrieverBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field1^0.1", "field2^2.75", "field3^10.999"),
+            "test query",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            rrfRetrieverBuilder,
+            queryRewriteContext,
+            Map.of("field1", 0.1f, "field2", 2.75f, "field3", 10.999f),
+            Map.of(),
+            "test query",
+            null
+        );
+
+        // Test negative weight validation
+        RRFRetrieverBuilder negativeWeightBuilder = new RRFRetrieverBuilder(
+            null,
+            List.of("field_1^-1.0"),
+            "negative_test",
+            DEFAULT_RANK_WINDOW_SIZE,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            new float[0]
+        );
+
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> negativeWeightBuilder.doRewrite(queryRewriteContext)
+        );
+        assertEquals("[rrf] per-field weights must be non-negative", iae.getMessage());
     }
 
     public void testMultiIndexMultiFieldsParamsRewrite() {
@@ -319,13 +445,13 @@ public class RRFRetrieverBuilderTests extends AbstractRetrieverBuilderTests<RRFR
             null
         );
 
-        // Non-default rank window size
+        // Non-default rank window size and non-default rank_constant
         retriever = new RRFRetrieverBuilder(
             null,
             List.of("field_1", "field_2", "semantic_field_1", "semantic_field_2"),
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
-            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
+            RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT * 2,
             new float[0]
         );
         assertMultiIndexMultiFieldsParamsRewrite(

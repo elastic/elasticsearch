@@ -86,9 +86,9 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         }
         RateLimitSettings rateLimitSettingsFromStreamInput = new RateLimitSettings(in);
 
-        this.projectId = (projectIdFromStreamInput == null || projectIdFromStreamInput.isEmpty()) ? null : projectIdFromStreamInput;
-        this.location = locationFromStreamInput == null || locationFromStreamInput.isEmpty() ? null : locationFromStreamInput;
-        this.modelId = modelIdFromStreamInput == null || modelIdFromStreamInput.isEmpty() ? null : modelIdFromStreamInput;
+        this.projectId = Strings.isNullOrEmpty(projectIdFromStreamInput) ? null : projectIdFromStreamInput;
+        this.location = Strings.isNullOrEmpty(locationFromStreamInput) ? null : locationFromStreamInput;
+        this.modelId = Strings.isNullOrEmpty(modelIdFromStreamInput) ? null : modelIdFromStreamInput;
         this.uri = uriFromStreamInput;
         this.streamingUri = streamingUriFromStreamInput;
         // Default to GOOGLE if not set
@@ -99,13 +99,13 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        if (projectId != null && projectId.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(projectId) == false) {
             builder.field(PROJECT_ID, projectId);
         }
-        if (location != null && location.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(location) == false) {
             builder.field(LOCATION, location);
         }
-        if (modelId != null && modelId.isEmpty() == false) {
+        if (Strings.isNullOrEmpty(modelId) == false) {
             builder.field(MODEL_ID, modelId);
         }
         if (uri != null) {

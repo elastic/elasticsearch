@@ -109,6 +109,7 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.anyOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestIT extends ESIntegTestCase {
@@ -587,8 +588,29 @@ public class IndicesRequestIT extends ESIntegTestCase {
         );
     }
 
-    public void testRejectDocumentWithTooManyArrayObjectFields() throws Exception {
-        String indexName = "array-limit-test";
+    public void testEmptyArrayAccepted() throws Exception {
+        String indexName = "empty-array-test";
+        int arrayLimit = 1;
+
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit).build()
+            )
+        );
+
+        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
+            doc.startObject();
+            doc.startArray("array");
+            doc.endArray();
+            doc.endObject();
+
+            DocWriteResponse resp = client().prepareIndex(indexName).setSource(doc).get();
+            assertEquals(DocWriteResponse.Result.CREATED, resp.getResult());
+        }
+    }
+
+    public void testExceedArrayLimitObjectsThreshold() throws Exception {
+        String indexName = "array-limit";
         int arrayLimit = 10;
 
         assertAcked(
@@ -614,6 +636,108 @@ public class IndicesRequestIT extends ESIntegTestCase {
                 e.getMessage(),
                 containsString("The number of array objects has exceeded " + "the allowed limit of [" + arrayLimit + "]")
             );
+        }
+    }
+
+    public void testRejectWhenNestedArrayExceedsObjectLimit() throws Exception {
+        String indexName = "nested-array-reject";
+        int arrayLimit = 2;
+
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit).build()
+            )
+        );
+
+        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
+            doc.startObject();
+            doc.startObject("outer");
+            doc.startArray("array");
+
+            for (int i = 0; i < 3; i++) {
+                doc.startObject();
+                doc.field("value", i);
+                doc.endObject();
+            }
+            doc.endArray();
+            doc.endObject();
+            doc.endObject();
+
+            Exception e = expectThrows(DocumentParsingException.class, () -> client().prepareIndex(indexName).setSource(doc).get());
+            assertThat(e.getMessage(), containsString("The number of array objects has exceeded the allowed limit of [2]"));
+        }
+    }
+
+    public void testDocumentAcceptedWhenArrayFieldsVary() throws Exception {
+        String indexName = "vary-fields-array";
+        int arrayLimit = 2;
+
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit).build()
+            )
+        );
+
+        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
+            doc.startObject();
+            doc.startArray("array");
+
+            doc.startObject();
+            doc.field("value", 1);
+            doc.endObject();
+
+            doc.startObject();
+            doc.field("another", 2);
+            doc.endObject();
+
+            doc.startObject();
+            doc.field("value", 3);
+            doc.endObject();
+
+            doc.endArray();
+            doc.endObject();
+
+            DocWriteResponse response = client().prepareIndex(indexName).setSource(doc).get();
+            assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+        }
+    }
+
+    public void testMultipleArraysOneExceedsLimitRejected() throws Exception {
+        String indexName = "multi-arrays-test";
+        int arrayLimit = 2;
+
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder().put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), arrayLimit).build()
+            )
+        );
+
+        try (XContentBuilder doc = XContentFactory.jsonBuilder()) {
+            doc.startObject();
+
+            // arrayA -> should be ignored,fields vary
+            doc.startArray("arrayA");
+            doc.startObject();
+            doc.field("x", 1);
+            doc.endObject();
+            doc.startObject();
+            doc.field("y", 2);
+            doc.endObject();
+            doc.endArray();
+
+            // arrayB: size (3 > 2) -> should cause rejection
+            doc.startArray("arrayB");
+            for (int i = 0; i < 3; i++) {
+                doc.startObject();
+                doc.field("v", i);
+                doc.endObject();
+            }
+            doc.endArray();
+
+            doc.endObject();
+
+            Exception e = expectThrows(DocumentParsingException.class, () -> client().prepareIndex(indexName).setSource(doc).get());
+            assertThat(e.getMessage(), anyOf(containsString("The number of array objects has exceeded the allowed limit of [2]")));
         }
     }
 

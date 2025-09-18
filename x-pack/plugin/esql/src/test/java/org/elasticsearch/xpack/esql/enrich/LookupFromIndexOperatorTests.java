@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.LongField;
@@ -61,15 +63,18 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -87,34 +92,58 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
 public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private static final int LOOKUP_SIZE = 1000;
-    private static final int LESS_THAN_VALUE = -40;
+    private static final int LESS_THAN_VALUE = 40;
     private final ThreadPool threadPool = threadPool();
     private final Directory lookupIndexDirectory = newDirectory();
     private final List<Releasable> releasables = new ArrayList<>();
     private int numberOfJoinColumns; // we only allow 1 or 2 columns due to simpleInput() implementation
+    private EsqlBinaryComparison.BinaryComparisonOperation operation;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        List<Object[]> operations = new ArrayList<>();
+        operations.add(new Object[] { null });
+        if (EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()) {
+            for (EsqlBinaryComparison.BinaryComparisonOperation operation : EsqlBinaryComparison.BinaryComparisonOperation.values()) {
+                // we skip NEQ because there are too many matches and the test can timeout
+                if (operation != EsqlBinaryComparison.BinaryComparisonOperation.NEQ) {
+                    operations.add(new Object[] { operation });
+                }
+            }
+        }
+        return operations;
+    }
+
+    public LookupFromIndexOperatorTests(EsqlBinaryComparison.BinaryComparisonOperation operation) {
+        super();
+        this.operation = operation;
+    }
 
     @Before
     public void buildLookupIndex() throws IOException {
         numberOfJoinColumns = 1 + randomInt(1); // 1 or 2 join columns
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), lookupIndexDirectory)) {
+            String suffix = (operation == null) ? "" : ("_" + "right");
             for (int i = 0; i < LOOKUP_SIZE; i++) {
                 List<IndexableField> fields = new ArrayList<>();
-                fields.add(new LongField("match0", i, Field.Store.NO));
+                fields.add(new LongField("match0" + suffix, i, Field.Store.NO));
                 if (numberOfJoinColumns == 2) {
-                    fields.add(new LongField("match1", i + 1, Field.Store.NO));
+                    fields.add(new LongField("match1" + suffix, i + 1, Field.Store.NO));
                 }
                 fields.add(new KeywordFieldMapper.KeywordField("lkwd", new BytesRef("l" + i), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                fields.add(new IntField("lint", -i, Field.Store.NO));
+                fields.add(new IntField("lint", i, Field.Store.NO));
                 writer.addDocument(fields);
             }
         }
@@ -141,8 +170,16 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
          * row count is the same. But lookup cuts into pages of length 256 so the
          * result is going to have more pages usually.
          */
-        int count = results.stream().mapToInt(Page::getPositionCount).sum();
-        assertThat(count, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
+        int inputCount = input.stream().mapToInt(Page::getPositionCount).sum();
+        int outputCount = results.stream().mapToInt(Page::getPositionCount).sum();
+
+        if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
+            assertThat(outputCount, equalTo(input.stream().mapToInt(Page::getPositionCount).sum()));
+        } else {
+            // For lookup join on non-equality, output count should be >= input count
+            assertThat("Output count should be >= input count for left outer join", outputCount, greaterThanOrEqualTo(inputCount));
+        }
+
         for (Page r : results) {
             assertThat(r.getBlockCount(), equalTo(numberOfJoinColumns + 2));
             LongVector match = r.<LongBlock>getBlock(0).asVector();
@@ -150,15 +187,46 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             IntBlock lintBlock = r.getBlock(numberOfJoinColumns + 1);
             for (int p = 0; p < r.getPositionCount(); p++) {
                 long m = match.getLong(p);
-                if (m > Math.abs(LESS_THAN_VALUE)) {
-                    assertThat(lkwdBlock.getBytesRef(lkwdBlock.getFirstValueIndex(p), new BytesRef()).utf8ToString(), equalTo("l" + m));
-                    assertThat(lintBlock.getInt(lintBlock.getFirstValueIndex(p)), equalTo((int) -m));
-                } else {
+                if (lkwdBlock.isNull(p) || lintBlock.isNull(p)) {
+                    // If the joined values are null, this means no match was found (or it was filtered out)
+                    // verify that both the columns are null
                     assertTrue("at " + p, lkwdBlock.isNull(p));
                     assertTrue("at " + p, lintBlock.isNull(p));
+                } else {
+                    String joinedLkwd = lkwdBlock.getBytesRef(lkwdBlock.getFirstValueIndex(p), new BytesRef()).utf8ToString();
+                    // there was a match, verify that the join on condition was satisfied
+                    int joinedLint = lintBlock.getInt(lintBlock.getFirstValueIndex(p));
+                    boolean conditionSatisfied = compare(m, joinedLint, operation);
+                    assertTrue("Join condition not satisfied: " + m + " " + operation + " " + joinedLint, conditionSatisfied);
+                    // Verify that the joined lkwd matches the lint value
+                    assertThat(joinedLkwd, equalTo("l" + joinedLint));
                 }
             }
         }
+    }
+
+    /**
+     * Compares two values using the specified binary comparison operation.
+     *
+     * @param left the left operand
+     * @param right the right operand
+     * @param op the binary comparison operation (null means equality join)
+     * @return true if the comparison condition is satisfied, false otherwise
+     */
+    private boolean compare(long left, long right, EsqlBinaryComparison.BinaryComparisonOperation op) {
+        if (op == null) {
+            // field based join is the same as equals comparison
+            op = EsqlBinaryComparison.BinaryComparisonOperation.EQ;
+        }
+        // Use the operator's fold method for comparison
+        Literal leftLiteral = new Literal(Source.EMPTY, left, DataType.LONG);
+        Literal rightLiteral = new Literal(Source.EMPTY, right, DataType.LONG);
+        EsqlBinaryComparison operatorInstance = op.buildNewInstance(Source.EMPTY, leftLiteral, rightLiteral);
+        Object result = operatorInstance.fold(FoldContext.small());
+        if (result instanceof Boolean) {
+            return (Boolean) result;
+        }
+        throw new IllegalArgumentException("Operator fold did not return a boolean");
     }
 
     @Override
@@ -174,9 +242,30 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         );
 
         List<MatchConfig> matchFields = new ArrayList<>();
+        String suffix = (operation == null) ? "" : ("_left");
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match" + i);
+            String matchField = "match" + i + suffix;
             matchFields.add(new MatchConfig(matchField, i, inputDataType));
+        }
+        Expression joinOnExpression = null;
+        if (operation != null) {
+            List<Expression> conditions = new ArrayList<>();
+            for (int i = 0; i < numberOfJoinColumns; i++) {
+                String matchFieldLeft = "match" + i + "_left";
+                String matchFieldRight = "match" + i + "_right";
+                FieldAttribute left = new FieldAttribute(
+                    Source.EMPTY,
+                    matchFieldLeft,
+                    new EsField(matchFieldLeft, inputDataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                );
+                FieldAttribute right = new FieldAttribute(
+                    Source.EMPTY,
+                    matchFieldRight,
+                    new EsField(matchFieldRight.replace("left", "right"), inputDataType, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+                );
+                conditions.add(operation.buildNewInstance(Source.EMPTY, left, right));
+            }
+            joinOnExpression = Predicates.combineAnd(conditions);
         }
 
         return new LookupFromIndexOperator.Factory(
@@ -189,7 +278,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             lookupIndex,
             loadFields,
             Source.EMPTY,
-            buildLessThanFilter(LESS_THAN_VALUE)
+            buildLessThanFilter(LESS_THAN_VALUE),
+            joinOnExpression
         );
     }
 
@@ -199,11 +289,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             "lint",
             new EsField("lint", DataType.INTEGER, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
         );
-        Expression lessThan = new LessThan(
-            new Source(new Location(0, 0), "lint < " + value),
-            filterAttribute,
-            new Literal(Source.EMPTY, value, DataType.INTEGER)
-        );
+        Expression lessThan = new LessThan(Source.EMPTY, filterAttribute, new Literal(Source.EMPTY, value, DataType.INTEGER));
         EsRelation esRelation = new EsRelation(Source.EMPTY, "test", IndexMode.LOOKUP, Map.of(), List.of());
         Filter filter = new Filter(Source.EMPTY, esRelation, lessThan);
         return new FragmentExec(filter);
@@ -229,9 +315,11 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
+        String suffix = (operation == null) ? "" : ("_left");
         sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
-            sb.append("input_type=LONG match_field=match").append(i).append(" inputChannel=").append(i).append(" ");
+            // match_field=match<i>_left (index first, then suffix)
+            sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");
         }
         // Accept either the legacy physical plan rendering (FilterExec/EsQueryExec) or the new FragmentExec rendering
         sb.append("right_pre_join_plan=(?:");
@@ -243,13 +331,15 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                     + "limit\\[\\],?\\s*sort\\[(?:\\[\\])?\\]\\s*estimatedRowSize\\[null\\]\\s*queryBuilderAndTags \\[(?:\\[\\]\\])\\]"
             );
         sb.append("|");
-        // New FragmentExec pattern
+        // New FragmentExec pattern - match the actual output format
         sb.append("FragmentExec\\[filter=null, estimatedRowSize=\\d+, reducer=\\[\\], fragment=\\[<>\\n")
             .append("Filter\\[lint\\{f}#\\d+ < ")
             .append(LESS_THAN_VALUE)
             .append("\\[INTEGER]]\\n")
-            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]\\]");
+            .append("\\\\_EsRelation\\[test]\\[LOOKUP]\\[\\]<>\\]\\]");
         sb.append(")");
+        // Accept join_on_expression=null or a valid join predicate
+        sb.append(" join_on_expression=(null|match\\d+left [=!<>]+ match\\d+right( AND match\\d+left [=!<>]+ match\\d+right)*|)\\]");
         return matchesPattern(sb.toString());
     }
 
@@ -326,25 +416,15 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         return shardId -> {
             MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
             };
-            StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append("""
-                {
-                    "doc": { "properties": {
-                        "match0": { "type": "long" },
-                """);
+            String suffix = (operation == null) ? "" : ("_right");
+            StringBuilder props = new StringBuilder();
+            props.append(String.format(Locale.ROOT, "\"match0%s\": { \"type\": \"long\" }", suffix));
             if (numberOfJoinColumns == 2) {
-                stringBuilder.append("""
-                        "match1": { "type": "long" },
-                    """);
+                props.append(String.format(Locale.ROOT, ", \"match1%s\": { \"type\": \"long\" }", suffix));
             }
-            stringBuilder.append("""
-                        "lkwd": { "type": "keyword" },
-                        "lint": { "type": "integer" }
-                    }}
-                }
-                """);
-
-            MapperService mapperService = mapperHelper.createMapperService(stringBuilder.toString());
+            props.append(", \"lkwd\": { \"type\": \"keyword\" }, \"lint\": { \"type\": \"integer\" }");
+            String mapping = String.format(Locale.ROOT, "{\n  \"doc\": { \"properties\": { %s } }\n}", props.toString());
+            MapperService mapperService = mapperHelper.createMapperService(mapping);
             DirectoryReader reader = DirectoryReader.open(lookupIndexDirectory);
             SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
             var ctx = new EsPhysicalOperationProviders.DefaultShardContext(0, new NoOpReleasable(), executionCtx, AliasFilter.EMPTY);
@@ -374,5 +454,13 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         var totalOutputRows = output.stream().mapToInt(Page::getPositionCount).sum();
 
         return mapMatcher.entry("total_rows", totalInputRows).entry("pages_emitted", output.size()).entry("rows_emitted", totalOutputRows);
+    }
+
+    @Override
+    public void testSimpleCircuitBreaking() {
+        // only test field based join and EQ to prevents timeouts in Ci
+        if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
+            super.testSimpleCircuitBreaking();
+        }
     }
 }

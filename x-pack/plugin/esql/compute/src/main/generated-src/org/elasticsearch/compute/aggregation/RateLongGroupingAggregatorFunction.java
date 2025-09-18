@@ -193,7 +193,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
     private void addRawInput(int positionOffset, IntVector groups, LongBlock valueBlock, LongVector timestampVector) {
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(0));
+            Buffer buffer = getBuffer(groupId, groups.getPositionCount(), timestampVector.getLong(positionOffset));
             for (int p = 0; p < groups.getPositionCount(); p++) {
                 int valuePosition = positionOffset + p;
                 if (valueBlock.isNull(valuePosition)) {
@@ -229,7 +229,7 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         int positionCount = groups.getPositionCount();
         if (groups.isConstant()) {
             int groupId = groups.getInt(0);
-            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(0));
+            Buffer buffer = getBuffer(groupId, positionCount, timestampVector.getLong(positionOffset));
             for (int p = 0; p < positionCount; p++) {
                 int valuePosition = positionOffset + p;
                 buffer.appendWithoutResize(timestampVector.getLong(valuePosition), valueVector.getLong(valuePosition));

@@ -279,6 +279,12 @@ public class SecurityTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         constructNewSecurityObject(settings, extensions);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return List.of();
+            }
+        });
         return createComponentsUtil(settings);
     }
 

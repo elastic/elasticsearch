@@ -45,8 +45,9 @@ public class VectorsFormatReflectionUtils {
     static {
         try {
             L99_F_VW_FIELD_WRITER_CLS = Class.forName("org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter$FieldWriter");
-            L99_SQ_VW_FIELD_WRITER_CLS =
-                Class.forName("org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter$FieldWriter");
+            L99_SQ_VW_FIELD_WRITER_CLS = Class.forName(
+                "org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter$FieldWriter"
+            );
             var lookup = MethodHandles.privateLookupIn(L99_F_VW_CLS, MethodHandles.lookup());
             FLAT_VECTOR_DATA_HANDLE = lookup.findVarHandle(L99_F_VW_CLS, "vectorData", IndexOutput.class);
             lucene99FlatVectorsWriter_writeField$mh = lookup.findVirtual(
@@ -93,7 +94,9 @@ public class VectorsFormatReflectionUtils {
 
     public static IndexOutput getQuantizedVectorDataIndexOutput(FlatVectorsWriter flatVectorWriter) {
         assert flatVectorWriter instanceof ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter;
-        var rawVectorDelegate = getRawVectorDelegate((ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter)flatVectorWriter);
+        var rawVectorDelegate = getRawVectorDelegate(
+            (ES814ScalarQuantizedVectorsFormat.ES814ScalarQuantizedVectorsWriter) flatVectorWriter
+        );
         return (IndexOutput) FLAT_VECTOR_DATA_HANDLE.get(rawVectorDelegate);
     }
 
@@ -105,10 +108,11 @@ public class VectorsFormatReflectionUtils {
     // private void Lucene99FlatVectorsWriter#writeField(FieldWriter<?> fieldData, int maxDoc)
     public static void lucene99FlatVectorsWriter_writeField(
         Lucene99FlatVectorsWriter that,
-        FlatFieldVectorsWriter<?> fieldData, int maxDoc
+        FlatFieldVectorsWriter<?> fieldData,
+        int maxDoc
     ) {
         try {
-            lucene99FlatVectorsWriter_writeField$mh.invoke(that, fieldData, maxDoc);
+            lucene99FlatVectorsWriter_writeField$mh.invokeExact(that, fieldData, maxDoc);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -122,7 +126,7 @@ public class VectorsFormatReflectionUtils {
         Sorter.DocMap sortMap
     ) {
         try {
-            lucene99FlatVectorsWriter_writeSortingField$mh.invoke(that, fieldData, maxDoc, sortMap);
+            lucene99FlatVectorsWriter_writeSortingField$mh.invokeExact(that, fieldData, maxDoc, sortMap);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -136,7 +140,7 @@ public class VectorsFormatReflectionUtils {
         ScalarQuantizer scalarQuantizer
     ) {
         try {
-            lucene99ScalarQuantizedVectorsWriter_writeField$mh.invoke(that, fieldData, maxDoc, scalarQuantizer);
+            lucene99ScalarQuantizedVectorsWriter_writeField$mh.invokeExact(that, fieldData, maxDoc, scalarQuantizer);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -151,7 +155,7 @@ public class VectorsFormatReflectionUtils {
         ScalarQuantizer scalarQuantizer
     ) {
         try {
-            lucene99ScalarQuantizedVectorsWriter_writeSortingField$mh.invoke(that, fieldData, maxDoc, sortMap, scalarQuantizer);
+            lucene99ScalarQuantizedVectorsWriter_writeSortingField$mh.invokeExact(that, fieldData, maxDoc, sortMap, scalarQuantizer);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -159,7 +163,7 @@ public class VectorsFormatReflectionUtils {
 
     public static ScalarQuantizer lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer(FlatFieldVectorsWriter<?> fieldData) {
         try {
-            return (ScalarQuantizer) lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer$mh.invoke(fieldData);
+            return (ScalarQuantizer) lucene99ScalarQuantizedVectorsWriter_FieldWriter_createQuantizer$mh.invokeExact(fieldData);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

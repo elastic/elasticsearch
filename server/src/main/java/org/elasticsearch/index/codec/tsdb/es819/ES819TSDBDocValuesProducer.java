@@ -1318,42 +1318,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 };
             }
         } else if (entry.sortedOrdinals != null) {
-            final var ordinalsReader = new SortedOrdinalReader(
-                maxOrd,
-                DirectMonotonicReader.getInstance(
-                    entry.sortedOrdinals,
-                    data.randomAccessSlice(entry.valuesOffset, entry.valuesLength),
-                    true
-                )
-            );
-            if (entry.docsWithFieldOffset == -1) {
-                return new BaseDenseNumericValues(maxDoc) {
-                    @Override
-                    long lookAheadValueAt(int targetDoc) {
-                        return ordinalsReader.lookAheadValue(targetDoc);
-                    }
-
-                    @Override
-                    public long longValue() {
-                        return ordinalsReader.readValueAndAdvance(doc);
-                    }
-                };
-            } else {
-                final var disi = new IndexedDISI(
-                    data,
-                    entry.docsWithFieldOffset,
-                    entry.docsWithFieldLength,
-                    entry.jumpTableEntryCount,
-                    entry.denseRankPower,
-                    entry.numValues
-                );
-                return new BaseSparseNumericValues(disi) {
-                    @Override
-                    public long longValue() {
-                        return ordinalsReader.readValueAndAdvance(disi.docID());
-                    }
-                };
-            }
+            return getRangeEncodedNumericDocValues(entry, maxOrd);
         }
 
         // NOTE: we could make this a bit simpler by reusing #getValues but this
@@ -1596,6 +1561,41 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    private NumericDocValues getRangeEncodedNumericDocValues(NumericEntry entry, long maxOrd) throws IOException {
+        final var ordinalsReader = new SortedOrdinalReader(
+            maxOrd,
+            DirectMonotonicReader.getInstance(entry.sortedOrdinals, data.randomAccessSlice(entry.valuesOffset, entry.valuesLength), true)
+        );
+        if (entry.docsWithFieldOffset == -1) {
+            return new BaseDenseNumericValues(maxDoc) {
+                @Override
+                long lookAheadValueAt(int targetDoc) {
+                    return ordinalsReader.lookAheadValue(targetDoc);
+                }
+
+                @Override
+                public long longValue() {
+                    return ordinalsReader.readValueAndAdvance(doc);
+                }
+            };
+        } else {
+            final var disi = new IndexedDISI(
+                data,
+                entry.docsWithFieldOffset,
+                entry.docsWithFieldLength,
+                entry.jumpTableEntryCount,
+                entry.denseRankPower,
+                entry.numValues
+            );
+            return new BaseSparseNumericValues(disi) {
+                @Override
+                public long longValue() {
+                    return ordinalsReader.readValueAndAdvance(disi.docID());
+                }
+            };
+        }
+    }
+
     private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
@@ -1639,6 +1639,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput, merging);
 
         assert entry.sortedOrdinals == null : "encoded ordinal range supports only one value per document";
+        if (entry.sortedOrdinals != null) {
+            // TODO: determine when this can be removed.
+            // This is for the clusters that ended up using ordinal range encoding for multi-values fields. Only first value can be
+            // returned.
+            NumericDocValues values = getRangeEncodedNumericDocValues(entry, maxOrd);
+            return DocValues.singleton(values);
+        }
         final NumericValues values = getValues(entry, maxOrd);
 
         if (entry.docsWithFieldOffset == -1) {

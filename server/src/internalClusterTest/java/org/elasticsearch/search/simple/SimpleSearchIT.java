@@ -473,7 +473,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLongRegexInRegexpQuery() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+        indexRandom(true, prepareIndex("idx").setSource("num", "value"));
 
         int defaultMaxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY);
         StringBuilder regexp = new StringBuilder(defaultMaxRegexLength);

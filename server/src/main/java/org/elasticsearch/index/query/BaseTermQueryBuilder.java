@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -160,5 +161,18 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
     @Override
     protected boolean doEquals(QB other) {
         return Objects.equals(fieldName, other.fieldName) && Objects.equals(value, other.value);
+    }
+
+    @Override
+    protected final QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(this.fieldName);
+        if (fieldType == null) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query is against a field that does not exist");
+        }
+        return doIndexMetadataRewrite(context, fieldType);
+    }
+
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context, MappedFieldType fieldType) throws IOException {
+        return this;
     }
 }

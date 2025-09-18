@@ -43,7 +43,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         super(testCandidate);
         String testPath = testCandidate.getTestPath();
         if (testPath.startsWith("inference/70_text_similarity_rank_retriever")
-            && (testPath.toLowerCase(Locale.ROOT).contains("snippet") || testPath.toLowerCase(Locale.ROOT).contains("chunk_rescorer"))) {
+            && (testPath.toLowerCase(Locale.ROOT).contains("snippet") || testPath.toLowerCase(Locale.ROOT).contains("rescore"))) {
             assumeTrue("Rerank snippets does not work in release builds", Build.current().isSnapshot());
         }
     }

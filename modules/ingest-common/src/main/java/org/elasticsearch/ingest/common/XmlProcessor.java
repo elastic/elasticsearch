@@ -53,12 +53,12 @@ import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
 import javax.xml.xpath.XPathExpression;
 import javax.xml.xpath.XPathExpressionException;
-import javax.xml.xpath.XPathFactory;
 
 /**
  * Processor that parses XML documents and converts them to JSON objects using a single-pass streaming approach.
  * <p>
- * Features:<ul>
+ * Features:
+ * <ul>
  *  <li>XML to JSON conversion with configurable structure options
  *  <li>XPath extraction with namespace support
  *  <li>Configurable options: force_array, force_content, remove_namespaces, to_lower
@@ -70,8 +70,6 @@ public final class XmlProcessor extends AbstractProcessor {
 
     public static final String TYPE = "xml";
     private static final Logger logger = LogManager.getLogger(XmlProcessor.class);
-
-    private static final XPathFactory XPATH_FACTORY = XPathFactory.newInstance();
 
     // Pre-compiled pattern to detect namespace prefixes
     private static final Pattern NAMESPACE_PATTERN = Pattern.compile("\\b[a-zA-Z][a-zA-Z0-9_-]*:[a-zA-Z][a-zA-Z0-9_-]*");
@@ -329,7 +327,7 @@ public final class XmlProcessor extends AbstractProcessor {
         }
 
         Map<String, XPathExpression> compiled = new HashMap<>();
-        XPath xpath = XPATH_FACTORY.newXPath();
+        XPath xpath = createSecureXPath();
 
         // Set namespace context if namespaces are defined
         boolean hasNamespaces = namespaces.isEmpty() == false;
@@ -849,6 +847,18 @@ public final class XmlProcessor extends AbstractProcessor {
             return factory;
         } catch (Exception e) {
             logger.warn("Cannot configure secure DOM builder factory - XML processor may not work correctly", e);
+            return null;
+        }
+    }
+
+    /**
+     * Creates a secure, pre-configured XPath object expression evaluation using XmlUtils.
+     */
+    private static XPath createSecureXPath() {
+        try {
+            return XmlUtils.getHardenedXPath();
+        } catch (Exception e) {
+            logger.warn("Cannot configure secure XPath object - XML processor may not work correctly", e);
             return null;
         }
     }

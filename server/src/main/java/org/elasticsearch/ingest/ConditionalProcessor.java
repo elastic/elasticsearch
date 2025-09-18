@@ -9,9 +9,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
@@ -28,7 +25,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -38,16 +34,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
  * A wrapping processor that adds 'if' logic around the wrapped processor.
  */
 public class ConditionalProcessor extends AbstractProcessor implements WrappingProcessor {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
-        deprecationLogger.warn(
-            DeprecationCategory.INDICES,
-            "conditional-processor__type",
-            "[types removal] Looking up doc types [_type] in scripts is deprecated."
-        );
-        return value;
-    });
 
     static final String TYPE = "conditional";
 
@@ -144,10 +130,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
         if (factory == null) {
             factory = scriptService.compile(condition, IngestConditionalScript.CONTEXT);
         }
-        return factory.newInstance(
-            condition.getParams(),
-            new UnmodifiableIngestData(new DynamicMap(ingestDocument.getSourceAndMetadata(), FUNCTIONS))
-        ).execute();
+        return factory.newInstance(condition.getParams(), new UnmodifiableIngestData(ingestDocument.getSourceAndMetadata())).execute();
     }
 
     public Processor getInnerProcessor() {
@@ -175,6 +158,8 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             return new UnmodifiableIngestData((Map<String, Object>) raw);
         } else if (raw instanceof List) {
             return new UnmodifiableIngestList((List<Object>) raw);
+        } else if (raw instanceof Set<?> rawSet) {
+            return new UnmodifiableIngestSet((Set<Object>) rawSet);
         } else if (raw instanceof byte[] bytes) {
             return bytes.clone();
         }
@@ -304,23 +289,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
 
         @Override
         public Iterator<Object> iterator() {
-            Iterator<Object> wrapped = data.iterator();
-            return new Iterator<Object>() {
-                @Override
-                public boolean hasNext() {
-                    return wrapped.hasNext();
-                }
-
-                @Override
-                public Object next() {
-                    return wrapped.next();
-                }
-
-                @Override
-                public void remove() {
-                    throw unmodifiableException();
-                }
-            };
+            return new UnmodifiableIterator(data.iterator());
         }
 
         @Override
@@ -480,6 +449,102 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
             public void add(final Object o) {
                 throw unmodifiableException();
             }
+        }
+    }
+
+    private static final class UnmodifiableIngestSet implements Set<Object> {
+        private final Set<Object> data;
+
+        UnmodifiableIngestSet(Set<Object> data) {
+            this.data = data;
+        }
+
+        @Override
+        public int size() {
+            return data.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return data.isEmpty();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return data.contains(o);
+        }
+
+        @Override
+        public Iterator<Object> iterator() {
+            return new UnmodifiableIterator(data.iterator());
+        }
+
+        @Override
+        public Object[] toArray() {
+            return data.toArray();
+        }
+
+        @Override
+        public <T> T[] toArray(T[] a) {
+            return data.toArray(a);
+        }
+
+        @Override
+        public boolean add(Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean remove(Object o) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean containsAll(Collection<?> c) {
+            return data.containsAll(c);
+        }
+
+        @Override
+        public boolean addAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> c) {
+            throw unmodifiableException();
+        }
+
+        @Override
+        public void clear() {
+            throw unmodifiableException();
+        }
+    }
+
+    private static final class UnmodifiableIterator implements Iterator<Object> {
+        private final Iterator<Object> it;
+
+        UnmodifiableIterator(Iterator<Object> it) {
+            this.it = it;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return it.hasNext();
+        }
+
+        @Override
+        public Object next() {
+            return wrapUnmodifiable(it.next());
+        }
+
+        @Override
+        public void remove() {
+            throw unmodifiableException();
         }
     }
 }

@@ -11,22 +11,25 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.UrlCodecUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.UrlCodecUtils;
 
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public final class UrlEncode extends UnaryScalarFunction {
@@ -81,15 +84,16 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new UrlEncodeEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return new UrlEncodeEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "url_encode")
+        );
     }
 
     @ConvertEvaluator()
-    static BytesRef process(final BytesRef val) {
-        byte[] input = new byte[val.length];
-        System.arraycopy(val.bytes, val.offset, input, 0, val.length);
-        byte[] bytes = UrlCodecUtils.encodeUrl(input);
-        return new BytesRef(bytes);
+    static BytesRef process(final BytesRef val, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch) {
+        return UrlCodecUtils.urlEncode(val, scratch, true);
     }
 
 }

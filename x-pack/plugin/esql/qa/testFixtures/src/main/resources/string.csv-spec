@@ -2609,10 +2609,10 @@ Georgi    | georgi
 url_encode mixed input tests
 required_capability: url_encode
 
-ROW u = ["hello elastic!", "a+b-c%d", "", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
+ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
 
 u:keyword
-["hello+elastic%21", "a%2Bb-c%25d", "", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
+["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
 ;
 
 url_decode sample for docs
@@ -2718,12 +2718,13 @@ url_encode_component special input tests
 required_capability: url_encode_component
 required_capability: url_decode
 
-ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", b = "❗🐶🐱"
+ROW a = "+!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~", b = ".-_~", c = "❗🐶🐱"
 | EVAL a = URL_ENCODE_COMPONENT(a)
-| EVAL b = URL_DECODE(URL_ENCODE_COMPONENT(b));
+| EVAL b = URL_ENCODE_COMPONENT(b)
+| EVAL c = URL_DECODE(URL_ENCODE_COMPONENT(c));
 
-a:keyword                                                                                                                                                   | b:keyword
-"%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ❗🐶🐱
+a:keyword                                                                                                                                                   | b:keyword | c:keyword
+"%2B%21%22%23%24%25%26%27%28%29%2A%2B%2C-.%2F0123456789%3A%3B%3C%3D%3E%3F%40ABCDEFGHIJKLMNOPQRSTUVWXYZ%5B%5C%5D%5E_%60abcdefghijklmnopqrstuvwxyz%7B%7C%7D~" | ".-_~"    |❗🐶🐱
 ;
 
 url_encode_component tests with table reads

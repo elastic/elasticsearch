@@ -678,12 +678,14 @@ public class EsqlSession {
                     listener.delegateFailureAndWrap((l, mainIndexResolution) -> {
                         // the order here is tricky - if the cluster has been filtered and later became unavailable,
                         // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, mainIndexResolution.failures());
-                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                            executionInfo,
-                            mainIndexResolution,
-                            requestFilter != null
-                        );
+                        if (mainIndexResolution.isValid()) {
+                            EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, mainIndexResolution.failures());
+                            EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                                executionInfo,
+                                mainIndexResolution,
+                                requestFilter != null
+                            );
+                        }
                         l.onResponse(result.withIndices(mainIndexResolution));
                     })
                 );

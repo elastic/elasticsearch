@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -86,6 +87,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -106,7 +108,10 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDownsampleAction.class);
-
+    private static final String MAPPING_PROPERTIES = "properties";
+    private static final String MAPPING_DYNAMIC_TEMPLATES = "dynamic_templates";
+    private static final String FIELD_TYPE = "type";
+    private static final String MULTI_FIELDS = "fields";
     private final Client client;
     private final IndicesService indicesService;
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
@@ -677,36 +682,105 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final DownsampleConfig config,
         final Map<String, Object> sourceIndexMappings
     ) throws IOException {
-        // TODO deep copy the map
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
         final String dateInterval = config.getInterval().toString();
         final String timezone = config.getTimeZone();
-        addDynamicTemplates(sourceIndexMappings);
-        MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> updatedMapping = (Map<String, Object>) mapping;
-            if (timestampField.equals(field)) {
-                final String timestampType = String.valueOf(mapping.get("type"));
-                updatedMapping.put("type", timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
+        Map<String, Object> downsampledMapping = new HashMap<>();
+        addDynamicTemplateForStrings(downsampledMapping);
+        for (Map.Entry<String, Object> entry : sourceIndexMappings.entrySet()) {
+            if (entry.getKey().equals(MAPPING_DYNAMIC_TEMPLATES)) {
+                List<?> sourceDynamicTemplates = (List<?>) sourceIndexMappings.get(MAPPING_DYNAMIC_TEMPLATES);
+                @SuppressWarnings("unchecked")
+                List<Object> downsampledDynamicTemplates = (List<Object>) downsampledMapping.get(MAPPING_DYNAMIC_TEMPLATES);
+                downsampledDynamicTemplates.addAll(sourceDynamicTemplates);
+            } else if (entry.getKey().equals(MAPPING_PROPERTIES) == false) {
+                downsampledMapping.put(entry.getKey(), entry.getValue());
+            }
+        }
+        populateMappingProperties(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
+            if (timestampField.equals(fieldName)) {
+                final String timestampType = String.valueOf(sourceMapping.get(FIELD_TYPE));
+                updatedMapping.put(FIELD_TYPE, timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
+                if (sourceMapping.get("format") != null) {
+                    updatedMapping.put("format", sourceMapping.get("format"));
+                }
+                if (sourceMapping.get("ignore_malformed") != null) {
+                    updatedMapping.put("ignore_malformed", sourceMapping.get("ignore_malformed"));
+                }
                 updatedMapping.put("meta", Map.of(dateIntervalType, dateInterval, DownsampleConfig.TIME_ZONE, timezone));
-            } else if (helper.isTimeSeriesMetric(field, mapping)) {
+                return;
+            }
+            if (helper.isTimeSeriesMetric(fieldName, sourceMapping)) {
                 final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
-                    mapping.get(TIME_SERIES_METRIC_PARAM).toString()
+                    sourceMapping.get(TIME_SERIES_METRIC_PARAM).toString()
                 );
                 if (metricType == TimeSeriesParams.MetricType.GAUGE
-                    && AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(mapping.get("type")) == false) {
-                    var supportedMetrics = getSupportedMetrics(metricType, mapping);
+                    && AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(sourceMapping.get(FIELD_TYPE)) == false) {
+                    var supportedMetrics = getSupportedMetrics(metricType, sourceMapping);
 
-                    updatedMapping.clear();
                     updatedMapping.put(TIME_SERIES_METRIC_PARAM, metricType.toString());
-                    updatedMapping.put("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+                    updatedMapping.put(FIELD_TYPE, AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
                     updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetrics.supportedMetrics);
                     updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supportedMetrics.defaultMetric);
+                    return;
                 }
             }
+            for (String f : sourceMapping.keySet()) {
+                if (f.equals(MAPPING_PROPERTIES) || f.equals(MULTI_FIELDS)) {
+                    continue;
+                }
+                updatedMapping.put(f, sourceMapping.get(f));
+            }
         });
-        return new CompressedXContent(sourceIndexMappings).uncompressed().utf8ToString();
+
+        return new CompressedXContent(downsampledMapping).uncompressed().utf8ToString();
+    }
+
+    private static void populateMappingProperties(
+        final Map<String, ?> sourceMapping,
+        final Map<String, Object> destMapping,
+        TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldProcessor
+    ) {
+        Object sourceProperties0 = sourceMapping.get(MAPPING_PROPERTIES);
+        if (sourceProperties0 instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> sourceProperties = (Map<String, ?>) sourceProperties0;
+            var destProperties = new HashMap<>(sourceProperties.size());
+            destMapping.put(MAPPING_PROPERTIES, destProperties);
+            for (Map.Entry<String, ?> entry : sourceProperties.entrySet()) {
+                String fieldName = entry.getKey();
+                final Object v = entry.getValue();
+                if (v instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, ?> sourceFieldMapping = (Map<String, ?>) v;
+                    var destFieldMapping = new HashMap<String, Object>(sourceFieldMapping.size());
+                    destProperties.put(fieldName, destFieldMapping);
+                    // Process the field from properties and multi-fields.
+                    fieldProcessor.apply(entry.getKey(), sourceFieldMapping, destFieldMapping);
+                    populateMappingProperties(sourceFieldMapping, destFieldMapping, fieldProcessor);
+
+                    // Multi fields
+                    Object sourceFieldsO = sourceFieldMapping.get(MULTI_FIELDS);
+                    if (sourceFieldsO instanceof Map) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, ?> sourceFields = (Map<String, ?>) sourceFieldsO;
+                        var destFields = new HashMap<String, Object>(sourceFields.size());
+                        destFieldMapping.put(MULTI_FIELDS, destFields);
+                        for (Map.Entry<String, ?> multiFieldEntry : sourceFields.entrySet()) {
+                            Object v2 = multiFieldEntry.getValue();
+                            if (v2 instanceof Map) {
+                                String multiFieldName = multiFieldEntry.getKey();
+                                @SuppressWarnings("unchecked")
+                                Map<String, ?> sourceMultiFieldMapping = (Map<String, ?>) v2;
+                                Map<String, Object> destMultiFieldMapping = new HashMap<>(sourceMultiFieldMapping.size());
+                                fieldProcessor.apply(multiFieldName, sourceMultiFieldMapping, destMultiFieldMapping);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // public for testing
@@ -717,7 +791,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TimeSeriesParams.MetricType metricType,
         final Map<String, ?> fieldProperties
     ) {
-        boolean sourceIsAggregate = fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+        boolean sourceIsAggregate = fieldProperties.get(FIELD_TYPE).equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
         List<String> supportedAggs = List.of(metricType.supportedAggs());
 
         if (sourceIsAggregate) {
@@ -834,11 +908,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Configure the dynamic templates to always map strings to the keyword field type.
      */
-    private static void addDynamicTemplates(Map<String, Object> mapping) throws IOException {
-        mapping.put(
-            "dynamic_templates",
-            List.of(Map.of("strings", Map.of("match_mapping_type", "string", "mapping", Map.of("type", "keyword"))))
-        );
+    private static void addDynamicTemplateForStrings(Map<String, Object> mapping) {
+        List<Object> dynamicTemplates = new ArrayList<>();
+        dynamicTemplates.add(Map.of("strings", Map.of("match_mapping_type", "string", "mapping", Map.of(FIELD_TYPE, "keyword"))));
+        mapping.put(MAPPING_DYNAMIC_TEMPLATES, dynamicTemplates);
     }
 
     private void createDownsampleIndex(

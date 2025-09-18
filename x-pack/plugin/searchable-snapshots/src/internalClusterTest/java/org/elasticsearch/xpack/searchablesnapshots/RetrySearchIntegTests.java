@@ -163,7 +163,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
         assertEquals(numberOfShards, SearchContextId.decode(writableRegistry(), pitId).shards().size());
         logger.info(
-            "---> PIT id: " + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
+            "---> Original PIT id: "
+                + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
         );
         SetOnce<BytesReference> updatedPit = new SetOnce<>();
         try {
@@ -178,10 +179,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             }
             ensureGreen(indexName);
 
+            // we run a search after the restart to ensure that all shards from the PIT have re-created their search contexts
             assertNoFailuresAndResponse(
                 prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
-                    // // set preFilterShardSize high enough, we want to hit each shard in this first run to re-create all contexts
-                    // .setPreFilterShardSize(128)
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
                     .setPointInTime(new PointInTimeBuilder(pitId)),
                 resp -> {
@@ -189,10 +189,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     updatedPit.set(resp.pointInTimeId());
                 }
             );
-            logger.info("--> ran first search after node restart");
+            logger.info("--> first search after node restart finished");
 
-            // at this point we should have re-created all contexts, so no need to create them again
-            // running the search a second time should not re-trigger creation of new contexts
+            // At this point we should have re-created all contexts, running a second search
+            // should not re-trigger creation of new contexts. Lets check this.
             final AtomicLong newContexts = new AtomicLong(0);
             for (String allocatedNode : allocatedNodes) {
                 MockSearchService searchService = (MockSearchService) internalCluster().getInstance(SearchService.class, allocatedNode);
@@ -206,11 +206,11 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                     .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
                     .setPointInTime(new PointInTimeBuilder(updatedPit.get())),
                 resp -> {
-                    assertEquals(numberOfShards, resp.getSuccessfulShards());
+                    assertThat(resp.pointInTimeId(), equalTo(updatedPit.get()));
                     assertHitCount(resp, docCount);
                 }
             );
-            logger.info("--> ran second search after node restart");
+            logger.info("--> second search after node restart finished");
             assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
         } catch (Exception e) {
             logger.error("---> unexpected exception", e);

@@ -166,7 +166,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             boolean idChanged = false;
             BytesReference currentId = source.pointInTimeBuilder().getEncodedId();
             // we want to change node ids in the PIT id if any shards and its PIT context have moved
-            SearchContextId originalSearchContextId = source.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
+            SearchContextId originalSearchContextId = source.pointInTimeBuilder().getSearchContextId(getNamedWriteableRegistry());
             Map<ShardId, SearchContextIdForNode> shardMapCopy = new HashMap<>(originalSearchContextId.shards());
             for (SearchPhaseResult result : results.getAtomicArray().asList()) {
                 SearchShardTarget searchShardTarget = result.getSearchShardTarget();

@@ -544,9 +544,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final ShardSearchContextId id = context.id();
         final ReaderContext previous = activeReaders.put(id, context);
         assert previous == null;
-        if (context.singleSession() == false) {
-            logger.info("---> added multi-session reader context id [{}] to active readers.", id);
-        }
         // ensure that if we race against afterIndexRemoved, we remove the context from the active list.
         // this is important to ensure store can be cleaned up, in particular if the search is a scroll with a long timeout.
         final Index index = context.indexShard().shardId().getIndex();
@@ -557,11 +554,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     protected ReaderContext removeReaderContext(ShardSearchContextId id) {
-        if (logger.isInfoEnabled()) {
-            logger.info("removing reader context [{}]", id);
-        }
-        if (activeReaders.containsKey(id) == false) {
-            logger.warn("trying to remove reader context [{}] which does not exist", id);
+        if (logger.isTraceEnabled()) {
+            logger.trace("removing reader context [{}]", id);
         }
         return activeReaders.remove(id);
     }
@@ -687,8 +681,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     opsListener.onFailedDfsPhase(context);
                 }
             }
-            DfsSearchResult dfsSearchResult = context.dfsResult();
-            return dfsSearchResult;
+            return context.dfsResult();
         } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(readerContext, e);
@@ -1272,10 +1265,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ShardSearchContextId contextId = request.readerId();
         if (contextId != null) {
             try {
-                logger.info("---> attempting tofind context id [{}] in [{}]", contextId, activeReaders.keySet());
                 return findReaderContext(contextId, request);
             } catch (SearchContextMissingException e) {
-                logger.info("---> unable to find context id [{}] in [{}]", contextId, activeReaders.keySet());
                 final String searcherId = contextId.getSearcherId();
                 if (searcherId == null) {
                     throw e;
@@ -1300,7 +1291,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     false,
                     defaultKeepAlive
                 );
-                logger.info("---> re-created reader context [{}]", readerContext.id());
+                logger.debug("Recreating reader context [{}]", readerContext.id());
                 return readerContext;
             }
         }
@@ -1334,7 +1325,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Releasable decreaseScrollContexts = null;
         try {
             if (request.scroll() != null) {
-                assert false; // don't go here in this case
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());
@@ -2136,11 +2126,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final var source = request.source();
         return canRewriteToMatchNone(source) == false
             || source.subSearches().stream().anyMatch(sqwb -> sqwb.getQueryBuilder() instanceof MatchNoneQueryBuilder == false);
-    }
-
-    // TODO remove
-    public Map<ShardSearchContextId, ReaderContext> getActiveReaders() {
-        return this.activeReaders;
     }
 
     /**

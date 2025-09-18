@@ -77,7 +77,7 @@ public final class SearchContextId {
         return encode(shards, aliasFilter, version, shardFailures);
     }
 
-    public static BytesReference encode(
+    static BytesReference encode(
         Map<ShardId, SearchContextIdForNode> shards,
         Map<String, AliasFilter> aliasFilter,
         TransportVersion version,

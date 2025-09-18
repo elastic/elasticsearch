@@ -120,9 +120,6 @@ public class MockSearchService extends SearchService {
         if (removed != null) {
             onRemoveContext.accept(removed);
             removeActiveContext(removed.id());
-        } else {
-            boolean thisIsFishy = ACTIVE_SEARCH_CONTEXTS.containsKey(id);
-            logger.info("---> " + (thisIsFishy ? "fishy:" : "") + " trying to cleanup id: " + id);
         }
         return removed;
     }

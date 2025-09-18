@@ -70,7 +70,6 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-
         service.infer(
             model,
             request.getQuery(),

@@ -14,10 +14,11 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RerankRequestChunkerTests extends ESTestCase {
-    private static final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
+    private final String TEST_SENTENCE = "This is a test sentence that has ten total words. ";
 
     public void testGetChunkedInput_EmptyInput() {
         var chunker = new RerankRequestChunker(TEST_SENTENCE, List.of(), null);
@@ -26,7 +27,7 @@ public class RerankRequestChunkerTests extends ESTestCase {
 
     public void testGetChunkedInput_SingleInputWithoutChunkingRequired() {
         var inputs = List.of(generateTestText(10));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, randomBoolean() ? null : randomIntBetween(1, 10));
         assertEquals(inputs, chunker.getChunkedInputs());
     }
 
@@ -37,9 +38,24 @@ public class RerankRequestChunkerTests extends ESTestCase {
         assertEquals(3, chunkedInputs.size());
     }
 
+    public void testGetChunkedInput_SingleInputWithChunkingRequiredWithMaxChunksPerDocLessThanTotalChunksGenerated() {
+        var inputs = List.of(generateTestText(100));
+        var maxChunksPerDoc = randomIntBetween(1, 2);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, maxChunksPerDoc);
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(maxChunksPerDoc, chunkedInputs.size());
+    }
+
+    public void testGetChunkedInput_SingleInputWithChunkingRequiredWithMaxChunksPerDocGreaterThanTotalChunksGenerated() {
+        var inputs = List.of(generateTestText(100));
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, randomIntBetween(4, 10));
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(3, chunkedInputs.size());
+    }
+
     public void testGetChunkedInput_MultipleInputsWithoutChunkingRequired() {
         var inputs = List.of(generateTestText(10), generateTestText(10));
-        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, randomBoolean() ? null : randomIntBetween(1, 10));
         assertEquals(inputs, chunker.getChunkedInputs());
     }
 
@@ -50,9 +66,39 @@ public class RerankRequestChunkerTests extends ESTestCase {
         assertEquals(4, chunkedInputs.size());
     }
 
+    public void testGetChunkedInput_MultipleInputsWithSomeChunkingRequiredWithMaxChunksPerDocLessThanTotalChunksGenerated() {
+        var inputs = List.of(generateTestText(10), generateTestText(100));
+        var maxChunksPerDoc = randomIntBetween(1, 2);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, maxChunksPerDoc);
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(1 + maxChunksPerDoc, chunkedInputs.size());
+    }
+
+    public void testGetChunkedInput_MultipleInputsWithSomeChunkingRequiredWithMaxChunksPerDocGreaterThanTotalChunksGenerated() {
+        var inputs = List.of(generateTestText(10), generateTestText(100));
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, randomIntBetween(3, 10));
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(4, chunkedInputs.size());
+    }
+
     public void testGetChunkedInput_MultipleInputsWithAllRequiringChunking() {
         var inputs = List.of(generateTestText(100), generateTestText(100));
         var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, null);
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(6, chunkedInputs.size());
+    }
+
+    public void testGetChunkedInput_MultipleInputsWithAllRequiringChunkingWithMaxChunksPerDocLessThanTotalChunksGenerated() {
+        var inputs = List.of(generateTestText(100), generateTestText(100));
+        var maxChunksPerDoc = randomIntBetween(1, 2);
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, maxChunksPerDoc);
+        var chunkedInputs = chunker.getChunkedInputs();
+        assertEquals(2 * maxChunksPerDoc, chunkedInputs.size());
+    }
+
+    public void testGetChunkedInput_MultipleInputsWithAllRequiringChunkingWithMaxChunksPerDocGreaterThanTotalChunksGenerated() {
+        var inputs = List.of(generateTestText(100), generateTestText(100));
+        var chunker = new RerankRequestChunker(TEST_SENTENCE, inputs, randomIntBetween(4, 10));
         var chunkedInputs = chunker.getChunkedInputs();
         assertEquals(6, chunkedInputs.size());
     }
@@ -125,6 +171,10 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(2, rankedDocResults.getRankedDocs().size());
+            assertThat(
+                rankedDocResults.getRankedDocs().get(0).relevanceScore(),
+                greaterThanOrEqualTo(rankedDocResults.getRankedDocs().get(1).relevanceScore())
+            );
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
         var chunkedInputs = chunker.getChunkedInputs();
@@ -132,8 +182,8 @@ public class RerankRequestChunkerTests extends ESTestCase {
         listener.onResponse(
             new RankedDocsResults(
                 List.of(
-                    new RankedDocsResults.RankedDoc(0, 1.0f, chunkedInputs.get(0)),
-                    new RankedDocsResults.RankedDoc(1, 1.0f, chunkedInputs.get(1))
+                    new RankedDocsResults.RankedDoc(0, randomFloatBetween(0, 1, true), chunkedInputs.get(0)),
+                    new RankedDocsResults.RankedDoc(1, randomFloatBetween(0, 1, true), chunkedInputs.get(1))
                 )
             )
         );
@@ -146,6 +196,10 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(2, rankedDocResults.getRankedDocs().size());
+            assertThat(
+                rankedDocResults.getRankedDocs().get(0).relevanceScore(),
+                greaterThanOrEqualTo(rankedDocResults.getRankedDocs().get(1).relevanceScore())
+            );
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
         var chunkedInputs = chunker.getChunkedInputs();
@@ -153,9 +207,9 @@ public class RerankRequestChunkerTests extends ESTestCase {
         listener.onResponse(
             new RankedDocsResults(
                 List.of(
-                    new RankedDocsResults.RankedDoc(0, 1.0f, chunkedInputs.get(0)),
-                    new RankedDocsResults.RankedDoc(1, 1.0f, chunkedInputs.get(1)),
-                    new RankedDocsResults.RankedDoc(2, 1.0f, chunkedInputs.get(2))
+                    new RankedDocsResults.RankedDoc(0, randomFloatBetween(0, 1, true), chunkedInputs.get(0)),
+                    new RankedDocsResults.RankedDoc(1, randomFloatBetween(0, 1, true), chunkedInputs.get(1)),
+                    new RankedDocsResults.RankedDoc(2, randomFloatBetween(0, 1, true), chunkedInputs.get(2))
                 )
             )
         );
@@ -168,6 +222,10 @@ public class RerankRequestChunkerTests extends ESTestCase {
             assertThat(results, instanceOf(RankedDocsResults.class));
             var rankedDocResults = (RankedDocsResults) results;
             assertEquals(2, rankedDocResults.getRankedDocs().size());
+            assertThat(
+                rankedDocResults.getRankedDocs().get(0).relevanceScore(),
+                greaterThanOrEqualTo(rankedDocResults.getRankedDocs().get(1).relevanceScore())
+            );
         }, e -> fail("Expected successful parsing but got failure: " + e)));
 
         var chunkedInputs = chunker.getChunkedInputs();
@@ -175,10 +233,10 @@ public class RerankRequestChunkerTests extends ESTestCase {
         listener.onResponse(
             new RankedDocsResults(
                 List.of(
-                    new RankedDocsResults.RankedDoc(0, 1.0f, chunkedInputs.get(0)),
-                    new RankedDocsResults.RankedDoc(1, 1.0f, chunkedInputs.get(1)),
-                    new RankedDocsResults.RankedDoc(2, 1.0f, chunkedInputs.get(2)),
-                    new RankedDocsResults.RankedDoc(3, 1.0f, chunkedInputs.get(3))
+                    new RankedDocsResults.RankedDoc(0, randomFloatBetween(0, 1, true), chunkedInputs.get(0)),
+                    new RankedDocsResults.RankedDoc(1, randomFloatBetween(0, 1, true), chunkedInputs.get(1)),
+                    new RankedDocsResults.RankedDoc(2, randomFloatBetween(0, 1, true), chunkedInputs.get(2)),
+                    new RankedDocsResults.RankedDoc(3, randomFloatBetween(0, 1, true), chunkedInputs.get(3))
                 )
             )
         );

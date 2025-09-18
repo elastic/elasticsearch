@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,35 +22,34 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.ELASTIC_RERANKER_CHUNKING;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 public class ElasticRerankerServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "elastic_reranker_service_settings";
 
-    private static final String LONG_DOCUMENT_HANDLING_STRATEGY = "long_document_handling_strategy";
-    private static final String MAX_CHUNKS_PER_DOC = "max_chunks_per_doc";
+    public static final String LONG_DOCUMENT_STRATEGY = "long_document_strategy";
+    public static final String MAX_CHUNKS_PER_DOC = "max_chunks_per_doc";
 
-    private final LongDocumentHandlingStrategy longDocumentHandlingStrategy;
+    private static final TransportVersion ELASTIC_RERANKER_CHUNKING_CONFIGURATION = TransportVersion.fromName(
+        "elastic_reranker_chunking_configuration"
+    );
+
+    private final LongDocumentStrategy longDocumentStrategy;
     private final Integer maxChunksPerDoc;
 
     public static ElasticRerankerServiceSettings defaultEndpointSettings() {
         return new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32));
     }
 
-    public ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings other) {
-        super(other);
-        this.longDocumentHandlingStrategy = null;
-        this.maxChunksPerDoc = null;
-    }
-
     public ElasticRerankerServiceSettings(
         ElasticsearchInternalServiceSettings other,
-        LongDocumentHandlingStrategy longDocumentHandlingStrategy,
+        LongDocumentStrategy longDocumentStrategy,
         Integer maxChunksPerDoc
     ) {
         super(other);
-        this.longDocumentHandlingStrategy = longDocumentHandlingStrategy;
+        this.longDocumentStrategy = longDocumentStrategy;
         this.maxChunksPerDoc = maxChunksPerDoc;
 
     }
@@ -61,15 +61,32 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
         AdaptiveAllocationsSettings adaptiveAllocationsSettings
     ) {
         super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, null);
-        this.longDocumentHandlingStrategy = null;
+        this.longDocumentStrategy = null;
         this.maxChunksPerDoc = null;
+    }
+
+    protected ElasticRerankerServiceSettings(
+        Integer numAllocations,
+        int numThreads,
+        String modelId,
+        AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+        LongDocumentStrategy longDocumentStrategy,
+        Integer maxChunksPerDoc
+    ) {
+        super(numAllocations, numThreads, modelId, adaptiveAllocationsSettings, null);
+        this.longDocumentStrategy = longDocumentStrategy;
+        this.maxChunksPerDoc = maxChunksPerDoc;
     }
 
     public ElasticRerankerServiceSettings(StreamInput in) throws IOException {
         super(in);
-        // TODO: Add transport version here
-        this.longDocumentHandlingStrategy = in.readOptionalEnum(LongDocumentHandlingStrategy.class);
-        this.maxChunksPerDoc = in.readOptionalInt();
+        if (in.getTransportVersion().supports(ELASTIC_RERANKER_CHUNKING_CONFIGURATION)) {
+            this.longDocumentStrategy = in.readOptionalEnum(LongDocumentStrategy.class);
+            this.maxChunksPerDoc = in.readOptionalInt();
+        } else {
+            this.longDocumentStrategy = null;
+            this.maxChunksPerDoc = null;
+        }
     }
 
     /**
@@ -85,38 +102,41 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
         ValidationException validationException = new ValidationException();
         var baseSettings = ElasticsearchInternalServiceSettings.fromMap(map, validationException);
 
-        LongDocumentHandlingStrategy longDocumentHandlingStrategy = extractOptionalEnum(
-            map,
-            LONG_DOCUMENT_HANDLING_STRATEGY,
-            ModelConfigurations.SERVICE_SETTINGS,
-            LongDocumentHandlingStrategy::fromString,
-            EnumSet.allOf(LongDocumentHandlingStrategy.class),
-            validationException
-        );
-
-        Integer maxChunksPerDoc = extractOptionalPositiveInteger(
-            map,
-            MAX_CHUNKS_PER_DOC,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
-
-        if (maxChunksPerDoc != null
-            && (longDocumentHandlingStrategy == null || longDocumentHandlingStrategy == LongDocumentHandlingStrategy.TRUNCATE)) {
-            validationException.addValidationError(
-                "The [" + MAX_CHUNKS_PER_DOC + "] setting requires [" + LONG_DOCUMENT_HANDLING_STRATEGY + "] to be set to [chunk]"
+        LongDocumentStrategy longDocumentStrategy = null;
+        Integer maxChunksPerDoc = null;
+        if (ELASTIC_RERANKER_CHUNKING.isEnabled()) {
+            longDocumentStrategy = extractOptionalEnum(
+                map,
+                LONG_DOCUMENT_STRATEGY,
+                ModelConfigurations.SERVICE_SETTINGS,
+                LongDocumentStrategy::fromString,
+                EnumSet.allOf(LongDocumentStrategy.class),
+                validationException
             );
+
+            maxChunksPerDoc = extractOptionalPositiveInteger(
+                map,
+                MAX_CHUNKS_PER_DOC,
+                ModelConfigurations.SERVICE_SETTINGS,
+                validationException
+            );
+
+            if (maxChunksPerDoc != null && (longDocumentStrategy == null || longDocumentStrategy == LongDocumentStrategy.TRUNCATE)) {
+                validationException.addValidationError(
+                    "The [" + MAX_CHUNKS_PER_DOC + "] setting requires [" + LONG_DOCUMENT_STRATEGY + "] to be set to [chunk]"
+                );
+            }
         }
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElasticRerankerServiceSettings(baseSettings.build(), longDocumentHandlingStrategy, maxChunksPerDoc);
+        return new ElasticRerankerServiceSettings(baseSettings.build(), longDocumentStrategy, maxChunksPerDoc);
     }
 
-    public LongDocumentHandlingStrategy getLongDocumentHandlingStrategy() {
-        return longDocumentHandlingStrategy;
+    public LongDocumentStrategy getLongDocumentStrategy() {
+        return longDocumentStrategy;
     }
 
     public Integer getMaxChunksPerDoc() {
@@ -126,17 +146,18 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // TODO: Add transport version here
-        out.writeOptionalEnum(longDocumentHandlingStrategy);
-        out.writeOptionalInt(maxChunksPerDoc);
+        if (out.getTransportVersion().supports(ELASTIC_RERANKER_CHUNKING_CONFIGURATION)) {
+            out.writeOptionalEnum(longDocumentStrategy);
+            out.writeOptionalInt(maxChunksPerDoc);
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         addInternalSettingsToXContent(builder, params);
-        if (longDocumentHandlingStrategy != null) {
-            builder.field(LONG_DOCUMENT_HANDLING_STRATEGY, longDocumentHandlingStrategy.strategyName);
+        if (longDocumentStrategy != null) {
+            builder.field(LONG_DOCUMENT_STRATEGY, longDocumentStrategy.strategyName);
         }
         if (maxChunksPerDoc != null) {
             builder.field(MAX_CHUNKS_PER_DOC, maxChunksPerDoc);
@@ -150,17 +171,17 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
         return ElasticRerankerServiceSettings.NAME;
     }
 
-    public enum LongDocumentHandlingStrategy {
+    public enum LongDocumentStrategy {
         CHUNK("chunk"),
         TRUNCATE("truncate");
 
         public final String strategyName;
 
-        LongDocumentHandlingStrategy(String strategyName) {
+        LongDocumentStrategy(String strategyName) {
             this.strategyName = strategyName;
         }
 
-        public static LongDocumentHandlingStrategy fromString(String name) {
+        public static LongDocumentStrategy fromString(String name) {
             return valueOf(name.trim().toUpperCase(Locale.ROOT));
         }
     }

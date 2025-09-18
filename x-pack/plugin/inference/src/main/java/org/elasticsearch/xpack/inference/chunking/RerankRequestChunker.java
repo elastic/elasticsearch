@@ -34,10 +34,7 @@ public class RerankRequestChunker {
         for (int i = 0; i < inputs.size(); i++) {
             var chunksForInput = chunker.chunk(inputs.get(i), chunkingSettings);
             if (maxChunksPerDoc != null && chunksForInput.size() > maxChunksPerDoc) {
-                var limitedChunks = chunksForInput.subList(0, maxChunksPerDoc - 1);
-                var lastChunk = limitedChunks.getLast();
-                limitedChunks.add(new Chunker.ChunkOffset(lastChunk.end(), inputs.get(i).length()));
-                chunksForInput = limitedChunks;
+                chunksForInput = chunksForInput.subList(0, maxChunksPerDoc);
             }
 
             for (var chunk : chunksForInput) {
@@ -53,7 +50,6 @@ public class RerankRequestChunker {
             chunkedInputs.add(chunk.chunkString());
         }
 
-        // TODO: Score the inputs here and only return the top N chunks for each document
         return chunkedInputs;
     }
 
@@ -69,8 +65,6 @@ public class RerankRequestChunker {
         }, listener::onFailure);
     }
 
-    // TODO: Can we assume the rankeddocsresults are always sorted by relevance score?
-    // TODO: Should we short circuit if no chunking was done?
     private RankedDocsResults parseRankedDocResultsForChunks(RankedDocsResults rankedDocsResults) {
         List<RankedDocsResults.RankedDoc> updatedRankedDocs = new ArrayList<>();
         Set<Integer> docIndicesSeen = new HashSet<>();
@@ -89,6 +83,7 @@ public class RerankRequestChunker {
                 docIndicesSeen.add(docIndex);
             }
         }
+        updatedRankedDocs.sort((r1, r2) -> Float.compare(r2.relevanceScore(), r1.relevanceScore()));
 
         return new RankedDocsResults(updatedRankedDocs);
     }

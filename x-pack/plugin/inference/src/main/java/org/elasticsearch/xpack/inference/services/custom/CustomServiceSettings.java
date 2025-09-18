@@ -365,6 +365,10 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return rateLimitSettings;
     }
 
+    public TextEmbeddingSettings getTextEmbeddingSettings() {
+        return textEmbeddingSettings;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

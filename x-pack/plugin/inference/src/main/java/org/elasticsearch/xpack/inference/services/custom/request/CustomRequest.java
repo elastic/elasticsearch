@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
+import org.elasticsearch.xpack.inference.services.custom.PredefinedServiceSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -49,6 +50,11 @@ public class CustomRequest implements Request {
         var jsonParams = new HashMap<String, String>();
         addJsonStringParams(jsonParams, model.getSecretSettings().getSecretParameters());
         addJsonStringParams(jsonParams, model.getTaskSettings().getParameters());
+
+        if (model.getServiceSettings() instanceof PredefinedServiceSettings predefinedServiceSettings) {
+            addStringParams(stringOnlyParams, predefinedServiceSettings.getParameters());
+            addJsonStringParams(jsonParams, predefinedServiceSettings.getParameters());
+        }
 
         jsonParams.putAll(requestParams.jsonParameters());
 

@@ -338,7 +338,7 @@ public class CustomService extends SenderService implements RerankingInferenceSe
         }
     }
 
-    private static CustomServiceSettings getCustomServiceSettings(CustomModel customModel, int embeddingSize) {
+    static CustomServiceSettings getCustomServiceSettings(CustomModel customModel, int embeddingSize) {
         var serviceSettings = customModel.getServiceSettings();
         var similarityFromModel = serviceSettings.similarity();
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;

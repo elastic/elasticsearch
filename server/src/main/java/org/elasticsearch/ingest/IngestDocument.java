@@ -1010,9 +1010,11 @@ public final class IngestDocument {
 
     /*
      * This returns the same information as getSourceAndMetadata(), but in an unmodifiable map that is safe to send into a script that is
-     * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map or List nested within it, an
+     * not supposed to be modifying the data. If an attempt is made to modify this Map, or a Map, List, or Set nested within it, an
      * UnsupportedOperationException is thrown. If an attempt is made to modify a byte[] within this Map, the attempt succeeds, but the
-     * results are not reflected on this IngestDocument.
+     * results are not reflected on this IngestDocument. If a user has put any other mutable Object into the IngestDocument, this method
+     * makes no attempt to make it immutable. This method just protects users against accidentally modifying the most common types of
+     * Objects found in IngestDocuments.
      */
     public Map<String, Object> getUnmodifiableSourceAndMetadata() {
         return new UnmodifiableIngestData(ctxMap);
@@ -1572,8 +1574,13 @@ public final class IngestDocument {
 
     @SuppressWarnings("unchecked")
     private static Object wrapUnmodifiable(Object raw) {
-        // Wraps all mutable types that the JSON parser can create by immutable wrappers.
-        // Any inputs not wrapped are assumed to be immutable
+        /*
+         * This method makes an attempt to make the raw Object and its children immutable, if it is one of a known set of classes. If raw
+         * is a Map, List, or Set, an immutable version will be returned, and an UnsupportedOperationException will be thrown if an attempt
+         * to modify it is made. All the Objects in those collections are also made unmodifiable by this method. If raw is a byte[], a copy
+         * of the byte[] will be returned so that changes to it will not be reflected in the original data. No exception will be thrown if
+         * a user modifies it though.
+         */
         if (raw instanceof Map<?, ?> rawMap) {
             return new UnmodifiableIngestData((Map<String, Object>) rawMap);
         } else if (raw instanceof List) {

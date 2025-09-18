@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -121,7 +122,7 @@ public class EnrichPolicyResolver {
         }
 
         doResolvePolicies(
-            executionInfo.getRunningClusterAliases().collect(toSet()),
+            executionInfo.clusterInfo.isEmpty() ? new HashSet<>() : executionInfo.getRunningClusterAliases().collect(toSet()),
             enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
             executionInfo,
             listener

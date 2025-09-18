@@ -644,8 +644,9 @@ public class EsqlSession {
                 );
             } else {
                 indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve, //
+                    indexExpressionToResolve,
                     result.fieldNames,
+                    // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
                     switch (preAnalysis.indexMode()) {
                         case IndexMode.TIME_SERIES -> {
                             var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());

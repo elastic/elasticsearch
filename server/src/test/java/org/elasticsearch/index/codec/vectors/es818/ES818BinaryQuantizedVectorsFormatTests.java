@@ -19,6 +19,8 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
@@ -102,6 +104,18 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
     @Override
     protected Codec getCodec() {
         return codec;
+    }
+
+    @Override
+    protected VectorSimilarityFunction randomSimilarity() {
+        return RandomPicks.randomFrom(
+            random(),
+            List.of(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                VectorSimilarityFunction.EUCLIDEAN,
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+            )
+        );
     }
 
     static String encodeInts(int[] i) {
@@ -251,9 +265,11 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     }
                     KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
 
+                    float[] scratch = new float[dims];
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
                         OptimizedScalarQuantizer.QuantizationResult corrections = quantizer.scalarQuantize(
                             vectorValues.vectorValue(docIndexIterator.index()),
+                            scratch,
                             quantizedVector,
                             (byte) 1,
                             centroid

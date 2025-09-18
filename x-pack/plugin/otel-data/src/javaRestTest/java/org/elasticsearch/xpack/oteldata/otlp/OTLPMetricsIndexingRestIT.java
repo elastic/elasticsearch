@@ -157,8 +157,8 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         ObjectPath search = search("metrics-generic.otel-default");
         assertThat(search.toString(), search.evaluate("hits.total.value"), equalTo(1));
         var source = search.evaluate("hits.hits.0._source");
-        assertThat(evaluate(source, "@timestamp"), equalTo(timestampAsString(now)));
-        assertThat(evaluate(source, "start_timestamp"), equalTo(timestampAsString(now)));
+        assertThat(Instant.parse(evaluate(source, "@timestamp")), equalTo(Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(now))));
+        assertThat(Instant.parse(evaluate(source, "start_timestamp")), equalTo(Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(now))));
         assertThat(evaluate(source, "_metric_names_hash"), isA(String.class));
         assertThat(ObjectPath.<Number>evaluate(source, "metrics.jvm\\.memory\\.total").longValue(), equalTo(totalMemory));
         assertThat(evaluate(source, "unit"), equalTo("By"));
@@ -411,10 +411,6 @@ public class OTLPMetricsIndexingRestIT extends ESRestTestCase {
         Map<String, Object> mapping = evaluate(mappings.values().iterator().next(), "mappings");
         assertThat(mapping, not(anEmptyMap()));
         return mapping;
-    }
-
-    private static String timestampAsString(long now) {
-        return Instant.ofEpochMilli(TimeUnit.NANOSECONDS.toMillis(now)).toString();
     }
 
     private void export(List<MetricData> metrics) throws Exception {

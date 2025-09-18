@@ -17,7 +17,6 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
-import org.apache.lucene.util.IOConsumer;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -31,7 +30,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -45,7 +43,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Semaphore;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -56,7 +55,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
-    private static final int PARALLEL_THREADS = 10;
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
@@ -402,35 +400,16 @@ public class CsvTestsDataLoader {
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-        List<TestDataset> datasets = availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled).stream()
-            .toList();
 
-        executeInParallel(datasets, dataset -> createIndex(client, dataset, indexCreator), "Failed to create indices in parallel");
-
-        executeInParallel(datasets, dataset -> loadData(client, dataset, logger), "Failed to load data in parallel");
-
-        forceMerge(client, datasets.stream().map(d -> d.indexName).collect(Collectors.toSet()), logger);
-
-        executeInParallel(
-            ENRICH_POLICIES,
-            policy -> loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger),
-            "Failed to load enrich policies in parallel"
-        );
-
-    }
-
-    private static <T> void executeInParallel(List<T> items, IOConsumer<T> consumer, String errorMessage) {
-        Semaphore semaphore = new Semaphore(PARALLEL_THREADS);
-        ESTestCase.runInParallel(items.size(), i -> {
-            try {
-                semaphore.acquire();
-                consumer.accept(items.get(i));
-            } catch (IOException | InterruptedException e) {
-                throw new RuntimeException(errorMessage, e);
-            } finally {
-                semaphore.release();
-            }
-        });
+        Set<String> loadedDatasets = new HashSet<>();
+        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
+            load(client, dataset, logger, indexCreator);
+            loadedDatasets.add(dataset.indexName);
+        }
+        forceMerge(client, loadedDatasets, logger);
+        for (var policy : ENRICH_POLICIES) {
+            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+        }
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
@@ -587,13 +566,11 @@ public class CsvTestsDataLoader {
         return result;
     }
 
-    private static void createIndex(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
+    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
-    }
 
-    private static void loadData(RestClient client, TestDataset dataset, Logger logger) throws IOException {
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
             URL data = getResource("/data/" + dataset.dataFileName);
@@ -637,6 +614,8 @@ public class CsvTestsDataLoader {
         }
     }
 
+    record ColumnHeader(String name, String type) {}
+
     @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -654,12 +633,13 @@ public class CsvTestsDataLoader {
      */
     private static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
         throws IOException {
+
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null
+            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
 
             while ((line = reader.readLine()) != null) {
@@ -669,15 +649,16 @@ public class CsvTestsDataLoader {
                     String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
                     // the schema row
                     if (columns == null) {
-                        columns = new String[entries.length];
+                        columns = new ColumnHeader[entries.length];
                         for (int i = 0; i < entries.length; i++) {
                             int split = entries[i].indexOf(':');
                             if (split < 0) {
-                                columns[i] = entries[i].trim();
+                                columns[i] = new ColumnHeader(entries[i].trim(), null);
                             } else {
                                 String name = entries[i].substring(0, split).trim();
+                                String type = entries[i].substring(split + 1).trim();
                                 if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = name;
+                                    columns[i] = new ColumnHeader(name, type);
                                 } else {// if it's a subfield, ignore it in the _bulk request
                                     columns[i] = null;
                                     subFieldsIndices.add(i);
@@ -707,7 +688,7 @@ public class CsvTestsDataLoader {
                                     // Value is null, skip
                                     continue;
                                 }
-                                if ("_id".equals(columns[i])) {
+                                if (columns[i] != null && "_id".equals(columns[i].name)) {
                                     // Value is an _id
                                     idField = entries[i];
                                     continue;
@@ -722,17 +703,17 @@ public class CsvTestsDataLoader {
                                     if (multiValues.length > 1) {
                                         StringBuilder rowStringValue = new StringBuilder("[");
                                         for (String s : multiValues) {
-                                            rowStringValue.append(quoteIfNecessary(s)).append(",");
+                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
                                         }
                                         // remove the last comma and put a closing bracket instead
                                         rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
                                         entries[i] = rowStringValue.toString();
                                     } else {
-                                        entries[i] = quoteIfNecessary(entries[i]);
+                                        entries[i] = toJson(columns[i].type, entries[i]);
                                     }
                                     // replace any escaped commas with single comma
                                     entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i]).append("\":").append(entries[i]);
+                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
                                 } catch (Exception e) {
                                     throw new IllegalArgumentException(
                                         format(
@@ -770,10 +751,23 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String quoteIfNecessary(String value) {
-        boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
-        boolean isNumeric = value.matches(NUMERIC_REGEX);
-        return isQuoted || isNumeric ? value : "\"" + value + "\"";
+    private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+
+    private static String toJson(String type, String value) {
+        return switch (type == null ? "" : type) {
+            case "date_range", "double_range", "integer_range" -> {
+                Matcher m = RANGE_PATTERN.matcher(value);
+                if (m.matches() == false) {
+                    throw new IllegalArgumentException("can't parse range: " + value);
+                }
+                yield "{\"gte\": \"" + m.group(1) + "\", \"lt\": \"" + m.group(2) + "\"}";
+            }
+            default -> {
+                boolean isQuoted = (value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("{") && value.endsWith("}"));
+                boolean isNumeric = value.matches(NUMERIC_REGEX);
+                yield isQuoted || isNumeric ? value : "\"" + value + "\"";
+            }
+        };
     }
 
     private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)

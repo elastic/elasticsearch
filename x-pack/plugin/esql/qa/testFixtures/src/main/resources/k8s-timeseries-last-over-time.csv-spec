@@ -106,6 +106,24 @@ tx:long | cluster:keyword | time_bucket:datetime
 238     | staging         | 2024-05-10T00:20:00.000Z
 ;
 
+implicit_last_over_time_with_inline_filtering
+required_capability: metrics_command
+required_capability: implicit_last_over_time
+TS k8s  | STATS tx = sum(network.bytes_in) WHERE pod == "one" BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
+
+tx:long | cluster:keyword | time_bucket:datetime
+3       | prod            | 2024-05-10T00:00:00.000Z
+830     | qa              | 2024-05-10T00:00:00.000Z
+753     | staging         | 2024-05-10T00:00:00.000Z
+542     | prod            | 2024-05-10T00:10:00.000Z
+187     | qa              | 2024-05-10T00:10:00.000Z
+4       | staging         | 2024-05-10T00:10:00.000Z
+931     | prod            | 2024-05-10T00:20:00.000Z
+206     | qa              | 2024-05-10T00:20:00.000Z
+238     | staging         | 2024-05-10T00:20:00.000Z
+;
+
+
 
 last_over_time_older_than_10d
 required_capability: metrics_command

@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -54,6 +55,8 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
@@ -63,6 +66,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MaxOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.MinOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SumOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SummationMode;
@@ -78,6 +83,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.Foldables
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -85,8 +91,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -109,6 +117,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -157,6 +166,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
@@ -711,10 +721,59 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return l;
         }
 
+        private List<Expression> resolveJoinFiltersAndSwapIfNeeded(
+            List<Expression> filters,
+            AttributeSet leftOutput,
+            AttributeSet rightOutput
+        ) {
+            if (filters.isEmpty()) {
+                return emptyList();
+            }
+            List<Attribute> childrenOutput = new ArrayList<>(leftOutput);
+            childrenOutput.addAll(rightOutput);
+
+            List<Expression> resolvedFilters = new ArrayList<>(filters.size());
+            for (Expression filter : filters) {
+                Expression filterResolved = filter.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
+                resolvedFilters.add(resolveAndOrientJoinCondition(filterResolved, leftOutput, rightOutput));
+            }
+            return resolvedFilters;
+        }
+
+        private Expression resolveAndOrientJoinCondition(Expression condition, AttributeSet leftOutput, AttributeSet rightOutput) {
+            if (condition instanceof EsqlBinaryComparison comp
+                && comp.left() instanceof Attribute leftAttr
+                && comp.right() instanceof Attribute rightAttr) {
+
+                boolean leftIsFromLeft = leftOutput.contains(leftAttr);
+                boolean rightIsFromRight = rightOutput.contains(rightAttr);
+
+                if (leftIsFromLeft && rightIsFromRight) {
+                    return comp; // Correct orientation
+                }
+
+                boolean leftIsFromRight = rightOutput.contains(leftAttr);
+                boolean rightIsFromLeft = leftOutput.contains(rightAttr);
+
+                if (leftIsFromRight && rightIsFromLeft) {
+                    return comp.swapLeftAndRight(); // Swapped orientation
+                }
+
+                // Invalid orientation (e.g., both from left or both from right)
+                throw new IllegalArgumentException(
+                    "Join condition must be between one attribute on the left side and "
+                        + "one attribute on the right side of the join, but found: "
+                        + condition.sourceText()
+                );
+            }
+            return condition; // Not a binary comparison between two attributes, no change needed.
+        }
+
         private Join resolveLookupJoin(LookupJoin join) {
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
+
             // rewrite the join into an equi-join between the field with the same name between left and right
             if (type instanceof UsingJoinType using) {
                 List<Attribute> cols = using.columns();
@@ -732,22 +791,46 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         name,
                         "Only LEFT join is supported with USING"
                     );
-                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
                 }
-                // resolve the using columns against the left and the right side then assemble the new join config
-                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
-                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                List<Attribute> leftKeys = new ArrayList<>();
+                List<Attribute> rightKeys = new ArrayList<>();
+                List<Expression> resolvedFilters = new ArrayList<>();
+                if (join.config().joinOnConditions() != null) {
+                    resolvedFilters = resolveJoinFiltersAndSwapIfNeeded(
+                        Predicates.splitAnd(join.config().joinOnConditions()),
+                        join.left().outputSet(),
+                        join.right().outputSet()
+                    );
+                    // build leftKeys and rightKeys using the correct side of the resolvedFilters.
+                    // resolveJoinFiltersAndSwapIfNeeded already put the left and right on the correct side
+                    for (Expression expression : resolvedFilters) {
+                        if (expression instanceof EsqlBinaryComparison binaryComparison
+                            && binaryComparison.left() instanceof Attribute leftAttribute
+                            && binaryComparison.right() instanceof Attribute rightAttribute) {
+                            leftKeys.add(leftAttribute);
+                            rightKeys.add(rightAttribute);
+                        } else {
+                            throw new IllegalArgumentException("Unsupported join filter expression: " + expression);
+                        }
+                    }
+                } else {
+                    // resolve the using columns against the left and the right side then assemble the new join config
+                    leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
+                    rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                }
 
-                config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
-                join = new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
+                config = new JoinConfig(coreJoin, leftKeys, rightKeys, Predicates.combineAnd(resolvedFilters));
+                return new LookupJoin(join.source(), join.left(), join.right(), config, join.isRemote());
             } else if (type != JoinTypes.LEFT) {
                 // everything else is unsupported for now
                 // LEFT can only happen by being mapped from a USING above. So we need to exclude this as well because this rule can be run
                 // more than once.
                 UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
                 // add error message
-                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), null));
             }
+
             return join;
         }
 
@@ -953,7 +1036,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
             }
 
-            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.options());
+            LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.fuseType(), fuse.options());
 
             // create aggregations
             Expression aggFilter = new Literal(source, true, DataType.BOOLEAN);
@@ -1366,15 +1449,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
             List<LogicalPlan> limits = logicalPlan.collectFirstChildren(Limit.class::isInstance);
+            // We check whether the query contains a TimeSeriesAggregate to determine if we should apply
+            // the default limit for TS queries or for non-TS queries.
+            boolean isTsAggregate = logicalPlan.collectFirstChildren(lp -> lp instanceof TimeSeriesAggregate)
+                .stream()
+                .toList()
+                .isEmpty() == false;
             int limit;
             if (limits.isEmpty()) {
-                HeaderWarning.addWarning(
-                    "No limit defined, adding default limit of [{}]",
-                    context.configuration().resultTruncationDefaultSize()
-                );
-                limit = context.configuration().resultTruncationDefaultSize(); // user provided no limit: cap to a default
+                limit = context.configuration().resultTruncationDefaultSize(isTsAggregate); // user provided no limit: cap to a
+                // default
+                if (isTsAggregate == false) {
+                    HeaderWarning.addWarning("No limit defined, adding default limit of [{}]", limit);
+                }
             } else {
-                limit = context.configuration().resultTruncationMaxSize(); // user provided a limit: cap result entries to the max
+                limit = context.configuration().resultTruncationMaxSize(isTsAggregate); // user provided a limit: cap result
+                                                                                        // entries to the max
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
@@ -1462,7 +1552,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return processIn(in);
             }
             if (f instanceof VectorFunction) {
-                return processVectorFunction(f);
+                return processVectorFunction(f, registry);
             }
             if (f instanceof EsqlScalarFunction || f instanceof GroupingFunction) { // exclude AggregateFunction until it is needed
                 return processScalarOrGroupingFunction(f, registry);
@@ -1675,22 +1765,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         @SuppressWarnings("unchecked")
-        private static Expression processVectorFunction(org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction) {
+        private static Expression processVectorFunction(
+            org.elasticsearch.xpack.esql.core.expression.function.Function vectorFunction,
+            EsqlFunctionRegistry registry
+        ) {
+            // Perform implicit casting for dense_vector from numeric and keyword values
             List<Expression> args = vectorFunction.arguments();
+            List<DataType> targetDataTypes = registry.getDataTypeForStringLiteralConversion(vectorFunction.getClass());
             List<Expression> newArgs = new ArrayList<>();
-            for (Expression arg : args) {
-                if (arg.resolved() && arg.dataType().isNumeric() && arg.foldable()) {
-                    Object folded = arg.fold(FoldContext.small() /* TODO remove me */);
-                    if (folded instanceof List) {
-                        // Convert to floats so blocks are created accordingly
-                        List<Float> floatVector;
-                        if (arg.dataType() == FLOAT) {
-                            floatVector = (List<Float>) folded;
-                        } else {
-                            floatVector = ((List<Number>) folded).stream().map(Number::floatValue).collect(Collectors.toList());
+            for (int i = 0; i < args.size(); i++) {
+                Expression arg = args.get(i);
+                if (targetDataTypes.get(i) == DENSE_VECTOR && arg.resolved()) {
+                    var dataType = arg.dataType();
+                    if (dataType == KEYWORD) {
+                        if (arg.foldable()) {
+                            Expression exp = castStringLiteral(arg, DENSE_VECTOR);
+                            if (exp != arg) {
+                                newArgs.add(exp);
+                                continue;
+                            }
                         }
-                        Literal denseVector = new Literal(arg.source(), floatVector, DataType.DENSE_VECTOR);
-                        newArgs.add(denseVector);
+                    } else if (dataType.isNumeric()) {
+                        newArgs.add(new ToDenseVector(vectorFunction.source(), arg));
                         continue;
                     }
                 }
@@ -1699,7 +1795,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             return vectorFunction.replaceChildren(newArgs);
         }
-
     }
 
     /**
@@ -2120,6 +2215,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
             if (aggFunc instanceof Avg || aggFunc instanceof AvgOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            if (aggFunc instanceof Present || aggFunc instanceof PresentOverTime) {
+                return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
+            }
+            if (aggFunc instanceof Absent || aggFunc instanceof AbsentOverTime) {
                 return AggregateMetricDoubleBlockBuilder.Metric.COUNT;
             }
             return null;

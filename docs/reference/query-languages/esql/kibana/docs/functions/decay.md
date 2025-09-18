@@ -4,5 +4,7 @@
 Calculates a relevance score that decays based on the distance of a numeric, spatial or date type value from a target origin, using configurable decay functions.
 
 ```esql
-null
+FROM employees
+| EVAL decay_result = decay(salary, 0, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
+| SORT decay_result DESC
 ```

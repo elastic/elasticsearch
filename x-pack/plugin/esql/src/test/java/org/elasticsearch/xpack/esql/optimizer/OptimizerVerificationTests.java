@@ -318,7 +318,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
     }
 
     public void testRemoteLookupJoinWithPipelineBreaker() {
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
         var analyzer = AnalyzerTestUtils.analyzer(loadMapping("mapping-default.json", "test,remote:test"));
         assertEquals(
             "1:92: LOOKUP JOIN with remote indices can't be executed after [STATS c = COUNT(*) by languages]@1:25",

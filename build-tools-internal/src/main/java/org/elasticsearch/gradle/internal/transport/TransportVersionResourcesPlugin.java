@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.transport;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -21,6 +23,7 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 import java.util.Properties;
+import java.util.function.Consumer;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
@@ -30,6 +33,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
         project.getPluginManager().apply(VersionPropertiesPlugin.class);
+        project.getPluginManager().apply(PrecommitTaskPlugin.class);
         var psService = project.getPlugins().apply(ProjectSubscribeServicePlugin.class).getService();
 
         Properties versions = (Properties) project.getExtensions().getByName(VersionPropertiesPlugin.VERSIONS_EXT);
@@ -67,7 +71,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getShouldValidateDensity().convention(true);
                 t.getShouldValidatePrimaryIdNotPatch().convention(true);
             });
-        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
+        project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
@@ -79,15 +83,27 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
 
+        Consumer<GenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
+            t.setGroup(taskGroup);
+            t.getReferencesFiles().setFrom(tvReferencesConfig);
+            t.getIncrement().convention(1000);
+            t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
+        };
+
         var generateDefinitionsTask = project.getTasks()
-            .register("generateTransportVersionDefinition", GenerateTransportVersionDefinitionTask.class, t -> {
-                t.setGroup(taskGroup);
+            .register("generateTransportVersion", GenerateTransportVersionDefinitionTask.class, t -> {
+                generationConfiguration.accept(t);
                 t.setDescription("(Re)generates a transport version definition file");
-                t.getReferencesFiles().setFrom(tvReferencesConfig);
-                t.getIncrement().convention(1000);
-                t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
             });
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
+
+        var resolveConflictTask = project.getTasks()
+            .register("resolveTransportVersionConflict", GenerateTransportVersionDefinitionTask.class, t -> {
+                generationConfiguration.accept(t);
+                t.setDescription("Resolve merge conflicts in transport version internal state files");
+                t.getResolveConflict().set(true);
+            });
+        validateTask.configure(t -> t.mustRunAfter(resolveConflictTask));
 
         var generateInitialTask = project.getTasks()
             .register("generateInitialTransportVersion", GenerateInitialTransportVersionTask.class, t -> {

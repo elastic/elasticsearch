@@ -19,6 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +35,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
     public record ClientManagers(HttpClientManager externalHttpClientManager, HttpClientManager eisMtlsHttpClientManager) {}
 
     private final ClientManagers managers;
+    private final InferenceEndpointRegistry inferenceEndpointRegistry;
 
     @Inject
     public TransportGetInferenceDiagnosticsAction(
@@ -41,7 +43,8 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        ClientManagers managers
+        ClientManagers managers,
+        InferenceEndpointRegistry inferenceEndpointRegistry
     ) {
         super(
             GetInferenceDiagnosticsAction.NAME,
@@ -53,6 +56,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         );
 
         this.managers = Objects.requireNonNull(managers);
+        this.inferenceEndpointRegistry = Objects.requireNonNull(inferenceEndpointRegistry);
     }
 
     @Override
@@ -79,7 +83,22 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         return new GetInferenceDiagnosticsAction.NodeResponse(
             transportService.getLocalNode(),
             managers.externalHttpClientManager().getPoolStats(),
-            managers.eisMtlsHttpClientManager().getPoolStats()
+            managers.eisMtlsHttpClientManager().getPoolStats(),
+            cacheStats()
         );
+    }
+
+    private GetInferenceDiagnosticsAction.NodeResponse.Stats cacheStats() {
+        if (inferenceEndpointRegistry.cacheEnabled()) {
+            var stats = inferenceEndpointRegistry.stats();
+            return new GetInferenceDiagnosticsAction.NodeResponse.Stats(
+                inferenceEndpointRegistry.cacheCount(),
+                stats.getHits(),
+                stats.getMisses(),
+                stats.getEvictions()
+            );
+        } else {
+            return null;
+        }
     }
 }

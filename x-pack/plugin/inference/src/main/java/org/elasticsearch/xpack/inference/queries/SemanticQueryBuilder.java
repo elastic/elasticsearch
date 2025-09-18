@@ -127,12 +127,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
             );
         } else if (in.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
-            this.inferenceResultsMap = convertInferenceResultsMap(
+            this.inferenceResultsMap = convertFromBwcInferenceResultsMap(
                 in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
             );
         } else {
             InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
-            this.inferenceResultsMap = inferenceResults != null ? buildBwcInferenceResultsMap(inferenceResults) : null;
+            this.inferenceResultsMap = inferenceResults != null ? buildSingleResultInferenceResultsMap(inferenceResults) : null;
             in.readBoolean(); // Discard noInferenceResults, it is no longer necessary
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
@@ -295,7 +295,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         );
     }
 
-    static Map<FullyQualifiedInferenceId, InferenceResults> convertInferenceResultsMap(Map<String, InferenceResults> inferenceResultsMap) {
+    static Map<FullyQualifiedInferenceId, InferenceResults> convertFromBwcInferenceResultsMap(
+        Map<String, InferenceResults> inferenceResultsMap
+    ) {
         Map<FullyQualifiedInferenceId, InferenceResults> converted = null;
         if (inferenceResultsMap != null) {
             converted = Collections.unmodifiableMap(
@@ -313,7 +315,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResults The inference result
      * @return An inference results map
      */
-    static Map<FullyQualifiedInferenceId, InferenceResults> buildBwcInferenceResultsMap(InferenceResults inferenceResults) {
+    static Map<FullyQualifiedInferenceId, InferenceResults> buildSingleResultInferenceResultsMap(InferenceResults inferenceResults) {
         return Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID), inferenceResults);
     }
 
@@ -324,7 +326,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResultsMap The inference results map
      * @return The inference result
      */
-    private static InferenceResults getBwcInferenceResults(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+    private static InferenceResults getSingleInferenceResult(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         return inferenceResultsMap.get(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID));
     }
 
@@ -368,7 +370,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
 
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
-            InferenceResults inferenceResults = getBwcInferenceResults(inferenceResultsMap);
+            InferenceResults inferenceResults = getSingleInferenceResult(inferenceResultsMap);
             if (inferenceResults == null) {
                 inferenceResults = inferenceResultsMap.get(
                     new FullyQualifiedInferenceId(searchExecutionContext.getLocalClusterAlias(), inferenceId)

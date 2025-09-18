@@ -41,7 +41,7 @@ import java.util.Set;
 import static org.elasticsearch.TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
-import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertInferenceResultsMap;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
 
 /**
  * <p>
@@ -79,7 +79,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
             );
         } else {
-            this.inferenceResultsMap = convertInferenceResultsMap(
+            this.inferenceResultsMap = convertFromBwcInferenceResultsMap(
                 in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
             );
         }

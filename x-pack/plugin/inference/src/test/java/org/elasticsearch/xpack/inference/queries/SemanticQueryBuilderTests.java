@@ -427,7 +427,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 fieldName,
                 query,
                 null,
-                SemanticQueryBuilder.buildBwcInferenceResultsMap(inferenceResults)
+                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults)
             );
 
             QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);

@@ -2,4 +2,5 @@ pr: 134941
 summary: "Streams: Adjust `max_age` for tiny retentions"
 area: Data streams
 type: enhancement
-issues: []
+issues:
+ - 130960

@@ -9,6 +9,9 @@
 
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.hppc.LongArrayDeque;
+import com.carrotsearch.hppc.LongDeque;
+
 import org.apache.lucene.store.IndexInput;
 
 import java.io.Closeable;
@@ -20,9 +23,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayDeque;
 import java.util.Arrays;
-import java.util.Deque;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -119,8 +120,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         // check if our current buffer already contains the requested range
         final long absPos = pos + offset;
         final long alignedPos = absPos - (absPos % blockSize);
-        final int delta = (int) (absPos - alignedPos);
-        prefetcher.prefetch(alignedPos, length + delta);
+        // we only prefetch into a single buffer, even if length exceeds buffer size
+        // maybe we should improve this...
+        prefetcher.prefetch(alignedPos);
     }
 
     @Override
@@ -135,11 +137,6 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     @Override
     public long getFilePointer() {
         long filePointer = filePos + buffer.position() - offset;
-
-        // opening the input and immediately calling getFilePointer without calling readX (and thus
-        // refill) first,
-        // will result in negative value equal to bufferSize being returned,
-        // due to the initialization method filePos = -bufferSize used in constructor.
         assert filePointer == -buffer.capacity() - offset || filePointer >= 0
             : "filePointer should either be initial value equal to negative buffer capacity, or larger than or equal to 0";
         return Math.max(filePointer, 0);
@@ -169,6 +166,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     }
 
     private void refill(int bytesToRead) throws IOException {
+        assert filePos % blockSize == 0;
         refill(bytesToRead, 0);
     }
 
@@ -190,11 +188,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             // when filePos > channel.size(), an EOFException will be thrown from above
             // we failed, log stacktrace to figure out why
             channel.read(buffer, filePos);
+            buffer.flip();
+            buffer.position(delta);
         } catch (IOException ioe) {
             throw new IOException(ioe.getMessage() + ": " + this, ioe);
         }
-        buffer.flip();
-        buffer.position(delta);
     }
 
     @Override
@@ -329,8 +327,6 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         return new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
     }
 
-    record PrefetchReq(long pos, long length) {}
-
     private class DirectIOPrefetcher implements Closeable {
         private final int maxConcurrentPrefetches;
         private final int maxTotalPrefetches;
@@ -341,7 +337,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         private final ByteBuffer[] prefetchBuffers;
         private final IOException[] prefetchExceptions;
         private final int prefetchBytesSize;
-        private final Deque<PrefetchReq> pendingPrefetches = new ArrayDeque<>();
+        private final LongDeque pendingPrefetches = new LongArrayDeque();
         private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
         DirectIOPrefetcher(int prefetchBytesSize, int maxConcurrentPrefetches, int maxTotalPrefetches) {
@@ -363,35 +359,24 @@ public class AsyncDirectIOIndexInput extends IndexInput {
          * Initiate prefetch of the given range. The range will be aligned to blockSize and
          * chopped up into chunks of prefetchBytesSize.
          * @param pos
-         * @param length
-         * @throws IOException
          */
-        void prefetch(long pos, long length) throws IOException {
-            if (pos < 0 || length < 0 || pos + length > channel.size()) {
-                throw new IllegalArgumentException("Invalid prefetch range: pos=" + pos + ", length=" + length);
-            }
-            if (length > buffer.capacity()) {
-                throw new IllegalArgumentException(
-                    "Invalid prefetch length: length="
-                        + length
-                        + ", maxLength="
-                        + buffer.capacity()
-                        + ", pos="
-                        + pos
-                        + ", fileLength="
-                        + channel.size()
-                );
-            }
+        void prefetch(long pos) {
             // we must iterate and chop up the pos and length if length exceeds maxPrefetchBytesSize
             // we should just queue up the prefetch requests if we are at maxConcurrentPrefetches
             final int slot;
+            Integer existingSlot = this.posToSlot.get(pos);
+            if (existingSlot != null && prefetchThreads[existingSlot] != null) {
+                // already being prefetched and hasn't been consumed.
+                // return early
+                return;
+            }
             if (this.posToSlot.size() < maxConcurrentPrefetches && slots.size() > 0) {
                 slot = slots.removeFirst();
                 posToSlot.put(pos, slot);
                 prefetchPos[slot] = pos;
             } else {
                 slot = -1;
-                pendingPrefetches.addLast(new PrefetchReq(pos, length));
+                pendingPrefetches.addLast(pos);
             }
             if (slot != -1) {
                 startPrefetch(pos, slot);
@@ -399,14 +384,14 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
 
         boolean readBytes(long pos, ByteBuffer slice, int delta) throws IOException {
-            final var entry = this.posToSlot.floorEntry(pos);
+            final var entry = this.posToSlot.floorEntry(pos + delta);
             if (entry == null) {
                 return false;
             }
             final int slot = entry.getValue();
             final long prefetchedPos = entry.getKey();
             // determine if the requested pos is within the prefetched range
-            if (pos >= this.prefetchPos[slot] + prefetchBytesSize) {
+            if (pos + delta >= prefetchedPos + prefetchBytesSize) {
                 return false;
             }
             final Future<?> thread = prefetchThreads[slot];
@@ -433,23 +418,23 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             // our buffer sizes are uniform, and match the required buffer size, however, the position here
             // might be before the requested pos, so offset it
             slice.put(prefetchBuffers[slot]);
+            slice.flip();
             slice.position(Math.toIntExact(pos - prefetchedPos) + delta);
             clearSlotAndMaybeStartPending(slot);
             return true;
         }
 
         void clearSlotAndMaybeStartPending(int slot) {
-            final PrefetchReq req;
             prefetchExceptions[slot] = null;
             prefetchThreads[slot] = null;
             posToSlot.remove(prefetchPos[slot]);
-            req = pendingPrefetches.pollFirst();
-            if (req == null) {
+            if (pendingPrefetches.isEmpty()) {
                 slots.addLast(slot);
                 return;
             }
-            posToSlot.put(req.pos, slot);
-            startPrefetch(req.pos, slot);
+            final long req = pendingPrefetches.removeFirst();
+            posToSlot.put(req, slot);
+            startPrefetch(req, slot);
         }
 
         void startPrefetch(long pos, int slot) {

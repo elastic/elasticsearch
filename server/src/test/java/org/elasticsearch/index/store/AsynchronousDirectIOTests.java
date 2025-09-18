@@ -10,41 +10,124 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AsynchronousDirectIOTests extends ESTestCase {
 
-    public void testWriteThenReadBytes() throws IOException {
-        byte[] bytes = new byte[8192 * 16 + 1];
-        random().nextBytes(bytes);
+    public void testPrefetchEdgeCase() throws IOException {
+        byte[] bytes = new byte[8192 * 32 + randomIntBetween(1, 8192)];
+        int offset = 84;
+        float[] vectorActual = new float[768];
+        int[] toSeek = new int[] { 1, 2, 3, 5, 6, 9, 11, 14, 15, 16, 18, 23, 24, 25, 26, 29, 30, 31 };
+        int byteSize = 768 * 4;
         Path path = createTempDir("testDirectIODirectory");
+        int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
+        int bufferSize = 8192;
+        random().nextBytes(bytes);
         try (Directory dir = new NIOFSDirectory(path)) {
             try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
                 output.writeBytes(bytes, bytes.length);
             }
+            try (
+                AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(
+                    path.resolve("test"),
+                    blockSize,
+                    bufferSize,
+                    toSeek.length + 1
+                );
+            ) {
+                IndexInput actualSlice = actualInput.slice("vectors", offset, bytes.length - offset);
+                for (int seek : toSeek) {
+                    actualSlice.prefetch(seek * byteSize, byteSize);
+                }
+                for (int seek : toSeek) {
+                    actualSlice.seek(seek * byteSize);
+                    actualSlice.readFloats(vectorActual, 0, vectorActual.length);
+                    assertEquals("mismatch at seek: " + seek, (seek + 1) * byteSize, actualSlice.getFilePointer());
+                }
+            }
         }
+    }
+
+    public void testWriteThenReadBytes() throws IOException {
+        byte[] bytes = new byte[8192 * 8 + randomIntBetween(1, 8192)];
+        random().nextBytes(bytes);
+        Path path = createTempDir("testDirectIODirectory");
         int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
-        try (AsyncDirectIOIndexInput input = new AsyncDirectIOIndexInput(path.resolve("test"), blockSize, 1024 * 4, 4)) {
-            int chunkSize = randomIntBetween(1, 8192);
-            byte[] readBytes = new byte[bytes.length];
-            int read = 0;
-            int prefetched = 0;
-            while (prefetched < bytes.length) {
-                int toPrefetch = Math.min(chunkSize, bytes.length - prefetched);
-                input.prefetch(prefetched, toPrefetch);
-                prefetched += toPrefetch;
+        int bufferSize = 1024 * 4;
+        List<Integer> seeks = new ArrayList<>();
+        int lastSeek = 0;
+        seeks.add(0);
+        while (lastSeek < bytes.length) {
+            int nextSeek = randomIntBetween(lastSeek, Math.min(lastSeek + bufferSize, bytes.length - 1));
+            seeks.add(nextSeek);
+            lastSeek = nextSeek + 1;
+        }
+        try (Directory dir = new NIOFSDirectory(path)) {
+            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
+                output.writeBytes(bytes, bytes.length);
             }
-            while (read < bytes.length) {
-                int toRead = Math.min(chunkSize, bytes.length - read);
-                input.readBytes(readBytes, read, toRead);
-                read += toRead;
+            try (
+                AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(
+                    path.resolve("test"),
+                    blockSize,
+                    bufferSize,
+                    seeks.size()
+                );
+                IndexInput expectedInput = dir.openInput("test", org.apache.lucene.store.IOContext.DEFAULT)
+            ) {
+                assert expectedInput instanceof AsyncDirectIOIndexInput == false;
+                byte[] actualBytes = new byte[bufferSize / 2];
+                byte[] expectedBytes = new byte[bufferSize / 2];
+                int prevSeek = 0;
+                for (int j = 1; j < seeks.size(); j++) {
+                    actualInput.seek(prevSeek);
+                    expectedInput.seek(prevSeek);
+                    int seek = seeks.get(j);
+                    int toRead = Math.min(actualBytes.length, bytes.length - prevSeek);
+                    expectedInput.readBytes(expectedBytes, 0, toRead);
+                    actualInput.readBytes(actualBytes, 0, toRead);
+                    prevSeek = seek;
+                    assertArrayEquals(expectedBytes, actualBytes);
+                }
             }
-            assertArrayEquals(bytes, readBytes);
+
+            try (
+                AsyncDirectIOIndexInput actualPretchingInput = new AsyncDirectIOIndexInput(
+                    path.resolve("test"),
+                    blockSize,
+                    bufferSize,
+                    seeks.size()
+                );
+                IndexInput expectedInput = dir.openInput("test", org.apache.lucene.store.IOContext.DEFAULT)
+            ) {
+                assert expectedInput instanceof AsyncDirectIOIndexInput == false;
+                byte[] actualBytes = new byte[bufferSize / 2];
+                byte[] expectedBytes = new byte[bufferSize / 2];
+                for (int seek : seeks) {
+                    // always prefetch just a page
+                    actualPretchingInput.prefetch(seek, 1);
+                }
+                int prevSeek = 0;
+                for (int j = 1; j < seeks.size(); j++) {
+                    actualPretchingInput.seek(prevSeek);
+                    expectedInput.seek(prevSeek);
+                    int seek = seeks.get(j);
+                    int toRead = Math.min(actualBytes.length, bytes.length - prevSeek);
+                    actualPretchingInput.readBytes(actualBytes, 0, toRead);
+                    expectedInput.readBytes(expectedBytes, 0, toRead);
+                    prevSeek = seek;
+                    assertArrayEquals(expectedBytes, actualBytes);
+                }
+            }
         }
     }
 

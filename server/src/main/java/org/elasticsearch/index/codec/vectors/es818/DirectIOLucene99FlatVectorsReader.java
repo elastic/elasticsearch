@@ -430,6 +430,13 @@ public class DirectIOLucene99FlatVectorsReader extends FlatVectorsReader impleme
                             }
                             for (int j = 0; j < bulkSize; j++) {
                                 float[] vector = inner.vectorValue(buffer.docs[i + j]);
+                                assert inputSlice.getFilePointer() == (buffer.docs[i + j] + 1l) * byteSize
+                                    : "file pointer mismatch at doc="
+                                        + buffer.docs[i + j]
+                                        + " fp="
+                                        + inputSlice.getFilePointer()
+                                        + " expected="
+                                        + ((buffer.docs[i + j] + 1l) * byteSize);
                                 buffer.features[i + j] = similarityFunction.compare(vector, target);
                                 if (buffer.features[i + j] > maxScore) {
                                     maxScore = buffer.features[i + j];

@@ -702,13 +702,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             final ReentrantLock lock = this.lock;
             lock.lock();
             try {
-                Tuple<E, Long> head;
-                while ((head = enqueuedByBudget.peek()) != null) {
-                    E item = head.v1();
+                for (Iterator<Tuple<E, Long>> iterator = enqueuedByBudget.iterator(); iterator.hasNext();) {
+                    var next = iterator.next();
+                    E item = next.v1();
                     if (predicate.test(item)) {
-                        var polled = enqueuedByBudget.poll();
-                        assert polled != null;
-                        assert polled.v1() == item;
+                        iterator.remove();
                         c.add(item);
                         removed++;
                     }

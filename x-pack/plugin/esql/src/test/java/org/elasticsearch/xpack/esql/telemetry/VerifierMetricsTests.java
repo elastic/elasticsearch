@@ -496,7 +496,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testInlinestatsStandalone() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V12.isEnabled());
         Counters c = esql("""
             from employees
             | inlinestats max(salary) by gender
@@ -522,7 +522,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testInlinestatsWithOtherStats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V12.isEnabled());
         Counters c = esql("""
             from employees
             | inlinestats m = max(salary) by gender
@@ -575,7 +575,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testBinaryPlanAfterInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V12.isEnabled());
         Counters c = esql("""
             from employees
             | eval language_code = languages

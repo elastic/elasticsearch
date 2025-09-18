@@ -988,7 +988,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V11(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V12(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -1511,7 +1511,7 @@ public class EsqlCapabilities {
         ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
         /** INLINESTATS supports remote indices */
-        INLINESTATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+        INLINESTATS_SUPPORTS_REMOTE(INLINESTATS_V12.enabled),
 
         /**
          * Support TS command in non-snapshot builds

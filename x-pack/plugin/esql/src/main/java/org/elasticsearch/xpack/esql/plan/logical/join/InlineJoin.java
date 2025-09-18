@@ -147,10 +147,20 @@ public class InlineJoin extends Join {
         // Collect the first inlinejoin (bottom up in the tree)
         optimizedPlan.forEachUp(InlineJoin.class, ij -> {
             // extract the right side of the plan and replace its source
-            if (subPlan.get() == null && ij.right().anyMatch(p -> p instanceof StubRelation)) {
-                var p = replaceStub(ij.left(), ij.right());
-                p.setOptimized();
-                subPlan.set(new LogicalPlanTuple(p, ij.right()));
+            if (subPlan.get() == null) {
+                if (ij.right().anyMatch(p -> p instanceof StubRelation)) {
+                    var p = replaceStub(ij.left(), ij.right());
+                    p.setOptimized();
+                    subPlan.set(new LogicalPlanTuple(p, ij.right()));
+                } else if (ij.right() instanceof LocalRelation == false && ij.right().anyMatch(p -> p instanceof LocalRelation)) {
+                    // In case the plan was optimized further and the StubRelation was replaced with a LocalRelation
+                    // there is no need to replace the source of the right-hand side since it's not needed anymore
+                    // The source itself is the plan that was optimized to a LocalRelation.
+                    // This plan still needs to be executed though so that in the end is a single-node sub-tree with LocalRelation with data
+                    var p = ij.right();
+                    p.setOptimized();
+                    subPlan.set(new LogicalPlanTuple(p, ij.right()));
+                }
             }
         });
         return subPlan.get();

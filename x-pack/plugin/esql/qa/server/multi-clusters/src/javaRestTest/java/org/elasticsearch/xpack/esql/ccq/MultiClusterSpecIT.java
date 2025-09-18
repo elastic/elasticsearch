@@ -119,6 +119,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         "LookupJoinOnTwoFieldsMultipleTimes",
         // Lookup join after LIMIT is not supported in CCS yet
         "LookupJoinAfterLimitAndRemoteEnrich",
+        "LookupJoinExpressionAfterLimitAndRemoteEnrich",
         // Lookup join after FORK is not support in CCS yet
         "ForkBeforeLookupJoin"
     );
@@ -173,11 +174,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 hasCapabilities(adminClient(), List.of(ENABLE_FORK_FOR_REMOTE_INDICES.capabilityName()))
             );
         }
-    }
-
-    @Override
-    protected boolean supportTimeSeriesCommand() {
-        return false;
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

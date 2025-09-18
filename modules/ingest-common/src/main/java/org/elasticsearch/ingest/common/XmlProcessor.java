@@ -422,12 +422,13 @@ public final class XmlProcessor extends AbstractProcessor {
             Map<String, Object> namespaceConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "namespaces");
             if (namespaceConfig != null) {
                 for (Map.Entry<String, Object> entry : namespaceConfig.entrySet()) {
-                    if (entry.getValue() instanceof String str) {
-                        namespaces.put(entry.getKey(), str);
+                    String prefix = entry.getKey();
+                    if (entry.getValue() instanceof String namespace) {
+                        namespaces.put(prefix, namespace);
                     } else {
                         throw new IllegalArgumentException(
                             "Namespace prefix ["
-                                + entry.getKey()
+                                + prefix
                                 + "] must have a string URI, got ["
                                 + entry.getValue().getClass().getSimpleName()
                                 + "]"
@@ -441,13 +442,14 @@ public final class XmlProcessor extends AbstractProcessor {
             Map<String, Object> xpathConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "xpath");
             if (xpathConfig != null) {
                 for (Map.Entry<String, Object> entry : xpathConfig.entrySet()) {
-                    if (entry.getValue() instanceof String str) {
-                        xpathExpressions.put(entry.getKey(), str);
+                    String xpathExpression = entry.getKey();
+                    if (entry.getValue() instanceof String xpathTargetField) {
+                        xpathExpressions.put(xpathExpression, xpathTargetField);
                     } else {
                         throw new IllegalArgumentException(
-                            "XPath target field ["
-                                + entry.getKey()
-                                + "] must be a string, got ["
+                            "XPath ["
+                                + xpathExpression
+                                + "] target field must be a string, got ["
                                 + entry.getValue().getClass().getSimpleName()
                                 + "]"
                         );

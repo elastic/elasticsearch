@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,11 +30,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Configuration for sampling raw documents in an index.
  *
- * rate (required): The fraction of documents to sample (between 0 and 1).
- * maxSamples (optional): The maximum number of documents to sample.
- * maxSize (optional): The maximum total size of sampled documents.
- * timeToLive (optional): The duration for which the sampled documents should be retained.
- * condition (optional): An optional condition that sampled documents must satisfy.
+ * @param rate The fraction of documents to sample (between 0 and 1)
+ * @param maxSamples The maximum number of documents to sample (optional)
+ * @param maxSize The maximum total size of sampled documents (optional)
+ * @param timeToLive The duration for which the sampled documents should be retained (optional)
+ * @param condition An optional condition that sampled documents must satisfy (optional)
  */
 public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
     implements
@@ -43,9 +44,11 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     public static final String TYPE = "sampling_configuration";
     private static final String RATE_FIELD_NAME = "rate";
     private static final String MAX_SAMPLES_FIELD_NAME = "max_samples";
+    private static final String MAX_SIZE_IN_BYTES_FIELD_NAME = "max_size_in_bytes";
     private static final String MAX_SIZE_FIELD_NAME = "max_size";
+    private static final String TIME_TO_LIVE_IN_MILLIS_FIELD_NAME = "time_to_live_in_millis";
     private static final String TIME_TO_LIVE_FIELD_NAME = "time_to_live";
-    private static final String CONDITION_FIELD_NAME = "condition";
+    private static final String CONDITION_FIELD_NAME = "if";
 
     // Constants for validation and defaults
     public static final int MAX_SAMPLES_LIMIT = 10_000;
@@ -82,20 +85,27 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME),
-            new org.elasticsearch.xcontent.ParseField(MAX_SIZE_FIELD_NAME),
-            org.elasticsearch.xcontent.ObjectParser.ValueType.STRING
+            new ParseField(MAX_SIZE_FIELD_NAME),
+            ObjectParser.ValueType.STRING
         );
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME),
-            new org.elasticsearch.xcontent.ParseField(TIME_TO_LIVE_FIELD_NAME),
-            org.elasticsearch.xcontent.ObjectParser.ValueType.STRING
+            new ParseField(TIME_TO_LIVE_FIELD_NAME),
+            ObjectParser.ValueType.STRING
         );
-        PARSER.declareStringOrNull(optionalConstructorArg(), new org.elasticsearch.xcontent.ParseField(CONDITION_FIELD_NAME));
+        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
     }
 
-    /*
+    /**
      * Constructor with validation and defaulting for optional fields.
+     *
+     * @param rate The fraction of documents to sample (must be between 0 and 1)
+     * @param maxSamples The maximum number of documents to sample (optional, defaults to {@link #DEFAULT_MAX_SAMPLES})
+     * @param maxSize The maximum total size of sampled documents (optional, defaults to {@link #DEFAULT_MAX_SIZE_GIGABYTES} GB)
+     * @param timeToLive The duration for which the sampled documents should be retained (optional, defaults to {@link #DEFAULT_TIME_TO_LIVE_DAYS} days)
+     * @param condition An optional condition that sampled documents must satisfy (optional, can be null)
+     * @throws IllegalArgumentException If any of the parameters are invalid, according to the validation rules
      */
     public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
@@ -113,7 +123,12 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         this.condition = condition;
     }
 
-    // StreamInput constructor
+    /**
+     * Constructs a SamplingConfiguration from a StreamInput for wire protocol deserialization.
+     *
+     * @param in The StreamInput to read from
+     * @throws IOException If an I/O error occurs during deserialization
+     */
     public SamplingConfiguration(StreamInput in) throws IOException {
         this(
             in.readDouble(),
@@ -143,10 +158,10 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
             builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
         }
         if (maxSize != null) {
-            builder.field(MAX_SIZE_FIELD_NAME, maxSize.toString());
+            builder.humanReadableField(MAX_SIZE_IN_BYTES_FIELD_NAME, MAX_SIZE_FIELD_NAME, maxSize.getBytes());
         }
         if (timeToLive != null) {
-            builder.field(TIME_TO_LIVE_FIELD_NAME, timeToLive.toString());
+            builder.humanReadableField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME, TIME_TO_LIVE_FIELD_NAME, timeToLive.millis());
         }
         if (condition != null && condition.isEmpty() == false) {
             builder.field(CONDITION_FIELD_NAME, condition);
@@ -155,11 +170,24 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         return builder;
     }
 
-    // Deserialize from XContent (JSON)
+    /**
+     * Parses a SamplingConfiguration from XContent (JSON).
+     *
+     * @param parser The XContentParser to parse from
+     * @return The parsed SamplingConfiguration object
+     * @throws IOException If parsing fails due to invalid JSON or I/O errors
+     */
     public static SamplingConfiguration fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
+    /**
+     * Creates a diff reader for SamplingConfiguration objects that can deserialize diffs from wire protocol.
+     *
+     * @param in The StreamInput to read the diff from
+     * @return A Diff that can be applied to produce the target SamplingConfiguration
+     * @throws IOException If an I/O error occurs during deserialization
+     */
     public static Diff<SamplingConfiguration> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(SamplingConfiguration::new, in);
     }

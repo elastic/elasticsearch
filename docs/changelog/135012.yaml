@@ -1,6 +1,6 @@
 pr: 135012
 summary: Bypass MMap arena grouping as this has caused issues with too many regions
   being mapped
-area: "Distributed, Infra/Core, Search"
+area: "Engine"
 type: bug
 issues: []

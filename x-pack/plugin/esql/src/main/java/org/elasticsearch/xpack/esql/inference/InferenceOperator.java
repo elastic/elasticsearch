@@ -128,7 +128,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
     protected abstract OutputBuilder outputBuilder(Page input);
 
     /**
-     * An interface for accumulating inference responses and constructing the result page..
+     * An interface for accumulating inference responses and constructing a result {@link Page}.
      */
     public interface OutputBuilder extends Releasable {
 

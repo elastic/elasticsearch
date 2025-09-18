@@ -310,7 +310,9 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.sort("@timestamp");
-            searchSourceBuilder.query(new BoostingQueryBuilder(new RangeQueryBuilder("@timestamp").from("2021-11-11"), new MatchAllQueryBuilder()));
+            searchSourceBuilder.query(
+                new BoostingQueryBuilder(new RangeQueryBuilder("@timestamp").from("2021-11-11"), new MatchAllQueryBuilder())
+            );
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
                 searchRequest.indices()

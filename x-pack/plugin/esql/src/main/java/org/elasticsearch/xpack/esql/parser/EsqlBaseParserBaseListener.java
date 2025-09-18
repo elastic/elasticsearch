@@ -841,13 +841,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  @Override public void enterInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  @Override public void exitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *

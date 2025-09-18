@@ -67,6 +67,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         // TS-command tests
         "time-series .* the first aggregation .* is not allowed",
         "count_star .* can't be used with TS command",
+        "time_series aggregate.* can only be used with the TS command",
         "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
         "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block", // https://github.com/elastic/elasticsearch/issues/134793
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794

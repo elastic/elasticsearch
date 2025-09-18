@@ -1988,6 +1988,7 @@ null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chir
 ;
 
 prunedInlinestatsFollowedByinlinestats
+required_capability: inline_stats
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,

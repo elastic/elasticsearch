@@ -290,8 +290,18 @@ public final class SearchRequestAttributesExtractor {
                 break;
             case RangeQueryBuilder range:
                 switch (range.fieldName()) {
-                    case TIMESTAMP -> queryMetadataBuilder.rangeOnTimestamp = true;
-                    case EVENT_INGESTED -> queryMetadataBuilder.rangeOnEventIngested = true;
+                    // don't track unbounded ranges, they translate to either match_none if the field does not exist
+                    // or match_all if the field is mapped
+                    case TIMESTAMP -> {
+                        if (range.to() != null || range.from() != null) {
+                            queryMetadataBuilder.rangeOnTimestamp = true;
+                        }
+                    }
+                    case EVENT_INGESTED -> {
+                        if (range.to() != null || range.from() != null) {
+                            queryMetadataBuilder.rangeOnEventIngested = true;
+                        }
+                    }
                 }
                 break;
             case KnnVectorQueryBuilder knn:

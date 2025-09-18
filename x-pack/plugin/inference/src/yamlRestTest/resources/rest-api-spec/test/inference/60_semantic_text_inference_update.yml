@@ -77,7 +77,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -102,7 +103,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -127,7 +129,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -150,7 +153,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -177,7 +181,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -200,7 +205,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -252,7 +258,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -281,7 +288,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -318,7 +326,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -413,7 +422,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -446,7 +456,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -507,7 +518,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -538,7 +550,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -607,7 +620,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -668,7 +682,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -710,7 +725,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -767,7 +783,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -800,7 +817,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -845,7 +863,8 @@ setup:
       search:
         index: test-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -922,7 +941,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -974,7 +994,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 
@@ -1013,7 +1034,8 @@ setup:
       search:
         index: test-copy-to-index
         body:
-          fields: [ _inference_fields ]
+          _source:
+            exclude_vectors: false
           query:
             match_all: { }
 

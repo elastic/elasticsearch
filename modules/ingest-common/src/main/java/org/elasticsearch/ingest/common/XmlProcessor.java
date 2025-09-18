@@ -417,25 +417,6 @@ public final class XmlProcessor extends AbstractProcessor {
             boolean forceContent = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "force_content", false);
             boolean forceArray = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "force_array", false);
 
-            // Parse XPath expressions map
-            Map<String, String> xpathExpressions = new HashMap<>();
-            Map<String, Object> xpathConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "xpath");
-            if (xpathConfig != null) {
-                for (Map.Entry<String, Object> entry : xpathConfig.entrySet()) {
-                    if (entry.getValue() instanceof String str) {
-                        xpathExpressions.put(entry.getKey(), str);
-                    } else {
-                        throw new IllegalArgumentException(
-                            "XPath target field ["
-                                + entry.getKey()
-                                + "] must be a string, got ["
-                                + entry.getValue().getClass().getSimpleName()
-                                + "]"
-                        );
-                    }
-                }
-            }
-
             // Parse namespaces map
             Map<String, String> namespaces = new HashMap<>();
             Map<String, Object> namespaceConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "namespaces");
@@ -448,6 +429,25 @@ public final class XmlProcessor extends AbstractProcessor {
                             "Namespace prefix ["
                                 + entry.getKey()
                                 + "] must have a string URI, got ["
+                                + entry.getValue().getClass().getSimpleName()
+                                + "]"
+                        );
+                    }
+                }
+            }
+
+            // Parse XPath expressions map
+            Map<String, String> xpathExpressions = new HashMap<>();
+            Map<String, Object> xpathConfig = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "xpath");
+            if (xpathConfig != null) {
+                for (Map.Entry<String, Object> entry : xpathConfig.entrySet()) {
+                    if (entry.getValue() instanceof String str) {
+                        xpathExpressions.put(entry.getKey(), str);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "XPath target field ["
+                                + entry.getKey()
+                                + "] must be a string, got ["
                                 + entry.getValue().getClass().getSimpleName()
                                 + "]"
                         );

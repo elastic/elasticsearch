@@ -129,9 +129,9 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            rewritten = querySemanticTextField(indexMetadataContext, semanticTextFieldType);
+            rewritten = querySemanticTextField(indexMetadataContext.getLocalClusterAlias(), semanticTextFieldType);
         } else {
-            rewritten = queryNonSemanticTextField(indexMetadataContext);
+            rewritten = queryNonSemanticTextField(indexMetadataContext.getLocalClusterAlias());
         }
 
         return rewritten;
@@ -166,10 +166,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
         return modelId;
     }
 
-    private QueryBuilder querySemanticTextField(
-        QueryRewriteContext indexMetadataContext,
-        SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType
-    ) {
+    private QueryBuilder querySemanticTextField(String clusterAlias, SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
         MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
@@ -185,7 +182,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 inferenceId = semanticTextFieldType.getSearchInferenceId();
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(indexMetadataContext.getLocalClusterAlias(), inferenceId);
+            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(clusterAlias, inferenceId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 
@@ -205,7 +202,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
             .queryName(originalQuery.queryName());
     }
 
-    private QueryBuilder queryNonSemanticTextField(QueryRewriteContext indexMetadataContext) {
+    private QueryBuilder queryNonSemanticTextField(String clusterAlias) {
         VectorData queryVector = originalQuery.queryVector();
         if (queryVector == null) {
             String modelId = getQueryVectorBuilderModelId();
@@ -216,7 +213,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
                 throw new IllegalStateException("No query vector or query vector builder model ID specified");
             }
 
-            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(indexMetadataContext.getLocalClusterAlias(), modelId);
+            MlTextEmbeddingResults textEmbeddingResults = getTextEmbeddingResults(clusterAlias, modelId);
             queryVector = new VectorData(textEmbeddingResults.getInferenceAsFloat());
         }
 

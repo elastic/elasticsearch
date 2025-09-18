@@ -111,9 +111,9 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            rewritten = querySemanticTextField(indexMetadataContext, semanticTextFieldType);
+            rewritten = querySemanticTextField(indexMetadataContext.getLocalClusterAlias(), semanticTextFieldType);
         } else {
-            rewritten = queryNonSemanticTextField(indexMetadataContext);
+            rewritten = queryNonSemanticTextField(indexMetadataContext.getLocalClusterAlias());
         }
 
         return rewritten;
@@ -138,10 +138,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
         return originalQuery.getFieldName();
     }
 
-    private QueryBuilder querySemanticTextField(
-        QueryRewriteContext indexMetadataContext,
-        SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType
-    ) {
+    private QueryBuilder querySemanticTextField(String clusterAlias, SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
         MinimalServiceSettings modelSettings = semanticTextFieldType.getModelSettings();
         if (modelSettings == null) {
             // No inference results have been indexed yet
@@ -157,7 +154,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
                 inferenceId = semanticTextFieldType.getSearchInferenceId();
             }
 
-            queryVector = getQueryVector(indexMetadataContext.getLocalClusterAlias(), inferenceId);
+            queryVector = getQueryVector(clusterAlias, inferenceId);
         }
 
         SparseVectorQueryBuilder innerSparseVectorQuery = new SparseVectorQueryBuilder(
@@ -174,7 +171,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
             .queryName(originalQuery.queryName());
     }
 
-    private QueryBuilder queryNonSemanticTextField(QueryRewriteContext indexMetadataContext) {
+    private QueryBuilder queryNonSemanticTextField(String clusterAlias) {
         List<WeightedToken> queryVector = originalQuery.getQueryVectors();
         if (queryVector == null) {
             String inferenceId = originalQuery.getInferenceId();
@@ -182,7 +179,7 @@ public class InterceptedInferenceSparseVectorQueryBuilder extends InterceptedInf
                 throw new IllegalArgumentException("Either query vector or inference ID must be specified");
             }
 
-            queryVector = getQueryVector(indexMetadataContext.getLocalClusterAlias(), inferenceId);
+            queryVector = getQueryVector(clusterAlias, inferenceId);
         }
 
         return new SparseVectorQueryBuilder(

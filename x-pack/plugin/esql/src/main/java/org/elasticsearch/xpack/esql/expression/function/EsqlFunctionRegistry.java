@@ -502,7 +502,7 @@ public class EsqlFunctionRegistry {
                 def(Match.class, tri(Match::new), "match"),
                 def(MultiMatch.class, MultiMatch::new, "multi_match"),
                 def(QueryString.class, bi(QueryString::new), "qstr"),
-                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase")},
+                def(MatchPhrase.class, tri(MatchPhrase::new), "match_phrase") },
             // time-series functions
             new FunctionDefinition[] {
                 def(Rate.class, uni(Rate::new), "rate"),
@@ -517,13 +517,13 @@ public class EsqlFunctionRegistry {
                 def(AbsentOverTime.class, uni(AbsentOverTime::new), "absent_over_time"),
                 def(AvgOverTime.class, uni(AvgOverTime::new), "avg_over_time"),
                 def(LastOverTime.class, uni(LastOverTime::new), "last_over_time"),
-                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time")}};
+                def(FirstOverTime.class, uni(FirstOverTime::new), "first_over_time") } };
 
     }
 
     private static FunctionDefinition[][] snapshotFunctions() {
-        return new FunctionDefinition[][]{
-            new FunctionDefinition[]{
+        return new FunctionDefinition[][] {
+            new FunctionDefinition[] {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),

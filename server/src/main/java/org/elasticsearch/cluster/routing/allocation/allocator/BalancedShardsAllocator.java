@@ -114,6 +114,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
     private final BalancingWeightsFactory balancingWeightsFactory;
+    private final NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory;
 
     public BalancedShardsAllocator() {
         this(Settings.EMPTY);
@@ -124,18 +125,28 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     public BalancedShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
-        this(balancerSettings, writeLoadForecaster, new GlobalBalancingWeightsFactory(balancerSettings));
+        this(
+            balancerSettings,
+            writeLoadForecaster,
+            new GlobalBalancingWeightsFactory(balancerSettings),
+            // We need to default to no-op here because there are lots of tests
+            // that depend on not returning after a single move
+            // TODO: default to NODE_INTERLEAVED or similar
+            NonPreferredShardIteratorFactory.NOOP
+        );
     }
 
     @Inject
     public BalancedShardsAllocator(
         BalancerSettings balancerSettings,
         WriteLoadForecaster writeLoadForecaster,
-        BalancingWeightsFactory balancingWeightsFactory
+        BalancingWeightsFactory balancingWeightsFactory,
+        NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
     ) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
+        this.nonPreferredShardIteratorFactory = nonPreferredShardIteratorFactory;
     }
 
     @Override
@@ -152,13 +163,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return;
         }
         final BalancingWeights balancingWeights = balancingWeightsFactory.create();
-        final Balancer balancer = new Balancer(writeLoadForecaster, allocation, balancerSettings.getThreshold(), balancingWeights);
-        balancer.allocateUnassigned();
-        balancer.moveShards();
-        balancer.balance();
+        final Balancer balancer = new Balancer(
+            writeLoadForecaster,
+            allocation,
+            balancerSettings.getThreshold(),
+            balancingWeights,
+            nonPreferredShardIteratorFactory
+        );
 
-        // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
-        collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
+        try {
+            balancer.allocateUnassigned();
+            if (balancer.moveNonPreferred()) {
+                return;
+            }
+            balancer.moveShards();
+            balancer.balance();
+        } finally {
+            // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
+            collectAndRecordNodeWeightStats(balancer, balancingWeights, allocation);
+        }
     }
 
     private void collectAndRecordNodeWeightStats(Balancer balancer, BalancingWeights balancingWeights, RoutingAllocation allocation) {
@@ -188,7 +211,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             writeLoadForecaster,
             allocation,
             balancerSettings.getThreshold(),
-            balancingWeightsFactory.create()
+            balancingWeightsFactory.create(),
+            nonPreferredShardIteratorFactory
         );
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
@@ -248,12 +272,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelNode> nodes;
         private final BalancingWeights balancingWeights;
         private final NodeSorters nodeSorters;
+        private final NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
             float threshold,
-            BalancingWeights balancingWeights
+            BalancingWeights balancingWeights,
+            NonPreferredShardIteratorFactory nonPreferredShardIteratorFactory
         ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
@@ -266,6 +292,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             nodes = Collections.unmodifiableMap(buildModelFromAssigned());
             this.nodeSorters = balancingWeights.createNodeSorters(nodesArray(), this);
             this.balancingWeights = balancingWeights;
+            this.nonPreferredShardIteratorFactory = nonPreferredShardIteratorFactory;
         }
 
         private static long getShardDiskUsageInBytes(ShardRouting shardRouting, IndexMetadata indexMetadata, ClusterInfo clusterInfo) {
@@ -709,6 +736,89 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }.sort(0, deltas.length);
 
             return indices;
+        }
+
+        /**
+         * Move a started shard in a non-preferred allocation
+         *
+         * @return true if a shard was moved, false otherwise
+         */
+        private boolean moveNonPreferred() {
+            for (ShardRouting shardRouting : nonPreferredShardIteratorFactory.createNonPreferredShardIterator(allocation)) {
+                ProjectIndex index = projectIndex(shardRouting);
+                final MoveDecision moveDecision = decideMoveNonPreferred(index, shardRouting);
+                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                    final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+                    final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
+                    sourceNode.removeShard(index, shardRouting);
+                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+                        shardRouting,
+                        targetNode.getNodeId(),
+                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "non-preferred",
+                        allocation.changes()
+                    );
+                    final ShardRouting shard = relocatingShards.v2();
+                    targetNode.addShard(projectIndex(shard), shard);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+                    }
+                    return true;
+                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
+                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Makes a decision on whether to move a started shard to another node. The following rules apply
+         * to the {@link MoveDecision} return object:
+         *   1. If the shard is not started, no decision will be taken and {@link MoveDecision#isDecisionTaken()} will return false.
+         *   2. If the shard's current allocation is preferred ({@link Decision.Type#YES}), no attempt will be made to move the shard and
+         *      {@link MoveDecision#getCanRemainDecision} will have a decision type of YES. All other fields in the object will be null.
+         *   3. If the shard is not allowed ({@link Decision.Type#NO}), or not preferred ({@link Decision.Type#NOT_PREFERRED}) to remain
+         *      on its current node, then {@link MoveDecision#getAllocationDecision()} will be populated with the decision of moving to
+         *      another node. If {@link MoveDecision#forceMove()} returns {@code true}, then {@link MoveDecision#getTargetNode} will return
+         *      a non-null value representing a node that returned {@link Decision.Type#YES} from canAllocate, otherwise the assignedNodeId
+         *      will be null.
+         *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
+         *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
+         */
+        public MoveDecision decideMoveNonPreferred(final ProjectIndex index, final ShardRouting shardRouting) {
+            NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
+            index.assertMatch(shardRouting);
+
+            if (shardRouting.started() == false) {
+                // we can only move started shards
+                return MoveDecision.NOT_TAKEN;
+            }
+
+            final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+            assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
+            RoutingNode routingNode = sourceNode.getRoutingNode();
+            Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+            if (canRemain.type() != Type.NOT_PREFERRED && canRemain.type() != Type.NO) {
+                return MoveDecision.remain(canRemain);
+            }
+
+            sorter.reset(index);
+            /*
+             * the sorter holds the minimum weight node first for the shards index.
+             * We now walk through the nodes until we find a node to allocate the shard.
+             * This is not guaranteed to be balanced after this operation we still try best effort to
+             * allocate on the minimal eligible node.
+             */
+            return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocatePreferredOnly);
+        }
+
+        private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {
+            Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+            // not-preferred means no here
+            if (decision.type() == Type.NOT_PREFERRED) {
+                return Decision.NO;
+            }
+            return decision;
         }
 
         /**

@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.FoldInferenceFunctions;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.PreOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -22,14 +23,11 @@ import java.util.List;
  * </p>
  */
 public class LogicalPlanPreOptimizer {
-
-    private final LogicalPreOptimizerContext preOptimizerContext;
+    private final List<PreOptimizerRule> preOptimizerRules;
 
     public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
-        this.preOptimizerContext = preOptimizerContext;
+        preOptimizerRules = List.of(new FoldInferenceFunctions(preOptimizerContext));
     }
-
-    private static final List<Rule> RULES = List.of();
 
     /**
      * Pre-optimize a logical plan.
@@ -49,28 +47,17 @@ public class LogicalPlanPreOptimizer {
         }));
     }
 
+    /**
+     * Loop over the rules and apply them sequentially to the logical plan.
+     *
+     * @param plan     the analyzed logical plan to pre-optimize
+     * @param listener the listener returning the pre-optimized plan when pre-optimization is complete
+     */
     private void doPreOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        SubscribableListener<LogicalPlan> ruleChainListener = SubscribableListener.newSucceeded(plan);
-        for (Rule rule : RULES) {
-            ruleChainListener = ruleChainListener.andThen((l, p) -> rule.apply(p, l));
+        SubscribableListener<LogicalPlan> rulesListener = SubscribableListener.newSucceeded(plan);
+        for (PreOptimizerRule preOptimizerRule : preOptimizerRules) {
+            rulesListener = rulesListener.andThen((l, p) -> preOptimizerRule.apply(p, l));
         }
-        ruleChainListener.addListener(listener);
-    }
-
-    public interface Rule {
-        void apply(LogicalPlan plan, ActionListener<LogicalPlan> listener);
-    }
-
-    private static class FoldInferenceFunction implements Rule {
-        private final InferenceFunctionEvaluator inferenceEvaluator;
-
-        private FoldInferenceFunction(LogicalPreOptimizerContext preOptimizerContext) {
-            this.inferenceEvaluator = new InferenceFunctionEvaluator(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService());
-        }
-
-        @Override
-        public void apply(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-
-        }
+        rulesListener.addListener(listener);
     }
 }

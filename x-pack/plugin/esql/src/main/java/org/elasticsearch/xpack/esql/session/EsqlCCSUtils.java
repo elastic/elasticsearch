@@ -323,10 +323,10 @@ public class EsqlCCSUtils {
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        IndexPattern pattern,
+        IndexPattern indexPattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (pattern == null) {
+        if (indexPattern == null) {
             return;
         }
         try {
@@ -335,7 +335,7 @@ public class EsqlCCSUtils {
                 // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                pattern.indexPattern()
+                indexPattern.indexPattern()
             );
 
             executionInfo.clusterInfoInitializing(true);

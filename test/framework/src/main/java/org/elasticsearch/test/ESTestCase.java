@@ -223,10 +223,9 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -819,12 +818,20 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // Tolerate the absence or otherwise denial of these specific lookup classes.
     // At some future time, we should require the JDNI warning.
-    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
-        "JNDI lookup class is not available because this JRE does not support JNDI. "
-            + "JNDI string lookups will not be available, continuing configuration.",
-        "JMX runtime input lookup class is not available because this JRE does not support JMX. "
-            + "JMX lookups will not be available, continuing configuration. ",
-        "The use of package scanning to locate Log4j plugins is deprecated."
+    private static final Matcher<String> LOG_4J_MSG_PREFIXES = anyOf(
+        startsWith(
+            "JNDI lookup class is not available because this JRE does not support JNDI. "
+                + "JNDI string lookups will not be available, continuing configuration."
+        ),
+        startsWith(
+            "JMX runtime input lookup class is not available because this JRE does not support JMX. "
+                + "JMX lookups will not be available, continuing configuration. "
+        ),
+        // TODO migrate to annotation processor https://github.com/elastic/elasticsearch/issues/135022
+        startsWith("The use of package scanning to locate Log4j plugins is deprecated."),
+        startsWith("Some custom `Core` Log4j plugins are not properly registered"),
+        startsWith("Some custom `Converter` Log4j plugins are not properly registered"),
+        startsWith("No Root logger was configured, creating default ERROR-level Root logger with Console appender")
     );
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
@@ -835,15 +842,11 @@ public abstract class ESTestCase extends LuceneTestCase {
             try {
                 // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
                 // StatusData instances to Strings as otherwise their toString output is useless
-                assertThat(
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    anyOf(
-                        emptyCollectionOf(String.class),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1))),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(2)))
-                    )
-                );
+                List<String> collect = statusData.stream()
+                    .map(status -> status.getMessage().getFormattedMessage())
+                    .collect(Collectors.toList());
+
+                assertThat(collect, everyItem(LOG_4J_MSG_PREFIXES));
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();

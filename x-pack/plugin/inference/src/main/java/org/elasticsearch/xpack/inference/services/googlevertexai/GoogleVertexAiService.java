@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -264,32 +265,45 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
             listener.onFailure(createInvalidModelException(model));
             return;
         }
-        var chatCompletionModel = (GoogleVertexAiChatCompletionModel) model;
-        var updatedChatCompletionModel = GoogleVertexAiChatCompletionModel.of(chatCompletionModel, inputs.getRequest());
-        GenericRequestManager<UnifiedChatInput> manager;
+        var updatedChatCompletionModel = GoogleVertexAiChatCompletionModel.of(
+            (GoogleVertexAiChatCompletionModel) model,
+            inputs.getRequest()
+        );
+        try {
+            var manager = createRequestManager(updatedChatCompletionModel);
+            var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
+            var action = new SenderExecutableAction(getSender(), manager, errorMessage);
+            action.execute(inputs, timeout, listener);
+        } catch (ElasticsearchException e) {
+            listener.onFailure(e);
+        }
+    }
 
-        switch (updatedChatCompletionModel.getServiceSettings().provider()) {
-            case ANTHROPIC -> manager = new GenericRequestManager<>(
-                getServiceComponents().threadPool(),
-                updatedChatCompletionModel,
-                GOOGLE_MODEL_GARDEN_ANTHROPIC_CHAT_COMPLETION_HANDLER,
-                unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, updatedChatCompletionModel),
-                UnifiedChatInput.class
-            );
-            case GOOGLE -> manager = new GenericRequestManager<>(
-                getServiceComponents().threadPool(),
-                updatedChatCompletionModel,
-                GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
-                unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, updatedChatCompletionModel),
-                UnifiedChatInput.class
-            );
-            default -> throw new IllegalStateException(
-                "Unsupported Google Model Garden provider: " + updatedChatCompletionModel.getServiceSettings().provider()
+    private GenericRequestManager<UnifiedChatInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
+        switch (model.getServiceSettings().provider()) {
+            case ANTHROPIC -> {
+                return createRequestManagerWithHandler(model, GOOGLE_MODEL_GARDEN_ANTHROPIC_CHAT_COMPLETION_HANDLER);
+            }
+            case GOOGLE -> {
+                return createRequestManagerWithHandler(model, GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER);
+            }
+            case null, default -> throw new ElasticsearchException(
+                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
             );
         }
-        var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
-        var action = new SenderExecutableAction(getSender(), manager, errorMessage);
-        action.execute(inputs, timeout, listener);
+    }
+
+    private GenericRequestManager<UnifiedChatInput> createRequestManagerWithHandler(
+        GoogleVertexAiChatCompletionModel model,
+        ResponseHandler responseHandler
+    ) {
+        return new GenericRequestManager<>(
+            getServiceComponents().threadPool(),
+            model,
+            responseHandler,
+            unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
+            UnifiedChatInput.class
+        );
     }
 
     @Override

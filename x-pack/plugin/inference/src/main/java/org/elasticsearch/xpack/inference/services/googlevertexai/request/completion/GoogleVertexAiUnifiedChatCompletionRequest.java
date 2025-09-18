@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.request.comple
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,16 +41,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         HttpPost httpPost = new HttpPost(uri);
 
         ToXContentObject requestEntity;
-        switch (model.getServiceSettings().provider()) {
-            case ANTHROPIC -> requestEntity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
-            case GOOGLE -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
-                unifiedChatInput,
-                model.getTaskSettings().thinkingConfig()
-            );
-            default -> throw new IllegalStateException(
-                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
-            );
-        }
+        requestEntity = createRequestEntity();
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -58,6 +50,20 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
 
         decorateWithAuth(httpPost);
         return new HttpRequest(httpPost, getInferenceEntityId());
+    }
+
+    private ToXContentObject createRequestEntity() {
+        switch (model.getServiceSettings().provider()) {
+            case ANTHROPIC -> {
+                return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
+            }
+            case GOOGLE -> {
+                return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());
+            }
+            case null, default -> throw new ElasticsearchException(
+                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
+            );
+        }
     }
 
     public void decorateWithAuth(HttpPost httpPost) {

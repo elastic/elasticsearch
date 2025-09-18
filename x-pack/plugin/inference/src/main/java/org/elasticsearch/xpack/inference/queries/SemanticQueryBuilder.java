@@ -247,7 +247,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                     modifiedInferenceResultsMap = true;
                 }
 
-                registerInferenceAsyncAction(queryRewriteContext, currentInferenceResultsMap, query, inferenceId);
+                registerInferenceAsyncAction(
+                    queryRewriteContext,
+                    ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
+                    query,
+                    inferenceId
+                );
             }
         }
 
@@ -256,7 +261,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     static void registerInferenceAsyncAction(
         QueryRewriteContext queryRewriteContext,
-        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         String query,
         String inferenceId
     ) {

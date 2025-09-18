@@ -132,18 +132,24 @@ public class InferenceFunctionEvaluator {
         driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
             Page output = inferenceOperator.getOutput();
 
-            if (output == null) {
-                l.onFailure(new IllegalStateException("Expected output page from inference operator"));
-                return;
-            }
+            try {
+                if (output == null) {
+                    l.onFailure(new IllegalStateException("Expected output page from inference operator"));
+                    return;
+                }
 
-            if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
-                l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
-                return;
-            }
+                if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
+                    l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
+                    return;
+                }
 
-            // Convert the operator result back to an ESQL expression (Literal)
-            l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
+                // Convert the operator result back to an ESQL expression (Literal)
+                l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
+            } finally {
+                if (output != null) {
+                    output.releaseBlocks();
+                }
+            }
         }));
 
         // Feed the operator with a single page to trigger execution
@@ -193,7 +199,7 @@ public class InferenceFunctionEvaluator {
      * Creates an expression evaluator factory for a foldable expression.
      * <p>
      * This method converts a foldable expression into an evaluator factory that can be used by inference
-     * operators. The expression is first folded to its constant value and then wrapped in a literal.
+     * operators. The expressionis first folded to its constant value and then wrapped in a literal.
      *
      * @param e the foldable expression to create an evaluator factory for
      * @return an expression evaluator factory for the given expression

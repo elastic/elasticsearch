@@ -9,8 +9,8 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -67,7 +67,6 @@ public class LongDoubleBucketedSort implements Releasable {
      */
     private LongArray values;
     private DoubleArray extraValues;
-
 
     public LongDoubleBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
@@ -380,7 +379,13 @@ public class LongDoubleBucketedSort implements Releasable {
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex), extraValues.get(worstIndex), extraValues.get(rightIndex))) {
+                if (rightChild < heapSize
+                    && betterThan(
+                        values.get(worstIndex),
+                        values.get(rightIndex),
+                        extraValues.get(worstIndex),
+                        extraValues.get(rightIndex)
+                    )) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

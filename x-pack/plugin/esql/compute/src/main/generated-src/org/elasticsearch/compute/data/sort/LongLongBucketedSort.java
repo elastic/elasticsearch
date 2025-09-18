@@ -68,7 +68,6 @@ public class LongLongBucketedSort implements Releasable {
     private LongArray values;
     private LongArray extraValues;
 
-
     public LongLongBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
@@ -380,7 +379,13 @@ public class LongLongBucketedSort implements Releasable {
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex), extraValues.get(worstIndex), extraValues.get(rightIndex))) {
+                if (rightChild < heapSize
+                    && betterThan(
+                        values.get(worstIndex),
+                        values.get(rightIndex),
+                        extraValues.get(worstIndex),
+                        extraValues.get(rightIndex)
+                    )) {
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

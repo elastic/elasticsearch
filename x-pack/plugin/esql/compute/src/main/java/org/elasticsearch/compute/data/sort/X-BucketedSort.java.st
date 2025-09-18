@@ -9,10 +9,10 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.$Type$Array;
 $if(hasExtra)$
 import org.elasticsearch.common.util.$ExtraType$Array;
 $endif$
+import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -67,11 +67,13 @@ public class $Name$$ExtraName$BucketedSort implements Releasable {
      *     </li>
      * </ul>
      */
-    private $Array$ values;
 $if(hasExtra)$
+    private $Array$ values;
     private $ExtraArray$ extraValues;
-$endif$
 
+$else$
+    private $Array$ values;
+$endif$
 
     public $Name$$ExtraName$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
@@ -446,7 +448,17 @@ $endif$
                 }
                 int rightChild = leftChild + 1;
                 long rightIndex = rootIndex + rightChild;
-                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex)$if(hasExtra)$, extraValues.get(worstIndex), extraValues.get(rightIndex)$endif$)) {
+$if(hasExtra)$
+                if (rightChild < heapSize
+                    && betterThan(
+                        values.get(worstIndex),
+                        values.get(rightIndex),
+                        extraValues.get(worstIndex),
+                        extraValues.get(rightIndex)
+                    )) {
+$else$
+                if (rightChild < heapSize && betterThan(values.get(worstIndex), values.get(rightIndex))) {
+$endif$
                     worst = rightChild;
                     worstIndex = rightIndex;
                 }

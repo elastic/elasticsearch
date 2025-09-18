@@ -182,17 +182,23 @@ public final class IndexSortConfig {
 
     static List<String> defaultOrder(Settings settings) {
         FieldSortSpec[] defaultSpec = defaultSpec(settings);
-        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).filter(spec -> spec.order != null).map(spec -> spec.order.toString()).toList();
+        return defaultSpec == null
+            ? List.of()
+            : Arrays.stream(defaultSpec).filter(spec -> spec.order != null).map(spec -> spec.order.toString()).toList();
     }
 
     static List<String> defaultMode(Settings settings) {
         FieldSortSpec[] defaultSpec = defaultSpec(settings);
-        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).filter(spec -> spec.mode != null).map(spec -> spec.mode.toString()).toList();
+        return defaultSpec == null
+            ? List.of()
+            : Arrays.stream(defaultSpec).filter(spec -> spec.mode != null).map(spec -> spec.mode.toString()).toList();
     }
 
     static List<String> defaultMissing(Settings settings) {
         FieldSortSpec[] defaultSpec = defaultSpec(settings);
-        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).filter(spec -> spec.missingValue != null).map(spec -> spec.missingValue).toList();
+        return defaultSpec == null
+            ? List.of()
+            : Arrays.stream(defaultSpec).filter(spec -> spec.missingValue != null).map(spec -> spec.missingValue).toList();
     }
 
     // visible for tests

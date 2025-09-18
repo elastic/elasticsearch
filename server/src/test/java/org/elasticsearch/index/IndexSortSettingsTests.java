@@ -260,23 +260,15 @@ public class IndexSortSettingsTests extends ESTestCase {
 
     public void testLogsdb() {
         {
-            var settings = Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "logsdb")
-                .build();
-            assertEquals(
-                List.of("host.name", "@timestamp"),
-                IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings)
-            );
+            var settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+            assertEquals(List.of("host.name", "@timestamp"), IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings));
         }
         {
             var settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "logsdb")
                 .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false)
                 .build();
-            assertEquals(
-                List.of("@timestamp"),
-                IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings)
-            );
+            assertEquals(List.of("@timestamp"), IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings));
         }
     }
 

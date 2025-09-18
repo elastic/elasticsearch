@@ -70,6 +70,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getShouldValidateDensity().convention(true);
                 t.getShouldValidatePrimaryIdNotPatch().convention(true);
+                t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
             });
         project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 

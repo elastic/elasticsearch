@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
 public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements ToXContentObject {
 
     private static final String ANTHROPIC_VERSION = "anthropic_version";
-    private static final String VERTEX_2023_10_16 = "vertex-2023-10-16";
+    private static final String VERTEX_2024_10_22 = "vertex-2024-10-22";
     private static final String STREAM_FIELD = "stream";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
     private static final long DEFAULT_MAX_TOKENS_VALUE = 1024L;
@@ -53,7 +53,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ANTHROPIC_VERSION, VERTEX_2023_10_16);
+        builder.field(ANTHROPIC_VERSION, VERTEX_2024_10_22);
         builder.field(MESSAGES_FIELD, unifiedRequest.messages());
         if (unifiedRequest.temperature() != null) {
             builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());

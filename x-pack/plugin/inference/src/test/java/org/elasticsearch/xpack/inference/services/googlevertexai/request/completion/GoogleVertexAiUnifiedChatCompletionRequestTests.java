@@ -60,7 +60,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestTests extends ESTestCase 
                     "messages",
                     List.of(Map.of("role", "user", "content", "Hello Gemini!")),
                     "anthropic_version",
-                    "vertex-2023-10-16"
+                    "vertex-2024-10-22"
                 )
             )
         );

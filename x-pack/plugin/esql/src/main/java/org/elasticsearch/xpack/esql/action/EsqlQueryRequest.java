@@ -46,7 +46,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean columnar;
     private boolean profile;
     private Boolean includeCCSMetadata;
-    private Boolean includeCPSMetadata;
+    private Boolean includeExecutionMetadata;
     private Locale locale;
     private QueryBuilder filter;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
@@ -143,12 +143,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return includeCCSMetadata;
     }
 
-    public void includeCPSMetadata(Boolean include) {
-        this.includeCPSMetadata = include;
+    public void includeExecutionMetadata(Boolean include) {
+        this.includeExecutionMetadata = include;
     }
 
-    public Boolean includeCPSMetadata() {
-        return includeCPSMetadata;
+    public Boolean includeExecutionMetadata() {
+        return includeExecutionMetadata;
     }
 
     /**

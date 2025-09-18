@@ -45,7 +45,7 @@ public class EsqlMediaTypeParser {
         var mediaType = getResponseMediaType(request, (MediaType) null);
         validateColumnarRequest(esqlRequest.columnar(), mediaType);
         validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
-        validateIncludeCPSMetadata(esqlRequest.includeCPSMetadata(), mediaType);
+        validateIncludeExecutionMetadata(esqlRequest.includeExecutionMetadata(), mediaType);
         validateProfile(esqlRequest.profile(), mediaType);
         return checkNonNullMediaType(mediaType, request);
     }
@@ -79,9 +79,9 @@ public class EsqlMediaTypeParser {
         }
     }
 
-    private static void validateIncludeCPSMetadata(Boolean includeCPSMetadata, MediaType fromMediaType) {
-        if (Boolean.TRUE.equals(includeCPSMetadata) && fromMediaType instanceof TextFormat) {
-            throw invalid("include_cps_metadata");
+    private static void validateIncludeExecutionMetadata(Boolean includeExecutionMetadata, MediaType fromMediaType) {
+        if (Boolean.TRUE.equals(includeExecutionMetadata) && fromMediaType instanceof TextFormat) {
+            throw invalid("include_execution_metadata");
         }
     }
 

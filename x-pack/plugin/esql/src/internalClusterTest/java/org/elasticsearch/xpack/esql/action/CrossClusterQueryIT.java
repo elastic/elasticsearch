@@ -1026,7 +1026,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         }
     }
 
-    public void testNoCps() throws Exception {
+    public void testNoBothIncludeCcsMetadataAndIncludeExecutionMetadata() throws Exception {
         setupTwoClusters();
         var query = "from logs-*,c*:logs-* | stats sum (v)";
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
@@ -1034,11 +1034,15 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
-        request.includeCPSMetadata(randomBoolean());
+        request.includeCCSMetadata(randomBoolean());
+        request.includeExecutionMetadata(randomBoolean());
 
         assertThat(
             expectThrows(VerificationException.class, () -> runQuery(request)).getMessage(),
-            containsString("Unsupported parameter [include_cps_metadata]")
+            containsString(
+                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
+                    + "Use only [include_execution_metadata]"
+            )
         );
     }
 }

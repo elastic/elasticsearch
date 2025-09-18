@@ -93,14 +93,14 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         );
     }
 
-    public void testIncludeCPSMetadataWithAcceptText() {
+    public void testIncludeExecutionMetadataWithAcceptText() {
         var accept = randomFrom("text/plain", "text/csv", "text/tab-separated-values");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> getResponseMediaType(reqWithAccept(accept), createCpsTestInstance(false, true, false))
         );
         assertEquals(
-            "Invalid use of [include_cps_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
+            "Invalid use of [include_execution_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
             e.getMessage()
         );
     }
@@ -133,7 +133,7 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         }
     }
 
-    public void testIncludeCPSMetadataWithNonJSONMediaTypesInParams() {
+    public void testIncludeExecutionMetadataWithNonJSONMediaTypesInParams() {
         {
             RestRequest restRequest = reqWithParams(Map.of("format", randomFrom("txt", "csv", "tsv")));
             IllegalArgumentException e = expectThrows(
@@ -141,7 +141,7 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
                 () -> getResponseMediaType(restRequest, createCpsTestInstance(false, true, false))
             );
             assertEquals(
-                "Invalid use of [include_cps_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
+                "Invalid use of [include_execution_metadata] argument: cannot be used in combination with [txt, csv, tsv] formats",
                 e.getMessage()
             );
         }
@@ -213,9 +213,9 @@ public class EsqlMediaTypeParserTests extends ESTestCase {
         return request;
     }
 
-    protected EsqlQueryRequest createCpsTestInstance(boolean columnar, boolean includeCPSMetadata, boolean profile) {
+    protected EsqlQueryRequest createCpsTestInstance(boolean columnar, boolean includeExecutionMetadata, boolean profile) {
         var request = createTestInstance(columnar);
-        request.includeCPSMetadata(includeCPSMetadata);
+        request.includeExecutionMetadata(includeExecutionMetadata);
         request.profile(profile);
         return request;
     }

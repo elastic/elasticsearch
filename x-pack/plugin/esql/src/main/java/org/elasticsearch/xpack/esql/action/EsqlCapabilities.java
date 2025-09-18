@@ -1049,6 +1049,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1351,7 +1352,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V2(Build.current().isSnapshot()),
+        FUSE_V3(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1460,6 +1461,11 @@ public class EsqlCapabilities {
         URL_DECODE(Build.current().isSnapshot()),
 
         /**
+         * Allow lookup join on boolean expressions
+         */
+        LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION(Build.current().isSnapshot()),
+
+        /**
          * FORK with remote indices
          */
         ENABLE_FORK_FOR_REMOTE_INDICES(Build.current().isSnapshot()),
@@ -1473,6 +1479,14 @@ public class EsqlCapabilities {
          * Support for the Present function
          */
         FN_PRESENT,
+
+        /**
+         * Bugfix for STATS {{expression}} WHERE {{condition}} when the
+         * expression is replaced by something else on planning
+         * e.g. STATS SUM(1) WHERE x==3 is replaced by
+         *      STATS MV_SUM(const)*COUNT(*) WHERE x == 3.
+         */
+        STATS_WITH_FILTERED_SURROGATE_FIXED,
 
         /**
          * TO_DENSE_VECTOR function.
@@ -1499,7 +1513,17 @@ public class EsqlCapabilities {
         /**
          * Support absent_over_time aggregation that gets evaluated per time-series
          */
-        ABSENT_OVER_TIME(Build.current().isSnapshot());
+        ABSENT_OVER_TIME(Build.current().isSnapshot()),
+
+        /** INLINESTATS supports remote indices */
+        INLINESTATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0(),
+
+        ;
 
         private final boolean enabled;
 

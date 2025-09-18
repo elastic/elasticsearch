@@ -50,7 +50,7 @@ If you adjust these settings then your cluster may not form correctly or may bec
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long to wait when attempting to identify the remote node via a handshake. Defaults to `30s`.
 
 `discovery.request_peers_timeout`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long a node will wait after asking its peers again before considering the request to have failed. Defaults to `3s`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) In 9.1.x and earlier versions, sets how long a node will wait after asking its peers again before considering the request to have failed. Has no effect from version 9.2.0 onwards. Defaults to `3s`.
 
 `discovery.find_peers_warning_timeout`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Sets how long a node will attempt to discover its peers before it starts to log verbose messages describing why the connection attempts are failing. Defaults to `3m`.

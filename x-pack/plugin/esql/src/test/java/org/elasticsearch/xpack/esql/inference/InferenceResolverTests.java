@@ -21,10 +21,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -53,7 +53,7 @@ public class InferenceResolverTests extends ESTestCase {
             getTestClass().getSimpleName(),
             new FixedExecutorBuilder(
                 Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                "inference_utility",
                 between(1, 10),
                 1024,
                 "esql",
@@ -120,9 +120,12 @@ public class InferenceResolverTests extends ESTestCase {
         List<String> inferenceIds = List.of("rerank-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-            throw new RuntimeException(e);
-        }));
+        inferenceResolver.resolveInferenceIds(
+            inferenceIds,
+            assertAnswerUsingThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+                throw new RuntimeException(e);
+            }))
+        );
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
@@ -137,9 +140,12 @@ public class InferenceResolverTests extends ESTestCase {
         List<String> inferenceIds = List.of("rerank-plan", "rerank-plan", "completion-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-            throw new RuntimeException(e);
-        }));
+        inferenceResolver.resolveInferenceIds(
+            inferenceIds,
+            assertAnswerUsingThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+                throw new RuntimeException(e);
+            }))
+        );
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
@@ -162,9 +168,12 @@ public class InferenceResolverTests extends ESTestCase {
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-            throw new RuntimeException(e);
-        }));
+        inferenceResolver.resolveInferenceIds(
+            inferenceIds,
+            assertAnswerUsingThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+                throw new RuntimeException(e);
+            }))
+        );
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
@@ -192,19 +201,15 @@ public class InferenceResolverTests extends ESTestCase {
                 }
             };
 
-            if (randomBoolean()) {
-                sendResponse.run();
-            } else {
-                threadPool.schedule(
-                    sendResponse,
-                    TimeValue.timeValueNanos(between(1, 1_000)),
-                    threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
-                );
-            }
+            threadPool.schedule(sendResponse, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.executor("inference_utility"));
 
             return null;
         }).when(client).execute(eq(GetInferenceModelAction.INSTANCE), any(), any());
         return client;
+    }
+
+    private <T> ActionListener<T> assertAnswerUsingThreadPool(ActionListener<T> actionListener) {
+        return ActionListener.runBefore(actionListener, () -> ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION));
     }
 
     private static ActionResponse getInferenceModelResponse(GetInferenceModelAction.Request request) {
@@ -224,7 +229,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     private InferenceResolver inferenceResolver() {
-        return new InferenceResolver(mockClient(), functionRegistry);
+        return new InferenceResolver(mockClient(), functionRegistry, threadPool);
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

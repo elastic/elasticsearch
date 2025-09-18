@@ -405,7 +405,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 BlockLoader.Docs docs,
                 int offset,
                 boolean nullsFiltered,
-                BlockDocValuesReader.ToDouble toDouble
+                BlockDocValuesReader.ToDouble toDouble,
+                boolean toInt
             ) throws IOException {
                 assert toDouble == null;
                 if (ords instanceof BaseDenseNumericValues denseOrds) {
@@ -486,7 +487,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             BlockLoader.Docs docs,
             int offset,
             boolean nullsFiltered,
-            BlockDocValuesReader.ToDouble toDouble
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
         ) throws IOException {
             return null;
         }
@@ -539,7 +541,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             BlockLoader.Docs docs,
             int offset,
             boolean nullsFiltered,
-            BlockDocValuesReader.ToDouble toDouble
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
         ) throws IOException {
             return null;
         }
@@ -589,7 +592,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             BlockLoader.Docs docs,
             int offset,
             boolean nullsFiltered,
-            BlockDocValuesReader.ToDouble toDouble
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
         ) throws IOException {
             return null;
         }
@@ -1447,9 +1451,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     BlockLoader.Docs docs,
                     int offset,
                     boolean nullsFiltered,
-                    BlockDocValuesReader.ToDouble toDouble
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean toInt
                 ) throws IOException {
-                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset)) {
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, docs.count() - offset, toInt)) {
                         return tryRead(singletonLongBuilder, docs, offset);
                     }
                 }
@@ -1575,7 +1580,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     BlockLoader.Docs docs,
                     int offset,
                     boolean nullsFiltered,
-                    BlockDocValuesReader.ToDouble toDouble
+                    BlockDocValuesReader.ToDouble toDouble,
+                    boolean toInt
                 ) throws IOException {
                     if (nullsFiltered == false) {
                         return null;
@@ -1616,7 +1622,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             assert disi.index() == firstIndex + i : "unexpected disi index " + (firstIndex + i) + "!=" + disi.index();
                         }
                     }
-                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount)) {
+                    try (var singletonLongBuilder = singletonLongBuilder(factory, toDouble, valueCount, toInt)) {
                         for (int i = 0; i < valueCount;) {
                             final int index = firstIndex + i;
                             final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
@@ -1944,10 +1950,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     static BlockLoader.SingletonLongBuilder singletonLongBuilder(
         BlockLoader.BlockFactory factory,
         BlockDocValuesReader.ToDouble toDouble,
-        int valueCount
+        int valueCount,
+        boolean toInt
     ) {
+        assert (toInt && toDouble != null) == false;
+
         if (toDouble != null) {
             return new SingletonLongToDoubleDelegate(factory.singletonDoubles(valueCount), toDouble);
+        } else if (toInt) {
+            return new SingletonLongtoIntDelegate(factory.singletonInts(valueCount));
         } else {
             return factory.singletonLongs(valueCount);
         }
@@ -1998,6 +2009,50 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public void close() {
             doubleBuilder.close();
+        }
+    }
+
+    static final class SingletonLongtoIntDelegate implements BlockLoader.SingletonLongBuilder {
+        private final BlockLoader.SingletonIntBuilder builder;
+
+        SingletonLongtoIntDelegate(BlockLoader.SingletonIntBuilder builder) {
+            this.builder = builder;
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLong(long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.SingletonLongBuilder appendLongs(long[] values, int from, int length) {
+            builder.appendLongs(values, from, length);
+            return this;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            return builder.build();
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 

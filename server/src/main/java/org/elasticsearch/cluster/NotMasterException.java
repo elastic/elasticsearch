@@ -15,11 +15,12 @@ import java.io.IOException;
 
 /**
  * Exception indicating that an operation failed because the node stopped being the elected master.
+ * Since this exception is thrown prior to the cluster state publication, it should only be used when the cluster state update
+ * *definitely* did not happen, and there is no possibility the next master committed the cluster state update.
+ *
+ * This is different to the {@code FailedToCommitClusterStateException}
  *
  * This exception is retryable within {@code TransportNodeMasterAction}.
- *
- * Since this exception is thrown prior to the cluster state publication, if encountered, the cluster state update *definitely* did not
- * happen. This is different to the {@code FailedToCommitClusterStateException}
  */
 public class NotMasterException extends ElasticsearchException {
 

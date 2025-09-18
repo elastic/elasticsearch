@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.logsdb.patterntext;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +20,6 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -52,12 +50,6 @@ public class PatternTextBasicRestIT extends ESRestTestCase {
     @ParametersFactory(argumentFormatting = "disableTemplating=%b")
     public static List<Object[]> args() {
         return List.of(new Object[] { true }, new Object[] { false });
-    }
-
-    @Before
-    public void checkClusterFeature() {
-        assumeTrue("[pattern_text] must be available", clusterHasFeature("mapper.patterned_text"));
-        assumeTrue("[pattern_text] is only available in snapshot builds", Build.current().isSnapshot());
     }
 
     private final boolean disableTemplating;

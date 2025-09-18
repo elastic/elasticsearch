@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -90,7 +89,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private final String fieldName;
     private final String query;
-    private final Map<Tuple<String, String>, InferenceResults> inferenceResultsMap;
+    private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final Boolean lenient;
 
     public SemanticQueryBuilder(String fieldName, String query) {
@@ -105,7 +104,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         String fieldName,
         String query,
         Boolean lenient,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
@@ -125,10 +124,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = in.readString();
         if (in.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
             this.inferenceResultsMap = in.readOptional(
-                i1 -> i1.readImmutableMap(
-                    i2 -> Tuple.tuple(i2.readString(), i2.readString()),
-                    i2 -> i2.readNamedWriteable(InferenceResults.class)
-                )
+                i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
             );
         } else if (in.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
             this.inferenceResultsMap = convertInferenceResultsMap(
@@ -151,16 +147,16 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         out.writeString(fieldName);
         out.writeString(query);
         if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
-            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, t) -> {
-                o2.writeString(t.v1());
-                o2.writeString(t.v2());
-            }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+            out.writeOptional(
+                (o, v) -> o.writeMap(v, StreamOutput::writeWriteable, StreamOutput::writeNamedWriteable),
+                inferenceResultsMap
+            );
         } else if (out.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
-            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, t) -> {
-                if (t.v1().equals(LOCAL_CLUSTER_GROUP_KEY) == false) {
+            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, id) -> {
+                if (id.clusterAlias().equals(LOCAL_CLUSTER_GROUP_KEY) == false) {
                     throw new IllegalArgumentException("Cannot serialize remote cluster inference results in a mixed-version cluster");
                 }
-                o2.writeString(t.v2());
+                o2.writeString(id.inferenceId());
             }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
         } else {
             InferenceResults inferenceResults = null;
@@ -180,7 +176,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
     }
 
-    private SemanticQueryBuilder(SemanticQueryBuilder other, Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
+    private SemanticQueryBuilder(SemanticQueryBuilder other, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.boost = other.boost;
@@ -229,18 +225,21 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param query The query to generate inference results for
      * @return An inference results map
      */
-    static Map<Tuple<String, String>, InferenceResults> getInferenceResults(
+    static Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
         Set<String> inferenceIds,
-        @Nullable Map<Tuple<String, String>, InferenceResults> inferenceResultsMap,
+        @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         String query
     ) {
         boolean modifiedInferenceResultsMap = false;
-        Map<Tuple<String, String>, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
+        Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
             ? inferenceResultsMap
             : Map.of();
         for (String inferenceId : inferenceIds) {
-            Tuple<String, String> fullyQualifiedInferenceId = Tuple.tuple(queryRewriteContext.getLocalClusterAlias(), inferenceId);
+            FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
+                queryRewriteContext.getLocalClusterAlias(),
+                inferenceId
+            );
             if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
                 if (modifiedInferenceResultsMap == false) {
                     // Copy the inference results map to ensure it is mutable and thread safe
@@ -257,7 +256,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     static void registerInferenceAsyncAction(
         QueryRewriteContext queryRewriteContext,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         String query,
         String inferenceId
     ) {
@@ -282,7 +281,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 inferenceRequest,
                 listener.delegateFailureAndWrap((l, inferenceResponse) -> {
                     inferenceResultsMap.put(
-                        Tuple.tuple(queryRewriteContext.getLocalClusterAlias(), inferenceId),
+                        new FullyQualifiedInferenceId(queryRewriteContext.getLocalClusterAlias(), inferenceId),
                         validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId)
                     );
                     l.onResponse(null);
@@ -291,13 +290,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         );
     }
 
-    static Map<Tuple<String, String>, InferenceResults> convertInferenceResultsMap(Map<String, InferenceResults> inferenceResultsMap) {
-        Map<Tuple<String, String>, InferenceResults> converted = null;
+    static Map<FullyQualifiedInferenceId, InferenceResults> convertInferenceResultsMap(Map<String, InferenceResults> inferenceResultsMap) {
+        Map<FullyQualifiedInferenceId, InferenceResults> converted = null;
         if (inferenceResultsMap != null) {
             converted = Collections.unmodifiableMap(
                 inferenceResultsMap.entrySet()
                     .stream()
-                    .collect(Collectors.toMap(e -> Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, e.getKey()), Map.Entry::getValue))
+                    .collect(Collectors.toMap(e -> new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, e.getKey()), Map.Entry::getValue))
             );
         }
         return converted;
@@ -309,8 +308,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResults The inference result
      * @return An inference results map
      */
-    static Map<Tuple<String, String>, InferenceResults> buildBwcInferenceResultsMap(InferenceResults inferenceResults) {
-        return Map.of(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID), inferenceResults);
+    static Map<FullyQualifiedInferenceId, InferenceResults> buildBwcInferenceResultsMap(InferenceResults inferenceResults) {
+        return Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID), inferenceResults);
     }
 
     /**
@@ -320,8 +319,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * @param inferenceResultsMap The inference results map
      * @return The inference result
      */
-    private static InferenceResults getBwcInferenceResults(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
-        return inferenceResultsMap.get(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID));
+    private static InferenceResults getBwcInferenceResults(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+        return inferenceResultsMap.get(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, PLACEHOLDER_INFERENCE_ID));
     }
 
     @Override
@@ -366,7 +365,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
             InferenceResults inferenceResults = getBwcInferenceResults(inferenceResultsMap);
             if (inferenceResults == null) {
-                inferenceResults = inferenceResultsMap.get(Tuple.tuple(searchExecutionContext.getLocalClusterAlias(), inferenceId));
+                inferenceResults = inferenceResultsMap.get(
+                    new FullyQualifiedInferenceId(searchExecutionContext.getLocalClusterAlias(), inferenceId)
+                );
             }
 
             if (inferenceResults == null) {
@@ -400,7 +401,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         SemanticQueryBuilder rewritten = this;
         if (queryRewriteContext.hasAsyncActions() == false) {
             Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-            Map<Tuple<String, String>, InferenceResults> modifiedInferenceResultsMap = getInferenceResults(
+            Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = getInferenceResults(
                 queryRewriteContext,
                 inferenceIds,
                 inferenceResultsMap,
@@ -460,9 +461,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return inferenceResults;
     }
 
-    private void inferenceResultsErrorCheck(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
+    private void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
-            String inferenceId = entry.getKey().v2();
+            String inferenceId = entry.getKey().inferenceId();
             InferenceResults inferenceResults = entry.getValue();
 
             if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {

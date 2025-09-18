@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -211,10 +210,10 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
             false
         );
 
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = Map.of(
-            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = Map.of(
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             inferenceResults1,
-            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             inferenceResults2
         );
 
@@ -258,7 +257,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
 
     protected abstract InterceptedInferenceQueryBuilder<T> createInterceptedQueryBuilder(
         T originalQuery,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     );
 
     protected abstract QueryRewriteInterceptor createQueryRewriteInterceptor();

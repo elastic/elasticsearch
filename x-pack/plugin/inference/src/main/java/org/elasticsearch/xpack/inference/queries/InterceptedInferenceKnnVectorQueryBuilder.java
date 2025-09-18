@@ -13,7 +13,6 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -51,7 +50,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         super(other, inferenceResultsMap);
     }
@@ -115,7 +114,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder copy(Map<Tuple<String, String>, InferenceResults> inferenceResultsMap) {
+    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap);
     }
 
@@ -236,7 +235,7 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     private MlTextEmbeddingResults getTextEmbeddingResults(String clusterAlias, String inferenceId) {
-        InferenceResults inferenceResults = inferenceResultsMap.get(Tuple.tuple(clusterAlias, inferenceId));
+        InferenceResults inferenceResults = inferenceResultsMap.get(new FullyQualifiedInferenceId(clusterAlias, inferenceId));
         if (inferenceResults == null) {
             throw new IllegalStateException("Could not find inference results from inference endpoint [" + inferenceId + "]");
         } else if (inferenceResults instanceof MlTextEmbeddingResults == false) {

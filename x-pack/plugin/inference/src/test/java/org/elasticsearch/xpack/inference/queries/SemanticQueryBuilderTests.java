@@ -37,7 +37,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -383,10 +382,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             false
         );
 
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = Map.of(
-            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = Map.of(
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             inferenceResults1,
-            Tuple.tuple(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            new FullyQualifiedInferenceId(randomAlphaOfLength(5), randomAlphaOfLength(5)),
             inferenceResults2
         );
 
@@ -422,7 +421,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 fieldName,
                 query,
                 null,
-                Map.of(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
+                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
             );
             SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
                 fieldName,
@@ -450,10 +449,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             inferenceResultsList,
             version) -> {
             boolean remoteCluster = randomBoolean();
-            Map<Tuple<String, String>, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceResultsList.size());
+            Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceResultsList.size());
             inferenceResultsList.forEach(
                 result -> inferenceResultsMap.put(
-                    Tuple.tuple(remoteCluster ? randomAlphaOfLength(5) : LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)),
+                    new FullyQualifiedInferenceId(remoteCluster ? randomAlphaOfLength(5) : LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)),
                     result
                 )
             );

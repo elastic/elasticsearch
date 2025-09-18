@@ -11,7 +11,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,7 +59,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
     @Override
     protected InterceptedInferenceQueryBuilder<SparseVectorQueryBuilder> createInterceptedQueryBuilder(
         SparseVectorQueryBuilder originalQuery,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         return new InterceptedInferenceSparseVectorQueryBuilder(
             new InterceptedInferenceSparseVectorQueryBuilder(originalQuery),
@@ -148,7 +147,7 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
 
         InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
-            Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
+            new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
         );
         assertThat(inferenceResults, notNullValue());
         assertThat(inferenceResults, instanceOf(TextExpansionResults.class));

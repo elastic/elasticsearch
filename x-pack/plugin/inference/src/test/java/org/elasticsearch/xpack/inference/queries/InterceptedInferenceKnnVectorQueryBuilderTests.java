@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.queries;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -66,7 +65,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     @Override
     protected InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> createInterceptedQueryBuilder(
         KnnVectorQueryBuilder originalQuery,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         return new InterceptedInferenceKnnVectorQueryBuilder(
             new InterceptedInferenceKnnVectorQueryBuilder(originalQuery),
@@ -180,7 +179,7 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(1));
 
         InferenceResults inferenceResults = coordinatorIntercepted.inferenceResultsMap.get(
-            Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)
+            new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)
         );
         assertThat(inferenceResults, notNullValue());
         assertThat(inferenceResults, instanceOf(MlTextEmbeddingResults.class));

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -32,7 +31,7 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
     @Override
     protected InterceptedInferenceQueryBuilder<MatchQueryBuilder> createInterceptedQueryBuilder(
         MatchQueryBuilder originalQuery,
-        Map<Tuple<String, String>, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         return new InterceptedInferenceMatchQueryBuilder(new InterceptedInferenceMatchQueryBuilder(originalQuery), inferenceResultsMap);
     }
@@ -110,8 +109,16 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
         assertThat(coordinatorIntercepted.originalQuery, equalTo(matchQuery));
         assertThat(coordinatorIntercepted.inferenceResultsMap, notNullValue());
         assertThat(coordinatorIntercepted.inferenceResultsMap.size(), equalTo(2));
-        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)));
-        assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(Tuple.tuple(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)));
+        assertTrue(
+            coordinatorIntercepted.inferenceResultsMap.containsKey(
+                new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, DENSE_INFERENCE_ID)
+            )
+        );
+        assertTrue(
+            coordinatorIntercepted.inferenceResultsMap.containsKey(
+                new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, SPARSE_INFERENCE_ID)
+            )
+        );
 
         final SemanticQueryBuilder expectedSemanticQuery = new SemanticQueryBuilder(
             field,

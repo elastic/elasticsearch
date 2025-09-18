@@ -22,6 +22,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -43,30 +45,40 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
         if (writeLoadConstraintSettings.getWriteLoadConstraintEnabled().notFullyEnabled()) {
             return Collections.emptyList();
         }
-        final Set<NodeShardIterable> hotSpottedNodes = new TreeSet<>(Comparator.reverseOrder());
+        final Set<NodeShardIterable> allClusterNodes = new TreeSet<>(Comparator.reverseOrder());
         final var nodeUsageStatsForThreadPools = allocation.clusterInfo().getNodeUsageStatsForThreadPools();
         for (RoutingNode node : allocation.routingNodes()) {
             var nodeUsageStats = nodeUsageStatsForThreadPools.get(node.nodeId());
             if (nodeUsageStats != null) {
                 final var writeThreadPoolStats = nodeUsageStats.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);
                 assert writeThreadPoolStats != null;
-                hotSpottedNodes.add(new NodeShardIterable(allocation, node, writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()));
+                allClusterNodes.add(new NodeShardIterable(allocation, node, writeThreadPoolStats.maxThreadPoolQueueLatencyMillis()));
+            } else {
+                allClusterNodes.add(new NodeShardIterable(allocation, node, 0L));
             }
         }
-        return () -> new LazilyExpandingIterator<>(hotSpottedNodes);
+        return () -> new LazilyExpandingIterator<>(allClusterNodes);
     }
 
-    private static class NodeShardIterable implements Iterable<ShardRouting>, Comparable<NodeShardIterable> {
+    /**
+     * Returns all shards from a node in the order
+     *
+     * <ol>
+     *     <li>shards with medium write-load</li>
+     *     <li>shards with high write-load</li>
+     *     <li>shards with low write-load</li>
+     * </ol>
+     *
+     * Where low and high thresholds are {@link #LOW_THRESHOLD} * <code>max-write-load</code>
+     * and {@link #HIGH_THRESHOLD} * <code>max-write-load</code> respectively.
+     */
+    private record NodeShardIterable(RoutingAllocation allocation, RoutingNode routingNode, long maxQueueLatencyMillis)
+        implements
+            Iterable<ShardRouting>,
+            Comparable<NodeShardIterable> {
 
-        private final RoutingAllocation allocation;
-        private final RoutingNode routingNode;
-        private final long maxQueueLatencyMillis;
-
-        private NodeShardIterable(RoutingAllocation allocation, RoutingNode routingNode, long maxQueueLatencyMillis) {
-            this.allocation = allocation;
-            this.routingNode = routingNode;
-            this.maxQueueLatencyMillis = maxQueueLatencyMillis;
-        }
+        private static final double LOW_THRESHOLD = 0.5;
+        private static final double HIGH_THRESHOLD = 0.8;
 
         @Override
         public Iterator<ShardRouting> iterator() {
@@ -80,56 +92,38 @@ public class DefaultNonPreferredShardIteratorFactory implements NonPreferredShar
 
         private Iterator<ShardRouting> createShardIterator() {
             final var shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-            return StreamSupport.stream(routingNode.spliterator(), false)
-                .sorted(new TieringWriteLoadComparator(shardWriteLoads))
-                .toList()
-                .iterator();
-        }
-    }
-
-    /**
-     * Sorts shards by "tiered" write load, then descending write load inside tiers
-     *
-     * e.g., MEDIUM/0.7, MEDIUM/0.65, HIGH/0.9, HIGH/0.81, LOW/0.4, LOW/0.2, LOW/0.1
-     */
-    private static class TieringWriteLoadComparator implements Comparator<ShardRouting> {
-
-        private final Map<ShardId, Double> shardWriteLoads;
-        private final double lowThreshold;
-        private final double highThreshold;
-        private final Comparator<ShardRouting> comparator;
-
-        /**
-         * Enum order is prioritization order
-         */
-        private enum Tier {
-            MEDIUM,
-            HIGH,
-            LOW
+            final WriteLoadFilter filter = WriteLoadFilter.create(shardWriteLoads);
+            return Stream.of(
+                StreamSupport.stream(routingNode.spliterator(), false).filter(filter::hasMediumLoad),
+                StreamSupport.stream(routingNode.spliterator(), false).filter(filter::hasHighLoad),
+                StreamSupport.stream(routingNode.spliterator(), false).filter(filter::hasLowLoad)
+            ).flatMap(Function.identity()).iterator();
         }
 
-        private TieringWriteLoadComparator(Map<ShardId, Double> shardWriteLoads) {
-            this.shardWriteLoads = shardWriteLoads;
-            double maxWriteLoad = shardWriteLoads.values().stream().reduce(0.0, Double::max);
-            this.lowThreshold = maxWriteLoad * 0.5;
-            this.highThreshold = maxWriteLoad * 0.8;
-            this.comparator = Comparator.comparing(this::getTier)
-                .thenComparing(sr -> shardWriteLoads.getOrDefault(sr.shardId(), 0.0), Comparator.reverseOrder());
-        }
+        private record WriteLoadFilter(Map<ShardId, Double> shardWriteLoads, double lowThreshold, double highThreshold) {
 
-        @Override
-        public int compare(ShardRouting o1, ShardRouting o2) {
-            return comparator.compare(o1, o2);
-        }
+            public static WriteLoadFilter create(Map<ShardId, Double> shardWriteLoads) {
+                final double maxWriteLoad = shardWriteLoads.values().stream().reduce(0.0, Double::max);
+                final double lowThreshold = maxWriteLoad * NodeShardIterable.LOW_THRESHOLD;
+                final double highThreshold = maxWriteLoad * NodeShardIterable.HIGH_THRESHOLD;
+                return new WriteLoadFilter(shardWriteLoads, lowThreshold, highThreshold);
+            }
 
-        private Tier getTier(ShardRouting shard) {
-            double writeLoad = shardWriteLoads.getOrDefault(shard.shardId(), 0.0);
-            if (writeLoad < lowThreshold) {
-                return Tier.LOW;
-            } else if (writeLoad < highThreshold) {
-                return Tier.MEDIUM;
-            } else {
-                return Tier.HIGH;
+            public boolean hasMediumLoad(ShardRouting shardRouting) {
+                double shardWriteLoad = shardWriteLoad(shardRouting);
+                return shardWriteLoad >= lowThreshold && shardWriteLoad < highThreshold;
+            }
+
+            public boolean hasHighLoad(ShardRouting shardRouting) {
+                return shardWriteLoad(shardRouting) >= highThreshold;
+            }
+
+            public boolean hasLowLoad(ShardRouting shardRouting) {
+                return shardWriteLoad(shardRouting) < lowThreshold;
+            }
+
+            private double shardWriteLoad(ShardRouting shardRouting) {
+                return shardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0);
             }
         }
     }

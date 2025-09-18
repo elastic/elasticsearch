@@ -823,7 +823,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         "JNDI lookup class is not available because this JRE does not support JNDI. "
             + "JNDI string lookups will not be available, continuing configuration.",
         "JMX runtime input lookup class is not available because this JRE does not support JMX. "
-            + "JMX lookups will not be available, continuing configuration. "
+            + "JMX lookups will not be available, continuing configuration. ",
+        "The use of package scanning to locate Log4j plugins is deprecated."
     );
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
@@ -839,7 +840,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                     anyOf(
                         emptyCollectionOf(String.class),
                         contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1))),
+                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(2)))
                     )
                 );
             } finally {

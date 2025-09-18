@@ -567,6 +567,9 @@ tests:
 - class: org.elasticsearch.action.search.BatchedQueryPhaseIT
   method: testNumReducePhases
   issue: https://github.com/elastic/elasticsearch/issues/134943
+- class: org.elasticsearch.index.store.LuceneFilesExtensionsTests
+  method: testIsLuceneExtension
+  issue: https://github.com/elastic/elasticsearch/issues/134970
 
 # Examples:
 #

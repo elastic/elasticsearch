@@ -43,6 +43,13 @@ import java.util.regex.Pattern
  *    dpkg -c path/to/elasticsearch.deb
  */
 
+buildscript {
+  dependencies {
+    constraints {
+      classpath "org.slf4j:slf4j-api:2.0.6"
+    }
+  }
+}
 plugins {
   alias(buildLibs.plugins.ospackage)
 }

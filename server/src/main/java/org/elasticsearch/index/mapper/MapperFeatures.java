@@ -73,6 +73,7 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.unknown_field_mapping_update_error_message"
     );
     static final NodeFeature NPE_ON_DIMS_UPDATE_FIX = new NodeFeature("mapper.npe_on_dims_update_fix");
+    public static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -99,7 +100,8 @@ public class MapperFeatures implements FeatureSpecification {
             RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING,
             RESCORE_ZERO_VECTOR_QUANTIZED_VECTOR_MAPPING,
             USE_DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ,
-            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE
+            SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
+            MULTI_FIELD_UNICODE_OPTIMISATION_FIX
         );
     }
 }

@@ -122,7 +122,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     /** Get the definition names which have local changes relative to upstream */
     List<String> getChangedReferableDefinitionNames() {
         List<String> changedDefinitions = new ArrayList<>();
-        String referablePrefix = REFERABLE_DIR.toString();
+        // make sure the prefix is git style paths, always forward slashes
+        String referablePrefix = REFERABLE_DIR.toString().replace('\\', '/');
         for (String changedPath : getChangedResources()) {
             if (changedPath.contains(referablePrefix) == false) {
                 continue;
@@ -304,7 +305,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             synchronized (changedResources) {
                 HashSet<String> resources = new HashSet<>();
 
-                String diffOutput = gitCommand("diff", "--name-only", getUpstreamRefName(), ".");
+                String diffOutput = gitCommand("diff", "--name-only", "--relative", getUpstreamRefName(), ".");
                 if (diffOutput.strip().isEmpty() == false) {
                     Collections.addAll(resources, diffOutput.split("\n")); // git always outputs LF
                 }

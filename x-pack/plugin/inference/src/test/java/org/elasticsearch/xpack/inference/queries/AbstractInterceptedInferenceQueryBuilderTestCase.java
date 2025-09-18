@@ -231,7 +231,7 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS,
-            TransportVersionUtils.getPreviousVersion(SemanticQueryBuilder.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
+            TransportVersionUtils.getPreviousVersion(TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)
         );
         IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,

@@ -328,6 +328,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_API_OPENAI_HEADERS = def(9_161_0_00);
     public static final TransportVersion NEW_SEMANTIC_QUERY_INTERCEPTORS = def(9_162_0_00);
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = def(9_163_0_00);
+    public static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = def(9_164_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

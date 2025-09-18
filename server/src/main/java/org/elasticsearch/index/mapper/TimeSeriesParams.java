@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -21,6 +23,7 @@ public final class TimeSeriesParams {
 
     public static final String TIME_SERIES_METRIC_PARAM = "time_series_metric";
     public static final String TIME_SERIES_DIMENSION_PARAM = "time_series_dimension";
+    public static final String TIME_SERIES_DEFAULT_METRIC_PARAM = "default_metric";
 
     private TimeSeriesParams() {}
 
@@ -33,7 +36,7 @@ public final class TimeSeriesParams {
      * single number metrics, and `false` for the POSITION metric.
      */
     public enum MetricType {
-        GAUGE(new String[] { "max", "min", "value_count", "sum" }),
+        GAUGE(GaugeAggs.allValuesAsString().toArray(String[]::new)),
         COUNTER(new String[] { "last_value" }),
         POSITION(new String[] {}, false);
 
@@ -74,6 +77,22 @@ public final class TimeSeriesParams {
         }
     }
 
+    public enum GaugeAggs {
+        MAX,
+        MIN,
+        SUM,
+        VALUE_COUNT;
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        private static List<String> allValuesAsString() {
+            return Arrays.stream(GaugeAggs.values()).map(GaugeAggs::toString).toList();
+        }
+    }
+
     public static FieldMapper.Parameter<MetricType> metricParam(Function<FieldMapper, MetricType> initializer, MetricType... values) {
         assert values.length > 0;
         EnumSet<MetricType> acceptedValues = EnumSet.noneOf(MetricType.class);
@@ -85,6 +104,17 @@ public final class TimeSeriesParams {
             (MetricType) null,
             MetricType.class,
             acceptedValues
+        ).acceptsNull();
+    }
+
+    public static FieldMapper.Parameter<GaugeAggs> defaultMetric(Function<FieldMapper, GaugeAggs> initializer) {
+        return FieldMapper.Parameter.restrictedEnumParam(
+            TIME_SERIES_DEFAULT_METRIC_PARAM,
+            false,
+            initializer,
+            (GaugeAggs) null,
+            GaugeAggs.class,
+            Set.of(GaugeAggs.values())
         ).acceptsNull();
     }
 

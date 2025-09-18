@@ -128,3 +128,9 @@ javax.xml.validation.SchemaFactory#newInstance(java.lang.String, java.lang.Strin
 
 @defaultMessage Validator should not be used directly. Use XmlUtils#getHardenedValidator() instead
 javax.xml.validation.Schema#newValidator()
+
+@defaultMessage XPathFactory should not be used directly. Use XmlUtils#getHardenedXPath() instead
+javax.xml.xpath.XPathFactory#newDefaultInstance()
+javax.xml.xpath.XPathFactory#newInstance()
+javax.xml.xpath.XPathFactory#newInstance(java.lang.String)
+javax.xml.xpath.XPathFactory#newInstance(java.lang.String, java.lang.String, java.lang.ClassLoader)

@@ -7,7 +7,7 @@ setup:
           parameters: [ method, path, parameters, capabilities ]
           capabilities: [ views_v1 ]
       reason: "Views not yet supported"
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
   - do:
       indices.create:
         index:  test
@@ -49,6 +49,8 @@ basic:
           query: 'FROM test | WHERE animal == "dog"'
 
   - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM dogs | WHERE color == "white" | KEEP id | SORT id'

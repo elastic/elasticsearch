@@ -43,6 +43,7 @@ semantic_text_field:text                                              | query_em
 be excellent to each other                                            | [45.0, 55.0, 54.0]           | 1.0
 live long and prosper                                                 | [45.0, 55.0, 54.0]           | 0.0295
 all we have to decide is what to do with the time that is given to us | [45.0, 55.0, 54.0]           | 0.0214
+;
 
 text_embedding with knn (inline) on semantic_text_dense_field
 required_capability: text_embedding_function

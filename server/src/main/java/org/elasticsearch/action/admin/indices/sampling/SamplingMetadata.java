@@ -61,14 +61,31 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
         );
     }
 
+    /**
+     * Constructs a new SamplingMetadata with the given index to sampling configuration map.
+     *
+     * @param indexToSamplingConfigMap A map from index name to sampling configuration. The map is copied
+     *                                 to ensure immutability of the metadata object.
+     */
     public SamplingMetadata(Map<String, SamplingConfiguration> indexToSamplingConfigMap) {
         this.indexToSamplingConfigMap = new HashMap<>(indexToSamplingConfigMap);
     }
 
+    /**
+     * Constructs a SamplingMetadata from a StreamInput for wire protocol deserialization.
+     *
+     * @param in The StreamInput to read from
+     * @throws IOException If an I/O error occurs during deserialization
+     */
     public SamplingMetadata(StreamInput in) throws IOException {
         this.indexToSamplingConfigMap = in.readMap(StreamInput::readString, SamplingConfiguration::new);
     }
 
+    /**
+     * Returns the map of index names to their sampling configurations.
+     *
+     * @return An unmodifiable view of the index to sampling configuration map
+     */
     public Map<String, SamplingConfiguration> getIndexToSamplingConfigMap() {
         return indexToSamplingConfigMap;
     }
@@ -78,6 +95,13 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
         out.writeMap(indexToSamplingConfigMap, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
+    /**
+     * Parses SamplingMetadata from XContent (JSON).
+     *
+     * @param parser The XContentParser to parse from
+     * @return The parsed SamplingMetadata object
+     * @throws IOException If parsing fails due to invalid JSON or I/O errors
+     */
     public static SamplingMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
@@ -133,7 +157,19 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
 
     @Override
     public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
-        return null;
+
+        return new SamplingMetadataDiff((SamplingMetadata) previousState, this);
+    }
+
+    /**
+     * Creates a named diff that can be used to deserialize SamplingMetadata diffs from wire protocol.
+     *
+     * @param in The StreamInput to read the diff from
+     * @return A NamedDiff that can be applied to produce the target SamplingMetadata
+     * @throws IOException If an I/O error occurs during deserialization
+     */
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return new SamplingMetadataDiff(in);
     }
 
     static class SamplingMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {

@@ -45,7 +45,6 @@ import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
 import org.elasticsearch.index.store.AsyncDirectIOIndexInput;
-import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.index.store.Store;
 
@@ -238,7 +237,7 @@ class KnnIndexer {
     static Directory getDirectory(Path indexPath) throws IOException {
         Directory dir = FSDirectory.open(indexPath);
         if (dir instanceof MMapDirectory mmapDir) {
-            return new FsDirectoryFactory.HybridDirectory(NativeFSLockFactory.INSTANCE, mmapDir);
+            return new HybridDirectory(mmapDir);
         }
         return dir;
     }

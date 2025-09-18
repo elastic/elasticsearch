@@ -14,7 +14,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 /**
- * Exception which indicates that an operation failed because the node stopped being the elected master.
+ * Exception indicating that an operation failed because the node stopped being the elected master.
+ *
+ * This exception is retryable within {@code TransportNodeMasterAction}.
+ *
+ * Since this exception is thrown prior to the cluster state publication, if encountered, the cluster state update *definitely* did not
+ * happen. This is different to the {@code FailedToCommitClusterStateException}
  */
 public class NotMasterException extends ElasticsearchException {
 

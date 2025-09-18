@@ -16,7 +16,7 @@ import java.io.IOException;
 /**
  * Thrown when a cluster state publication fails to commit the new cluster state. If publication fails then a new master is elected but the
  * update might or might not take effect, depending on whether or not the newly-elected master accepted the published state that failed to
- * be committed.
+ * be committed. This exception should only be used when there is *ambiguity* as to whether a state update took effect or not.
  *
  * See {@link ClusterStatePublisher} for more details.
  */

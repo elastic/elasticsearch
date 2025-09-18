@@ -61,10 +61,6 @@ public record InferenceStats(LongCounter requestCount, LongHistogram inferenceDu
         return modelAttributesMap;
     }
 
-    public static Map<String, Object> routingAttributes(boolean hasBeenRerouted, String nodeIdHandlingRequest) {
-        return Map.of("rerouted", hasBeenRerouted, "node_id", nodeIdHandlingRequest);
-    }
-
     public static Map<String, Object> modelAttributes(UnparsedModel model) {
         return Map.of("service", model.service(), "task_type", model.taskType().toString());
     }

@@ -115,7 +115,7 @@ public class Lookup extends UnaryPlan implements SurrogateLogicalPlan, Telemetry
                 }
             }
         }
-        return new JoinConfig(JoinTypes.LEFT, matchFields, leftFields, rightFields);
+        return new JoinConfig(JoinTypes.LEFT, leftFields, rightFields, null);
     }
 
     @Override

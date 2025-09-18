@@ -1,6 +1,0 @@
-pr: 133793
-summary: "[Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
-area: Authorization
-type: enhancement
-issues:
-  - 133703

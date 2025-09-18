@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -65,10 +64,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected static final String serviceId = "serviceId";
     protected final TaskType taskType;
     protected static final String inferenceId = "inferenceEntityId";
-    protected static final String localNodeId = "local-node-id";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
-    protected InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator;
     protected TransportService transportService;
     protected NodeClient nodeClient;
 
@@ -83,7 +80,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         threadPool = mock();
         nodeClient = mock();
         transportService = mock();
-        inferenceServiceRateLimitCalculator = mock();
         licenseState = mock();
         inferenceEndpointRegistry = mock();
         serviceRegistry = mock();
@@ -98,13 +94,11 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            inferenceServiceRateLimitCalculator,
             nodeClient,
             threadPool
         );
 
         mockValidLicenseState();
-        mockNodeClient();
     }
 
     protected abstract BaseTransportInferenceAction<Request> createAction(
@@ -115,7 +109,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     );
@@ -242,8 +235,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error.type"), is(expectedError));
-            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
-            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -266,8 +257,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(expectedStatus.getStatus()));
             assertThat(attributes.get("error.type"), is(expectedError));
-            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
-            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -283,8 +272,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
-            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
-            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -296,8 +283,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
-            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
-            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -311,8 +296,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error.type"), is(expectedError));
-            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
-            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -346,8 +329,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
-            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
-            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -449,9 +430,5 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
     protected void mockValidLicenseState() {
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
-    }
-
-    private void mockNodeClient() {
-        when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
     }
 }

@@ -254,7 +254,7 @@ public class ExpressionWritables {
         return List.of(Add.ENTRY, Div.ENTRY, Mod.ENTRY, Mul.ENTRY, Sub.ENTRY);
     }
 
-    private static List<NamedWriteableRegistry.Entry> binaryComparisons() {
+    public static List<NamedWriteableRegistry.Entry> binaryComparisons() {
         return List.of(Equals.ENTRY, GreaterThan.ENTRY, GreaterThanOrEqual.ENTRY, LessThan.ENTRY, LessThanOrEqual.ENTRY, NotEquals.ENTRY);
     }
 

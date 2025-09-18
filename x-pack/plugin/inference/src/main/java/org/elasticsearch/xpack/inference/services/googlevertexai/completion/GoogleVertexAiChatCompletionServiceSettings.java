@@ -150,6 +150,22 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
             context
         );
 
+        // Validate that either Google Model Garden or Google Vertex AI settings are provided
+        if ((uri == null && streamingUri == null) && (projectId == null || location == null || modelId == null)) {
+            validationException.addValidationError(
+                String.format(
+                    """
+                        For Google Model Garden, you must provide either provider with url and/or streaming_url. \
+                        For Google Vertex AI models, you must provide location, project_id, and model. \
+                        url/streaming url were not provided. Provided values: location=%s, project_id=%s, model=%s, provider=%s.""",
+                    location,
+                    projectId,
+                    modelId,
+                    provider
+                )
+            );
+        }
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }

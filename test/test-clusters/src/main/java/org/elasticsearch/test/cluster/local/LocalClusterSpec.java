@@ -106,7 +106,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<String> jvmArgs;
         private final Path configDir;
         private Version version;
-        private final boolean detachedVersion;
+        private boolean detachedVersion;
 
         public LocalNodeSpec(
             LocalClusterSpec cluster,
@@ -177,6 +177,10 @@ public class LocalClusterSpec implements ClusterSpec {
          */
         public boolean isDetachedVersion() {
             return detachedVersion;
+        }
+
+        public void setDetachedVersion(boolean detachedVersion) {
+            this.detachedVersion = detachedVersion;
         }
 
         public List<User> getUsers() {

@@ -134,7 +134,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
                   "properties": {
                     "cpu_usage": {
                         "type": "double",
-                        "time_series_metric": "counter"
+                        "time_series_metric": "gauge"
                     }
                   }
                 }

@@ -159,9 +159,9 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
             return new MvAvg(s, field);
         }
         if (weight.foldable()) {
-            return new Div(s, new Sum(s, field), new Count(s, field), dataType());
+            return new Div(s, new Sum(s, field, filter()), new Count(s, field, filter()), dataType());
         } else {
-            return new Div(s, new Sum(s, new Mul(s, field, weight)), new Sum(s, weight), dataType());
+            return new Div(s, new Sum(s, new Mul(s, field, weight), filter()), new Sum(s, weight, filter()), dataType());
         }
     }
 

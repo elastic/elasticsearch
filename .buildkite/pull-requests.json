@@ -33,7 +33,8 @@
       "retrigger_label_regex": "v[0-9]+\\.[0-9]+\\.[0-9]+",
       "cancel_intermediate_builds": true,
       "cancel_intermediate_builds_on_comment": false,
-      "skip_duplicate_builds": true
+      "skip_duplicate_builds": true,
+      "skip_ci_label": "skip-transport-version-generation"
     },
     {
       "enabled": true,

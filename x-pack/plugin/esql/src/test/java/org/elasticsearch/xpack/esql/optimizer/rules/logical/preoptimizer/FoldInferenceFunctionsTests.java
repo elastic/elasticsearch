@@ -71,7 +71,6 @@ public class FoldInferenceFunctionsTests extends ESTestCase {
                 assertThat(preOptimizedQuery.value(), equalTo(generateTestEmbedding(query, dimensions)));
             });
 
-
         }
     }
 

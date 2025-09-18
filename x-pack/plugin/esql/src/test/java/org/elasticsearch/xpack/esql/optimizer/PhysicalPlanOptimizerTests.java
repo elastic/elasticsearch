@@ -7011,7 +7011,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _any:departments
-                | LIMIT 10""");
+                | LIMIT 10""", testData, false);
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
@@ -7099,7 +7099,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | LIMIT 10
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
-            """);
+            """, testData, false);
         var finalLimit = as(plan, LimitExec.class);
         var exchange = as(finalLimit.child(), ExchangeExec.class);
         var fragment = as(exchange.child(), FragmentExec.class);
@@ -7151,7 +7151,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | SORT department
-                | LIMIT 10""");
+                | LIMIT 10""", testData, false);
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -7168,7 +7168,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | SORT department
-                | LIMIT 10""");
+                | LIMIT 10""", testData, false);
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);
@@ -7189,7 +7189,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _any:departments
-                """);
+                """, testData, false);
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));
@@ -7225,7 +7225,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
-                """);
+                """, testData, false);
             var topN = as(plan, TopNExec.class);
             var exchange = as(topN.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);

@@ -94,10 +94,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), ModelConfigurations.SERVICE_SETTINGS)
             );
         }
 
@@ -261,10 +258,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), ModelConfigurations.SERVICE_SETTINGS)
             );
         }
         if (numAllocations != null && adaptiveAllocationsSettings != null) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.chunking.*;
 
 import java.util.ArrayList;
 import java.util.List;

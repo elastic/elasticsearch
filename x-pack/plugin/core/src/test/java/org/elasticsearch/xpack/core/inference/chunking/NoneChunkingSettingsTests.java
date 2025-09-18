@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.chunking;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
 
 import java.io.IOException;
 

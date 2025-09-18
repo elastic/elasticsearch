@@ -19,7 +19,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
@@ -69,12 +68,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                 CohereEmbeddingType.FLOAT
             );
             case PERSISTENT -> {
-                var embeddingType = extractOptionalString(
-                    map,
-                    EMBEDDING_TYPE,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    validationException
-                );
+                var embeddingType = extractOptionalString(map, EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, validationException);
                 yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
             }
 

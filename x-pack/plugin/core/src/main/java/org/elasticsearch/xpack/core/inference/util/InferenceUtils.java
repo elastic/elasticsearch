@@ -121,7 +121,6 @@ public final class InferenceUtils {
         return null;
     }
 
-
     public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
         Map<String, Object> map,
         String settingName,

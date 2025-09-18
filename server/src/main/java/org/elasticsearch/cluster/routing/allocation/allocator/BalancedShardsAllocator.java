@@ -129,7 +129,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             balancerSettings,
             writeLoadForecaster,
             new GlobalBalancingWeightsFactory(balancerSettings),
-            NonPreferredShardIteratorFactory.NOOP
+            NonPreferredShardIteratorFactory.NODE_INTERLEAVED
         );
     }
 

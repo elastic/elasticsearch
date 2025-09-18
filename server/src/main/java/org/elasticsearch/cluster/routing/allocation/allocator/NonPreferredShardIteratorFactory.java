@@ -16,7 +16,15 @@ import java.util.Collections;
 
 public interface NonPreferredShardIteratorFactory {
 
+    /**
+     * Doesn't iterate over the shards at all, can be used to disable movement of <code>NON_PREFERRED</code> shards.
+     */
     NonPreferredShardIteratorFactory NOOP = ignored -> Collections.emptyList();
+
+    /**
+     * Just iterates over all shards using {@link org.elasticsearch.cluster.routing.RoutingNodes#nodeInterleavedShardIterator()}
+     */
+    NonPreferredShardIteratorFactory NODE_INTERLEAVED = allocation -> () -> allocation.routingNodes().nodeInterleavedShardIterator();
 
     /**
      * Create an iterator returning all shards to be checked for non-preferred allocation, ordered in

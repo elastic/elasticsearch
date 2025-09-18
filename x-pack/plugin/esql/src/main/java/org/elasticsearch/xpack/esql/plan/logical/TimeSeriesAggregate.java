@@ -12,24 +12,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
@@ -147,14 +142,52 @@ public class TimeSeriesAggregate extends Aggregate {
                     )
                 );
             }
+            // reject LOOKUP_JOIN
+            if (p instanceof LookupJoin lookupJoin) {
+                failures.add(
+                    fail(
+                        lookupJoin,
+                        "lookup join [{}] in the time-series source before the first aggregation [{}] is not allowed",
+                        lookupJoin.sourceText(),
+                        this.sourceText()
+                    )
+                );
+            }
+            // reject ENRICH
+            if (p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+                failures.add(
+                    fail(
+                        enrich,
+                        "coordinator enrich [{}] in the time-series source before the first aggregation [{}] is not allowed",
+                        enrich.sourceText(),
+                        this.sourceText()
+                    )
+                );
+            }
+            // reject CHANGE_POINT
+            if (p instanceof ChangePoint changePoint) {
+                failures.add(
+                    fail(
+                        changePoint,
+                        "change_point [{}] in the time-series source before the first aggregation [{}] is not allowed",
+                        changePoint.sourceText(),
+                        this.sourceText()
+                    )
+                );
+            }
         });
     }
 
     @Override
     protected void checkTimeSeriesAggregates(Failures failures) {
-        List<TimeSeriesAggregateFunction> overTimeFunctions = new ArrayList<>();
         for (NamedExpression aggregate : aggregates) {
             if (aggregate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction outer) {
+                if (outer instanceof Count count && count.field().foldable()) {
+                    // COUNT(*)
+                    failures.add(
+                        fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
+                    );
+                }
                 if (outer instanceof TimeSeriesAggregateFunction ts) {
                     outer.field()
                         .forEachDown(
@@ -162,7 +195,7 @@ public class TimeSeriesAggregate extends Aggregate {
                             nested -> failures.add(
                                 fail(
                                     this,
-                                    "cannot use aggregate function [{}] inside over-time aggregation function [{}]",
+                                    "cannot use aggregate function [{}] inside time-series aggregation function [{}]",
                                     nested.sourceText(),
                                     outer.sourceText()
                                 )
@@ -173,18 +206,17 @@ public class TimeSeriesAggregate extends Aggregate {
                     failures.add(
                         fail(
                             ts,
-                            "over-time aggregate function [{}] can only be used with the TS command and inside another aggregate function",
+                            "time-series aggregate function [{}] can only be used with the TS command and inside another aggregate function",
                             ts.sourceText()
                         )
                     );
-                    overTimeFunctions.add(ts);
                 } else {
                     outer.field().forEachDown(AggregateFunction.class, nested -> {
                         if (nested instanceof TimeSeriesAggregateFunction == false) {
                             fail(
                                 this,
                                 "cannot use aggregate function [{}] inside aggregation function [{}];"
-                                    + "only over-time aggregation function can be used inside another aggregation function",
+                                    + "only time-series aggregation function can be used inside another aggregation function",
                                 nested.sourceText(),
                                 outer.sourceText()
                             );
@@ -202,40 +234,6 @@ public class TimeSeriesAggregate extends Aggregate {
                                 )
                             );
                     });
-                }
-            }
-        }
-        // reject `TS metrics | STATS rate(requests) BY host, TBUCKET(1 hour)`
-        if (overTimeFunctions.isEmpty() == false) {
-            Holder<Attribute> timestamp = new Holder<>();
-            forEachDown(EsRelation.class, r -> {
-                for (Attribute attr : r.output()) {
-                    if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                        timestamp.set(attr);
-                    }
-                }
-            });
-            List<Expression> nonTimeBucketGroupings = new ArrayList<>();
-            for (Expression g : groupings) {
-                boolean timeBucket = g.anyMatch(
-                    c -> (c instanceof Bucket b && b.field().equals(timestamp.get())
-                        || (c instanceof TBucket tb && tb.field().equals(timestamp.get())))
-                );
-                if (timeBucket == false) {
-                    nonTimeBucketGroupings.add(g);
-                }
-            }
-            if (nonTimeBucketGroupings.isEmpty() == false) {
-                for (TimeSeriesAggregateFunction af : overTimeFunctions) {
-                    failures.add(
-                        fail(
-                            this,
-                            "cannot use over-time aggregate function [{}] with groupings [{}] other than the time bucket; "
-                                + "drop the groupings or provide an outer aggregation",
-                            af.sourceText(),
-                            nonTimeBucketGroupings.stream().map(Node::sourceText).collect(Collectors.joining(", "))
-                        )
-                    );
                 }
             }
         }

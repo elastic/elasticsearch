@@ -123,6 +123,9 @@ public final class MappingParser {
         final MappingParserContext mappingParserContext = mappingParserContextSupplier.get();
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
+        if (mappingParserContext.getAutoExcludes().isEmpty() == false && mappingSource.containsKey(SourceFieldMapper.NAME) == false) {
+            mappingSource.put(SourceFieldMapper.NAME, new HashMap<>());
+        }
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;

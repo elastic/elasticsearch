@@ -21,6 +21,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Stack;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -42,7 +45,8 @@ public class MappingParserContext {
     private final IdFieldMapper idFieldMapper;
     private final Function<Query, BitSetProducer> bitSetProducer;
     private final long mappingObjectDepthLimit;
-    private long mappingObjectDepth = 0;
+    private final Stack<String> mappingObjectPath = new Stack<>();
+    private final List<String> autoExcludes = new ArrayList<>();
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -142,19 +146,41 @@ public class MappingParserContext {
         return bitSetProducer.apply(query);
     }
 
-    void incrementMappingObjectDepth() throws MapperParsingException {
-        mappingObjectDepth++;
-        if (mappingObjectDepth > mappingObjectDepthLimit) {
+    void incrementMappingObjectDepth(String name) throws MapperParsingException {
+        mappingObjectPath.push(name);
+        if (mappingObjectPath.size() > mappingObjectDepthLimit) {
             throw new MapperParsingException("Limit of mapping depth [" + mappingObjectDepthLimit + "] has been exceeded");
         }
     }
 
     void decrementMappingObjectDepth() throws MapperParsingException {
-        mappingObjectDepth--;
+        mappingObjectPath.pop();
+    }
+
+    public List<String> getAutoExcludes() {
+        return autoExcludes;
+    }
+
+    public void addAutoExclude(String name) {
+        autoExcludes.add(name);
     }
 
     public MappingParserContext createMultiFieldContext() {
         return new MultiFieldParserContext(this);
+    }
+
+    public String getPath(String fieldName) {
+        if (mappingObjectPath.isEmpty()) {
+            return fieldName;
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (String s : mappingObjectPath) {
+                sb.append(s);
+                sb.append(".");
+            }
+            sb.append(fieldName);
+            return sb.toString();
+        }
     }
 
     private static class MultiFieldParserContext extends MappingParserContext {

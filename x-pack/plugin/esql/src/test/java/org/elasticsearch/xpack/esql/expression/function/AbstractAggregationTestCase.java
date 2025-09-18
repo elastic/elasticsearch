@@ -150,6 +150,29 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         }, this::evaluate);
     }
 
+    public void testSurrogateHasFilter() {
+        Expression expression = randomFrom(
+            buildLiteralExpression(testCase),
+            buildDeepCopyOfFieldExpression(testCase),
+            buildFieldExpression(testCase)
+        );
+
+        assumeTrue("expression should have no type errors", expression.typeResolved().resolved());
+
+        if (expression instanceof AggregateFunction && expression instanceof SurrogateExpression) {
+            var filter = ((AggregateFunction) expression).filter();
+
+            var surrogate = ((SurrogateExpression) expression).surrogate();
+
+            if (surrogate != null) {
+                surrogate.forEachDown(AggregateFunction.class, child -> {
+                    var surrogateFilter = child.filter();
+                    assertEquals(filter, surrogateFilter);
+                });
+            }
+        }
+    }
+
     private void aggregateSingleMode(Expression expression) {
         Object result;
         try (var aggregator = aggregator(expression, initialInputChannels(), AggregatorMode.SINGLE)) {

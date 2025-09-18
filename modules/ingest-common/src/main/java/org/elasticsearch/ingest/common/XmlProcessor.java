@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -99,6 +100,8 @@ public final class XmlProcessor extends AbstractProcessor {
     private final Map<String, String> xpathExpressions;
     private final Map<String, String> namespaces;
 
+    @Nullable
+    private final NamespaceContext namespaceContext;
     private final Map<String, XPathExpression> compiledXPathExpressions;
     private final boolean needsDom;
     private final SAXParserFactory factory;
@@ -128,11 +131,11 @@ public final class XmlProcessor extends AbstractProcessor {
         this.removeNamespaces = removeNamespaces;
         this.forceContent = forceContent;
         this.forceArray = forceArray;
-
         this.xpathExpressions = xpathExpressions != null ? Map.copyOf(xpathExpressions) : Map.of();
         this.namespaces = namespaces != null ? Map.copyOf(namespaces) : Map.of();
 
-        this.compiledXPathExpressions = compileXPathExpressions(this.xpathExpressions, this.namespaces);
+        this.namespaceContext = buildNamespaceContext(this.namespaces);
+        this.compiledXPathExpressions = compileXPathExpressions(this.namespaceContext, this.xpathExpressions);
         this.needsDom = this.xpathExpressions.isEmpty() == false;
         this.factory = selectSaxParserFactory(this.namespaces.isEmpty() == false || removeNamespaces);
     }
@@ -308,67 +311,72 @@ public final class XmlProcessor extends AbstractProcessor {
         }
     }
 
+    private static NamespaceContext buildNamespaceContext(Map<String, String> namespaces) {
+        if (namespaces == null || namespaces.isEmpty()) {
+            return null;
+        }
+
+        // build a read-only reverse map for quick look up
+        final Map<String, Set<String>> uriToPrefixes;
+        {
+            Map<String, Set<String>> innerUriToPrefixes = new HashMap<>();
+            for (Map.Entry<String, String> entry : namespaces.entrySet()) {
+                innerUriToPrefixes.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey());
+            }
+            innerUriToPrefixes.replaceAll((k, v) -> Set.copyOf(v));
+            uriToPrefixes = Map.copyOf(innerUriToPrefixes);
+        }
+
+        return new NamespaceContext() {
+            @Override
+            public String getNamespaceURI(String prefix) {
+                if (prefix == null) {
+                    throw new IllegalArgumentException("Prefix cannot be null");
+                }
+                return namespaces.getOrDefault(prefix, "");
+            }
+
+            @Override
+            public String getPrefix(String namespaceURI) {
+                if (namespaceURI == null) {
+                    throw new IllegalArgumentException("namespaceURI cannot be null");
+                }
+                Set<String> prefixes = uriToPrefixes.get(namespaceURI);
+                return (prefixes == null || prefixes.isEmpty()) ? null : prefixes.iterator().next();
+            }
+
+            @Override
+            public Iterator<String> getPrefixes(String namespaceURI) {
+                if (namespaceURI == null) {
+                    throw new IllegalArgumentException("namespaceURI cannot be null");
+                }
+                return uriToPrefixes.getOrDefault(namespaceURI, Set.of()).iterator();
+            }
+        };
+    }
+
     /**
      * Compiles XPath expressions at processor creation time for optimal runtime performance.
      * This method pre-compiles all configured XPath expressions with appropriate namespace context,
      * eliminating the compilation overhead during document processing.
      *
+     * @param namespaceContext the namespace context for the XPath expressions, or null
      * @param xpathExpressions map of XPath expressions to target field names
-     * @param namespaces map of namespace prefixes to URIs
      * @return map of compiled XPath expressions keyed by target field name
      * @throws IllegalArgumentException if XPath compilation fails or namespace validation fails
      */
     private static Map<String, XPathExpression> compileXPathExpressions(
-        Map<String, String> xpathExpressions,
-        Map<String, String> namespaces
+        NamespaceContext namespaceContext,
+        Map<String, String> xpathExpressions
     ) {
-        if (xpathExpressions.isEmpty()) {
+        if (xpathExpressions == null || xpathExpressions.isEmpty()) {
             return Map.of();
         }
 
         Map<String, XPathExpression> compiled = new HashMap<>();
         XPath xpath = createSecureXPath();
-
-        // Set namespace context if namespaces are defined
-        boolean hasNamespaces = namespaces.isEmpty() == false;
-        if (hasNamespaces) {
-            // build a read-only reverse map for quick look up
-            final Map<String, Set<String>> uriToPrefixes;
-            {
-                Map<String, Set<String>> innerUriToPrefixes = new HashMap<>();
-                for (Map.Entry<String, String> entry : namespaces.entrySet()) {
-                    innerUriToPrefixes.computeIfAbsent(entry.getValue(), k -> new HashSet<>()).add(entry.getKey());
-                }
-                innerUriToPrefixes.replaceAll((k, v) -> Set.copyOf(v));
-                uriToPrefixes = Map.copyOf(innerUriToPrefixes);
-            }
-
-            xpath.setNamespaceContext(new NamespaceContext() {
-                @Override
-                public String getNamespaceURI(String prefix) {
-                    if (prefix == null) {
-                        throw new IllegalArgumentException("Prefix cannot be null");
-                    }
-                    return namespaces.getOrDefault(prefix, "");
-                }
-
-                @Override
-                public String getPrefix(String namespaceURI) {
-                    if (namespaceURI == null) {
-                        throw new IllegalArgumentException("namespaceURI cannot be null");
-                    }
-                    Set<String> prefixes = uriToPrefixes.get(namespaceURI);
-                    return (prefixes == null || prefixes.isEmpty()) ? null : prefixes.iterator().next();
-                }
-
-                @Override
-                public Iterator<String> getPrefixes(String namespaceURI) {
-                    if (namespaceURI == null) {
-                        throw new IllegalArgumentException("namespaceURI cannot be null");
-                    }
-                    return uriToPrefixes.getOrDefault(namespaceURI, Set.of()).iterator();
-                }
-            });
+        if (namespaceContext != null) {
+            xpath.setNamespaceContext(namespaceContext);
         }
 
         for (Map.Entry<String, String> entry : xpathExpressions.entrySet()) {

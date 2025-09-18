@@ -184,6 +184,7 @@ public class TransportVersions {
     public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90 = def(9_000_0_08);
     public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH_90 = def(9_000_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_7 = def(9_000_0_16);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0_8 = def(9_000_0_17);
 
     /*
      * STOP! READ THIS FIRST! No, really,

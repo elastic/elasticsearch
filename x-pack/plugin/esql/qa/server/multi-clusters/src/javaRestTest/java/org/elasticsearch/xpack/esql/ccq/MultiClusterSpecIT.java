@@ -174,11 +174,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
     }
 
-    @Override
-    protected boolean supportTimeSeriesCommand() {
-        return false;
-    }
-
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());

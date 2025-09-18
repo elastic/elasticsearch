@@ -23,10 +23,6 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | lookup_\uD83D\uDC14 \"foo\" on j", "lookup_\uD83D\uDC14");
     }
 
-    public void testDevelopmentMetrics() throws Exception {
-        parse("TS foo", "TS");
-    }
-
     public void testDevelopmentMatch() throws Exception {
         parse("row a = 1 | match foo", "match");
     }
@@ -45,7 +41,6 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
 
         // manually disable dev mode (make it production)
         config.setDevVersion(false);
-        config.setMetricsCommand(false);
         return parser;
     }
 }

@@ -1054,6 +1054,7 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
+        @Deprecated
         METRICS_COMMAND(Build.current().isSnapshot()),
 
         /**
@@ -1515,7 +1516,14 @@ public class EsqlCapabilities {
         ABSENT_OVER_TIME(Build.current().isSnapshot()),
 
         /** INLINE STATS supports remote indices */
-        INLINE_STATS_SUPPORTS_REMOTE;
+        INLINE_STATS_SUPPORTS_REMOTE(INLINESTATS_V11.enabled),
+
+        /**
+         * Support TS command in non-snapshot builds
+         */
+        TS_COMMAND_V0(),
+
+        ;
 
         private final boolean enabled;
 

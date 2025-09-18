@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.List;
@@ -22,7 +21,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldNameUtilsTests extends ESTestCase {
@@ -1606,11 +1604,6 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testMetrics() {
         var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
-        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
-            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-            assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
-            return;
-        }
         assertFieldNames(
             query,
             Set.of(

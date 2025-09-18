@@ -1273,13 +1273,11 @@ public class Security extends Plugin
     }
 
     private static Object unwrapComponentObject(Object component) {
-        final Object unwrapped;
         if (component instanceof PluginComponentBinding<?, ?> pcb) {
-            unwrapped = pcb.impl();
+            return pcb.impl();
         } else {
-            unwrapped = component;
+            return component;
         }
-        return unwrapped;
     }
 
     private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension(RemoteClusterSecurityExtension.Components components) {

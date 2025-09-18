@@ -1511,9 +1511,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         logger.trace("freeing reader context [{}]", contextId);
         try (ReaderContext context = removeReaderContext(contextId)) {
             return context != null;
-        } catch (Exception e) {
-            logger.warn("freeing reader context [{}] threw", e);
-            return false;
         }
     }
 

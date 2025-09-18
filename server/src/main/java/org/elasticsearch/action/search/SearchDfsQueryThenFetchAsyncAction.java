@@ -123,18 +123,18 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
                 ShardId shardId = searchShardTarget.getShardId();
                 SearchContextIdForNode original = shardMapCopy.get(shardId);
                 if (original != null
-                        && Objects.equals(original.getClusterAlias(), searchShardTarget.getClusterAlias())
-                        && Objects.equals(original.getSearchContextId(), result.getContextId())) {
+                    && Objects.equals(original.getClusterAlias(), searchShardTarget.getClusterAlias())
+                    && Objects.equals(original.getSearchContextId(), result.getContextId())) {
                     // result shard and context id match the original one, check if the node is different and replace if so
                     String originalNode = original.getNode();
                     if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
                         shardMapCopy.put(
-                                shardId,
-                                new SearchContextIdForNode(
-                                        original.getClusterAlias(),
-                                        searchShardTarget.getNodeId(),
-                                        original.getSearchContextId()
-                                )
+                            shardId,
+                            new SearchContextIdForNode(
+                                original.getClusterAlias(),
+                                searchShardTarget.getNodeId(),
+                                original.getSearchContextId()
+                            )
                         );
                         idChanged = true;
                     }
@@ -142,10 +142,10 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             }
             if (idChanged) {
                 BytesReference newId = SearchContextId.encode(
-                        shardMapCopy,
-                        originalSearchContextId.aliasFilter(),
-                        minTransportVersion,
-                        failures
+                    shardMapCopy,
+                    originalSearchContextId.aliasFilter(),
+                    minTransportVersion,
+                    failures
                 );
                 logger.debug("Changing PIT id to [{}]", newId);
                 return newId;

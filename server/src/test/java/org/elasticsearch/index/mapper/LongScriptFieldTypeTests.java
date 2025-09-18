@@ -374,7 +374,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         }
     }
 
-    private static LuceneDocument createDocumentWithIgnoredSource(String bytes) throws IOException {
+    static LuceneDocument createDocumentWithIgnoredSource(String bytes) throws IOException {
         var doc = new LuceneDocument();
         var parser = XContentHelper.createParser(
             XContentParserConfiguration.EMPTY,

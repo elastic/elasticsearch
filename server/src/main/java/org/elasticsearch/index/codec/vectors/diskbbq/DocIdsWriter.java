@@ -103,23 +103,12 @@ final class DocIdsWriter {
             min = Math.min(min, current);
         }
         switch (encoding) {
-            case CONTINUOUS_IDS:
-                writeContinuousIds(docIds, count, out);
-                break;
-            case DELTA_BPV_16:
-                writeDelta16(docIds, count, min, out);
-                break;
-            case BPV_21:
-                write21(docIds, count, min, out);
-                break;
-            case BPV_24:
-                write24(docIds, count, min, out);
-                break;
-            case BPV_32:
-                write32(docIds, count, min, out);
-                break;
-            default:
-                throw new IOException("Unsupported number of bits per value: " + encoding);
+            case CONTINUOUS_IDS -> writeContinuousIds(docIds, count, out);
+            case DELTA_BPV_16 -> writeDelta16(docIds, count, min, out);
+            case BPV_21 -> write21(docIds, count, min, out);
+            case BPV_24 -> write24(docIds, count, min, out);
+            case BPV_32 -> write32(docIds, count, min, out);
+            default -> throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 
@@ -272,23 +261,12 @@ final class DocIdsWriter {
             scratch = new int[count];
         }
         switch (encoding) {
-            case CONTINUOUS_IDS:
-                readContinuousIds(in, count, docIDs);
-                break;
-            case DELTA_BPV_16:
-                readDelta16(in, count, docIDs);
-                break;
-            case BPV_21:
-                readInts21(in, count, docIDs);
-                break;
-            case BPV_24:
-                readInts24(in, count, docIDs);
-                break;
-            case BPV_32:
-                readInts32(in, count, docIDs);
-                break;
-            default:
-                throw new IOException("Unsupported number of bits per value: " + encoding);
+            case CONTINUOUS_IDS -> readContinuousIds(in, count, docIDs);
+            case DELTA_BPV_16 -> readDelta16(in, count, docIDs);
+            case BPV_21 -> readInts21(in, count, docIDs);
+            case BPV_24 -> readInts24(in, count, docIDs);
+            case BPV_32 -> readInts32(in, count, docIDs);
+            default -> throw new IOException("Unsupported number of bits per value: " + encoding);
         }
     }
 

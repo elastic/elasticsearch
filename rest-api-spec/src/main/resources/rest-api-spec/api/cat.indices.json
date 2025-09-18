@@ -45,20 +45,16 @@
         "description": "The unit in which to display byte values",
         "options": [
           "b",
-          "k",
           "kb",
-          "m",
           "mb",
-          "g",
           "gb",
-          "t",
           "tb",
-          "p",
           "pb"
         ]
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout for connection to master node"
       },
       "h": {

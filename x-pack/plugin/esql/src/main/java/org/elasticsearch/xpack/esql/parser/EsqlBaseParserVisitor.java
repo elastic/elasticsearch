@@ -773,10 +773,4 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

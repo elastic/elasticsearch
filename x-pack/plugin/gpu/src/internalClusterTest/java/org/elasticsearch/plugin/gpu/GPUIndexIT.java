@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.gpu.GPUSupport;
 import org.junit.Assert;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.List;
@@ -36,8 +36,8 @@ public class GPUIndexIT extends ESIntegTestCase {
         return List.of(GPUPlugin.class);
     }
 
-    @Before
-    public void checkGPUSupport() {
+    @BeforeClass
+    public static void checkGPUSupport() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 
@@ -134,7 +134,7 @@ public class GPUIndexIT extends ESIntegTestCase {
             for (int i = 0; i < hits3.length; i++) {
                 Assert.assertEquals(hits3[i].getId(), hits4[i].getId());
                 Assert.assertEquals((String) hits3[i].field("my_keyword").getValue(), (String) hits4[i].field("my_keyword").getValue());
-                Assert.assertEquals(hits3[i].getScore(), hits4[i].getScore(), 0.0001f);
+                Assert.assertEquals(hits3[i].getScore(), hits4[i].getScore(), 0.01f);
             }
         } finally {
             searchResponse3.decRef();

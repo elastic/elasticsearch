@@ -11,9 +11,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    @BeforeClass
+    public static void setup() {
+        assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

@@ -2586,7 +2586,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testTimeseriesDefaultLimitIs1B() {
-        assumeTrue("timeseries requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         // Tuples of (query, isTimeseries)
         for (var queryExp : List.of(
@@ -2608,7 +2607,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRateRequiresCounterTypes() {
-        assumeTrue("rate requires snapshot builds", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         Analyzer analyzer = analyzer(tsdbIndexResolution());
         var query = "TS test | STATS avg(rate(network.connections))";
         VerificationException error = expectThrows(VerificationException.class, () -> analyze(query, analyzer));
@@ -3624,7 +3622,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
@@ -3648,7 +3646,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -4492,7 +4490,6 @@ public class AnalyzerTests extends ESTestCase {
             """, analyzer);
         assertProjection(plan, "max", "avg", "sum", "min", "count");
 
-        assumeTrue("Metrics command must be available for TS", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var plan2 = analyze("""
             TS k8s* | stats s1 = sum(sum_over_time(metric_field)),
             s2 = sum(avg_over_time(metric_field)),

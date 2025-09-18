@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -32,7 +33,6 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.TransportVersions.V_8_17_0;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -105,7 +105,8 @@ public class WildcardLikeListTests extends AbstractScalarFunctionTestCase {
     public void testNotPushableOverCanMatch() {
         TranslationAware translatable = (TranslationAware) buildFieldExpression(testCase);
         assertThat(
-            translatable.translatable(LucenePushdownPredicates.forCanMatch(V_8_17_0, new EsqlFlags(true))).finish(),
+            translatable.translatable(LucenePushdownPredicates.forCanMatch(TransportVersion.minimumCompatible(), new EsqlFlags(true)))
+                .finish(),
             equalTo(TranslationAware.FinishedTranslatable.NO)
         );
     }

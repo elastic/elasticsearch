@@ -146,7 +146,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                 .put("node.name", "testShutdownNowInterrupts")
                 .build();
             threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
-            assertEquals(info(threadPool, threadPoolName).getQueueSize().singles(), 1000L);
+            assertEquals(info(threadPool, threadPoolName).getQueueSize(), (Long) 1000L);
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
             final CountDownLatch latch = new CountDownLatch(1);
@@ -209,7 +209,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
                     assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
                     assertThat(info.getMin(), equalTo(1));
                     assertThat(info.getMax(), equalTo(1));
-                    assertThat(info.getQueueSize().singles(), equalTo(1L));
+                    assertThat(info.getQueueSize(), equalTo(1L));
                 } else {
                     for (Field field : Names.class.getFields()) {
                         if (info.getName().equalsIgnoreCase(field.getName())) {

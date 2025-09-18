@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
@@ -79,11 +78,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
 
         // Execute the fold operation
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            mock(InferenceService.class),
-            inferenceOperatorProvider
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
 
         AtomicReference<Expression> resultExpression = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(resultExpression::set, ESTestCase::fail));
@@ -109,7 +104,6 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
 
         InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
             FoldContext.small(),
-            mock(InferenceService.class),
             (f, driverContext) -> mock(Operator.class)
         );
 
@@ -131,19 +125,13 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         // Mock an operator that will trigger an async failure
         Operator operator = mock(Operator.class);
         doAnswer(invocation -> {
-            // Simulate the operator finishing and then immediately calling the failure listener
-            // This happens inside the `DriverContext` logic that the evaluator uses.
-            // We can't directly access the listener, so we'll have the operator throw an exception
-            // which should be caught and propagated to the listener.
+            // Simulate the operator finishing and then immediately calling the failure listener.
+            // In that case getOutput() will replay the failure when called allowing us to catch the error.
             throw new RuntimeException("async failure");
-        }).when(operator).addInput(new Page(1));
+        }).when(operator).getOutput();
 
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            mock(InferenceService.class),
-            inferenceOperatorProvider
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -166,11 +154,7 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         when(operator.getOutput()).thenReturn(null);
 
         InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            mock(InferenceService.class),
-            inferenceOperatorProvider
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), inferenceOperatorProvider);
 
         AtomicReference<Exception> error = new AtomicReference<>();
         evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
@@ -182,78 +166,16 @@ public class InferenceFunctionEvaluatorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
-    public void testFoldWithMultiPositionOutputPage() throws Exception {
-        TextEmbedding textEmbeddingFunction = new TextEmbedding(
-            Source.EMPTY,
-            Literal.keyword(Source.EMPTY, "test-model"),
-            Literal.keyword(Source.EMPTY, "test input")
-        );
-
-        Operator operator = mock(Operator.class);
-        // Output page should have exactly one position for constant folding
-        when(operator.getOutput()).thenReturn(new Page(blockFactory().newFloatBlockBuilder(2).build()));
-
-        InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            mock(InferenceService.class),
-            inferenceOperatorProvider
-        );
-
-        AtomicReference<Exception> error = new AtomicReference<>();
-        evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
-
-        assertBusy(() -> assertNotNull(error.get()));
-        assertThat(error.get(), instanceOf(IllegalStateException.class));
-        assertThat(error.get().getMessage(), equalTo("Expected a single block with a single value from inference operator"));
-
-        allBreakersEmpty();
-    }
-
-    public void testFoldWithMultiBlockOutputPage() throws Exception {
-        TextEmbedding textEmbeddingFunction = new TextEmbedding(
-            Source.EMPTY,
-            Literal.keyword(Source.EMPTY, "test-model"),
-            Literal.keyword(Source.EMPTY, "test input")
-        );
-
-        Operator operator = mock(Operator.class);
-        // Output page should have exactly one block for constant folding
-        when(operator.getOutput()).thenReturn(
-            new Page(blockFactory().newFloatBlockBuilder(1).build(), blockFactory().newFloatBlockBuilder(1).build())
-        );
-
-        InferenceFunctionEvaluator.InferenceOperatorProvider inferenceOperatorProvider = (f, driverContext) -> operator;
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            mock(InferenceService.class),
-            inferenceOperatorProvider
-        );
-
-        AtomicReference<Exception> error = new AtomicReference<>();
-        evaluator.fold(textEmbeddingFunction, ActionListener.wrap(r -> fail("should have failed"), error::set));
-
-        assertBusy(() -> assertNotNull(error.get()));
-        assertThat(error.get(), instanceOf(IllegalStateException.class));
-        assertThat(error.get().getMessage(), equalTo("Expected a single block with a single value from inference operator"));
-
-        allBreakersEmpty();
-    }
-
     public void testFoldWithUnsupportedFunction() throws Exception {
-        Function unsupported = mock(Function.class);
+        InferenceFunction<?> unsupported = mock(InferenceFunction.class);
         when(unsupported.foldable()).thenReturn(true);
 
-        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(
-            FoldContext.small(),
-            mock(InferenceService.class),
-            (f, driverContext) -> {
-                throw new IllegalArgumentException("Unknown inference function: " + f.getClass().getName());
-            }
-        );
+        InferenceFunctionEvaluator evaluator = new InferenceFunctionEvaluator(FoldContext.small(), (f, driverContext) -> {
+            throw new IllegalArgumentException("Unknown inference function: " + f.getClass().getName());
+        });
 
         AtomicReference<Exception> error = new AtomicReference<>();
-        evaluator.fold((InferenceFunction<?>) unsupported, ActionListener.wrap(r -> fail("should have failed"), error::set));
+        evaluator.fold(unsupported, ActionListener.wrap(r -> fail("should have failed"), error::set));
 
         assertNotNull(error.get());
         assertThat(error.get(), instanceOf(IllegalArgumentException.class));

@@ -37,7 +37,8 @@ public class FoldInferenceFunctions implements PreOptimizerRule {
     private final InferenceFunctionEvaluator inferenceFunctionEvaluator;
 
     public FoldInferenceFunctions(LogicalPreOptimizerContext preOptimizerContext) {
-        inferenceFunctionEvaluator = new InferenceFunctionEvaluator(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService());
+        inferenceFunctionEvaluator = InferenceFunctionEvaluator.factory()
+            .create(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService());
     }
 
     @Override

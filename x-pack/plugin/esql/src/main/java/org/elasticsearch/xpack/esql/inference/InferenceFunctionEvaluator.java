@@ -15,7 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -42,37 +42,24 @@ import org.elasticsearch.xpack.esql.inference.textembedding.TextEmbeddingOperato
  */
 public class InferenceFunctionEvaluator {
 
-    private final FoldContext foldContext;
-    private final InferenceService inferenceService;
-    private final InferenceOperatorProvider inferenceOperatorProvider;
+    private static final Factory FACTORY = new Factory();
 
-    /**
-     * Creates a new inference function evaluator with the default operator provider.
-     *
-     * @param foldContext      the fold context containing circuit breakers and evaluation settings
-     * @param inferenceService the inference service for executing inference operations
-     */
-    public InferenceFunctionEvaluator(FoldContext foldContext, InferenceService inferenceService) {
-        this.foldContext = foldContext;
-        this.inferenceService = inferenceService;
-        this.inferenceOperatorProvider = this::createInferenceOperator;
+    public static InferenceFunctionEvaluator.Factory factory() {
+        return FACTORY;
     }
+
+    private final FoldContext foldContext;
+    private final InferenceOperatorProvider inferenceOperatorProvider;
 
     /**
      * Creates a new inference function evaluator with a custom operator provider.
      * This constructor is primarily used for testing to inject mock operator providers.
      *
      * @param foldContext               the fold context containing circuit breakers and evaluation settings
-     * @param inferenceService          the inference service for executing inference operations
      * @param inferenceOperatorProvider custom provider for creating inference operators
      */
-    InferenceFunctionEvaluator(
-        FoldContext foldContext,
-        InferenceService inferenceService,
-        InferenceOperatorProvider inferenceOperatorProvider
-    ) {
+    InferenceFunctionEvaluator(FoldContext foldContext, InferenceOperatorProvider inferenceOperatorProvider) {
         this.foldContext = foldContext;
-        this.inferenceService = inferenceService;
         this.inferenceOperatorProvider = inferenceOperatorProvider;
     }
 
@@ -90,7 +77,6 @@ public class InferenceFunctionEvaluator {
      *
      * @param f        the inference function to fold - must be foldable (have constant parameters)
      * @param listener the listener to notify when folding completes successfully or fails
-     * @throws IllegalArgumentException if the function is not foldable
      */
     public void fold(InferenceFunction<?> f, ActionListener<Expression> listener) {
         if (f.foldable() == false) {
@@ -125,89 +111,41 @@ public class InferenceFunctionEvaluator {
         DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
 
         // Create the inference operator for the specific function type using the provider
-        Operator inferenceOperator = inferenceOperatorProvider.getOperator(f, driverContext);
 
-        // Execute the inference operation asynchronously and handle the result
-        // The operator will perform the actual inference call and return a page with the result
-        driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
-            Page output = inferenceOperator.getOutput();
+        try (Operator inferenceOperator = inferenceOperatorProvider.getOperator(f, driverContext)) {
+            // Execute the inference operation asynchronously and handle the result
+            // The operator will perform the actual inference call and return a page with the result
+            driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
+                Page output = inferenceOperator.getOutput();
 
-            try {
-                if (output == null) {
-                    l.onFailure(new IllegalStateException("Expected output page from inference operator"));
-                    return;
+                try {
+                    if (output == null) {
+                        l.onFailure(new IllegalStateException("Expected output page from inference operator"));
+                        return;
+                    }
+
+                    if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
+                        l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
+                        return;
+                    }
+
+                    // Convert the operator result back to an ESQL expression (Literal)
+                    l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
+                } finally {
+                    if (output != null) {
+                        output.releaseBlocks();
+                    }
                 }
+            }));
 
-                if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
-                    l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
-                    return;
-                }
-
-                // Convert the operator result back to an ESQL expression (Literal)
-                l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
-            } finally {
-                if (output != null) {
-                    output.releaseBlocks();
-                }
-            }
-        }));
-
-        // Feed the operator with a single page to trigger execution
-        // The actual input data is already bound in the operator through expression evaluators
-        inferenceOperator.addInput(new Page(1));
-
-        driverContext.finish();
-    }
-
-    /**
-     * Creates an inference operator for the given function type and driver context.
-     * <p>
-     * This method uses pattern matching to determine the correct operator factory based on
-     * the inference function type, creates the factory, and then instantiates the operator
-     * with the provided driver context. Each supported inference function type has its own
-     * specialized operator implementation.
-     *
-     * @param f             the inference function to create an operator for
-     * @param driverContext the driver context to use for operator creation
-     * @return an operator instance configured for the given function type
-     * @throws IllegalArgumentException if the function type is not supported
-     */
-    private Operator createInferenceOperator(InferenceFunction<?> f, DriverContext driverContext) {
-        Operator.OperatorFactory factory = switch (f) {
-            case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
-                inferenceService,
-                inferenceId(f),
-                expressionEvaluatorFactory(textEmbedding.inputText())
-            );
-            default -> throw new IllegalArgumentException("Unknown inference function: " + f.getClass().getName());
-        };
-
-        return factory.get(driverContext);
-    }
-
-    /**
-     * Extracts the inference endpoint ID from an inference function.
-     *
-     * @param f the inference function containing the inference ID
-     * @return the inference endpoint ID as a string
-     */
-    private String inferenceId(InferenceFunction<?> f) {
-        return BytesRefs.toString(f.inferenceId().fold(foldContext));
-    }
-
-    /**
-     * Creates an expression evaluator factory for a foldable expression.
-     * <p>
-     * This method converts a foldable expression into an evaluator factory that can be used by inference
-     * operators. The expressionis first folded to its constant value and then wrapped in a literal.
-     *
-     * @param e the foldable expression to create an evaluator factory for
-     * @return an expression evaluator factory for the given expression
-     * @throws AssertionError if the expression is not foldable (in debug builds)
-     */
-    private ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e) {
-        assert e.foldable() : "Input expression must be foldable";
-        return EvalMapper.toEvaluator(foldContext, Literal.of(foldContext, e), null);
+            // Feed the operator with a single page to trigger execution
+            // The actual input data is already bound in the operator through expression evaluators
+            inferenceOperator.addInput(new Page(1));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        } finally {
+            driverContext.finish();
+        }
     }
 
     /**
@@ -217,7 +155,6 @@ public class InferenceFunctionEvaluator {
      * allowing for easier testing and potential future extensibility. The provider is responsible
      * for creating an appropriate operator instance given an inference function and driver context.
      */
-    @FunctionalInterface
     interface InferenceOperatorProvider {
         /**
          * Creates an inference operator for the given function and driver context.
@@ -227,5 +164,65 @@ public class InferenceFunctionEvaluator {
          * @return an operator instance configured for the given function
          */
         Operator getOperator(InferenceFunction<?> f, DriverContext driverContext);
+    }
+
+    /**
+     * Factory for creating {@link InferenceFunctionEvaluator} instances.
+     */
+    public static class Factory {
+        private Factory() {}
+
+        /**
+         * Creates a new inference function evaluator.
+         *
+         * @param foldContext      the fold context
+         * @param inferenceService the inference service
+         * @return a new instance of {@link InferenceFunctionEvaluator}
+         */
+        public InferenceFunctionEvaluator create(FoldContext foldContext, InferenceService inferenceService) {
+            return new InferenceFunctionEvaluator(foldContext, createInferenceOperatorProvider(foldContext, inferenceService));
+        }
+
+        /**
+         * Creates an {@link InferenceOperatorProvider} that can produce operators for all supported inference functions.
+         */
+        private InferenceOperatorProvider createInferenceOperatorProvider(FoldContext foldContext, InferenceService inferenceService) {
+            return (inferenceFunction, driverContext) -> {
+                Operator.OperatorFactory factory = switch (inferenceFunction) {
+                    case TextEmbedding textEmbedding -> new TextEmbeddingOperator.Factory(
+                        inferenceService,
+                        inferenceId(inferenceFunction, foldContext),
+                        expressionEvaluatorFactory(textEmbedding.inputText(), foldContext)
+                    );
+                    default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
+                };
+
+                return factory.get(driverContext);
+            };
+        }
+
+        /**
+         * Extracts the inference endpoint ID from an inference function.
+         *
+         * @param f the inference function containing the inference ID
+         * @return the inference endpoint ID as a string
+         */
+        private String inferenceId(InferenceFunction<?> f, FoldContext foldContext) {
+            return BytesRefs.toString(f.inferenceId().fold(foldContext));
+        }
+
+        /**
+         * Creates an expression evaluator factory for a foldable expression.
+         * <p>
+         * This method converts a foldable expression into an evaluator factory that can be used by inference
+         * operators. The expression is first folded to its constant value and then wrapped in a literal.
+         *
+         * @param e the foldable expression to create an evaluator factory for
+         * @return an expression evaluator factory for the given expression
+         */
+        private EvalOperator.ExpressionEvaluator.Factory expressionEvaluatorFactory(Expression e, FoldContext foldContext) {
+            assert e.foldable() : "Input expression must be foldable";
+            return EvalMapper.toEvaluator(foldContext, Literal.of(foldContext, e), null);
+        }
     }
 }

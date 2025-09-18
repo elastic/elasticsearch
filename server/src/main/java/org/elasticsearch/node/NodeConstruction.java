@@ -721,6 +721,10 @@ class NodeConstruction {
         modules.bindToInstance(SamplingService.class, samplingService);
         clusterService.addListener(samplingService);
 
+        SamplingService samplingService = new SamplingService(scriptService, clusterService);
+        modules.bindToInstance(SamplingService.class, samplingService);
+        clusterService.addListener(samplingService);
+
         FailureStoreMetrics failureStoreMetrics = new FailureStoreMetrics(telemetryProvider.getMeterRegistry());
         final IngestService ingestService = new IngestService(
             clusterService,

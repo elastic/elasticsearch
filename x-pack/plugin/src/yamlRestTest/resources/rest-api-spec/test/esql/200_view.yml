@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
-          capabilities: [ views ]
+          capabilities: [ views_v1 ]
       reason: "Views not yet supported"
       test_runner_features: [capabilities]
   - do:

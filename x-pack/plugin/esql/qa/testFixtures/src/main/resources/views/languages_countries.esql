@@ -1,0 +1,4 @@
+FROM languages_lookup_non_unique_key
+| MV_EXPAND country
+| WHERE country IS NOT NULL AND country NOT LIKE ("*-Land*")
+| STATS count=COUNT() BY country

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedView;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
@@ -49,16 +49,21 @@ public class ViewService {
         List<String> seen = new ArrayList<>();
         while (true) {
             LogicalPlan prev = plan;
-            plan = plan.transformUp(UnresolvedView.class, uv -> {
+            plan = plan.transformUp(UnresolvedRelation.class, ur -> {
+                String name = ur.indexPattern().indexPattern();
+                if (views.views().containsKey(name) == false) {
+                    return ur;
+                }
+                View view = views.views().get(name);
                 if (seen.size() > MAX_VIEW_DEPTH) {
                     throw viewError("too many views referencing views ", seen);
                 }
-                boolean alreadySeen = seen.contains(uv.name());
-                seen.add(uv.name());
+                boolean alreadySeen = seen.contains(name);
+                seen.add(name);
                 if (alreadySeen) {
                     throw viewError("circular view reference ", seen);
                 }
-                return resolve(views, uv, telemetry, configuration);
+                return resolve(view, telemetry, configuration);
             });
             if (plan.equals(prev)) {
                 return prev;
@@ -66,11 +71,7 @@ public class ViewService {
         }
     }
 
-    private static LogicalPlan resolve(ViewMetadata views, UnresolvedView uv, PlanTelemetry telemetry, Configuration configuration) {
-        View view = views.views().get(uv.name());
-        if (view == null) {
-            return uv;
-        }
+    private static LogicalPlan resolve(View view, PlanTelemetry telemetry, Configuration configuration) {
         // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
         // this will make super-wrong Source. the _source should be the view.
         // if there's a `filter` it applies "under" the view. that's weird. right?

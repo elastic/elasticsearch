@@ -29,10 +29,7 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
     }
 
     public void testIsEmpty() {
-        var randomSettings = create(
-            randomBoolean() ? null : "username",
-            randomBoolean() ? null : Map.of("key", "value")
-        );
+        var randomSettings = create(randomBoolean() ? null : "username", randomBoolean() ? null : Map.of("key", "value"));
         var stringRep = Strings.toString(randomSettings);
 
         assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
@@ -68,18 +65,13 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
 
     public void testFromMap_WithUserAndHeaders() {
         assertThat(
-            create(
-                new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, Map.of("key", "value")))
-            ),
+            create(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user", OpenAiServiceFields.HEADERS, Map.of("key", "value")))),
             is(create("user", Map.of("key", "value")))
         );
     }
 
     public void testFromMap_UserIsEmptyString() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> create(new HashMap<>(Map.of(OpenAiServiceFields.USER, "")))
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> create(new HashMap<>(Map.of(OpenAiServiceFields.USER, ""))));
 
         assertThat(
             thrownException.getMessage(),
@@ -107,10 +99,7 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
     public void testOf_UsesOverriddenSettings() {
         var taskSettings = create(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")));
 
-        assertThat(
-            taskSettings.updatedTaskSettings(Map.of(OpenAiServiceFields.USER, "user2")),
-            is(create("user2", null))
-        );
+        assertThat(taskSettings.updatedTaskSettings(Map.of(OpenAiServiceFields.USER, "user2")), is(create("user2", null)));
     }
 
     public void testOf_UsesOverriddenSettings_ForHeaders() {
@@ -118,16 +107,11 @@ public abstract class OpenAiTaskSettingsTests<T extends OpenAiTaskSettings<T>> e
         var taskSettings = create(new HashMap<>(Map.of(OpenAiServiceFields.USER, user)));
 
         var headers = Map.of("key", "value");
-        assertThat(
-            taskSettings.updatedTaskSettings(Map.of(OpenAiServiceFields.HEADERS, headers)),
-            is(create(user, headers))
-        );
+        assertThat(taskSettings.updatedTaskSettings(Map.of(OpenAiServiceFields.HEADERS, headers)), is(create(user, headers)));
     }
 
     public void testFromMap_ParsesCorrectly_WhenUserIsNull() {
-        var settings = create(
-            new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", "value"))))
-        );
+        var settings = create(new HashMap<>(Map.of(OpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", "value")))));
 
         assertNull(settings.user());
         assertThat(settings.headers(), is(Map.of("key", "value")));

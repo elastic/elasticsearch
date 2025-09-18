@@ -31,8 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -121,6 +125,30 @@ public class DefaultNonPreferredShardIteratorFactoryTests extends ESTestCase {
         if (totalCount > 0) {
             assertThat(lastNodeQueueLatency, greaterThanOrEqualTo(0L));
         }
+    }
+
+    public void testThatAllShardsAreReturnedOnce() {
+        final var iteratorFactory = new DefaultNonPreferredShardIteratorFactory(
+            new WriteLoadConstraintSettings(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder()
+                        .put(
+                            WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
+                            WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                        )
+                        .build()
+                )
+            )
+        );
+        final RoutingAllocation routingAllocation = createRoutingAllocation(randomIntBetween(2, 20));
+        final Set<ShardRouting> allShardRoutings = routingAllocation.routingNodes()
+            .stream()
+            .flatMap(n -> StreamSupport.stream(n.spliterator(), false))
+            .collect(Collectors.toSet());
+        for (ShardRouting shard : iteratorFactory.createNonPreferredShardIterator(routingAllocation)) {
+            assertTrue(allShardRoutings.remove(shard));
+        }
+        assertThat(allShardRoutings, empty());
     }
 
     private Tier tierFor(double writeLoad, double lowThreshold, double highThreshold) {

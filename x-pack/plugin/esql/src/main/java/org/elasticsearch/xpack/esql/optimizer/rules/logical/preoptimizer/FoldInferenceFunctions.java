@@ -32,13 +32,16 @@ import java.util.Map;
  * Example transformation:
  * {@code TEXT_EMBEDDING("hello world", "model1")} → {@code [0.1, 0.2, 0.3, ...]}
  */
-public class FoldInferenceFunctions implements PreOptimizerRule {
+public class FoldInferenceFunctions implements LogicalPlanPreOptimizerRule {
 
     private final InferenceFunctionEvaluator inferenceFunctionEvaluator;
 
     public FoldInferenceFunctions(LogicalPreOptimizerContext preOptimizerContext) {
-        inferenceFunctionEvaluator = InferenceFunctionEvaluator.factory()
-            .create(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService());
+        this(InferenceFunctionEvaluator.factory().create(preOptimizerContext.foldCtx(), preOptimizerContext.inferenceService()));
+    }
+
+    protected FoldInferenceFunctions(InferenceFunctionEvaluator inferenceFunctionEvaluator) {
+        this.inferenceFunctionEvaluator = inferenceFunctionEvaluator;
     }
 
     @Override

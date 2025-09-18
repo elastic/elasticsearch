@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 /**
  * A rule that can be applied to an analyzed logical plan before it is optimized.
  */
-public interface PreOptimizerRule {
+public interface LogicalPlanPreOptimizerRule {
 
     /**
      * Apply the rule to the logical plan.

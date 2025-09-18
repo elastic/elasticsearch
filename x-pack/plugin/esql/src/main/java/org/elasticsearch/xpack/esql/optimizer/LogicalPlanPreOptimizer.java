@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.FoldInferenceFunctions;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.PreOptimizerRule;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.LogicalPlanPreOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -23,13 +23,13 @@ import java.util.List;
  * </p>
  */
 public class LogicalPlanPreOptimizer {
-    private final List<PreOptimizerRule> preOptimizerRules;
+    private final List<LogicalPlanPreOptimizerRule> preOptimizerRules;
 
     public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
         this(List.of(new FoldInferenceFunctions(preOptimizerContext)));
     }
 
-    LogicalPlanPreOptimizer(List<PreOptimizerRule> preOptimizerRules) {
+    LogicalPlanPreOptimizer(List<LogicalPlanPreOptimizerRule> preOptimizerRules) {
         this.preOptimizerRules = preOptimizerRules;
     }
 
@@ -59,7 +59,7 @@ public class LogicalPlanPreOptimizer {
      */
     private void doPreOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
         SubscribableListener<LogicalPlan> rulesListener = SubscribableListener.newSucceeded(plan);
-        for (PreOptimizerRule preOptimizerRule : preOptimizerRules) {
+        for (LogicalPlanPreOptimizerRule preOptimizerRule : preOptimizerRules) {
             rulesListener = rulesListener.andThen((l, p) -> preOptimizerRule.apply(p, l));
         }
         rulesListener.addListener(listener);

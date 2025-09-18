@@ -29,7 +29,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -37,7 +36,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,11 +51,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     private final SegmentReadState state;
     private final FieldInfos fieldInfos;
     protected final IntObjectHashMap<FieldEntry> fields;
-    private final IOFunction<String, FlatVectorsReader> rawVectorReaders;
-    private final Map<String, FlatVectorsReader> loadedReaders = new HashMap<>();
+    private final Map<String, FlatVectorsReader> rawVectorReaders;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsReader(SegmentReadState state, IOFunction<String, FlatVectorsReader> rawVectorReaders) throws IOException {
+    protected IVFVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorReaders) throws IOException {
         this.state = state;
         this.fieldInfos = state.fieldInfos;
         this.fields = new IntObjectHashMap<>();
@@ -222,20 +219,19 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public final void checkIntegrity() throws IOException {
-        for (var reader : loadedReaders.values()) {
+        for (var reader : rawVectorReaders.values()) {
             reader.checkIntegrity();
         }
         CodecUtil.checksumEntireFile(ivfCentroids);
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private synchronized FlatVectorsReader getReaderForField(String field) throws IOException {
+    private FlatVectorsReader getReaderForField(String field) {
         String formatName = fields.get(fieldInfos.fieldInfo(field).number).rawVectorFormatName;
-        FlatVectorsReader reader = loadedReaders.get(formatName);
-        if (reader == null) {
-            reader = rawVectorReaders.apply(formatName);
-            loadedReaders.put(formatName, reader);
-        }
+        FlatVectorsReader reader = rawVectorReaders.get(formatName);
+        if (reader == null) throw new IllegalArgumentException(
+            "Could not find raw vector format [" + formatName + "] for field [" + field + "]"
+        );
         return reader;
     }
 
@@ -343,7 +339,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public void close() throws IOException {
-        List<Closeable> closeables = new ArrayList<>(loadedReaders.values());
+        List<Closeable> closeables = new ArrayList<>(rawVectorReaders.values());
         Collections.addAll(closeables, ivfCentroids, ivfClusters);
         IOUtils.close(closeables);
     }

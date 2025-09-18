@@ -14,12 +14,15 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -119,11 +122,12 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES920DiskBBQVectorsReader(state, f -> {
-            var format = supportedFormats.get(f);
-            if (format == null) throw new IllegalArgumentException("Unknown format " + f);
-            return format;
-        });
+        Map<String, FlatVectorsReader> readers = Maps.newHashMapWithExpectedSize(supportedFormats.size());
+        for (var fe : supportedFormats.entrySet()) {
+            readers.put(fe.getKey(), fe.getValue().fieldsReader(state));
+        }
+
+        return new ES920DiskBBQVectorsReader(state, Collections.unmodifiableMap(readers));
     }
 
     @Override

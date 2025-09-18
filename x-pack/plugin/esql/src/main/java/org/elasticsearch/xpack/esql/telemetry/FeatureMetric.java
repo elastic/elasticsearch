@@ -51,7 +51,7 @@ public enum FeatureMetric {
     GROK(Grok.class::isInstance),
     LIMIT(plan -> false), // the limit is checked in Analyzer.gatherPreAnalysisMetrics, because it has a more complex and general check
     SORT(OrderBy.class::isInstance),
-    // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an inlinestats command
+    // the STATS is checked in Analyzer.gatherPreAnalysisMetrics, because it can also be part of an INLINE STATS command
     STATS(plan -> false),
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
@@ -67,7 +67,7 @@ public enum FeatureMetric {
     LOOKUP_JOIN_ON_FIELDS(plan -> plan instanceof LookupJoin lookupJoin && lookupJoin.config().joinOnConditions() == null),
     LOOKUP(Lookup.class::isInstance),
     CHANGE_POINT(ChangePoint.class::isInstance),
-    INLINESTATS(InlineStats.class::isInstance),
+    INLINE_STATS(InlineStats.class::isInstance),
     RERANK(Rerank.class::isInstance),
     INSIST(Insist.class::isInstance),
     FORK(Fork.class::isInstance),

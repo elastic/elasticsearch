@@ -290,6 +290,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
         QueryBuilder rewritten = this;
         if (queryRewriteContext.hasAsyncActions() == false) {
+            // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results
+            // are provided by the user. Ensure that we set an empty inference results map in this case so that it is always non-null after
+            // coordinator node rewrite.
             Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = SemanticQueryBuilder.getInferenceResults(
                 queryRewriteContext,
                 inferenceIds,

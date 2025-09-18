@@ -334,14 +334,8 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         String currentUpperBoundName = getCurrentUpperBoundName().get();
         TransportVersionUpperBound currentUpperBound = upperBounds.get(currentUpperBoundName);
 
-        // non-main branches
-        for (TransportVersionUpperBound upperBound : upperBounds.values()) {
-            if (upperBound.definitionId().complete() > currentUpperBound.definitionId().complete()) {
-                return true;
-            }
-        }
-
-        return false;
+        return upperBounds.values().stream()
+            .anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

@@ -50,17 +50,18 @@ public interface IndicesRequest {
         IndicesRequest indices(String... indices);
 
         /**
-         * Record the results of replacing index expressions, for example during local index resolution such that both the original
-         * expression (e.g. logs-*) and what it was replaced by (e.g., concrete index expression `logs-mysql`).
+         * Record the results of index resolution. See {@link ResolvedIndexExpressions} for details.
+         * Note: this method does not replace {@link indices(String...)}. {@link indices(String...)} must still be called to update
+         * the actual list of indices the request relates to.
          */
-        default void setReplacedIndexExpressions(ReplacedIndexExpressions expressions) {}
+        default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}
 
         /**
-         * Returns the results of replacing index expressions, if recorded via
-         * {@link #setReplacedIndexExpressions(ReplacedIndexExpressions)}. Null otherwise.
+         * Returns the results of index resolution, if recorded via
+         * {@link #setResolvedIndexExpressions(ResolvedIndexExpressions)}. Null if not recorded.
          */
         @Nullable
-        default ReplacedIndexExpressions getReplacedIndexExpressions() {
+        default ResolvedIndexExpressions getResolvedIndexExpressions() {
             return null;
         }
 

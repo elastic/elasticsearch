@@ -15,7 +15,12 @@ import org.elasticsearch.core.Nullable;
 import java.util.List;
 
 /**
- * A record that holds the result of an index expression replacement, e.g. local index resolution.
+ * This class allows capturing context about index expression replacements performed on an {@link IndicesRequest.Replaceable} during
+ * index resolution, in particular the results of local resolution, and the remote (unresolved) expressions if any.
+ * <p>
+ * The replacements are separated into local and remote expressions.
+ * For local expressions, the class allows recording local index resolution results and exceptions if any.
+ * For remote expressions, only the expressions are recorded.
  *
  * <p>An example structure is:</p>
  *
@@ -31,12 +36,11 @@ import java.util.List;
  * }</pre>
  *
  * @param original the original index expression, as provided by the user
- * @param localExpressions the resolved local part of the expression
- * @param remoteExpressions the remote part of the expression, each entry in "canonical" CCS form,
- *        e.g. "remote:my-index-*". This is a list instead of a record since remote expressions are not expanded,
- *        and we therefore don't need to track expansion results or errors.
+ * @param localExpressions the local expressions that replace the original along with their resolution result
+ *                         and resolution exception if any
+ * @param remoteExpressions the remote expressions that replace the original
  */
-public record ReplacedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
+public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
     enum LocalIndexResolutionResult {
         SUCCESS,
         CONCRETE_RESOURCE_MISSING,

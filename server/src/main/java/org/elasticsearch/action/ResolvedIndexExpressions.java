@@ -12,7 +12,7 @@ package org.elasticsearch.action;
 import java.util.Map;
 
 /**
- * A collection of {@link ReplacedIndexExpression}, keyed by the original expression.
+ * A collection of {@link ResolvedIndexExpression}, keyed by the original expression.
  *
  * <p>An example structure is:</p>
  *
@@ -31,4 +31,4 @@ import java.util.Map;
  * }
  * }</pre>
  */
-public record ReplacedIndexExpressions(Map<String, ReplacedIndexExpression> expressions) {}
+public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expressions) {}

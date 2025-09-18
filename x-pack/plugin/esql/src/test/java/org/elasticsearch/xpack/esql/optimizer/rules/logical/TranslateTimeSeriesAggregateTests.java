@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
@@ -162,7 +164,13 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             """);
         Limit limit = as(plan, Limit.class);
         TimeSeriesAggregate outerStats = as(limit.child(), TimeSeriesAggregate.class);
+
         assertEquals(3, outerStats.aggregates().size());
+        // Check the first child to unwrap the alias
+        Count countFn = as(outerStats.aggregates().get(0).children().get(0), Count.class);
+        Values clusterFn = as(outerStats.aggregates().get(1).children().get(0), Values.class);
+        Values podFn = as(outerStats.aggregates().get(2).children().get(0), Values.class);
+
         assertEquals(1, outerStats.groupings().size());
         EsRelation relation = as(outerStats.child(), EsRelation.class);
     }

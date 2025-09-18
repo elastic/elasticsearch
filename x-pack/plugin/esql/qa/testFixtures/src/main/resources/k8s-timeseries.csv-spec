@@ -522,21 +522,20 @@ false                    | two         | 2024-05-10T00:22:00.000Z
 
 Group by all for over time agg with no wrapper, no time bucket  
 required_capability: metrics_command  
+required_capability: metrics_group_by_all
   
 TS k8s   
-| STATS count = count_over_time(network.cost)   
+| STATS count = count_over_time(network.cost) 
 ;  
   
 count:long | cluster:keyword | pod:keyword  
-1          | ID              | FK  
+13         | staging         | one
+20         | staging         | two
+24         | staging         | three
+29         | qa              | one
+29         | qa              | two
+24         | qa              | three
+23         | prod            | one
+16         | prod            | two
+22         | prod            | three
 ;  
-  
-Group By All with Tbucket and Limit  
-   
-TS k8s   
-| STATS max_over_time(@timestamp) BY tbucket=bucket(@timestamp, 1 minute)   
-| LIMIT 5;  
-  
-@timestamp:datetime      | tbucket:datetime   
-2024-05-10T00:18:00.000Z | 2024-05-10T00:18:00.000Z  
-;

@@ -481,6 +481,10 @@ public class BlockFactory {
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
     }
 
+    public DateRangeBlockBuilder newDateRangeBlockBuilder(int estimatedSize) {
+        return new DateRangeBlockBuilder(estimatedSize, this);
+    }
+
     /**
      * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
      */

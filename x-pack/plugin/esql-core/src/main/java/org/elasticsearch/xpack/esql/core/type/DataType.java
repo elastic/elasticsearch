@@ -311,7 +311,13 @@ public enum DataType {
     /**
      * Fields with this type are dense vectors, represented as an array of double values.
      */
-    DENSE_VECTOR(builder().esType("dense_vector").unknownSize());
+    DENSE_VECTOR(builder().esType("dense_vector").unknownSize()),
+
+    /**
+     * Fields with this type are used to represent a range of dates.
+     * This is an under-construction type, and is not yet fully supported.
+     */
+    DATE_RANGE(builder().esType("date_range").typeName("DATE_RANGE").estimatedSize(2 * Long.BYTES));
 
     /**
      * Types that are actively being built. These types are
@@ -332,7 +338,8 @@ public enum DataType {
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
+        Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG),
+        Map.entry(DATE_RANGE, EsqlCorePlugin.DATE_RANGE_FEATURE_FLAG)
     );
 
     private final String typeName;

@@ -299,6 +299,12 @@ public final class BlockUtils {
                     aggBlock.countBlock().getInt(offset)
                 );
             }
+            case DATE_RANGE -> {
+                DateRangeBlock b = (DateRangeBlock) block;
+                LongBlock fromBlock = b.getFromBlock();
+                LongBlock toBlock = b.getToBlock();
+                yield new DateRangeBlockBuilder.DateRangeLiteral(fromBlock.getLong(offset), toBlock.getLong(offset));
+            }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
     }

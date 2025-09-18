@@ -496,6 +496,8 @@ public interface BlockLoader {
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
+
+        DateRangeBuilder dateRangeBuilder(int count);
     }
 
     /**
@@ -622,5 +624,11 @@ public interface BlockLoader {
         DoubleBuilder sum();
 
         IntBuilder count();
+    }
+
+    interface DateRangeBuilder extends Builder {
+        LongBuilder from();
+
+        LongBuilder to();
     }
 }

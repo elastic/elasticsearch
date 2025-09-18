@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.DateRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
@@ -430,6 +432,11 @@ public final class CsvAssert {
                 expectedValue,
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
                 x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
+            );
+            case DATE_RANGE -> rebuildExpected(
+                expectedValue,
+                DateRangeBlockBuilder.DateRangeLiteral.class,
+                x -> EsqlDataTypeConverter.dateRangeLiteralToString((DateRangeBlockBuilder.DateRangeLiteral) x)
             );
             default -> expectedValue;
         };

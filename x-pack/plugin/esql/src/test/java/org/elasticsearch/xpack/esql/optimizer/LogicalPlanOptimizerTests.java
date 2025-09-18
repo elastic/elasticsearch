@@ -8460,6 +8460,49 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * <pre>{@code
+     * EsqlProject[[first_name{f}#6]]
+     * \_TopN[[Order[first_name{f}#6,ASC,LAST]],10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * }</pre>
+     */
+    public void testPruneRedundantTopN() {
+        var plan = optimizedPlan("""
+            FROM test
+            | KEEP first_name
+            | SORT first_name
+            | LIMIT 100
+            | SORT first_name
+            | LIMIT 10
+            """);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * EsqlProject[[first_name{f}#7]]
+     * \_TopN[[Order[first_name{f}#7,ASC,LAST]],10[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
+    public void testPruneRedundantTopNWithSortAgnosticsInBetween() {
+        var plan = optimizedPlan("""
+            FROM test
+            | SORT first_name
+            | LIMIT 10
+            | drop last_name
+            | keep first_name
+            | SORT first_name
+            | LIMIT 100
+            """);
+        var project = as(plan, Project.class);
+        var topN = as(project.child(), TopN.class);
+        as(topN.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
      * Eval[[1[INTEGER] AS irrelevant1, 2[INTEGER] AS irrelevant2]]
      *    \_Limit[1000[INTEGER],false]
      *      \_Sample[0.015[DOUBLE],15[INTEGER]]

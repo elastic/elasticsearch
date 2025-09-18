@@ -126,6 +126,15 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 `TransportService`.
 
 > [!NOTE]
+> TransportActions' [ActionType] naming conventions encode semantic information about the role, scope, plugins, modules and behaviours.
+> [ActionType] instances are mapped to permission privileges via the [ClusterPrivilegeResolver]. Security interceptors enforce access
+> control by invoking RBACEngine.checkPrivileges().
+>
+> Indices-level [ActionType] strings generally follows the pattern: `indices:[data|admin|monitor]/[read|write|get]/[index|bulk|update]`.
+> Cluster-level [ActionType] strings are prefixed by `cluster:` are often followed by a domain-specific such as `autoscaling`, `logstash`, `ingest`,
+> `xpack`.
+
+> [!NOTE]
 > The name [TransportAction] can be misleading, as it suggests they are all invoke-able and invoked via the TCP transport. In fact,
 > a majority of transport actions are only ever invoked locally via the [NodeClient]. The two key features of a `TransportAction` are:
 > - Their constructor parameters are provided via dependency injection (Guice) at runtime rather than direct instantiation.
@@ -193,6 +202,9 @@ capabilities.
 [TaskManager]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskManager.java
 [InboundHandler]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/InboundHandler.java
 [NamedRegistry]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/NamedRegistry.java
+[IndexPrivilege]:https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege/IndexPrivilege.java
+[ClusterPrivilegeResolver]:https://github.com/elastic/elasticsearch/blob/main/x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege/ClusterPrivilegeResolver.java
+
 
 ## Serializations
 

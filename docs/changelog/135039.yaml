@@ -1,0 +1,5 @@
+pr: 135039
+summary: Remove feature flag for coalesced ignored source
+area: Mapping
+type: enhancement
+issues: []

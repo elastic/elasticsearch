@@ -66,7 +66,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
             }
             // Shouldn't actually throw because we checked seenLimits is not empty
             Limit lowestLimit = seenLimits.stream().min(Comparator.comparing(l -> (int) l.limit().fold(ctx.foldCtx()))).orElseThrow();
-            return new Limit(en.source(), lowestLimit.limit(), transformLimits, true, false);
+            return new Limit(lowestLimit.source(), lowestLimit.limit(), transformLimits, true, false);
         }
         return en;
     }

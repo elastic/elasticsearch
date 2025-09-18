@@ -1287,14 +1287,4 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   */
-  void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   */
-  void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

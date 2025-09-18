@@ -46,8 +46,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
-    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM =
-        TransportVersion.fromName("search_source_exclude_inference_fields_param");
+    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_inference_fields_param"
+    );
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(
         true,
@@ -134,8 +135,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {
         final boolean fetchSource = in.readBoolean();
         final Boolean excludeVectors = isVersionCompatibleWithExcludeVectors(in.getTransportVersion()) ? in.readOptionalBoolean() : null;
-        final Boolean excludeInferenceFields = in.getTransportVersion()
-            .supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM) ? in.readOptionalBoolean() : null;
+        final Boolean excludeInferenceFields = in.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)
+            ? in.readOptionalBoolean()
+            : null;
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
         return of(fetchSource, excludeVectors, excludeInferenceFields, includes, excludes);

@@ -584,7 +584,7 @@ public abstract class DocumentParserContext {
             final int pos = path.lastIndexOf('.');
             if (pos > 0) {
                 final String arrayName = path.substring(0, pos);
-                final String fieldName   = path.substring(pos + 1);
+                final String fieldName = path.substring(pos + 1);
 
                 if (mixedArrays.contains(arrayName) == false) {
                     final String firstFieldName = arrayFirstField.get(arrayName);

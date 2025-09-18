@@ -464,6 +464,7 @@ public class ComponentMetadataRulesPlugin implements Plugin<Settings> {
         // AWS SDK dependencies
         components.withModule("com.amazonaws:aws-java-sdk-core", ExcludeAllTransitivesRule.class);
         components.withModule("com.amazonaws:aws-java-sdk-s3", ExcludeAllTransitivesRule.class);
+        components.withModule("com.amazonaws:aws-java-sdk-ec2", ExcludeAllTransitivesRule.class);
         components.withModule("software.amazon.awssdk:bedrockruntime", ExcludeAllTransitivesRule.class);
 
         components.withModule("software.amazon.awssdk:apache-client", ExcludeAllTransitivesRule.class);

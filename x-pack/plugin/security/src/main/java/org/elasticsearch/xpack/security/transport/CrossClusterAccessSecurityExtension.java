@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
@@ -74,15 +73,10 @@ public class CrossClusterAccessSecurityExtension implements RemoteClusterSecurit
 
     public static class Provider implements RemoteClusterSecurityExtension.Provider {
 
-        private final SetOnce<CrossClusterAccessSecurityExtension> extension = new SetOnce<>();
-
         @Override
         public RemoteClusterSecurityExtension getExtension(Components components) {
             logger.trace("Creating remote cluster security extension for [{}]", CrossClusterAccessSecurityExtension.class);
-            if (extension.get() == null) {
-                extension.set(new CrossClusterAccessSecurityExtension(components));
-            }
-            return extension.get();
+            return new CrossClusterAccessSecurityExtension(components);
         }
 
         @Override

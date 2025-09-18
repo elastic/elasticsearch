@@ -14,12 +14,12 @@ import java.io.IOException;
 public class HashSerializationTests extends AbstractExpressionSerializationTests<Hash> {
 
     @Override
-    protected Hash createTestInstance() {
+    protected Hash innerCreateTestInstance() {
         return new Hash(randomSource(), randomChild(), randomChild());
     }
 
     @Override
-    protected Hash mutateInstance(Hash instance) throws IOException {
+    protected Hash innerMutateInstance(Hash instance) throws IOException {
         return randomBoolean()
             ? new Hash(instance.source(), mutateExpression(instance.algorithm()), instance.input())
             : new Hash(instance.source(), instance.algorithm(), mutateExpression(instance.input()));

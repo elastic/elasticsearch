@@ -19,7 +19,7 @@ public abstract class AbstractBinarySpatialFunctionSerializationTestCase<T exten
     protected abstract T build(Source source, Expression left, Expression right);
 
     @Override
-    protected final T createTestInstance() {
+    protected final T innerCreateTestInstance() {
         Source source = randomSource();
         Expression left = randomChild();
         Expression right = randomChild();
@@ -27,7 +27,7 @@ public abstract class AbstractBinarySpatialFunctionSerializationTestCase<T exten
     }
 
     @Override
-    protected final T mutateInstance(T instance) throws IOException {
+    protected final T innerMutateInstance(T instance) throws IOException {
         Source source = instance.source();
         Expression left = instance.left();
         Expression right = instance.right();

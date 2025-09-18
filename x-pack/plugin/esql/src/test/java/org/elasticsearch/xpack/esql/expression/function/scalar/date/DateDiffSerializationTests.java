@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class DateDiffSerializationTests extends AbstractExpressionSerializationTests<DateDiff> {
     @Override
-    protected DateDiff createTestInstance() {
+    protected DateDiff innerCreateTestInstance() {
         Source source = randomSource();
         Expression unit = randomChild();
         Expression startTimestamp = randomChild();
@@ -24,7 +24,7 @@ public class DateDiffSerializationTests extends AbstractExpressionSerializationT
     }
 
     @Override
-    protected DateDiff mutateInstance(DateDiff instance) throws IOException {
+    protected DateDiff innerMutateInstance(DateDiff instance) throws IOException {
         Source source = instance.source();
         Expression unit = instance.unit();
         Expression startTimestamp = instance.startTimestamp();

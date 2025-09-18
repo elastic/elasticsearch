@@ -16,7 +16,7 @@ import java.util.List;
 
 public class CIDRMatchSerializationTests extends AbstractExpressionSerializationTests<CIDRMatch> {
     @Override
-    protected CIDRMatch createTestInstance() {
+    protected CIDRMatch innerCreateTestInstance() {
         Source source = randomSource();
         Expression ipField = randomChild();
         List<Expression> matches = randomList(1, 10, AbstractExpressionSerializationTests::randomChild);
@@ -24,7 +24,7 @@ public class CIDRMatchSerializationTests extends AbstractExpressionSerialization
     }
 
     @Override
-    protected CIDRMatch mutateInstance(CIDRMatch instance) throws IOException {
+    protected CIDRMatch innerMutateInstance(CIDRMatch instance) throws IOException {
         Source source = instance.source();
         Expression ipField = instance.ipField();
         List<Expression> matches = instance.matches();

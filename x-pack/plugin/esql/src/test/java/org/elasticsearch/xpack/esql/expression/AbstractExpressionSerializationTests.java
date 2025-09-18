@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests;
+
+import java.io.IOException;
+
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.ignoreIds;
 
 public abstract class AbstractExpressionSerializationTests<T extends Expression> extends AbstractNodeSerializationTests<T> {
 
@@ -31,5 +36,24 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
     @Override
     protected Class<? extends Node<?>> categoryClass() {
         return Expression.class;
+    }
+
+    @Override
+    protected final T createTestInstance() {
+        return ignoreIds(innerCreateTestInstance());
+    }
+
+    protected abstract T innerCreateTestInstance();
+
+    @Override
+    protected final T mutateInstance(T instance) throws IOException {
+        return ignoreIds(innerMutateInstance(instance));
+    }
+
+    protected abstract T innerMutateInstance(T instance) throws IOException;
+
+    @Override
+    protected T copyInstance(T instance, TransportVersion version) throws IOException {
+        return ignoreIds(super.copyInstance(instance, version));
     }
 }

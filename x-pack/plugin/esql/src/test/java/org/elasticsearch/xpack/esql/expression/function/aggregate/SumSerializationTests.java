@@ -25,12 +25,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SumSerializationTests extends AbstractExpressionSerializationTests<Sum> {
     @Override
-    protected Sum createTestInstance() {
+    protected Sum innerCreateTestInstance() {
         return new Sum(randomSource(), randomChild(), randomChild(), randomChild());
     }
 
     @Override
-    protected Sum mutateInstance(Sum instance) throws IOException {
+    protected Sum innerMutateInstance(Sum instance) throws IOException {
         Expression field = instance.field();
         Expression filter = instance.filter();
         Expression summationMode = instance.summationMode();

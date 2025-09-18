@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvDedupeSerializationTests extends AbstractExpressionSerializationTests<MvDedupe> {
     @Override
-    protected MvDedupe createTestInstance() {
+    protected MvDedupe innerCreateTestInstance() {
         return new MvDedupe(randomSource(), randomChild());
     }
 
     @Override
-    protected MvDedupe mutateInstance(MvDedupe instance) throws IOException {
+    protected MvDedupe innerMutateInstance(MvDedupe instance) throws IOException {
         return new MvDedupe(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

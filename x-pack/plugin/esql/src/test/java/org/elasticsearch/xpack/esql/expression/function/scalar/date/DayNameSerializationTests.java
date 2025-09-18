@@ -16,14 +16,14 @@ import java.io.IOException;
 public class DayNameSerializationTests extends AbstractExpressionSerializationTests<DayName> {
 
     @Override
-    protected DayName createTestInstance() {
+    protected DayName innerCreateTestInstance() {
         Source source = randomSource();
         Expression date = randomChild();
         return new DayName(source, date, configuration());
     }
 
     @Override
-    protected DayName mutateInstance(DayName instance) throws IOException {
+    protected DayName innerMutateInstance(DayName instance) throws IOException {
         Source source = instance.source();
         Expression date = instance.field();
         return new DayName(source, randomValueOtherThan(date, AbstractExpressionSerializationTests::randomChild), configuration());

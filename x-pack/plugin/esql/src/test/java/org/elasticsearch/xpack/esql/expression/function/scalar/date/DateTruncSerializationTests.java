@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class DateTruncSerializationTests extends AbstractExpressionSerializationTests<DateTrunc> {
     @Override
-    protected DateTrunc createTestInstance() {
+    protected DateTrunc innerCreateTestInstance() {
         Source source = randomSource();
         Expression interval = randomChild();
         Expression field = randomChild();
@@ -23,7 +23,7 @@ public class DateTruncSerializationTests extends AbstractExpressionSerialization
     }
 
     @Override
-    protected DateTrunc mutateInstance(DateTrunc instance) throws IOException {
+    protected DateTrunc innerMutateInstance(DateTrunc instance) throws IOException {
         Source source = instance.source();
         Expression interval = instance.interval();
         Expression field = instance.field();

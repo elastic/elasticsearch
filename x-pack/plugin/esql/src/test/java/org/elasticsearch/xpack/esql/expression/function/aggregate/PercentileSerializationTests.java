@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class PercentileSerializationTests extends AbstractExpressionSerializationTests<Percentile> {
     @Override
-    protected Percentile createTestInstance() {
+    protected Percentile innerCreateTestInstance() {
         Source source = randomSource();
         Expression field = randomChild();
         Expression percentile = randomChild();
@@ -23,7 +23,7 @@ public class PercentileSerializationTests extends AbstractExpressionSerializatio
     }
 
     @Override
-    protected Percentile mutateInstance(Percentile instance) throws IOException {
+    protected Percentile innerMutateInstance(Percentile instance) throws IOException {
         Source source = instance.source();
         Expression field = instance.field();
         Expression percentile = instance.percentile();

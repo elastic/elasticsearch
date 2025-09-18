@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class SpatialExtentSerializationTests extends AbstractExpressionSerializationTests<SpatialExtent> {
     @Override
-    protected SpatialExtent createTestInstance() {
+    protected SpatialExtent innerCreateTestInstance() {
         return new SpatialExtent(randomSource(), randomChild());
     }
 
     @Override
-    protected SpatialExtent mutateInstance(SpatialExtent instance) throws IOException {
+    protected SpatialExtent innerMutateInstance(SpatialExtent instance) throws IOException {
         return new SpatialExtent(
             instance.source(),
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)

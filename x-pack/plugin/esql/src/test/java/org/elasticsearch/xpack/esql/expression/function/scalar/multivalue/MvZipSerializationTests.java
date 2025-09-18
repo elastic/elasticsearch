@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class MvZipSerializationTests extends AbstractExpressionSerializationTests<MvZip> {
     @Override
-    protected MvZip createTestInstance() {
+    protected MvZip innerCreateTestInstance() {
         Source source = randomSource();
         Expression mvLeft = randomChild();
         Expression mvRight = randomChild();
@@ -24,7 +24,7 @@ public class MvZipSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected MvZip mutateInstance(MvZip instance) throws IOException {
+    protected MvZip innerMutateInstance(MvZip instance) throws IOException {
         Source source = instance.source();
         Expression mvLeft = instance.mvLeft();
         Expression mvRight = instance.mvRight();

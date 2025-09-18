@@ -14,12 +14,12 @@ import java.io.IOException;
 public class Sha1SerializationTests extends AbstractExpressionSerializationTests<Sha1> {
 
     @Override
-    protected Sha1 createTestInstance() {
+    protected Sha1 innerCreateTestInstance() {
         return new Sha1(randomSource(), randomChild());
     }
 
     @Override
-    protected Sha1 mutateInstance(Sha1 instance) throws IOException {
+    protected Sha1 innerMutateInstance(Sha1 instance) throws IOException {
         return new Sha1(instance.source(), mutateExpression(instance.field()));
     }
 }

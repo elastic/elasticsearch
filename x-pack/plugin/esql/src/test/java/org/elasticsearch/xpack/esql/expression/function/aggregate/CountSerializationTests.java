@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class CountSerializationTests extends AbstractExpressionSerializationTests<Count> {
     @Override
-    protected Count createTestInstance() {
+    protected Count innerCreateTestInstance() {
         return new Count(randomSource(), randomChild());
     }
 
     @Override
-    protected Count mutateInstance(Count instance) throws IOException {
+    protected Count innerMutateInstance(Count instance) throws IOException {
         return new Count(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

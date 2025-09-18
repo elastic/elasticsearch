@@ -16,7 +16,7 @@ import java.util.List;
 
 public class InSerializationTests extends AbstractExpressionSerializationTests<In> {
     @Override
-    protected In createTestInstance() {
+    protected In innerCreateTestInstance() {
         Source source = randomSource();
         Expression value = randomChild();
         List<Expression> list = randomList(10, AbstractExpressionSerializationTests::randomChild);
@@ -24,7 +24,7 @@ public class InSerializationTests extends AbstractExpressionSerializationTests<I
     }
 
     @Override
-    protected In mutateInstance(In instance) throws IOException {
+    protected In innerMutateInstance(In instance) throws IOException {
         Source source = instance.source();
         Expression value = instance.value();
         List<Expression> list = instance.list();

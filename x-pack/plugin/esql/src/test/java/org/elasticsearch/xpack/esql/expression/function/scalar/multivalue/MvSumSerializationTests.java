@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class MvSumSerializationTests extends AbstractExpressionSerializationTests<MvSum> {
     @Override
-    protected MvSum createTestInstance() {
+    protected MvSum innerCreateTestInstance() {
         return new MvSum(randomSource(), randomChild());
     }
 
     @Override
-    protected MvSum mutateInstance(MvSum instance) throws IOException {
+    protected MvSum innerMutateInstance(MvSum instance) throws IOException {
         return new MvSum(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

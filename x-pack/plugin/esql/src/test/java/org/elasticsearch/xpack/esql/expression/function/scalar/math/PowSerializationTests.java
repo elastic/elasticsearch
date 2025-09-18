@@ -15,7 +15,7 @@ import java.io.IOException;
 
 public class PowSerializationTests extends AbstractExpressionSerializationTests<Pow> {
     @Override
-    protected Pow createTestInstance() {
+    protected Pow innerCreateTestInstance() {
         Source source = randomSource();
         Expression base = randomChild();
         Expression exponent = randomChild();
@@ -23,7 +23,7 @@ public class PowSerializationTests extends AbstractExpressionSerializationTests<
     }
 
     @Override
-    protected Pow mutateInstance(Pow instance) throws IOException {
+    protected Pow innerMutateInstance(Pow instance) throws IOException {
         Source source = instance.source();
         Expression base = instance.base();
         Expression exponent = instance.exponent();

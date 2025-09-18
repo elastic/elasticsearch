@@ -16,12 +16,12 @@ import java.io.IOException;
 
 public class IsNotNullSerializationTests extends AbstractExpressionSerializationTests<IsNotNull> {
     @Override
-    protected IsNotNull createTestInstance() {
+    protected IsNotNull innerCreateTestInstance() {
         return new IsNotNull(randomSource(), randomChild());
     }
 
     @Override
-    protected IsNotNull mutateInstance(IsNotNull instance) throws IOException {
+    protected IsNotNull innerMutateInstance(IsNotNull instance) throws IOException {
         Source source = instance.source();
         Expression child = randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild);
         return new IsNotNull(source, child);

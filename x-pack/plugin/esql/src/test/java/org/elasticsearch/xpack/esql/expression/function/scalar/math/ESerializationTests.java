@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class ESerializationTests extends AbstractExpressionSerializationTests<E> {
     @Override
-    protected E createTestInstance() {
+    protected E innerCreateTestInstance() {
         return new E(randomSource());
     }
 
     @Override
-    protected E mutateInstance(E instance) throws IOException {
+    protected E innerMutateInstance(E instance) throws IOException {
         return null;
     }
 

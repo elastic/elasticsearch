@@ -18,7 +18,7 @@ public class OrderSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected Order createTestInstance() {
+    protected Order innerCreateTestInstance() {
         return randomOrder();
     }
 
@@ -31,7 +31,7 @@ public class OrderSerializationTests extends AbstractExpressionSerializationTest
     }
 
     @Override
-    protected Order mutateInstance(Order instance) throws IOException {
+    protected Order innerMutateInstance(Order instance) throws IOException {
         Source source = instance.source();
         Expression child = instance.child();
         Order.OrderDirection direction = instance.direction();

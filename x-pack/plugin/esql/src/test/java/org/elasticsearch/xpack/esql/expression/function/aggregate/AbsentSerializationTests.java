@@ -13,12 +13,12 @@ import java.io.IOException;
 
 public class AbsentSerializationTests extends AbstractExpressionSerializationTests<Absent> {
     @Override
-    protected Absent createTestInstance() {
+    protected Absent innerCreateTestInstance() {
         return new Absent(randomSource(), randomChild());
     }
 
     @Override
-    protected Absent mutateInstance(Absent instance) throws IOException {
+    protected Absent innerMutateInstance(Absent instance) throws IOException {
         return new Absent(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
 }

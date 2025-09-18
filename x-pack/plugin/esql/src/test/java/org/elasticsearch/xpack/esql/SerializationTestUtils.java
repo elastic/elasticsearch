@@ -26,7 +26,9 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -65,6 +67,13 @@ public class SerializationTestUtils {
         assertSerialization(expression, EsqlTestUtils.TEST_CFG);
     }
 
+    private static final NameId DUMMY_ID = new NameId();
+
+    @SuppressWarnings("unchecked")
+    public static <E extends Expression> E ignoreIds(E expression) {
+        return (E) expression.transformDown(Attribute.class, attr -> attr.withId(DUMMY_ID));
+    }
+
     public static void assertSerialization(Expression expression, Configuration configuration) {
         Expression deserExpression = serializeDeserialize(
             expression,
@@ -72,7 +81,7 @@ public class SerializationTestUtils {
             in -> in.readNamedWriteable(Expression.class),
             configuration
         );
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(expression, unused -> deserExpression);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(ignoreIds(expression), unused -> ignoreIds(deserExpression));
     }
 
     public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer) {

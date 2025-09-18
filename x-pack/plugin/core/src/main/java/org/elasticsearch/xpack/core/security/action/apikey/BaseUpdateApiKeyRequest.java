@@ -38,7 +38,8 @@ public abstract class BaseUpdateApiKeyRequest extends LegacyActionRequest {
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration,
-        @Nullable String certificateIdentity) {
+        @Nullable String certificateIdentity
+    ) {
         this.roleDescriptors = roleDescriptors;
         this.metadata = metadata;
         this.expiration = expiration;
@@ -57,7 +58,9 @@ public abstract class BaseUpdateApiKeyRequest extends LegacyActionRequest {
         return expiration;
     }
 
-    public String getCertificateIdentity() { return certificateIdentity; }
+    public String getCertificateIdentity() {
+        return certificateIdentity;
+    }
 
     public abstract ApiKey.Type getType();
 

@@ -398,8 +398,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                 CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES,
                 new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges(CCS_INDICES_PRIVILEGE_NAMES).build(),
-                    RoleDescriptor.IndicesPrivileges.builder().indices("archive").privileges(CCR_INDICES_PRIVILEGE_NAMES).build(),
-                },
+                    RoleDescriptor.IndicesPrivileges.builder().indices("archive").privileges(CCR_INDICES_PRIVILEGE_NAMES).build(), },
                 null
             )
         );
@@ -430,6 +429,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
         String json = Strings.toString(builder);
         assertThat(json, containsString("\"certificate_identity\":\"CN=test,O=TestOrg\""));
     }
+
     private String getType(String type) {
         return "\"type\": \"" + type + "\",";
     }

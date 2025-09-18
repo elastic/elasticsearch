@@ -1109,7 +1109,6 @@ public class SecuritySystemIndices {
          */
         ADD_CERTIFICATE_IDENTITY_FIELD(4),
 
-
         ;
 
         private static final SecurityMainIndexMappingVersion LATEST = Arrays.stream(values())

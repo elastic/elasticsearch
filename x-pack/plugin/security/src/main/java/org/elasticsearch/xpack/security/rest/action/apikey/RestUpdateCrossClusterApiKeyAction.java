@@ -69,7 +69,13 @@ public final class RestUpdateCrossClusterApiKeyAction extends ApiKeyBaseRestHand
 
         return channel -> client.execute(
             UpdateCrossClusterApiKeyAction.INSTANCE,
-            new UpdateCrossClusterApiKeyRequest(apiKeyId, payload.builder, payload.metadata, payload.expiration, payload.certificateIdentity),
+            new UpdateCrossClusterApiKeyRequest(
+                apiKeyId,
+                payload.builder,
+                payload.metadata,
+                payload.expiration,
+                payload.certificateIdentity
+            ),
             new RestToXContentListener<>(channel)
         );
     }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 

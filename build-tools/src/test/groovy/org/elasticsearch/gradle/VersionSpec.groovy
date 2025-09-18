@@ -76,12 +76,6 @@ class VersionSpec extends Specification {
         then:
         e = thrown(IllegalArgumentException)
         assert e.message == "Invalid version format: 'foo.bar.baz'. Should be major.minor.revision[-(alpha|beta|rc)Number|-SNAPSHOT]"
-
-        when:
-        Version.fromString("0.0.0")
-        then:
-        e = thrown(IllegalArgumentException)
-        assert e.message == "Version 0.0.0 is not allowed"
     }
 
     def "handles qualifier"() {

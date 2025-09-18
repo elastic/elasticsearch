@@ -31,7 +31,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
@@ -128,7 +127,6 @@ import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
@@ -3398,11 +3396,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         assertThat(builder, notNullValue()); // Should not be a noop
 
-        final Map<String, Object> updatedDoc = XContentHelper.convertToMap(
-            BytesReference.bytes(builder),
-            false,
-            XContentType.JSON
-        ).v2();
+        final Map<String, Object> updatedDoc = XContentHelper.convertToMap(BytesReference.bytes(builder), false, XContentType.JSON).v2();
 
         assertThat(updatedDoc.get("certificate_identity"), equalTo(newCertIdentity));
     }
@@ -3426,12 +3420,18 @@ public class ApiKeyServiceTests extends ESTestCase {
             new BytesArray("{}"),
             new BytesArray("{}"),
             Map.of(
-                "principal", user.principal(),
-                "full_name", user.fullName(),
-                "email", user.email(),
-                "metadata", user.metadata(),
-                "realm", "file",
-                "realm_type", "file"
+                "principal",
+                user.principal(),
+                "full_name",
+                user.fullName(),
+                "email",
+                user.email(),
+                "metadata",
+                user.metadata(),
+                "realm",
+                "file",
+                "realm_type",
+                "file"
             ),
             null,
             certIdentity
@@ -3444,11 +3444,15 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final BaseBulkUpdateApiKeyRequest updateRequest = new BaseBulkUpdateApiKeyRequest(
             List.of(apiKeyId),
-            null, null, null,
+            null,
+            null,
+            null,
             certIdentity
         ) {
             @Override
-            public ApiKey.Type getType() { return ApiKey.Type.CROSS_CLUSTER; }
+            public ApiKey.Type getType() {
+                return ApiKey.Type.CROSS_CLUSTER;
+            }
         };
 
         final Clock clock = mock(Clock.class);

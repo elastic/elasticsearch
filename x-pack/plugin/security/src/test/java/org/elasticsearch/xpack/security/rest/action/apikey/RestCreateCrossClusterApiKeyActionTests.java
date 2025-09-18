@@ -136,19 +136,19 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
 
     public void testCreateKeyWithCertificateIdentity() throws Exception {
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("""
-        {
-          "name": "my-cert-key",
-          "access": {
-            "search": [
-              {
-                "names": [
-                  "logs"
+            {
+              "name": "my-cert-key",
+              "access": {
+                "search": [
+                  {
+                    "names": [
+                      "logs"
+                    ]
+                  }
                 ]
-              }
-            ]
-          },
-          "certificate_identity": "CN=test,OU=engineering,DC=example,DC=com"
-        }"""), XContentType.JSON).build();
+              },
+              "certificate_identity": "CN=test,OU=engineering,DC=example,DC=com"
+            }"""), XContentType.JSON).build();
 
         final NodeClient client = mock(NodeClient.class);
         action.handleRequest(restRequest, mock(RestChannel.class), client);

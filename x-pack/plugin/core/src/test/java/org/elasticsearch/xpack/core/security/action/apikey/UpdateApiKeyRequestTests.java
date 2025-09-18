@@ -31,7 +31,13 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
         final var reservedKey = "_" + randomAlphaOfLengthBetween(0, 10);
         final var metadataValue = randomAlphaOfLengthBetween(1, 10);
 
-        UpdateApiKeyRequest request = new UpdateApiKeyRequest(randomAlphaOfLength(10), null, Map.of(reservedKey, metadataValue), null, null);
+        UpdateApiKeyRequest request = new UpdateApiKeyRequest(
+            randomAlphaOfLength(10),
+            null,
+            Map.of(reservedKey, metadataValue),
+            null,
+            null
+        );
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));

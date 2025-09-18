@@ -210,20 +210,19 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 // Old nodes don't support certificate identity feature
-                var exception = expectThrows(Exception.class,
-                    () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
-                assertThat(exception.getMessage(),
-                    anyOf(
-                        containsString("unknown field [certificate_identity]"),
-                        containsString("certificate_identity not supported")
-                    ));
+                var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+                assertThat(
+                    exception.getMessage(),
+                    anyOf(containsString("unknown field [certificate_identity]"), containsString("certificate_identity not supported"))
+                );
             }
             case MIXED -> {
                 // Mixed cluster should reject certificate identity due to feature gating
-                var exception = expectThrows(Exception.class,
-                    () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
-                assertThat(exception.getMessage(),
-                    containsString("cluster is in a mixed-version state and does not yet support the certificate_identity field"));
+                var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+                assertThat(
+                    exception.getMessage(),
+                    containsString("cluster is in a mixed-version state and does not yet support the certificate_identity field")
+                );
             }
             case UPGRADED -> {
                 // Fully upgraded cluster should support certificate identity
@@ -243,7 +242,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
         }
     }
-
 
     private Tuple<String, String> createOrGrantApiKey(String roles) throws IOException {
         return createOrGrantApiKey(client(), roles);
@@ -468,17 +466,17 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final String name = "test-cc-api-key-" + randomAlphaOfLengthBetween(3, 5);
         final Request createApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
         createApiKeyRequest.setJsonEntity(Strings.format("""
-        {
-            "name": "%s",
-            "certificate_identity": "%s",
-            "access": {
-                "search": [
-                    {
-                        "names": ["test-*"]
-                    }
-                ]
-            }
-        }""", name, certificateIdentity));
+            {
+                "name": "%s",
+                "certificate_identity": "%s",
+                "access": {
+                    "search": [
+                        {
+                            "names": ["test-*"]
+                        }
+                    ]
+                }
+            }""", name, certificateIdentity));
 
         final Response createResponse = client().performRequest(createApiKeyRequest);
         assertOK(createResponse);

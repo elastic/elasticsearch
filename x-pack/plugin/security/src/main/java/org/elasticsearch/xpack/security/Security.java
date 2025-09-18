@@ -1283,6 +1283,7 @@ public class Security extends Plugin
     }
 
     private RemoteClusterSecurityExtension getRemoteClusterSecurityExtension(RemoteClusterSecurityExtension.Components components) {
+        assert this.remoteClusterSecurityExtensionProvider.get() != null : "security plugin extensions should have been loaded first";
         RemoteClusterSecurityExtension rcsExtension = this.remoteClusterSecurityExtensionProvider.get().getExtension(components);
         assert rcsExtension != null;
         if (false == isInternalRemoteClusterSecurityExtension(rcsExtension)) {

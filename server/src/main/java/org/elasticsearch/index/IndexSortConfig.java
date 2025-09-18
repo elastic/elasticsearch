@@ -29,6 +29,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -154,11 +155,8 @@ public final class IndexSortConfig {
     }
 
     static FieldSortSpec[] defaultSpec(Settings settings) {
-        // This is called during initialization of
-        if (IndexSettings.MODE == null) {
-            return null;
-        }
-        var indexMode = IndexSettings.MODE.get(settings);
+        String indexModeStr = settings.get("index.mode");
+        var indexMode = indexModeStr != null ? Enum.valueOf(IndexMode.class, indexModeStr.toUpperCase(Locale.ROOT)) : IndexMode.STANDARD;
         var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
 
         if (indexMode == IndexMode.TIME_SERIES) {
@@ -167,11 +165,11 @@ public final class IndexSortConfig {
         if (indexMode == IndexMode.LOGSDB) {
             var bwcSort = false == (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
                 || version.between(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0));
-            if (bwcSort == false) {
+            if (bwcSort) {
+                return HOSTNAME_TIMESTAMP_BWC_SORT;
+            } else {
                 var sortOnHostName = IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings);
                 return sortOnHostName ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
-            } else {
-                return HOSTNAME_TIMESTAMP_BWC_SORT;
             }
         }
         return null;
@@ -184,17 +182,17 @@ public final class IndexSortConfig {
 
     static List<String> defaultOrder(Settings settings) {
         FieldSortSpec[] defaultSpec = defaultSpec(settings);
-        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.order.toString()).toList();
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).filter(spec -> spec.order != null).map(spec -> spec.order.toString()).toList();
     }
 
     static List<String> defaultMode(Settings settings) {
         FieldSortSpec[] defaultSpec = defaultSpec(settings);
-        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.mode.toString()).toList();
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).filter(spec -> spec.mode != null).map(spec -> spec.mode.toString()).toList();
     }
 
     static List<String> defaultMissing(Settings settings) {
         FieldSortSpec[] defaultSpec = defaultSpec(settings);
-        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.missingValue).toList();
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).filter(spec -> spec.missingValue != null).map(spec -> spec.missingValue).toList();
     }
 
     // visible for tests

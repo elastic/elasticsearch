@@ -1,6 +1,0 @@
-pr: 133611
-summary: Allow trailing empty string field names in paths of flattened field
-area: Mapping
-type: bug
-issues:
- - 130139

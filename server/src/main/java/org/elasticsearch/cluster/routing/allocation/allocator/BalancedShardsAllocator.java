@@ -742,35 +742,28 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          */
         private boolean moveNonPreferred() {
             for (ShardRouting shardRouting : nonPreferredShardIteratorFactory.createNonPreferredShardIterator(allocation)) {
-                if (tryMoveShardIfNonPreferred(shardRouting)) {
+                ProjectIndex index = projectIndex(shardRouting);
+                final MoveDecision moveDecision = decideMoveNonPreferred(index, shardRouting);
+                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                    final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+                    final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
+                    sourceNode.removeShard(index, shardRouting);
+                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+                        shardRouting,
+                        targetNode.getNodeId(),
+                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "non-preferred",
+                        allocation.changes()
+                    );
+                    final ShardRouting shard = relocatingShards.v2();
+                    targetNode.addShard(projectIndex(shard), shard);
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+                    }
                     return true;
+                } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
+                    logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
-            }
-            return false;
-        }
-
-        private boolean tryMoveShardIfNonPreferred(ShardRouting shardRouting) {
-            ProjectIndex index = projectIndex(shardRouting);
-            final MoveDecision moveDecision = decideMoveNonPreferred(index, shardRouting);
-            if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
-                final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
-                final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
-                sourceNode.removeShard(index, shardRouting);
-                Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
-                    shardRouting,
-                    targetNode.getNodeId(),
-                    allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                    "non-preferred",
-                    allocation.changes()
-                );
-                final ShardRouting shard = relocatingShards.v2();
-                targetNode.addShard(projectIndex(shard), shard);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
-                }
-                return true;
-            } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
-                logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
             }
             return false;
         }

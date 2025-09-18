@@ -72,6 +72,10 @@ public final class Alias extends NamedExpression {
         );
     }
 
+    public Alias withId(NameId id) {
+        return new Alias(source(), name(), child(), id, synthetic());
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);

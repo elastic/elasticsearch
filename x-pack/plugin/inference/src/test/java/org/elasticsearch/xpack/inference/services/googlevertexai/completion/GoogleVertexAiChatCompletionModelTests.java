@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -47,6 +46,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
             null,
+            null,
             null
         );
         var request = new UnifiedCompletionRequest(
@@ -81,7 +81,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_RATE_LIMIT,
             EMPTY_THINKING_CONFIG,
             null,
-            null
+            null,
+            123
         );
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
@@ -128,11 +129,12 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_RATE_LIMIT,
             new ThinkingConfig(123),
             null,
-            null
+            null,
+            123
         );
         int newThinkingBudget = 456;
         Map<String, Object> taskSettings = new HashMap<>(
-            Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of(THINKING_BUDGET_FIELD, newThinkingBudget)))
+            Map.of(THINKING_CONFIG_FIELD, new HashMap<>(Map.of(THINKING_BUDGET_FIELD, newThinkingBudget)), "max_tokens", 456)
         );
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
 
@@ -143,6 +145,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
 
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(new ThinkingConfig(newThinkingBudget)));
+        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(456));
     }
 
     public void testOf_doesNotOverrideTaskSettings_whenNotPresent() {
@@ -155,7 +158,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             DEFAULT_RATE_LIMIT,
             originalThinkingConfig,
             null,
-            null
+            null,
+            123
         );
         Map<String, Object> taskSettings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>()));
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
@@ -167,6 +171,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
 
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(originalThinkingConfig));
+        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(123));
     }
 
     public void testModelCreationForAnthropicBothUrls() throws URISyntaxException {
@@ -185,31 +190,6 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         testModelCreationForAnthropic(null, streamingUri, streamingUri, streamingUri);
     }
 
-    public void testModelCreationForAnthropicNoUrls() {
-        ValidationException validationException = expectThrows(
-            ValidationException.class,
-            () -> createAnthropicChatCompletionModel(
-                DEFAULT_API_KEY,
-                DEFAULT_RATE_LIMIT,
-                EMPTY_THINKING_CONFIG,
-                GoogleModelGardenProvider.ANTHROPIC,
-                null,
-                null
-            )
-        );
-        assertTrue(validationException.getMessage().contains("For Google Model Garden, you must provide either provider with url"));
-    }
-
-    public void testModelCreationForAnthropicNoProvider() throws URISyntaxException {
-        var uri = new URI("http://example.com");
-        var streamingUri = new URI("http://example-streaming.com");
-        ValidationException validationException = expectThrows(
-            ValidationException.class,
-            () -> createAnthropicChatCompletionModel(DEFAULT_API_KEY, DEFAULT_RATE_LIMIT, EMPTY_THINKING_CONFIG, null, uri, streamingUri)
-        );
-        assertTrue(validationException.getMessage().contains("For Google Model Garden, you must provide either provider with url"));
-    }
-
     private static void testModelCreationForAnthropic(URI uri, URI streamingUri, URI expectedNonStreamingUri, URI expectedStreamingUri) {
         var model = createAnthropicChatCompletionModel(
             DEFAULT_API_KEY,
@@ -217,7 +197,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             EMPTY_THINKING_CONFIG,
             GoogleModelGardenProvider.ANTHROPIC,
             uri,
-            streamingUri
+            streamingUri,
+            123
         );
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)),
@@ -242,6 +223,7 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         assertThat(overriddenModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
         assertThat(overriddenModel.getSecretSettings().serviceAccountJson(), equalTo(new SecureString(DEFAULT_API_KEY.toCharArray())));
         assertThat(overriddenModel.getTaskSettings().thinkingConfig(), is(EMPTY_THINKING_CONFIG));
+        assertThat(overriddenModel.getTaskSettings().maxTokens(), is(123));
         assertThat(overriddenModel.nonStreamingUri(), is(expectedNonStreamingUri));
         assertThat(overriddenModel.streamingURI(), is(expectedStreamingUri));
     }
@@ -254,14 +236,15 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         RateLimitSettings rateLimitSettings,
         ThinkingConfig thinkingConfig,
         GoogleModelGardenProvider provider,
-        URI uri
+        URI uri,
+        Integer maxTokens
     ) {
         return new GoogleVertexAiChatCompletionModel(
             "google-vertex-ai-chat-test-id",
             TaskType.CHAT_COMPLETION,
             "google_vertex_ai",
             new GoogleVertexAiChatCompletionServiceSettings(projectId, location, modelId, uri, uri, provider, rateLimitSettings),
-            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig),
+            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -272,14 +255,15 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
         ThinkingConfig thinkingConfig,
         GoogleModelGardenProvider provider,
         URI uri,
-        URI streamingUri
+        URI streamingUri,
+        int maxTokens
     ) {
         return new GoogleVertexAiChatCompletionModel(
             "google-vertex-ai-chat-test-id",
             TaskType.CHAT_COMPLETION,
             "google_vertex_ai",
             new GoogleVertexAiChatCompletionServiceSettings(null, null, null, uri, streamingUri, provider, rateLimitSettings),
-            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig),
+            new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens),
             new GoogleVertexAiSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

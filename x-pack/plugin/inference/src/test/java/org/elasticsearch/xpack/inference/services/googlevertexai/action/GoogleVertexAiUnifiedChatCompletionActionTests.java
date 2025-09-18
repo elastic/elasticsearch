@@ -238,7 +238,8 @@ public class GoogleVertexAiUnifiedChatCompletionActionTests extends ESTestCase {
             new RateLimitSettings(100),
             new ThinkingConfig(256),
             provider,
-            uri
+            uri,
+            123
         );
 
         var manager = new GenericRequestManager<>(

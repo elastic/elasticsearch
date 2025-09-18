@@ -55,7 +55,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
     private ToXContentObject createRequestEntity() {
         switch (model.getServiceSettings().provider()) {
             case ANTHROPIC -> {
-                return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
+                return new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings());
             }
             case GOOGLE -> {
                 return new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getTaskSettings().thinkingConfig());

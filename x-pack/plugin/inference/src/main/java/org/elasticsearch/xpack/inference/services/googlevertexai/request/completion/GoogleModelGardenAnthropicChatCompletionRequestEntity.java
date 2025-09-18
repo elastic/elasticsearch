@@ -13,6 +13,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionTaskSettings;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -36,18 +37,30 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
     private static final String VERTEX_2024_10_22 = "vertex-2024-10-22";
     private static final String STREAM_FIELD = "stream";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";
-    private static final long DEFAULT_MAX_TOKENS_VALUE = 1024L;
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
+    private final GoogleVertexAiChatCompletionTaskSettings taskSettings;
 
-    public GoogleModelGardenAnthropicChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
-        this(Objects.requireNonNull(unifiedChatInput).getRequest(), Objects.requireNonNull(unifiedChatInput).stream());
+    public GoogleModelGardenAnthropicChatCompletionRequestEntity(
+        UnifiedChatInput unifiedChatInput,
+        GoogleVertexAiChatCompletionTaskSettings taskSettings
+    ) {
+        this(
+            Objects.requireNonNull(unifiedChatInput).getRequest(),
+            Objects.requireNonNull(unifiedChatInput).stream(),
+            Objects.requireNonNull(taskSettings)
+        );
     }
 
-    public GoogleModelGardenAnthropicChatCompletionRequestEntity(UnifiedCompletionRequest unifiedRequest, boolean stream) {
+    public GoogleModelGardenAnthropicChatCompletionRequestEntity(
+        UnifiedCompletionRequest unifiedRequest,
+        boolean stream,
+        GoogleVertexAiChatCompletionTaskSettings taskSettings
+    ) {
         this.unifiedRequest = Objects.requireNonNull(unifiedRequest);
         this.stream = stream;
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -91,7 +104,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements To
             builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }
         builder.field(STREAM_FIELD, stream);
-        builder.field(MAX_TOKENS_FIELD, Objects.requireNonNullElse(unifiedRequest.maxCompletionTokens(), DEFAULT_MAX_TOKENS_VALUE));
+        builder.field(MAX_TOKENS_FIELD, Objects.requireNonNullElse(unifiedRequest.maxCompletionTokens(), taskSettings.maxTokens()));
         builder.endObject();
         return builder;
     }

@@ -73,7 +73,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
@@ -683,6 +682,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final String dateIntervalType = config.getIntervalType();
         final String dateInterval = config.getInterval().toString();
         final String timezone = config.getTimeZone();
+        addDynamicTemplates(sourceIndexMappings);
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> updatedMapping = (Map<String, Object>) mapping;
@@ -834,17 +834,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Configure the dynamic templates to always map strings to the keyword field type.
      */
-    private static void addDynamicTemplates(final XContentBuilder builder) throws IOException {
-        builder.startArray("dynamic_templates")
-            .startObject()
-            .startObject("strings")
-            .field("match_mapping_type", "string")
-            .startObject("mapping")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endArray();
+    private static void addDynamicTemplates(Map<String, Object> mapping) throws IOException {
+        mapping.put(
+            "dynamic_templates",
+            List.of(Map.of("strings", Map.of("match_mapping_type", "string", "mapping", Map.of("type", "keyword"))))
+        );
     }
 
     private void createDownsampleIndex(

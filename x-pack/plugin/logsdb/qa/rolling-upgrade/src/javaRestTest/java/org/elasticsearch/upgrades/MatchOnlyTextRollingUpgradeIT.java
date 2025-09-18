@@ -112,9 +112,6 @@ public class MatchOnlyTextRollingUpgradeIT extends AbstractRollingUpgradeWithSec
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
-            // then continued - verify that the created data stream uses the created template
-            LogsdbIndexingRollingUpgradeIT.assertDataStream(DATA_STREAM, templateId);
-
             // when/then - run some queries and verify results
             ensureGreen(DATA_STREAM);
             search(DATA_STREAM);

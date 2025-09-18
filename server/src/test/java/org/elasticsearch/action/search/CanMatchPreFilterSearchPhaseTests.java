@@ -163,7 +163,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            CanMatchPhaseAPMMetrics.NOOP).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+            CanMatchPhaseAPMMetrics.NOOP
+        ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
         }));
@@ -258,7 +259,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             true,
             EMPTY_CONTEXT_PROVIDER,
-            CanMatchPhaseAPMMetrics.NOOP).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+            CanMatchPhaseAPMMetrics.NOOP
+        ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
             result.set(iter);
             latch.countDown();
         }));
@@ -349,7 +351,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 EMPTY_CONTEXT_PROVIDER,
-                CanMatchPhaseAPMMetrics.NOOP).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+                CanMatchPhaseAPMMetrics.NOOP
+            ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
             }));
@@ -448,7 +451,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 shardsIter.size() > shardToSkip.size(),
                 EMPTY_CONTEXT_PROVIDER,
-                CanMatchPhaseAPMMetrics.NOOP).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
+                CanMatchPhaseAPMMetrics.NOOP
+            ).addListener(ActionTestUtils.assertNoFailureListener(iter -> {
                 result.set(iter);
                 latch.countDown();
             }));
@@ -1420,7 +1424,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 null,
                 true,
                 contextProvider,
-                CanMatchPhaseAPMMetrics.NOOP),
+                CanMatchPhaseAPMMetrics.NOOP
+            ),
             requests
         );
     }

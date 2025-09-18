@@ -93,7 +93,8 @@ final class CanMatchPreFilterSearchPhase {
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         ActionListener<List<SearchShardIterator>> listener,
-        CanMatchPhaseAPMMetrics canMatchPhaseMetrics) {
+        CanMatchPhaseAPMMetrics canMatchPhaseMetrics
+    ) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.nodeIdToConnection = nodeIdToConnection;
@@ -140,7 +141,8 @@ final class CanMatchPreFilterSearchPhase {
         SearchTask task,
         boolean requireAtLeastOneMatch,
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-        CanMatchPhaseAPMMetrics canMatchPhaseMetrics) {
+        CanMatchPhaseAPMMetrics canMatchPhaseMetrics
+    ) {
         if (shardsIts.isEmpty()) {
             return SubscribableListener.newSucceeded(List.of());
         }
@@ -221,9 +223,7 @@ final class CanMatchPreFilterSearchPhase {
             } else {
                 consumeResult(false, request);
             }
-            canMatchPhaseMetrics.onCanMatchPhasePerShard(
-                timeProvider.relativeCurrentNanosProvider().getAsLong() - shardStartTimeNanos
-            );
+            canMatchPhaseMetrics.onCanMatchPhasePerShard(timeProvider.relativeCurrentNanosProvider().getAsLong() - shardStartTimeNanos);
         }
         if (matchedShardLevelRequests.isEmpty()) {
             listener.onResponse(getIterator(shardsIts));
@@ -233,7 +233,8 @@ final class CanMatchPreFilterSearchPhase {
             new Round(matchedShardLevelRequests).run();
         }
         canMatchPhaseMetrics.onCanMatchPhaseCoordinatingNode(
-            timeProvider.relativeCurrentNanosProvider().getAsLong() - coordinatorStartTimeNanos);
+            timeProvider.relativeCurrentNanosProvider().getAsLong() - coordinatorStartTimeNanos
+        );
     }
 
     private void consumeResult(boolean canMatch, ShardSearchRequest request) {

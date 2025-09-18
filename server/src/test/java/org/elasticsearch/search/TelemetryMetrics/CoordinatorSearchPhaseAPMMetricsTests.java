@@ -72,8 +72,14 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
         prepareIndex(indexName).setId("1").setSource("body", "doc1").setRefreshPolicy(IMMEDIATE).get();
         prepareIndex(indexName).setId("2").setSource("body", "doc2").setRefreshPolicy(IMMEDIATE).get();
 
-        prepareIndex(CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME).setId("1").setSource("body", "doc1").setRefreshPolicy(IMMEDIATE).get();
-        prepareIndex(CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME).setId("2").setSource("body", "doc2").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex(CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME).setId("1")
+            .setSource("body", "doc1")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
+        prepareIndex(CoordinatorSearchPhaseAPMMetricsTests.TestSystemIndexPlugin.INDEX_NAME).setId("2")
+            .setSource("body", "doc2")
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
     }
 
     @After
@@ -96,8 +102,7 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
 
-        var coordinatorMetrics = filterForCoordinatorMetrics(
-            getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
+        var coordinatorMetrics = filterForCoordinatorMetrics(getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
         assertThat(coordinatorMetrics, hasSize(5));
         assertThat(coordinatorMetrics, equalTo(expectedMetricsWithDfs));
     }
@@ -112,12 +117,10 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
             "1"
         );
 
-        var coordinatorMetrics = filterForCoordinatorMetrics(
-            getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
+        var coordinatorMetrics = filterForCoordinatorMetrics(getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
         assertThat(coordinatorMetrics, hasSize(4));
         assertThat(coordinatorMetrics, equalTo(expectedMetrics));
     }
-
 
     private void resetMeter() {
         getTestTelemetryPlugin().resetMeter();
@@ -128,9 +131,7 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
     }
 
     private Set<String> filterForCoordinatorMetrics(List<String> registeredMetrics) {
-        return registeredMetrics.stream()
-            .filter(m -> m.startsWith("es.search.coordinator"))
-            .collect(Collectors.toSet());
+        return registeredMetrics.stream().filter(m -> m.startsWith("es.search.coordinator")).collect(Collectors.toSet());
     }
 
     public static class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {

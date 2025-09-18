@@ -81,7 +81,7 @@ public class CanMatchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
         );
         checkNumberOfMeasurementsForMeter(CAN_MATCH_SEARCH_PHASE_PER_SHARD_METRIC, isSystemIndex);
         assertNotEquals(0, getNumberOfMeasurementsForMeter(CAN_MATCH_SEARCH_PHASE_COORDINATING_NODE_METRIC));
-        //checkMetricsAttributes(isSystemIndex);
+        // checkMetricsAttributes(isSystemIndex);
     }
 
     private void resetMeter() {

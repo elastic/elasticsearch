@@ -2243,6 +2243,60 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testLookupJoinExpressionAmbiguousRight() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON salary == language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousLeft() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String queryString = """
+             from test
+            | rename languages as language_name
+            | lookup join languages_lookup ON language_name == language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_name]; matches any of [line 2:10 [language_name], line 3:15 [language_name]]",
+            error(queryString)
+        );
+    }
+
+    public void testLookupJoinExpressionAmbiguousBoth() {
+        assumeTrue("requires LOOKUP JOIN capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+        assumeTrue(
+            "requires LOOKUP JOIN ON boolean expression capability",
+            EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+        );
+        String queryString = """
+            from test
+            | rename languages as language_code
+            | lookup join languages_lookup ON language_code != language_code
+            """;
+
+        assertEquals(
+            " ambiguous reference to [language_code]; matches any of [line 2:10 [language_code], line 3:15 [language_code]]",
+            error(queryString)
+        );
+    }
+
     public void testFullTextFunctionOptions() {
         checkOptionDataTypes(Match.ALLOWED_OPTIONS, "FROM test | WHERE match(title, \"Jean\", {\"%s\": %s})");
         checkOptionDataTypes(QueryString.ALLOWED_OPTIONS, "FROM test | WHERE QSTR(\"title: Jean\", {\"%s\": %s})");
@@ -2379,22 +2433,6 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    public void testRemoteLookupJoinIsSnapshot() {
-        // TODO: remove when we allow remote joins in release builds
-        assumeTrue("Remote LOOKUP JOIN not enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-        assertTrue(Build.current().isSnapshot());
-    }
-
-    public void testRemoteLookupJoinIsDisabled() {
-        // TODO: remove when we allow remote joins in release builds
-        assumeFalse("Remote LOOKUP JOIN enabled", EsqlCapabilities.Cap.ENABLE_LOOKUP_JOIN_ON_REMOTE.isEnabled());
-        ParsingException e = expectThrows(
-            ParsingException.class,
-            () -> query("FROM test,remote:test | EVAL language_code = languages | LOOKUP JOIN languages_lookup ON language_code")
-        );
-        assertThat(e.getMessage(), containsString("remote clusters are not supported with LOOKUP JOIN"));
-    }
-
     public void testDecayFunctionNullArgs() {
         assumeTrue("Decay function not enabled", EsqlCapabilities.Cap.DECAY_FUNCTION.isEnabled());
 
@@ -2527,6 +2565,92 @@ public class VerifierTests extends ESTestCase {
                 containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
         }
+    }
+
+    public void testFuse() {
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+
+        String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
+
+        query(queryPrefix + " | fuse");
+        query(queryPrefix + " | fuse rrf");
+        query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123 } ");
+        query(queryPrefix + " | fuse rrf with { \"weights\": { \"fork1\":  123 } }");
+        query(queryPrefix + " | fuse rrf with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse with { \"rank_constant\": 123 } ");
+        query(queryPrefix + " | fuse with { \"weights\": { \"fork1\":  123 } }");
+        query(queryPrefix + " | fuse with { \"rank_constant\": 123, \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse linear");
+        query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
+
+        assertThat(error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": \"a\" }"),
+            containsString("expected rank_constant to be numeric, got [\"a\"]")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": { \"a\": 123 } }"),
+            containsString("expected rank_constant to be a literal")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": -123 }"),
+            containsString("expected rank_constant to be positive, got [-123]")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse rrf WITH { \"rank_constant\": 0 }"),
+            containsString("expected rank_constant to be positive, got [0]")
+        );
+
+        for (var fuseMethod : List.of("rrf", "linear")) {
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": 123 }"),
+                containsString("expected weights to be a MapExpression")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": \"a\" } }"),
+                containsString("expected weight to be numeric")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": { \"a\": 123 } } }"),
+                containsString("expected weight to be a literal")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": -123 } }"),
+                containsString("expected weight to be positive, got [-123]")
+            );
+
+            assertThat(
+                error(queryPrefix + " | fuse " + fuseMethod + " WITH { \"weights\": { \"fork1\": 1, \"fork2\": 0 } }"),
+                containsString("expected weight to be positive, got [0]")
+            );
+        }
+
+        assertThat(error(queryPrefix + " | fuse linear WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
+
+        assertThat(
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": 123 }"),
+            containsString("expected normalizer to be a string, got [123]")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": { \"a\": 123 } }"),
+            containsString("expected normalizer to be a literal")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
+            containsString("[\"foo\"] is not a valid normalizer")
+        );
     }
 
     public void testSortInTimeSeries() {

@@ -141,6 +141,16 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         final List<Object> components = new ArrayList<>();
+        PutLifecycleMetadataService putLifecycleMetadataService = new PutLifecycleMetadataService(
+            services.clusterService(),
+            services.xContentRegistry(),
+            services.client(),
+            getLicenseState(),
+            services.threadPool(),
+            services.projectResolver()
+        );
+        components.add(putLifecycleMetadataService);
+
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
             settings,
             services.clusterService(),

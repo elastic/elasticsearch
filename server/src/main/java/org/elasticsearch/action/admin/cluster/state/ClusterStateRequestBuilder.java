@@ -108,4 +108,12 @@ public class ClusterStateRequestBuilder extends ActionRequestBuilder<ClusterStat
         request.waitForTimeout(waitForTimeout);
         return this;
     }
+
+    /**
+     * When set then the response will be in multi-project format
+     */
+    public ClusterStateRequestBuilder setMultiproject(boolean multiproject) {
+        request.multiproject(multiproject);
+        return this;
+    }
 }

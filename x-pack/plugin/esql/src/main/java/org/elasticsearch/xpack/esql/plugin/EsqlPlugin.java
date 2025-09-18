@@ -113,6 +113,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_default_size",
+        1_000_000,
+        1,
+        10_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_max_size",
+        10_000_000,
+        1,
+        1_000_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
         true,
@@ -250,6 +268,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
             QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
             ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,

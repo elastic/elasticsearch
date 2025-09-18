@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -601,14 +600,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         var projectId = randomProjectIdOrDefault();
-        Pipeline pipeline = Pipeline.create(
-            "missing-pipeline",
-            pipelineConfig,
-            processorRegistry,
-            null,
-            projectId,
-            nodeFeature -> DataStream.LOGS_STREAM_FEATURE_FLAG
-        );
+        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null, projectId, nodeFeature -> true);
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
 
         assertValidation(

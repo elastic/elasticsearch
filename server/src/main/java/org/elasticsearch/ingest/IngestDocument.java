@@ -40,6 +40,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -201,7 +202,7 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context, getCurrentAccessPatternSafe());
         if (result.wasSuccessful) {
@@ -270,7 +271,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -424,7 +425,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, or invalid; or if the field doesn't exist (and ignoreMissing is false).
      */
     public void removeField(String path, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         ResolveResult result = resolve(
@@ -734,7 +735,7 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final FieldPath fieldPath = FieldPath.of(path, getCurrentAccessPatternSafe());
         Object context = fieldPath.initialContext(this);
         int leafKeyIndex = fieldPath.pathElements.length - 1;
         int lastContainerIndex = fieldPath.pathElements.length - 2;
@@ -1155,18 +1156,18 @@ public final class IngestDocument {
     }
 
     /**
-     * @return The access pattern for any currently executing pipelines, or null if no pipelines are in progress for this doc
+     * @return The access pattern for any currently executing pipelines, or empty if no pipelines are in progress for this doc
      */
-    public IngestPipelineFieldAccessPattern getCurrentAccessPattern() {
-        return accessPatternStack.peek();
+    public Optional<IngestPipelineFieldAccessPattern> getCurrentAccessPattern() {
+        return Optional.ofNullable(accessPatternStack.peek());
     }
 
     /**
      * @return The access pattern for any currently executing pipelines, or {@link IngestPipelineFieldAccessPattern#CLASSIC} if no
      * pipelines are in progress for this doc for the sake of backwards compatibility
      */
-    private IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
-        return Objects.requireNonNullElse(getCurrentAccessPattern(), IngestPipelineFieldAccessPattern.CLASSIC);
+    public IngestPipelineFieldAccessPattern getCurrentAccessPatternSafe() {
+        return getCurrentAccessPattern().orElse(IngestPipelineFieldAccessPattern.CLASSIC);
     }
 
     /**
@@ -1290,8 +1291,15 @@ public final class IngestDocument {
 
     private static final class FieldPath {
 
+        /**
+         * A compound cache key for tracking previously parsed field paths
+         * @param path The field path as given by the caller
+         * @param accessPattern The access pattern used to parse the field path
+         */
+        private record CacheKey(String path, IngestPipelineFieldAccessPattern accessPattern) {}
+
         private static final int MAX_SIZE = 512;
-        private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+        private static final Map<CacheKey, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
         // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
         // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
@@ -1300,19 +1308,20 @@ public final class IngestDocument {
         // do some processing ourselves on the path and path elements to validate and prepare them.
         // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
 
-        static FieldPath of(String path) {
+        static FieldPath of(String path, IngestPipelineFieldAccessPattern accessPattern) {
             if (Strings.isEmpty(path)) {
                 throw new IllegalArgumentException("path cannot be null nor empty");
             }
-            FieldPath res = CACHE.get(path);
+            CacheKey cacheKey = new CacheKey(path, accessPattern);
+            FieldPath res = CACHE.get(cacheKey);
             if (res != null) {
                 return res;
             }
-            res = new FieldPath(path);
+            res = new FieldPath(path, accessPattern);
             if (CACHE.size() > MAX_SIZE) {
                 CACHE.clear();
             }
-            CACHE.put(path, res);
+            CACHE.put(cacheKey, res);
             return res;
         }
 
@@ -1320,7 +1329,7 @@ public final class IngestDocument {
         private final boolean useIngestContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path) {
+        private FieldPath(String path, IngestPipelineFieldAccessPattern accessPattern) {
             String newPath;
             if (path.startsWith(INGEST_KEY_PREFIX)) {
                 useIngestContext = true;
@@ -1333,10 +1342,47 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = newPath.split("\\.");
-            if (pathElements.length == 1 && pathElements[0].isEmpty()) {
-                throw new IllegalArgumentException("path [" + path + "] is not valid");
+            String[] pathParts = newPath.split("\\.");
+            this.pathElements = processPathParts(path, pathParts, accessPattern);
+        }
+
+        private static String[] processPathParts(String fullPath, String[] pathParts, IngestPipelineFieldAccessPattern accessPattern) {
+            return switch (accessPattern) {
+                case CLASSIC -> validateClassicFields(fullPath, pathParts);
+                case FLEXIBLE -> parseFlexibleFields(fullPath, pathParts);
+            };
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#CLASSIC} ingest doc access pattern. Supports
+         * syntax like context aware array access.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Strings
+         */
+        private static String[] validateClassicFields(String fullPath, String[] pathParts) {
+            for (String pathPart : pathParts) {
+                if (pathPart.isEmpty()) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                }
             }
+            return pathParts;
+        }
+
+        /**
+         * Parses path syntax that is specific to the {@link IngestPipelineFieldAccessPattern#FLEXIBLE} ingest doc access pattern. Supports
+         * syntax like square bracket array access, which is the only way to index arrays in flexible mode.
+         * @param fullPath The un-split path to use for error messages
+         * @param pathParts The tokenized field path to parse
+         * @return An array of Strings
+         */
+        private static String[] parseFlexibleFields(String fullPath, String[] pathParts) {
+            for (String pathPart : pathParts) {
+                if (pathPart.isEmpty() || pathPart.contains("[") || pathPart.contains("]")) {
+                    throw new IllegalArgumentException("path [" + fullPath + "] is not valid");
+                }
+            }
+            return pathParts;
         }
 
         public Object initialContext(IngestDocument document) {

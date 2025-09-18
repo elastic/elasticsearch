@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_SUPPORTS_REMOTE;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -139,6 +140,15 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         assertThat(cluster.getSkippedShards(), equalTo(0));
         assertThat(cluster.getFailedShards(), equalTo(0));
         assertThat(cluster.getFailures().size(), equalTo(0));
+    }
+
+    protected void assertClusterInfoSkipped(EsqlExecutionInfo.Cluster cluster) {
+        assertThat(cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+        assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+        assertThat(cluster.getTotalShards(), equalTo(0));
+        assertThat(cluster.getSuccessfulShards(), equalTo(0));
+        assertThat(cluster.getSkippedShards(), equalTo(0));
+        assertThat(cluster.getFailedShards(), equalTo(0));
     }
 
     protected static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta, int numClusters) {
@@ -357,5 +367,9 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
             new ResourceNotFoundException("exchange sink was not found"),
             new EsRejectedExecutionException("node is shutting down")
         );
+    }
+
+    protected static String randomStats() {
+        return INLINESTATS_SUPPORTS_REMOTE.isEnabled() ? randomFrom("STATS", "INLINESTATS") : "STATS";
     }
 }

@@ -20,8 +20,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleDiscoveryEngineRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXContentObject
     implements
         ServiceSettings,
-        GoogleDiscoveryEngineRateLimitServiceSettings {
+        GoogleVertexAiRateLimitServiceSettings {
 
     public static final String NAME = "google_vertex_ai_chatcompletion_service_settings";
 

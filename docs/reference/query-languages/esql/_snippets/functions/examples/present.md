@@ -27,4 +27,16 @@ FROM employees
 | true | 5 |
 | true | null |
 
+To check for the presence and return 1 when it's true and 0 when it's false
+
+```esql
+FROM employees
+| WHERE emp_no == 10020
+| STATS is_present = TO_INTEGER(PRESENT(languages))
+```
+
+| is_present:integer |
+| --- |
+| 0 |
+
 

@@ -41,8 +41,8 @@ sourceCommand
     : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesCommand
     // in development
-    | {this.isDevVersion()}? timeSeriesCommand
     | {this.isDevVersion()}? explainCommand
     ;
 
@@ -105,7 +105,7 @@ fromCommand
     ;
 
 timeSeriesCommand
-    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    : TS indexPatternAndMetadataFields
     ;
 
 indexPatternAndMetadataFields:
@@ -336,7 +336,7 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE
+    : DEV_FUSE (fuseType=identifier)? fuseOptions=commandNamedParameters
     ;
 
 setCommand

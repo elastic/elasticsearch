@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +64,7 @@ public abstract class LuceneOperator extends SourceOperator {
     final Set<Query> processedQueries = new HashSet<>();
     final Set<String> processedShards = new HashSet<>();
 
-    private LuceneSlice currentSlice;
+    protected LuceneSlice currentSlice;
     private int sliceIndex;
 
     private LuceneScorer currentScorer;
@@ -165,61 +164,40 @@ public abstract class LuceneOperator extends SourceOperator {
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
-        while (true) {
-            while (currentScorer == null || currentScorer.isDone()) {
-                var partialLeaf = nextPartialLeaf();
-                if (partialLeaf == null) {
-                    assert doneCollecting;
+        while (currentScorer == null || currentScorer.isDone()) {
+            if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
+                sliceIndex = 0;
+                currentSlice = sliceQueue.nextSlice(currentSlice);
+                if (currentSlice == null) {
+                    doneCollecting = true;
                     return null;
                 }
-                logger.trace("Starting {}", partialLeaf);
-                loadScorerForNewPartialLeaf(partialLeaf);
+                processedSlices++;
+                processedShards.add(currentSlice.shardContext().shardIdentifier());
+                int shardId = currentSlice.shardContext().index();
+                if (currentScorerShardRefCounted == null || currentScorerShardRefCounted.index() != shardId) {
+                    currentScorerShardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
+                }
             }
-            // Has the executing thread changed? If so, we need to reinitialize the scorer. The reinitialized bulkScorer
-            // can be null even if it was non-null previously, due to lazy initialization in Weight#bulkScorer.
-            // Hence, we need to check the previous condition again.
-            if (currentScorer.executingThread == Thread.currentThread()) {
-                return currentScorer;
-            } else {
-                currentScorer.reinitialize();
+            final PartialLeafReaderContext partialLeaf = currentSlice.getLeaf(sliceIndex++);
+            logger.trace("Starting {}", partialLeaf);
+            final LeafReaderContext leaf = partialLeaf.leafReaderContext();
+            if (currentScorer == null // First time
+                || currentScorer.leafReaderContext() != leaf // Moved to a new leaf
+                || currentScorer.weight != currentSlice.weight() // Moved to a new query
+            ) {
+                final Weight weight = currentSlice.weight();
+                processedQueries.add(weight.getQuery());
+                currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
             }
+            assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
+            currentScorer.maxPosition = partialLeaf.maxDoc();
+            currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
         }
-    }
-
-    private PartialLeafReaderContext nextPartialLeaf() {
-        if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
-            sliceIndex = 0;
-            currentSlice = sliceQueue.nextSlice(currentSlice);
-            if (currentSlice == null) {
-                doneCollecting = true;
-                return null;
-            }
-            processedSlices++;
-            int shardId = currentSlice.shardContext().index();
-            if (currentScorerShardRefCounted == null || currentScorerShardRefCounted.index() != shardId) {
-                currentScorerShardRefCounted = new ShardRefCounted.Single(shardId, shardContextCounters.get(shardId));
-            }
-            processedShards.add(currentSlice.shardContext().shardIdentifier());
+        if (Thread.currentThread() != currentScorer.executingThread) {
+            currentScorer.reinitialize();
         }
-        return currentSlice.getLeaf(sliceIndex++);
-    }
-
-    private void loadScorerForNewPartialLeaf(PartialLeafReaderContext partialLeaf) {
-        final LeafReaderContext leaf = partialLeaf.leafReaderContext();
-        if (currentScorer != null
-            && currentScorer.query() == currentSlice.query()
-            && currentScorer.shardContext == currentSlice.shardContext()) {
-            if (currentScorer.leafReaderContext != leaf) {
-                currentScorer = new LuceneScorer(currentSlice.shardContext(), currentScorer.weight, currentSlice.queryAndTags(), leaf);
-            }
-        } else {
-            final var weight = currentSlice.createWeight();
-            currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.queryAndTags(), leaf);
-            processedQueries.add(currentScorer.query());
-        }
-        assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
-        currentScorer.maxPosition = partialLeaf.maxDoc();
-        currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
+        return currentScorer;
     }
 
     /**
@@ -235,23 +213,18 @@ public abstract class LuceneOperator extends SourceOperator {
     static final class LuceneScorer {
         private final ShardContext shardContext;
         private final Weight weight;
-        private final LuceneSliceQueue.QueryAndTags queryAndTags;
         private final LeafReaderContext leafReaderContext;
+        private final List<Object> tags;
 
         private BulkScorer bulkScorer;
         private int position;
         private int maxPosition;
         private Thread executingThread;
 
-        LuceneScorer(
-            ShardContext shardContext,
-            Weight weight,
-            LuceneSliceQueue.QueryAndTags queryAndTags,
-            LeafReaderContext leafReaderContext
-        ) {
+        LuceneScorer(ShardContext shardContext, Weight weight, List<Object> tags, LeafReaderContext leafReaderContext) {
             this.shardContext = shardContext;
             this.weight = weight;
-            this.queryAndTags = queryAndTags;
+            this.tags = tags;
             this.leafReaderContext = leafReaderContext;
             reinitialize();
         }
@@ -301,11 +274,7 @@ public abstract class LuceneOperator extends SourceOperator {
          * Tags to add to the data returned by this query.
          */
         List<Object> tags() {
-            return queryAndTags.tags();
-        }
-
-        Query query() {
-            return queryAndTags.query();
+            return tags;
         }
     }
 
@@ -405,14 +374,9 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                processedQueries = in.readCollectionAsSet(StreamInput::readString);
-                processedShards = in.readCollectionAsSet(StreamInput::readString);
-            } else {
-                processedQueries = Collections.emptySet();
-                processedShards = Collections.emptySet();
-            }
-            processNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+            processedQueries = in.readCollectionAsSet(StreamInput::readString);
+            processedShards = in.readCollectionAsSet(StreamInput::readString);
+            processNanos = in.readVLong();
             sliceIndex = in.readVInt();
             totalSlices = in.readVInt();
             pagesEmitted = in.readVInt();
@@ -432,13 +396,9 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeCollection(processedQueries, StreamOutput::writeString);
-                out.writeCollection(processedShards, StreamOutput::writeString);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeVLong(processNanos);
-            }
+            out.writeCollection(processedQueries, StreamOutput::writeString);
+            out.writeCollection(processedShards, StreamOutput::writeString);
+            out.writeVLong(processNanos);
             out.writeVInt(sliceIndex);
             out.writeVInt(totalSlices);
             out.writeVInt(pagesEmitted);

@@ -2756,7 +2756,7 @@ public class InternalEngine extends Engine {
 
     // protected for testing
     protected IndexWriter createWriter(Directory directory, IndexWriterConfig iwc) throws IOException {
-        return new ElasticsearchIndexWriter(directory, iwc);
+        return new ElasticsearchIndexWriter(directory, iwc, logger);
     }
 
     // with tests.verbose, lucene sets this up: plumb to align with filesystem stream
@@ -3377,16 +3377,27 @@ public class InternalEngine extends Engine {
 
     private static class ElasticsearchIndexWriter extends IndexWriter {
 
-        ElasticsearchIndexWriter(Directory directory, IndexWriterConfig indexWriterConfig) throws IOException {
+        private final Logger logger;
+
+        ElasticsearchIndexWriter(Directory directory, IndexWriterConfig indexWriterConfig, Logger logger) throws IOException {
             super(directory, indexWriterConfig);
+            this.logger = logger;
         }
 
         @Override
         public void onTragicEvent(Throwable tragedy, String location) {
+            assert tragedy != null;
             try {
                 if (getConfig().getMergeScheduler() instanceof ThreadPoolMergeScheduler mergeScheduler) {
-                    // Must be executed before calling IndexWriter#onTragicEvent
-                    mergeScheduler.onTragicEvent(tragedy);
+                    try {
+                        // Must be executed before calling IndexWriter#onTragicEvent
+                        mergeScheduler.onTragicEvent(tragedy);
+                    } catch (Exception e) {
+                        logger.warn("Exception thrown when notifying the merge scheduler of a tragic event", e);
+                        if (tragedy != e) {
+                            tragedy.addSuppressed(e);
+                        }
+                    }
                 }
             } finally {
                 super.onTragicEvent(tragedy, location);

@@ -105,6 +105,15 @@ public class ClearInferenceEndpointCacheAction extends AcknowledgedTransportMast
     }
 
     @Override
+    protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
+        if (inferenceEndpointRegistry.cacheEnabled() == false) {
+            ActionListener.completeWith(listener, () -> AcknowledgedResponse.TRUE);
+            return;
+        }
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
     protected void masterOperation(
         Task task,
         ClearInferenceEndpointCacheAction.Request request,

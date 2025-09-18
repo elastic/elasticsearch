@@ -96,13 +96,20 @@ fieldLessQuery
     ;
 
 fieldQueryValue
-    : (UNQUOTED_LITERAL|WILDCARD)+
-    | (UNQUOTED_LITERAL|WILDCARD)? (OR|AND|NOT)
-    | (AND|OR) (UNQUOTED_LITERAL|WILDCARD)?
-    | (AND|OR) (AND|OR|NOT)
-    | QUOTED_STRING
-    | operator=NOT (fieldQueryValue)?
+    : fieldQueryValueLiteral
+    | operator=NOT fieldQueryValue
     | LEFT_PARENTHESIS booleanFieldQueryValue RIGHT_PARENTHESIS
+    ;
+
+fieldQueryValueLiteral
+    : fieldQueryValueUnquotedLiteral
+    | QUOTED_STRING
+    ;
+
+fieldQueryValueUnquotedLiteral
+    : (UNQUOTED_LITERAL|WILDCARD)+ (UNQUOTED_LITERAL|WILDCARD|NOT)* (AND|OR)?
+    | (AND|OR) (((UNQUOTED_LITERAL|WILDCARD|NOT)+(OR|AND)?)|OR|AND)?
+    | NOT
     ;
 
 booleanFieldQueryValue

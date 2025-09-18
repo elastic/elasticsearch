@@ -42,6 +42,9 @@ were left unconsumed.
 6. The response is written to the `RestChannel`, either as a [single payload][RestToXContentListener] or a
 [stream of chunks][RestChunkedToXContentListener].
 
+A Netty channel eventLoop thread executes step 1 to 3. The [RestChannelConsumer] delegates execution to a task manager thread, which processes
+the request and eventually returns control to the original event loop thread to write the response back to the Netty channel.
+
 ### Request interceptor
 
 The [RestController] accepts a [RestInterceptor] that can intercept [RestRequest]s and add additional pre-handling. A single

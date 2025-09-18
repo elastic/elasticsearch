@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
  * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators(boolean)}
- * and {@link LogicalPlanOptimizer#cleanup()}
+ * and {@link LogicalPlanOptimizer#cleanup(boolean)}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
@@ -53,7 +53,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new ReplaceDateTruncBucketWithRoundTo()
         ),
         localOperators(),
-        cleanup()
+        cleanup(true)
     );
 
     public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {

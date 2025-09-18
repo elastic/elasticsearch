@@ -142,6 +142,10 @@ public class Increase extends TimeSeriesAggregateFunction implements OptionalArg
         return "increase(" + field() + ")";
     }
 
+    Expression timestamp() {
+        return timestamp;
+    }
+
     @Override
     public boolean requiredTimeSeriesSource() {
         return true;

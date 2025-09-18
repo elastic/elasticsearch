@@ -72,8 +72,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
                                 )
                                 .build()
                         )
-                        .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder()
-                            .name(tool.function().name()).build()).build())
+                        .toolChoice(ToolChoice.builder().tool(SpecificToolChoice.builder().name(tool.function().name()).build()).build())
                         .build()
                 );
             });
@@ -83,7 +82,7 @@ public class AmazonBedrockUnifiedChatCompletionRequest extends AmazonBedrockRequ
         return awsBedrockClient.converseUnifiedStream(converseStreamRequest.build());
     }
 
-     static ToolInputSchema getInputSchema() {
+    static ToolInputSchema getInputSchema() {
         return ToolInputSchema.fromJson(
             Document.fromMap(
                 Map.of(

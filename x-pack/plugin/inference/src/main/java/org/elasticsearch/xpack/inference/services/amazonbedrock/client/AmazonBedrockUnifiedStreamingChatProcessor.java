@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.client;
 
-import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
-
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDelta;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockDeltaEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStart;
@@ -16,6 +14,7 @@ import software.amazon.awssdk.services.bedrockruntime.model.ContentBlockStartEve
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamMetadataEvent;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamOutput;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamResponseHandler;
+import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -24,8 +23,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import software.amazon.awssdk.services.bedrockruntime.model.MessageStartEvent;
+import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -38,7 +36,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 @SuppressWarnings("checkstyle:LineLength")
-class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
+class AmazonBedrockUnifiedStreamingChatProcessor
+    implements
+        Flow.Processor<ConverseStreamOutput, StreamingUnifiedChatCompletionResults.Results> {
     private static final Logger logger = LogManager.getLogger(AmazonBedrockStreamingChatProcessor.class);
 
     private final AtomicReference<Throwable> error = new AtomicReference<>(null);
@@ -85,32 +85,37 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
         switch (eventType) {
             case ConverseStreamOutput.EventType.MESSAGE_START -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder()
-                    .onMessageStart(event -> handleMessageStart(event, chunks)).build());
+                item.accept(
+                    ConverseStreamResponseHandler.Visitor.builder().onMessageStart(event -> handleMessageStart(event, chunks)).build()
+                );
                 return;
             }
             case ConverseStreamOutput.EventType.CONTENT_BLOCK_START -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder()
-                    .onContentBlockStart(event -> handleContentBlockStart(event, chunks)).build());
+                item.accept(
+                    ConverseStreamResponseHandler.Visitor.builder()
+                        .onContentBlockStart(event -> handleContentBlockStart(event, chunks))
+                        .build()
+                );
                 return;
             }
             case ConverseStreamOutput.EventType.CONTENT_BLOCK_DELTA -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder()
-                    .onContentBlockDelta(event -> handleContentBlockDelta(event, chunks)).build());
+                item.accept(
+                    ConverseStreamResponseHandler.Visitor.builder()
+                        .onContentBlockDelta(event -> handleContentBlockDelta(event, chunks))
+                        .build()
+                );
                 return;
             }
             case ConverseStreamOutput.EventType.METADATA -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder()
-                    .onMetadata(event -> handleMetadata(event, chunks)).build());
+                item.accept(ConverseStreamResponseHandler.Visitor.builder().onMetadata(event -> handleMetadata(event, chunks)).build());
                 return;
             }
             case ConverseStreamOutput.EventType.MESSAGE_STOP -> {
                 demand.set(0); // reset demand before we fork to another thread
-                item.accept(ConverseStreamResponseHandler.Visitor.builder()
-                    .onMessageStop(event -> Stream.empty()).build());
+                item.accept(ConverseStreamResponseHandler.Visitor.builder().onMessageStop(event -> Stream.empty()).build());
                 return;
             }
             default -> {
@@ -125,9 +130,7 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
         }
     }
 
-    private void handleMessageStart(
-        MessageStartEvent event,
-        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
+    private void handleMessageStart(MessageStartEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
         runOnUtilityThreadPool(() -> {
             try {
                 var messageStart = handleMessageStart(event);
@@ -143,7 +146,10 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
         });
     }
 
-    private void handleContentBlockStart(ContentBlockStartEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
+    private void handleContentBlockStart(
+        ContentBlockStartEvent event,
+        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
+    ) {
         try {
             var contentBlockStart = handleContentBlockStart(event);
             contentBlockStart.forEach(chunks::offer);
@@ -154,7 +160,10 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
         downstream.onNext(results);
     }
 
-    private void handleContentBlockDelta(ContentBlockDeltaEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
+    private void handleContentBlockDelta(
+        ContentBlockDeltaEvent event,
+        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
+    ) {
         runOnUtilityThreadPool(() -> {
             try {
                 var contentBlockDelta = handleContentBlockDelta(event);
@@ -167,7 +176,10 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
         });
     }
 
-    private void handleMetadata(ConverseStreamMetadataEvent event, ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks) {
+    private void handleMetadata(
+        ConverseStreamMetadataEvent event,
+        ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> chunks
+    ) {
         runOnUtilityThreadPool(() -> {
             try {
                 var messageDelta = handleMetadata(event);
@@ -265,10 +277,10 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
      * @return a stream of ChatCompletionChunk
      */
     public static Stream<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> handleMessageStart(MessageStartEvent event) {
-            var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, event.roleAsString(), null);
-            var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
-            var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
-            return Stream.of(chunk);
+        var delta = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta(null, null, event.roleAsString(), null);
+        var choice = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice(delta, null, 0);
+        var chunk = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk(null, List.of(choice), null, null, null);
+        return Stream.of(chunk);
     }
 
     /**
@@ -278,11 +290,18 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
      * @param start the ContentBlockStart data
      * @return a ToolCall
      */
-    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseStart(ContentBlockStart start) {
+    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseStart(
+        ContentBlockStart start
+    ) {
         var type = start.type();
         var toolUse = start.toolUse();
         var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(null, toolUse.name());
-        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(0, toolUse.toolUseId(), function, type.name());
+        return new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall(
+            0,
+            toolUse.toolUseId(),
+            function,
+            type.name()
+        );
     }
 
     /**
@@ -292,7 +311,9 @@ class AmazonBedrockUnifiedStreamingChatProcessor implements Flow.Processor<Conve
      * @param delta the ContentBlockDelta data
      * @return a ToolCall
      */
-    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseDelta(ContentBlockDelta delta) {
+    private static StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall handleToolUseDelta(
+        ContentBlockDelta delta
+    ) {
         var type = delta.type();
         var toolUse = delta.toolUse();
         var function = new StreamingUnifiedChatCompletionResults.ChatCompletionChunk.Choice.Delta.ToolCall.Function(toolUse.input(), null);

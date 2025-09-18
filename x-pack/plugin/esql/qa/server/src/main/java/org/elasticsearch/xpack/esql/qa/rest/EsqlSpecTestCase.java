@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -121,20 +122,49 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.mode = randomFrom(Mode.values());
     }
 
-    private static boolean dataLoaded = false;
+    private static final Object lock = new Object();
+    private static volatile boolean dataLoaded = false;
+    private static volatile boolean setupStarted = false;
+    private static volatile Throwable setupFailure = null;
 
     @Before
-    public void setup() throws IOException {
-        boolean supportsLookup = supportsIndexModeLookup();
-        boolean supportsSourceMapping = supportsSourceFieldMapping();
-        boolean supportsInferenceTestService = supportsInferenceTestService();
-        if (dataLoaded == false) {
+    public void setup() {
+        protectedBlock(() -> {
+            boolean supportsLookup = supportsIndexModeLookup();
+            boolean supportsSourceMapping = supportsSourceFieldMapping();
+            boolean supportsInferenceTestService = supportsInferenceTestService();
             if (supportsInferenceTestService) {
                 createInferenceEndpoints(adminClient());
             }
-
             loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping, supportsInferenceTestService);
-            dataLoaded = true;
+            return null;
+        });
+    }
+
+    private static void protectedBlock(Callable<Void> callable) {
+        if (dataLoaded) {
+            return;
+        }
+        // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
+        synchronized (lock) {
+            if (dataLoaded) {
+                return;
+            }
+            if (setupStarted) {
+                // Should only happen if a previous test setup failed, possibly with partial setup, let's fail fast the current test
+                if (setupFailure != null) {
+                    fail(setupFailure, "Previous test setup failed: " + setupFailure.getMessage());
+                }
+                fail("Previous test setup failed with unknown error");
+            }
+            setupStarted = true;
+            try {
+                callable.call();
+                dataLoaded = true;
+            } catch (Throwable t) {
+                setupFailure = t;
+                fail(setupFailure, "Current test setup failed: " + setupFailure.getMessage());
+            }
         }
     }
 

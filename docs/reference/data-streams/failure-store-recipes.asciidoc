@@ -11,7 +11,7 @@ To demonstrate this, we will follow a failed document through an unfamiliar data
 
 [source,console]
 ----
-POST my-datastream-ingest/_doc
+POST my-datastream-ingest/_doc?refresh=true
 {
     "@timestamp": "2025-04-21T00:00:00Z",
     "important": {
@@ -19,6 +19,7 @@ POST my-datastream-ingest/_doc
     }
 }
 ----
+// TEST[setup:failure-store-recipes-1]
 
 [source,console-result]
 ----
@@ -34,9 +35,14 @@ POST my-datastream-ingest/_doc
   },
   "_seq_no": 2,
   "_primary_term": 1,
-  "failure_store": "used" <1>
+  "failure_store": "used", <1>
+  "forced_refresh": true
 }
 ----
+// TESTRESPONSE[s/"_index": ".fs-my-datastream-ingest-2025.05.09-000001"/"_index": $body._index/]
+// TESTRESPONSE[s/"_id": "F3S3s5YBwrYNjPmayMr9"/"_id": $body._id/]
+// TESTRESPONSE[s/"_seq_no": 2/"_seq_no": $body._seq_no/]
+// TESTRESPONSE[s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 <1> The document was sent to the failure store.
 
 Now we search the failure store to check the failure document to see what went wrong.
@@ -45,6 +51,7 @@ Now we search the failure store to check the failure document to see what went w
 ----
 GET my-datastream-ingest::failures/_search
 ----
+// TEST[continued]
 
 [source,console-result]
 ----
@@ -62,12 +69,12 @@ GET my-datastream-ingest::failures/_search
       "value": 1,
       "relation": "eq"
     },
-    "max_score": 1,
+    "max_score": 1.0,
     "hits": [
       {
         "_index": ".fs-my-datastream-ingest-2025.05.09-000001",
         "_id": "F3S3s5YBwrYNjPmayMr9",
-        "_score": 1,
+        "_score": 1.0,
         "_source": {
           "@timestamp": "2025-05-09T06:24:48.381Z",
           "document": {
@@ -82,8 +89,7 @@ GET my-datastream-ingest::failures/_search
           "error": {
             "type": "illegal_argument_exception",
             "message": "field [info] not present as part of path [important.info]", <3>
-            "stack_trace": """j.l.IllegalArgumentException: field [info] not present as part of path [important.info] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 19 more
-""",
+            "stack_trace": "j.l.IllegalArgumentException: field [info] not present as part of path [important.info]\n\tat o.e.i.IngestDocument.getFieldValue(IngestDocument.java:201)\n\tat o.e.i.c.SetProcessor.execute(SetProcessor.java:85)\n\t... 19 more\n",
             "pipeline_trace": [ <4>
               "ingest-step-1",
               "ingest-step-2"
@@ -97,6 +103,10 @@ GET my-datastream-ingest::failures/_search
   }
 }
 ----
+// TESTRESPONSE[s/"took": 0/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".fs-my-datastream-ingest-2025.05.09-000001"/"_index": $body.hits.hits.0._index/]
+// TESTRESPONSE[s/"_id": "F3S3s5YBwrYNjPmayMr9"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"@timestamp": "2025-05-09T06:24:48.381Z"/"@timestamp": $body.hits.hits.0._source.@timestamp/]
 <1> When an ingest pipeline fails, the document stored is what was originally sent to the cluster.
 <2> The important information that we failed to find was originally present in the document.
 <3> The info field was not present when the failure occurred.
@@ -110,6 +120,7 @@ Despite not knowing the pipelines beforehand, we have some places to start looki
 ----
 GET _ingest/pipeline/ingest-step-2
 ----
+// TEST[continued]
 
 [source,console-result]
 ----
@@ -135,6 +146,7 @@ There is only a set processor in the `ingest-step-2` pipeline so this is likely 
 ----
 GET _ingest/pipeline/ingest-step-1
 ----
+// TEST[continued]
 
 [source,console-result]
 ----
@@ -159,6 +171,24 @@ GET _ingest/pipeline/ingest-step-1
 <2> The call to the second pipeline.
 
 We find a remove processor in the first pipeline that is the root cause of the problem! The pipeline should be updated to not remove important data, or the downstream pipeline should be changed to not expect the important data to be always present.
+
+[source,console]
+----
+PUT _ingest/pipeline/ingest-step-2
+{
+  "processors": [
+    {
+      "set": {
+        "field": "copy.info",
+        "copy_from": "important.info",
+        "ignore_empty_value": true
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+// TEST[teardown:failure-store-recipes-1-td]
 
 [[failure-store-examples-complicated-ingest-troubleshoot]]
 ==== Troubleshooting complicated ingest pipelines
@@ -215,17 +245,19 @@ PUT _ingest/pipeline/complicated-processor
   ]
 }
 ----
+// TEST[setup:failure-store-recipes-2]
 
 We ingest some data and find that it was sent to the failure store.
 
 [source,console]
 ----
-POST my-datastream-ingest/_doc?pipeline=complicated-processor
+POST my-datastream-ingest/_doc?refresh=true
 {
     "@timestamp": "2025-04-21T00:00:00Z",
     "counter_name": "test"
 }
 ----
+// TEST[continued]
 
 [source,console-result]
 ----
@@ -241,15 +273,21 @@ POST my-datastream-ingest/_doc?pipeline=complicated-processor
   },
   "_seq_no": 1,
   "_primary_term": 1,
-  "failure_store": "used"
+  "failure_store": "used",
+  "forced_refresh": true
 }
 ----
+// TESTRESPONSE[s/"_index": ".fs-my-datastream-ingest-2025.05.09-000001"/"_index": $body._index/]
+// TESTRESPONSE[s/"_id": "HnTJs5YBwrYNjPmaFcri"/"_id": $body._id/]
+// TESTRESPONSE[s/"_seq_no": 1/"_seq_no": $body._seq_no/]
+// TESTRESPONSE[s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 On checking the failure, we can quickly identify the tagged processor that caused the problem.
 
 [source,console]
 ----
 GET my-datastream-ingest::failures/_search
 ----
+// TEST[continued]
 
 [source,console-result]
 ----
@@ -267,12 +305,12 @@ GET my-datastream-ingest::failures/_search
       "value": 1,
       "relation": "eq"
     },
-    "max_score": 1,
+    "max_score": 1.0,
     "hits": [
       {
         "_index": ".fs-my-datastream-ingest-2025.05.09-000001",
         "_id": "HnTJs5YBwrYNjPmaFcri",
-        "_score": 1,
+        "_score": 1.0,
         "_source": {
           "@timestamp": "2025-05-09T06:41:24.775Z",
           "document": {
@@ -285,8 +323,7 @@ GET my-datastream-ingest::failures/_search
           "error": {
             "type": "illegal_argument_exception",
             "message": "field [counter] not present as part of path [counter]",
-            "stack_trace": """j.l.IllegalArgumentException: field [counter] not present as part of path [counter] at o.e.i.IngestDocument.getFieldValue(IngestDocument.java:202) at o.e.i.c.SetProcessor.execute(SetProcessor.java:86) ... 14 more
-""",
+            "stack_trace": "j.l.IllegalArgumentException: field [counter] not present as part of path [counter]\n\tat o.e.i.IngestDocument.getFieldValue(IngestDocument.java:201)\n\tat o.e.i.c.SetProcessor.execute(SetProcessor.java:85)\n\t... 14 more\n",
             "pipeline_trace": [
               "complicated-processor"
             ],
@@ -300,10 +337,66 @@ GET my-datastream-ingest::failures/_search
   }
 }
 ----
+// TESTRESPONSE[s/"took": 0/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".fs-my-datastream-ingest-2025.05.09-000001"/"_index": $body.hits.hits.0._index/]
+// TESTRESPONSE[s/"_id": "HnTJs5YBwrYNjPmaFcri"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"@timestamp": "2025-05-09T06:41:24.775Z"/"@timestamp": $body.hits.hits.0._source.@timestamp/]
 <1> Helpful, but which set processor on the pipeline could it be?
 <2> The tag of the exact processor that the document failed on.
 
 Without tags in place it would not be as clear where in the pipeline the indexing problem occurred. Tags provide a unique identifier for a processor that can be quickly referenced in case of an ingest failure.
+
+[source,console]
+----
+PUT _ingest/pipeline/complicated-processor
+{
+  "processors": [
+    {
+      "set": {
+        "tag": "initialize counter",
+        "field": "counter",
+        "value": "1"
+      }
+    },
+    {
+      "set": {
+        "tag": "copy counter to new",
+        "field": "new_counter",
+        "copy_from": "counter"
+      }
+    },
+    {
+      "remove": {
+        "tag": "remove old counter",
+        "field": "counter"
+      }
+    },
+    {
+      "set": {
+        "tag": "transfer counter back",
+        "field": "counter",
+        "copy_from": "new_counter"
+      }
+    },
+    {
+      "remove": {
+        "tag": "remove counter again",
+        "field": "new_counter" <1>
+      }
+    },
+    {
+      "set": {
+        "tag": "copy to new counter again",
+        "field": "new_counter",
+        "copy_from": "counter"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+// TEST[teardown:failure-store-recipes-2-td]
+<1> Fixing the field name on the broken processor
 
 [[failure-store-examples-alerting]]
 ==== Alerting on failed ingestion
@@ -370,7 +463,7 @@ POST my-datastream-ingest-example::failures/_search
     "bool": {
       "must": [
         {
-          "exists": { <1> 
+          "exists": { <1>
             "field": "error.pipeline"
           }
         },
@@ -397,6 +490,7 @@ POST my-datastream-ingest-example::failures/_search
   }
 }
 ----
+// TEST[skip:backport]
 <1> Require the `error.pipeline` field to exist. This filters to ingest pipeline failures only.
 <2> Filter on the data stream name to remediate documents headed for a specific index.
 <3> Further narrow which kind of failure you are attempting to remediate. In this example we are targeting a specific type of error.
@@ -477,6 +571,7 @@ Because ingest pipeline failures need to be reprocessed by their original pipeli
   }
 }
 ----
+// TEST[continued]
 <1> The `data.id` field is expected to be present. If it isn't present this pipeline will fail.
 
 Fixing a failure's root cause is often a bespoke process. In this example, instead of discarding the data, we will make this identifier field optional.
@@ -496,6 +591,7 @@ PUT _ingest/pipeline/my-datastream-default-pipeline
   ]
 }
 ----
+// TEST[continued]
 <1> Conditionally run the processor only if the field exists.
 
 ====== Step 3: Create a pipeline to convert failure documents
@@ -528,6 +624,7 @@ PUT _ingest/pipeline/my-datastream-remediation-pipeline
   ]
 }
 ----
+// TEST[continued]
 <1> Copy the original index name from the failure document over into the document's metadata. If you use custom document routing, copy that over too.
 <2> Capture the source of the original document.
 <3> Discard the `error` field since it won't be needed for the remediation.
@@ -596,6 +693,7 @@ POST _ingest/pipeline/_simulate
   ]
 }
 ----
+// TEST[continued]
 <1> The contents of the remediation pipeline written in the previous step.
 <2> The contents of an example failure document we identified in the previous steps.
 
@@ -688,6 +786,7 @@ POST _ingest/_simulate?pipeline=my-datastream-remediation-pipeline <1>
   ]
 }
 ----
+// TEST[continued]
 <1> Set the pipeline to be the remediation pipeline name, otherwise the default pipeline for the document's index is used.
 <2> The contents of the remediation pipeline in previous steps.
 <3> The contents of the previously identified example failure document.
@@ -766,6 +865,7 @@ POST _reindex
   }
 }
 ----
+// TEST[continued]
 <1> Read from the failure store.
 <2> Only reindex failure documents that match the ones we are replaying.
 <3> Set the destination to the data stream the failures originally were sent to.
@@ -853,6 +953,7 @@ POST my-datastream-indexing-example::failures/_search
   }
 }
 ----
+// TEST[skip:backport]
 <1> Require the `error.pipeline` field to not exist. This filters out any ingest pipeline failures, and only returns indexing failures.
 <2> Filter on the data stream name to remediate documents headed for a specific index.
 <3> Further narrow which kind of failure you are attempting to remediate. In this example we are targeting a specific type of error.
@@ -943,6 +1044,7 @@ PUT _ingest/pipeline/my-datastream-remediation-pipeline
   ]
 }
 ----
+// TEST[continued]
 <1> Copy the original index name from the failure document over into the document's metadata. If you use custom document routing, copy that over too.
 <2> Capture the source of the original document.
 <3> Discard the `error` field since it won't be needed for the remediation.
@@ -1009,6 +1111,7 @@ Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp
   ]
 }
 ----
+// TEST[continued]
 <1> The contents of the remediation pipeline written in the previous step.
 <2> The contents of an example failure document we identified in the previous steps.
 
@@ -1036,6 +1139,7 @@ Caused by: j.l.IllegalArgumentException: data stream timestamp field [@timestamp
   ]
 }
 ----
+// TEST[continued]
 <1> The index has been updated via the script processor.
 <2> The source should reflect any fixes and match the expected document shape for the final index.
 <3> In this example case, we find that the failure timestamp has stayed in the source.
@@ -1089,6 +1193,7 @@ POST _reindex
   }
 }
 ----
+// TEST[continued]
 <1> Read from the failure store.
 <2> Only reindex failure documents that match the ones we are replaying.
 <3> Set the destination to the data stream the failures originally were sent to. The remediation pipeline in the example updates the index to be the correct one, but a destination is still required.

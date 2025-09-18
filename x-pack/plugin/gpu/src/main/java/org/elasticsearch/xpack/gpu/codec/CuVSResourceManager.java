@@ -63,7 +63,7 @@ public interface CuVSResourceManager {
 
     /** Returns the system-wide pooling manager. */
     static CuVSResourceManager pooling() {
-        return PoolingCuVSResourceManager.INSTANCE;
+        return PoolingCuVSResourceManager.Holder.INSTANCE;
     }
 
     /**
@@ -76,10 +76,13 @@ public interface CuVSResourceManager {
         /** A multiplier on input data to account for intermediate and output data size required while processing it */
         static final double GPU_COMPUTATION_MEMORY_FACTOR = 2.0;
         static final int MAX_RESOURCES = 2;
-        static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
-            MAX_RESOURCES,
-            CuVSProvider.provider().gpuInfoProvider()
-        );
+
+        static class Holder {
+            static final PoolingCuVSResourceManager INSTANCE = new PoolingCuVSResourceManager(
+                MAX_RESOURCES,
+                CuVSProvider.provider().gpuInfoProvider()
+            );
+        }
 
         private final ManagedCuVSResources[] pool;
         private final int capacity;
@@ -137,7 +140,7 @@ public interface CuVSResourceManager {
                     final boolean enoughMemory;
                     if (res != null) {
                         long requiredMemoryInBytes = estimateRequiredMemory(numVectors, dims, dataType);
-                        logger.info(
+                        logger.debug(
                             "Estimated memory for [{}] vectors, [{}] dims of type [{}] is [{} B]",
                             numVectors,
                             dims,
@@ -160,16 +163,16 @@ public interface CuVSResourceManager {
 
                         // If no resource in the pool is locked, short circuit to avoid livelock
                         if (numLockedResources() == 0) {
-                            logger.info("No resources currently locked, proceeding");
+                            logger.debug("No resources currently locked, proceeding");
                             break;
                         }
 
                         // Check resources availability
                         long freeDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
                         enoughMemory = requiredMemoryInBytes <= freeDeviceMemoryInBytes;
-                        logger.info("Free device memory [{} B], enoughMemory[{}]", freeDeviceMemoryInBytes);
+                        logger.debug("Free device memory [{} B], enoughMemory[{}]", freeDeviceMemoryInBytes);
                     } else {
-                        logger.info("No resources available in pool");
+                        logger.debug("No resources available in pool");
                         enoughMemory = false;
                     }
                     // TODO: add enoughComputation / enoughComputationCondition here
@@ -201,14 +204,14 @@ public interface CuVSResourceManager {
 
         @Override
         public void finishedComputation(ManagedCuVSResources resources) {
-            logger.info("Computation finished");
+            logger.debug("Computation finished");
             // currently does nothing, but could allow acquire to return possibly blocked resources
             // enoughResourcesCondition.signalAll()
         }
 
         @Override
         public void release(ManagedCuVSResources resources) {
-            logger.info("Releasing resources to pool");
+            logger.debug("Releasing resources to pool");
             try {
                 lock.lock();
                 assert resources.locked;

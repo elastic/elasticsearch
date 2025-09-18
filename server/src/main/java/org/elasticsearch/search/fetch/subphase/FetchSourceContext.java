@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestRequest;
@@ -39,6 +40,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField EXCLUDE_VECTORS_FIELD = new ParseField("exclude_vectors");
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
+
+    public static final Setting<Boolean> DEFAULT_SOURCE_EXCLUDE_VECTORS = Setting.boolSetting(
+        "search.default_exclude_vectors",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    private static volatile Boolean defaultSourceExcludeVectors;
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, null, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     public static final FetchSourceContext FETCH_ALL_SOURCE = new FetchSourceContext(true, false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
@@ -87,6 +96,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
         return of(fetchSource, excludeVectors, includes, excludes);
+    }
+
+    public static void setDefaultSourceExcludeVectors(boolean defaultSourceExcludeVectors) {
+        if (defaultSourceExcludeVectors) {
+            FetchSourceContext.defaultSourceExcludeVectors = null;
+        } else {
+            FetchSourceContext.defaultSourceExcludeVectors = false;
+        }
     }
 
     @Override
@@ -157,7 +174,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             sourceExcludes = Strings.splitStringByCommaToArray(sExcludes);
         }
 
-        Boolean excludeVectors = request.paramAsBoolean("_source_exclude_vectors", null);
+        Boolean excludeVectors = request.paramAsBoolean("_source_exclude_vectors", defaultSourceExcludeVectors);
 
         if (excludeVectors != null || fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
             return FetchSourceContext.of(fetchSource == null || fetchSource, excludeVectors, sourceIncludes, sourceExcludes);

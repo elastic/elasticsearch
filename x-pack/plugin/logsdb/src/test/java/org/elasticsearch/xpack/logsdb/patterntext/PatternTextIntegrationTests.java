@@ -185,6 +185,24 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testPhraseQuery() throws IOException {
+        var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
+        createRequest.settings(LOGSDB_SETTING);
+        assertAcked(admin().indices().create(createRequest));
+
+        String smallMessage = "cat dog 123 house mouse";
+        final String message = randomBoolean() ? smallMessage : smallMessage.repeat(32_000 / smallMessage.length());
+
+        List<String> logMessages = List.of(message);
+        indexDocs(logMessages);
+        assertMappings();
+
+        var query = QueryBuilders.matchPhraseQuery("field_pattern_text", "dog 123 house");
+        var searchRequest = client().prepareSearch(INDEX).setQuery(query);
+
+        assertNoFailuresAndResponse(searchRequest, searchResponse -> { assertEquals(1, searchResponse.getHits().getTotalHits().value()); });
+    }
+
     public void testQueryResultsSameAsMatchOnlyText() throws IOException {
         var createRequest = new CreateIndexRequest(INDEX).mapping(mapping);
 
@@ -336,6 +354,14 @@ public class PatternTextIntegrationTests extends ESSingleNodeTestCase {
             sb.append(randomMessage());
         }
         return sb.toString();
+    }
+
+    public static String randomMessageMaybeLarge() {
+        if (randomDouble() < 0.2) {
+            return randomMessage(32 * 1024);
+        } else {
+            return randomMessage();
+        }
     }
 
     public static String randomMessage() {

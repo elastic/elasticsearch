@@ -139,5 +139,4 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     public String getCondition() {
         return condition.getIdOrCode();
     }
-
 }

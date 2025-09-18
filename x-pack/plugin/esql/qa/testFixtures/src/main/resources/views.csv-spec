@@ -3,44 +3,22 @@ required_capability: views_v1
 
 FROM address_countries
 ;
+ignoreOrder:true
 
 count:long | country:keyword
+1          | Japan
 1          | Netherlands
 1          | United States of America
-1          | Japan
 ;
 
 airports
 FROM airports
 | WHERE country IS NOT NULL
 | STATS count=COUNT() BY country
-| SORT count DESC
+| SORT count DESC, country ASC
 | WHERE count > 10
 ;
-
-count:long | country:keyword
- 129        | United States
- 50         | India
- 45         | Mexico
- 41         | China
- 37         | Canada
- 31         | Brazil
- 26         | Russia
- 17         | United Kingdom
- 17         | Australia
- 13         | Argentina
- 12         | France
- 12         | Indonesia
- 11         | Nigeria
- 11         | Italy
- 11         | Germany
-;
-
-airportsCountries
-required_capability: views_v1
-
-FROM airports_countries
-;
+ignoreOrder:true
 
 count:long | country:keyword
 129        | United States
@@ -50,31 +28,60 @@ count:long | country:keyword
 37         | Canada
 31         | Brazil
 26         | Russia
-17         | United Kingdom
 17         | Australia
+17         | United Kingdom
 13         | Argentina
 12         | France
 12         | Indonesia
-11         | Nigeria
-11         | Italy
 11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+airportsCountries
+required_capability: views_v1
+
+FROM airports_countries
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
 ;
 
 languages
+required_capability: views_v1
+
 FROM languages_lookup_non_unique_key
 | MV_EXPAND country
 | WHERE country IS NOT NULL AND country NOT LIKE ("*-Land*")
 | STATS count=COUNT() BY country
+| SORT count DESC, country ASC
 ;
+ignoreOrder:true
 
 count:long | country:text
- 1         | Canada
- 1         | United Kingdom
- 1         | United States of America
- 1         | Germany
- 1         | Austria
- 1         | Switzerland
- 1         | Atlantis
+1          | Atlantis
+1          | Austria
+1          | Canada
+1          | Germany
+1          | Switzerland
+1          | United Kingdom
+1          | United States of America
 ;
 
 languagesCountries
@@ -82,13 +89,14 @@ required_capability: views_v1
 
 FROM languages_countries
 ;
+ignoreOrder:true
 
 count:long | country:text
- 1         | Canada
- 1         | United Kingdom
- 1         | United States of America
- 1         | Germany
- 1         | Austria
- 1         | Switzerland
- 1         | Atlantis
+1          | Atlantis
+1          | Austria
+1          | Canada
+1          | Germany
+1          | Switzerland
+1          | United Kingdom
+1          | United States of America
 ;

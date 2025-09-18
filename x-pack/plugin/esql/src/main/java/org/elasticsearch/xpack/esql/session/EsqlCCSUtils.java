@@ -294,7 +294,7 @@ public class EsqlCCSUtils {
 
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
-        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
             for (String clusterAlias : execInfo.clusterAliases()) {

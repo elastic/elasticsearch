@@ -1638,6 +1638,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
         final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesInput, merging);
 
+        assert entry.sortedOrdinals == null : "encoded ordinal range supports only one value per document";
         final NumericValues values = getValues(entry, maxOrd);
 
         if (entry.docsWithFieldOffset == -1) {

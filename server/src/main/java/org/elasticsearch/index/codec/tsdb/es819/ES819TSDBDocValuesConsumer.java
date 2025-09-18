@@ -129,9 +129,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeField(field, producer, -1, null);
     }
 
-    private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue) {
+    private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue, long numValues) {
         return maxDoc > 1
             && field.number == primarySortFieldNumber
+            && numDocsWithValue == numValues // Only single valued fields can be supported with range encoded ordinals format
             && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
     }
 
@@ -167,7 +168,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 if (maxOrd == 1) {
                     // Special case for maxOrd of 1, signal -1 that no blocks will be written
                     meta.writeInt(-1);
-                } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue)) {
+                } else if (shouldEncodeOrdinalRange(field, maxOrd, numDocsWithValue, numValues)) {
                     // When a field is sorted, use ordinal range encode for long runs of the same ordinal.
                     meta.writeInt(-2);
                     meta.writeVInt(Math.toIntExact(maxOrd));

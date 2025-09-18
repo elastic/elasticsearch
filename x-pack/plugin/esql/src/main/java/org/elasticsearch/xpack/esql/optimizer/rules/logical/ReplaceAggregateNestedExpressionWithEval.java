@@ -26,12 +26,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
+import java.time.temporal.JulianFields;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -112,7 +114,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
                         // Try to convert the format pattern to a minimal time interval
                         // This optimization attempts to simplify date formatting to DATE_TRUNC operations
-                        Literal interval = formatToMinimalInterval(BytesRefs.toString(format.value()), g.source());
+                        Literal interval = inferTruncIntervalFromFormat(BytesRefs.toString(format.value()), g.source());
                         // If we can optimize the format to use DATE_TRUNC
                         if (interval != null) {
                             // Create a new DateTrunc operation with the optimized interval
@@ -277,41 +279,129 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         return TemporaryNameUtils.temporaryName(expression, func, counter);
     }
 
-    private static Literal formatToMinimalInterval(String format, Source source) {
+    /**
+     * Attempts to infer the minimal time interval that corresponds to a given date format.
+     * <p>
+     * The idea is to map {@code DATE_FORMAT} patterns to the smallest truncation unit
+     * (year, month, day, hour, minute, second, millisecond) so that we can optimize
+     * {@code DATE_FORMAT} by rewriting it as {@code DATE_TRUNC} when possible.
+     * <p>
+     * Limitations:
+     * <ul>
+     *   <li>The format must represent a continuous hierarchy of time units starting from "year".
+     *       For example: {@code yyyy-MM-dd HH:mm:ss} is valid, but skipping "month" while using "day"
+     *       is not.</li>
+     *   <li>Patterns involving unsupported fields (e.g., ERA, QUARTER, DAY_OF_WEEK, AM/PM, nanoseconds)
+     *       cannot be mapped to {@code DATE_TRUNC} and will return {@code null}.</li>
+     *   <li>Nanosecond-level precision is not supported by {@code DATE_TRUNC}.</li>
+     * </ul>
+     *
+     * @param format The date format pattern (e.g., "yyyy-MM-dd HH:mm:ss").
+     * @param source The source of the query.
+     * @return The corresponding minimal interval as a {@link Literal}, or {@code null} if the format
+     *         cannot be represented as a truncation unit.
+     * @see EsqlDataTypeConverter.INTERVALS for supported truncation units.
+     */
+    private static Literal inferTruncIntervalFromFormat(String format, Source source) {
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT);
             String formatterAsString = formatter.toString();
-            if (formatterAsString.contains(ChronoField.NANO_OF_SECOND.toString())
-                || formatterAsString.contains(ChronoField.NANO_OF_DAY.toString())) {
-                return new Literal(source, ChronoUnit.NANOS.getDuration(), DataType.TIME_DURATION);
-            } else if (formatterAsString.contains(ChronoField.MILLI_OF_DAY.toString())) {
-                return new Literal(source, ChronoUnit.MILLIS.getDuration(), DataType.TIME_DURATION);
-            } else if (formatterAsString.contains(ChronoField.SECOND_OF_MINUTE.toString())) {
-                return new Literal(source, ChronoUnit.SECONDS.getDuration(), DataType.TIME_DURATION);
-            } else if (formatterAsString.contains(ChronoField.MINUTE_OF_HOUR.toString())) {
-                return new Literal(source, ChronoUnit.MINUTES.getDuration(), DataType.TIME_DURATION);
-            } else if (formatterAsString.contains(ChronoField.HOUR_OF_DAY.toString())
-                || formatterAsString.contains(ChronoField.CLOCK_HOUR_OF_DAY.toString())
-                || formatterAsString.contains(ChronoField.HOUR_OF_AMPM.toString())
-                || formatterAsString.contains(ChronoField.CLOCK_HOUR_OF_AMPM.toString())) {
+            // Not supported to be converted to interval
+            if (formatterAsString.contains("Text(" + ChronoField.ERA) // G
+                || formatterAsString.contains("Value(" + JulianFields.MODIFIED_JULIAN_DAY) // g
+                || formatterAsString.contains("Value(" + IsoFields.QUARTER_OF_YEAR) // Q/q
+                || formatterAsString.contains("Value(" + ChronoField.ALIGNED_WEEK_OF_MONTH) // f
+                || formatterAsString.contains("Text(" + ChronoField.DAY_OF_WEEK) // E/c/e
+                || formatterAsString.contains("Text(" + ChronoField.AMPM_OF_DAY) // a
+                || formatterAsString.contains("Value(" + ChronoField.HOUR_OF_AMPM) // K
+                || formatterAsString.contains("Value(" + ChronoField.CLOCK_HOUR_OF_AMPM) // h
+                // nanosecond interval not supported in DATE_TRUNC
+                || formatterAsString.contains("Fraction(" + ChronoField.NANO_OF_SECOND) // S
+                || formatterAsString.contains("Value(" + ChronoField.NANO_OF_SECOND) // n
+                || formatterAsString.contains("Value(" + ChronoField.NANO_OF_DAY)) { // N
+                return null;
+            }
+
+            // Define the hierarchy of time units, starting from year and gradually decreasing.
+            // 0: year, 1: month, 2: day, 3: hour, 4: minute, 5: second, 6: millisecond
+            boolean[] levels = new boolean[7];
+
+            // year
+            // y/u
+            if (formatterAsString.contains("Value(" + ChronoField.YEAR_OF_ERA) || formatterAsString.contains("Value(" + ChronoField.YEAR)) {
+                levels[0] = true;
+            }
+
+            // month
+            // M/L
+            if (formatterAsString.contains("Value(" + ChronoField.MONTH_OF_YEAR)) {
+                levels[1] = true;
+            }
+
+            // day
+            // d
+            if (formatterAsString.contains("Value(" + ChronoField.DAY_OF_MONTH)) {
+                levels[2] = true;
+            }
+            // D
+            if (formatterAsString.contains("Value(" + ChronoField.DAY_OF_YEAR)) {
+                levels[1] = true;
+                levels[2] = true;
+            }
+
+            // hour
+            // H/k
+            if (formatterAsString.contains("Value(" + ChronoField.HOUR_OF_DAY)
+                || formatterAsString.contains("Value(" + ChronoField.CLOCK_HOUR_OF_DAY)) {
+                levels[3] = true;
+            }
+
+            // minute
+            // m
+            if (formatterAsString.contains("Value(" + ChronoField.MINUTE_OF_HOUR)) {
+                levels[4] = true;
+            }
+
+            // second
+            // s
+            if (formatterAsString.contains("Value(" + ChronoField.SECOND_OF_MINUTE)) {
+                levels[5] = true;
+            }
+
+            // millisecond
+            // A
+            if (formatterAsString.contains("Value(" + ChronoField.MILLI_OF_DAY)) {
+                levels[3] = true;
+                levels[4] = true;
+                levels[5] = true;
+                levels[6] = true;
+            }
+
+            // Check for continuity
+            int lastLevel = -1;
+            for (int i = 0; i < levels.length; i++) {
+                if (levels[i] && lastLevel == i - 1) {
+                    lastLevel = i;
+                }
+            }
+
+            // Return the smallest time unit.
+            switch (lastLevel) {
+                case 0:
+                    return new Literal(source, Period.ofYears(1), DataType.DATE_PERIOD);
+                case 1:
+                    return new Literal(source, Period.ofMonths(1), DataType.DATE_PERIOD);
+                case 2:
+                    return new Literal(source, Period.ofDays(1), DataType.DATE_PERIOD);
+                case 3:
                     return new Literal(source, ChronoUnit.HOURS.getDuration(), DataType.TIME_DURATION);
-                } else if (formatterAsString.contains(ChronoField.AMPM_OF_DAY.toString())) {
-                    return new Literal(source, ChronoUnit.HALF_DAYS, DataType.TIME_DURATION);
-                } else if (formatterAsString.contains(ChronoField.DAY_OF_WEEK.toString())
-                    || formatterAsString.contains(ChronoField.DAY_OF_MONTH.toString())
-                    || formatterAsString.contains(ChronoField.DAY_OF_YEAR.toString())) {
-                        return new Literal(source, Period.ofDays(1), DataType.DATE_PERIOD);
-                    } else if (formatterAsString.contains(ChronoField.ALIGNED_WEEK_OF_MONTH.toString())
-                        || formatterAsString.contains(ChronoField.ALIGNED_WEEK_OF_YEAR.toString())) {
-                            return new Literal(source, Period.ofDays(7), DataType.DATE_PERIOD);
-                        } else if (formatterAsString.contains(ChronoField.MONTH_OF_YEAR.toString())) {
-                            return new Literal(source, Period.ofMonths(1), DataType.DATE_PERIOD);
-                        } else if (formatterAsString.contains(IsoFields.QUARTER_OF_YEAR.toString())) {
-                            return new Literal(source, Period.ofMonths(3), DataType.DATE_PERIOD);
-                        } else if (formatterAsString.contains(ChronoField.YEAR_OF_ERA.toString())
-                            || formatterAsString.contains(ChronoField.YEAR.toString())) {
-                                return new Literal(source, Period.ofYears(1), DataType.DATE_PERIOD);
-                            }
+                case 4:
+                    return new Literal(source, ChronoUnit.MINUTES.getDuration(), DataType.TIME_DURATION);
+                case 5:
+                    return new Literal(source, ChronoUnit.SECONDS.getDuration(), DataType.TIME_DURATION);
+                case 6:
+                    return new Literal(source, ChronoUnit.MILLIS.getDuration(), DataType.TIME_DURATION);
+            }
         } catch (IllegalArgumentException ignored) {}
         return null;
     }

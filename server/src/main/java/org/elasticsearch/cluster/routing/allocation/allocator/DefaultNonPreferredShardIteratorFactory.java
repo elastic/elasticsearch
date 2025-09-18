@@ -29,8 +29,10 @@ import java.util.stream.StreamSupport;
 /**
  * Non-preferred shard iterator factory that returns the most desirable shards from most-hot-spotted
  * nodes first.
- * Any nodes missing queue latency information are considered to have a queue latency of 0.
- * Any shards missing write load information are considered to have a write load of 0.
+ * <ul>
+ *  <li>Any nodes missing queue-latency information are considered to have a queue-latency of 0.</li>
+ *  <li>Any shards missing write-load information are considered to have a write-load of 0.</li>
+ * </ul>
  */
 public record DefaultNonPreferredShardIteratorFactory(WriteLoadConstraintSettings writeLoadConstraintSettings)
     implements

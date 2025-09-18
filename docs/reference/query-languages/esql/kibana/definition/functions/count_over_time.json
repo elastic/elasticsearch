@@ -226,5 +226,5 @@
     "TS k8s\n| STATS count=count(count_over_time(network.cost))\n  BY cluster, time_bucket = bucket(@timestamp,1minute)"
   ],
   "preview" : false,
-  "snapshot_only" : true
+  "snapshot_only" : false
 }

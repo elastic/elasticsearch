@@ -271,10 +271,10 @@ public class IndexSortSettingsTests extends ESTestCase {
         {
             var settings = Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "logsdb")
-                .put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), "logsdb")
+                .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false)
                 .build();
             assertEquals(
-                List.of("host.name", "@timestamp"),
+                List.of("@timestamp"),
                 IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings)
             );
         }

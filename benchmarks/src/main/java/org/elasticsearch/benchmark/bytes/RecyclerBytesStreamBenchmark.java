@@ -41,7 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class RecyclerBytesStreamBenchmark {
 
     private final AtomicReference<BytesRef> bytesRef = new AtomicReference<>(new BytesRef(16384));
-    private OldRecyclerBytesStreamOutput streamOutput;
+    private NewRecyclerBytesStreamOutput streamOutput;
     private String shortString;
     private String longString;
     private String nonAsciiString;
@@ -49,10 +49,11 @@ public class RecyclerBytesStreamBenchmark {
     private byte[] bytes1;
     private byte[] bytes2;
     private byte[] bytes3;
+    private byte[] bytes4;
 
     @Setup
     public void initResults() throws IOException {
-        streamOutput = new OldRecyclerBytesStreamOutput(new BenchmarkRecycler(bytesRef));
+        streamOutput = new NewRecyclerBytesStreamOutput(new BenchmarkRecycler(bytesRef));
         shortString = "short string";
         longString = "long string that is completely ascii text and nothing else for copying into buffer";
         nonAsciiString = "long string that is comp € letely ascii text and nothing else for copying into buffer";
@@ -65,49 +66,57 @@ public class RecyclerBytesStreamBenchmark {
         bytes2 = new byte[712];
         bytes3 = new byte[random.nextInt(1000, 1800)];
         bytes3 = new byte[1678];
+        bytes4 = new byte[16387 * 4];
         random.nextBytes(bytes1);
         random.nextBytes(bytes2);
         random.nextBytes(bytes3);
+        random.nextBytes(bytes4);
     }
 
-//    @Benchmark
-//    public void writeByte() throws IOException {
-//        streamOutput.seek(1);
-//        for (byte item : bytes1) {
-//            streamOutput.writeByte(item);
-//        }
-//        for (byte item : bytes2) {
-//            streamOutput.writeByte(item);
-//        }
-//        for (byte item : bytes3) {
-//            streamOutput.writeByte(item);
-//        }
-//    }
-//
-//    @Benchmark
-//    public void writeBytes() throws IOException {
-//        streamOutput.seek(1);
-//        streamOutput.writeBytes(bytes1, 0, bytes1.length);
-//        streamOutput.writeBytes(bytes2, 0, bytes2.length);
-//        streamOutput.writeBytes(bytes3, 0, bytes3.length);
-//    }
-//
-//    @Benchmark
-//    public void writeBytesCrossPage() throws IOException {
-//        streamOutput.seek(16384 - 1000);
-//        streamOutput.writeBytes(bytes1, 0, bytes1.length);
-//        streamOutput.writeBytes(bytes2, 0, bytes2.length);
-//        streamOutput.writeBytes(bytes3, 0, bytes3.length);
-//    }
+    // @Benchmark
+    // public void writeByte() throws IOException {
+    // streamOutput.seek(1);
+    // for (byte item : bytes1) {
+    // streamOutput.writeByte(item);
+    // }
+    // for (byte item : bytes2) {
+    // streamOutput.writeByte(item);
+    // }
+    // for (byte item : bytes3) {
+    // streamOutput.writeByte(item);
+    // }
+    // }
 
     @Benchmark
-    public void writeString() throws IOException {
+    public void writeBytes() throws IOException {
         streamOutput.seek(1);
-        streamOutput.writeString(shortString);
-        streamOutput.writeString(longString);
-//        streamOutput.writeString(nonAsciiString);
-        streamOutput.writeString(veryLongString);
+        streamOutput.writeBytes(bytes1, 0, bytes1.length);
+        streamOutput.writeBytes(bytes2, 0, bytes2.length);
+        streamOutput.writeBytes(bytes3, 0, bytes3.length);
     }
+
+    @Benchmark
+    public void writeBytesCrossPage() throws IOException {
+        streamOutput.seek(16384 - 1000);
+        streamOutput.writeBytes(bytes1, 0, bytes1.length);
+        streamOutput.writeBytes(bytes2, 0, bytes2.length);
+        streamOutput.writeBytes(bytes3, 0, bytes3.length);
+    }
+
+    @Benchmark
+    public void writeBytesMultiPage() throws IOException {
+        streamOutput.seek(16384 - 1000);
+        streamOutput.writeBytes(bytes4, 0, bytes4.length);
+    }
+
+    // @Benchmark
+    // public void writeString() throws IOException {
+    // streamOutput.seek(1);
+    // streamOutput.writeString(shortString);
+    // streamOutput.writeString(longString);
+    // streamOutput.writeString(nonAsciiString);
+    // streamOutput.writeString(veryLongString);
+    // }
 
     private record BenchmarkRecycler(AtomicReference<BytesRef> bytesRef) implements Recycler<BytesRef> {
 

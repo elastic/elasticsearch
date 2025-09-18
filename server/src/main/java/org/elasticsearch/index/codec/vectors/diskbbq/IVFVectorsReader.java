@@ -227,7 +227,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     }
 
     private FlatVectorsReader getReaderForField(String field) {
-        String formatName = fields.get(fieldInfos.fieldInfo(field).number).rawVectorFormatName;
+        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
+        if (fieldInfo.getVectorEncoding() != VectorEncoding.FLOAT32) {
+            // IVF only works on floats, so pass through any others straight
+            // to the first flat vectors format we can find
+            return rawVectorReaders.values().iterator().next();
+        }
+        var formatName = fields.get(fieldInfo.number).rawVectorFormatName;
         FlatVectorsReader reader = rawVectorReaders.get(formatName);
         if (reader == null) throw new IllegalArgumentException(
             "Could not find raw vector format [" + formatName + "] for field [" + field + "]"

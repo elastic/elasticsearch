@@ -142,34 +142,34 @@ public class TimeSeriesAggregate extends Aggregate {
                     )
                 );
             }
-            // reject LOOKUP_JOIN
+            // reject `TS metrics | LOOKUP JOIN ... | STATS ...`
             if (p instanceof LookupJoin lookupJoin) {
                 failures.add(
                     fail(
                         lookupJoin,
-                        "lookup join [{}] in the time-series source before the first aggregation [{}] is not allowed",
+                        "lookup join [{}] in the time-series before the first aggregation [{}] is not allowed",
                         lookupJoin.sourceText(),
                         this.sourceText()
                     )
                 );
             }
-            // reject ENRICH
-            if (p instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+            // reject `TS metrics | ENRICH ... | STATS ...`
+            if (p instanceof Enrich enrich) {
                 failures.add(
                     fail(
                         enrich,
-                        "coordinator enrich [{}] in the time-series source before the first aggregation [{}] is not allowed",
+                        "enrich [{}] in the time-series before the first aggregation [{}] is not allowed",
                         enrich.sourceText(),
                         this.sourceText()
                     )
                 );
             }
-            // reject CHANGE_POINT
+            // reject `TS metrics | CHANGE POINT ... | STATS ...`
             if (p instanceof ChangePoint changePoint) {
                 failures.add(
                     fail(
                         changePoint,
-                        "change_point [{}] in the time-series source before the first aggregation [{}] is not allowed",
+                        "change_point [{}] in the time-series the first aggregation [{}] is not allowed",
                         changePoint.sourceText(),
                         this.sourceText()
                     )
@@ -183,7 +183,7 @@ public class TimeSeriesAggregate extends Aggregate {
         for (NamedExpression aggregate : aggregates) {
             if (aggregate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction outer) {
                 if (outer instanceof Count count && count.field().foldable()) {
-                    // COUNT(*)
+                    // reject `TS metrics | STATS COUNT(*)`
                     failures.add(
                         fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", outer.sourceText())
                     );
@@ -206,7 +206,8 @@ public class TimeSeriesAggregate extends Aggregate {
                     failures.add(
                         fail(
                             ts,
-                            "time-series aggregate function [{}] can only be used with the TS command and inside another aggregate function",
+                            "time-series aggregate function [{}] can only be used with the TS command "
+                                + "and inside another aggregate function",
                             ts.sourceText()
                         )
                     );

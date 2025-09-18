@@ -196,6 +196,10 @@ public class Delta$Type$Aggregator {
                         // At this point we want to apply extrapolation
                         var rangeStart = tsContext.rangeStartInMillis(groupId);
                         var rangeEnd = tsContext.rangeEndInMillis(groupId);
+                        if (state.lastTimestamp - state.firstTimestamp == 0) {
+                            rates.appendNull();
+                            continue;
+                        }
                         double startGap = state.firstTimestamp - rangeStart;
                         final double averageSampleInterval = (state.lastTimestamp - state.firstTimestamp) / state.valuesSeen;
                         final double slope = (state.lastValue - state.firstValue) / (state.lastTimestamp - state.firstTimestamp);

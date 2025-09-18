@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -17,13 +18,18 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.PreOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
@@ -33,9 +39,21 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class LogicalPlanPreOptimizerTests extends ESTestCase {
 
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUpThreadPool() {
+        threadPool = createThreadPool();
+    }
+
+    @After
+    public void tearDownThreadPool() {
+        terminate(threadPool);
+    }
+
     public void testPlanIsMarkedAsPreOptimized() throws Exception {
         for (int round = 0; round < 100; round++) {
-            // We want to make sure that the pre-optimizer woks for a wide range of plans
+            // We want to make sure that the pre-optimizer works for a wide range of plans
             preOptimizedPlan(randomPlan());
         }
     }
@@ -49,6 +67,75 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
             assertThat(exceptionHolder.get(), notNullValue());
             IllegalStateException e = as(exceptionHolder.get(), IllegalStateException.class);
             assertThat(e.getMessage(), equalTo("Expected analyzed plan"));
+        });
+    }
+
+    public void testPreOptimizerRulesAreAppliedInOrder() throws Exception {
+        LogicalPlan plan = EsqlTestUtils.relation();
+        plan.setPreOptimized();
+
+        StringBuilder executionOrder = new StringBuilder();
+
+        // Create mock rules that track execution order
+        PreOptimizerRule rule1 = createOrderTrackingRule("A", executionOrder);
+        PreOptimizerRule rule2 = createOrderTrackingRule("B", executionOrder);
+        PreOptimizerRule rule3 = createOrderTrackingRule("C", executionOrder);
+
+        LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(List.of(rule1, rule2, rule3));
+
+        SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
+
+        preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, ESTestCase::fail));
+
+        assertBusy(() -> {
+            assertThat(resultHolder.get(), notNullValue());
+            // Rules should be applied in the order they were provided
+            assertThat(executionOrder.toString(), equalTo("ABC"));
+            assertThat(resultHolder.get().preOptimized(), equalTo(true));
+        });
+    }
+
+    public void testPreOptimizerWithEmptyRulesList() throws Exception {
+        LogicalPlan plan = EsqlTestUtils.relation();
+        plan.setPreOptimized();
+
+        LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(List.of());
+
+        SetOnce<LogicalPlan> resultHolder = new SetOnce<>();
+
+        preOptimizer.preOptimize(plan, ActionListener.wrap(resultHolder::set, ESTestCase::fail));
+
+        assertBusy(() -> {
+            assertThat(resultHolder.get(), notNullValue());
+            assertThat(resultHolder.get().preOptimized(), equalTo(true));
+            // The plan should be the same as the original (no modifications)
+            assertThat(resultHolder.get(), equalTo(plan));
+        });
+    }
+
+    public void testPreOptimizerRuleFailurePropagatesError() throws Exception {
+        LogicalPlan plan = EsqlTestUtils.relation();
+        plan.setPreOptimized();
+
+        RuntimeException expectedError = new RuntimeException("Mock rule failure");
+
+        AtomicInteger ruleACounter = new AtomicInteger();
+        PreOptimizerRule ruleA = createMockRule(ruleACounter);
+        PreOptimizerRule ruleB = createFailingRule(expectedError);
+        AtomicInteger ruleCCounter = new AtomicInteger();
+        PreOptimizerRule ruleC = createMockRule(ruleCCounter);
+
+        LogicalPlanPreOptimizer preOptimizer = new LogicalPlanPreOptimizer(List.of(ruleA, ruleB, ruleC));
+
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+
+        preOptimizer.preOptimize(plan, ActionListener.wrap(r -> fail("Should have failed"), exceptionHolder::set));
+
+        assertBusy(() -> {
+            assertThat(exceptionHolder.get(), notNullValue());
+            assertThat(exceptionHolder.get(), equalTo(expectedError));
+            assertThat(ruleACounter.get(), equalTo(1));
+            assertThat(ruleCCounter.get(), equalTo(0));
         });
     }
 
@@ -106,5 +193,29 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
         }
 
         return EsqlTestUtils.greaterThanOf(randomExpression(), randomExpression());
+    }
+
+    // Helper methods for creating mock rules
+
+    private PreOptimizerRule createMockRule(AtomicInteger executionCounter) {
+        return (plan, listener) -> {
+            threadPool.schedule(() -> {
+                executionCounter.incrementAndGet();
+                listener.onResponse(plan); // Return the plan unchanged
+            }, randomTimeValue(1, 100, TimeUnit.MILLISECONDS), threadPool.executor(ThreadPool.Names.GENERIC));
+        };
+    }
+
+    private PreOptimizerRule createOrderTrackingRule(String ruleId, StringBuilder executionOrder) {
+        return (plan, listener) -> {
+            threadPool.schedule(() -> {
+                executionOrder.append(ruleId);
+                listener.onResponse(plan); // Return the plan unchanged
+            }, randomTimeValue(1, 100, TimeUnit.MILLISECONDS), threadPool.executor(ThreadPool.Names.GENERIC));
+        };
+    }
+
+    private PreOptimizerRule createFailingRule(Exception error) {
+        return (plan, listener) -> listener.onFailure(error);
     }
 }

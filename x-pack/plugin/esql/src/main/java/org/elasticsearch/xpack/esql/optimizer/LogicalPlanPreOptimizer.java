@@ -26,7 +26,11 @@ public class LogicalPlanPreOptimizer {
     private final List<PreOptimizerRule> preOptimizerRules;
 
     public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
-        preOptimizerRules = List.of(new FoldInferenceFunctions(preOptimizerContext));
+        this(List.of(new FoldInferenceFunctions(preOptimizerContext)));
+    }
+
+    LogicalPlanPreOptimizer(List<PreOptimizerRule> preOptimizerRules) {
+        this.preOptimizerRules = preOptimizerRules;
     }
 
     /**

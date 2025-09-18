@@ -13,6 +13,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -59,8 +61,11 @@ public final class IndexSortConfig {
     /**
      * The list of field names
      */
-    public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.stringListSetting(
+    public static final Setting<List<String>> INDEX_SORT_FIELD_SETTING = Setting.listSetting(
         "index.sort.field",
+        null,
+        Function.identity(),
+        IndexSortConfig::defaultSortField,
         Setting.Property.IndexScope,
         Setting.Property.Final,
         Setting.Property.ServerlessPublic
@@ -71,8 +76,9 @@ public final class IndexSortConfig {
      */
     public static final Setting<List<SortOrder>> INDEX_SORT_ORDER_SETTING = Setting.listSetting(
         "index.sort.order",
-        Collections.emptyList(),
+        null,
         IndexSortConfig::parseOrderMode,
+        IndexSortConfig::defaultOrder,
         Setting.Property.IndexScope,
         Setting.Property.Final,
         Setting.Property.ServerlessPublic
@@ -83,8 +89,9 @@ public final class IndexSortConfig {
      */
     public static final Setting<List<MultiValueMode>> INDEX_SORT_MODE_SETTING = Setting.listSetting(
         "index.sort.mode",
-        Collections.emptyList(),
+        null,
         IndexSortConfig::parseMultiValueMode,
+        IndexSortConfig::defaultMode,
         Setting.Property.IndexScope,
         Setting.Property.Final,
         Setting.Property.ServerlessPublic
@@ -95,8 +102,9 @@ public final class IndexSortConfig {
      */
     public static final Setting<List<String>> INDEX_SORT_MISSING_SETTING = Setting.listSetting(
         "index.sort.missing",
-        Collections.emptyList(),
+        null,
         IndexSortConfig::validateMissingValue,
+        IndexSortConfig::defaultMissing,
         Setting.Property.IndexScope,
         Setting.Property.Final,
         Setting.Property.ServerlessPublic
@@ -146,6 +154,50 @@ public final class IndexSortConfig {
         return mode;
     }
 
+    static FieldSortSpec[] defaultSpec(Settings settings) {
+        // This is called during initialization of
+        if (IndexSettings.MODE == null) {
+            return null;
+        }
+        var indexMode = IndexSettings.MODE.get(settings);
+        var version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+
+        if (indexMode == IndexMode.TIME_SERIES) {
+            return TIME_SERIES_SORT;
+        }
+        if (indexMode == IndexMode.LOGSDB) {
+            var bwcSort = false == (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
+                || version.between(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0));
+            if (bwcSort == false) {
+                var sortOnHostName = IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings);
+                return sortOnHostName ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+            } else {
+                return HOSTNAME_TIMESTAMP_BWC_SORT;
+            }
+        }
+        return null;
+    }
+
+    static List<String> defaultSortField(Settings settings) {
+        FieldSortSpec[] defaultSpec = defaultSpec(settings);
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.field).toList();
+    }
+
+    static List<String> defaultOrder(Settings settings) {
+        FieldSortSpec[] defaultSpec = defaultSpec(settings);
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.order.toString()).toList();
+    }
+
+    static List<String> defaultMode(Settings settings) {
+        FieldSortSpec[] defaultSpec = defaultSpec(settings);
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.mode.toString()).toList();
+    }
+
+    static List<String> defaultMissing(Settings settings) {
+        FieldSortSpec[] defaultSpec = defaultSpec(settings);
+        return defaultSpec == null ? List.of() : Arrays.stream(defaultSpec).map(spec -> spec.missingValue).toList();
+    }
+
     // visible for tests
     final FieldSortSpec[] sortSpecs;
     private final IndexVersion indexCreatedVersion;
@@ -162,6 +214,37 @@ public final class IndexSortConfig {
             sortSpecs = TIME_SERIES_SORT;
             return;
         }
+
+        /**
+         *
+         * if mode == time_series
+         *      use time_series_sort
+         *
+         * else if logsdb AND index.sort.field NOT set
+         *      if sort.order set => throw
+         *      if sort.mode set => throw
+         *      if sort.missing set => throw
+         *
+         *      if version check
+         *          if settings SORT_ON_HOST_NAME
+         *              use hostname_timestamp_sort
+         *          else:
+         *              use timestamp_sort
+         *      else
+         *          use hostname_timestamp_bwc_sort
+         * else:
+         *      if sort.order exists
+         *          if not same length as sort.field => throw
+         *          set orders values
+         *      if sort.mode exists
+         *          if not same length as sort.field => throw
+         *          set mode values
+         *      if sort.missing exists
+         *          if not same length as sort.field => throw
+         *          set missing values
+         *
+         *
+         */
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         if (indexMode == IndexMode.LOGSDB && INDEX_SORT_FIELD_SETTING.exists(settings) == false) {

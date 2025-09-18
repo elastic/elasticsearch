@@ -595,14 +595,20 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         var transformId2 = "multiple-transforms-2";
         createAndStartTransform(transformId2, transformSrc, transformId2 + "_idx");
 
+        // getting transform 1 on page 1 will not have any errors for transform 2
         assertThat(getTransformIdFromAll(0, 1), equalTo(transformId1));
+        // getting transform 2 on page 2 will not have any errors for transform 1
         assertThat(getTransformIdFromAll(1, 1), equalTo(transformId2));
 
-        getTransformConfig(transformId1, null, null); // no errors are returned
-        getTransformConfig(transformId2, null, null); // no errors are returned
+        // getting transform 1 by id will not have any errors for transform 2
+        getTransformConfig(transformId1, null, null);
+        // getting transform 2 by id will not have any errors for transform 1
+        getTransformConfig(transformId2, null, null);
 
+        // getting all transform will not have any errors
         assertThat(getAllTransformIds(), containsInAnyOrder(transformId1, transformId2));
 
+        // getting a stopped transform 1 will not have any errors for transform 2
         stopTransform(transformId1, false);
         assertThat(getTransformIdFromAll(0, 1), equalTo(transformId1));
     }

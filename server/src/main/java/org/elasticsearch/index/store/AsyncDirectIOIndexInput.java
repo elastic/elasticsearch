@@ -1,14 +1,27 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
+ * @notice
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Modifications copyright (C) 2025 Elasticsearch B.V.
  */
 
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.hppc.IntArrayDeque;
+import com.carrotsearch.hppc.IntDeque;
 import com.carrotsearch.hppc.LongArrayDeque;
 import com.carrotsearch.hppc.LongDeque;
 
@@ -33,9 +46,13 @@ import java.util.concurrent.Future;
 
 import static java.nio.ByteOrder.LITTLE_ENDIAN;
 
+/**
+ * An implementation of {@link IndexInput} that uses Direct I/O to bypass OS cache and
+ * provides asynchronous prefetching of data.
+ */
 public class AsyncDirectIOIndexInput extends IndexInput {
     /**
-     * see lucene
+     * Copied from Lucene
      */
     static final OpenOption ExtendedOpenOption_DIRECT; // visible for test
 
@@ -70,7 +87,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     private long filePos;
 
     /**
-     * Creates a new instance of DirectIOIndexInput for reading index input with direct IO bypassing
+     * Creates a new instance of AsyncDirectIOIndexInput for reading index input with direct IO bypassing
      * OS buffer
      *
      * @throws UnsupportedOperationException if the JDK does not support Direct I/O
@@ -112,6 +129,12 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         return ByteBuffer.allocateDirect(bufferSize + blockSize - 1).alignedSlice(blockSize).order(LITTLE_ENDIAN);
     }
 
+    /**
+     * Prefetches the given range of bytes. The range will be aligned to blockSize and
+     * at most a single buffer of size bufferSize will be prefetched.
+     * @param pos the position to prefetch from, must be non-negative and within file length
+     * @param length the length to prefetch, must be non-negative. Note, its effectively ignored
+     */
     @Override
     public void prefetch(long pos, long length) throws IOException {
         if (pos < 0 || length < 0 || pos + length > this.length) {
@@ -333,13 +356,16 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         return new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
     }
 
+    /**
+     * A simple prefetcher that uses virtual threads to prefetch data into direct byte buffers.
+     */
     private class DirectIOPrefetcher implements Closeable {
         private final int maxConcurrentPrefetches;
         private final int maxTotalPrefetches;
         private final long[] prefetchPos;
         private final Future<?>[] prefetchThreads;
         private final TreeMap<Long, Integer> posToSlot;
-        private final IntArrayDeque slots;
+        private final IntDeque slots;
         private final ByteBuffer[] prefetchBuffers;
         private final IOException[] prefetchExceptions;
         private final int prefetchBytesSize;
@@ -389,6 +415,15 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             }
         }
 
+        /**
+         * Try to read the requested bytes from an already prefetched buffer.
+         * If the requested bytes are not in a prefetched buffer, return false.
+         * @param pos the absolute position to read from
+         * @param slice the buffer to read into, must be pre-sized to the required length
+         * @param delta an offset into the slice buffer to start writing at
+         * @return true if the requested bytes were read from a prefetched buffer, false otherwise
+         * @throws IOException if an I/O error occurs
+         */
         boolean readBytes(long pos, ByteBuffer slice, int delta) throws IOException {
             final var entry = this.posToSlot.floorEntry(pos + delta);
             if (entry == null) {
@@ -466,51 +501,6 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         @Override
         public void close() throws IOException {
             executor.shutdownNow();
-        }
-    }
-
-    private static class IntArrayDeque {
-        private int[] array;
-        private int head = 0;
-        private int tail = 0;
-        private int size = 0;
-
-        IntArrayDeque(int initialCapacity) {
-            array = new int[initialCapacity];
-        }
-
-        void addLast(int value) {
-            if (size == array.length) {
-                resize();
-            }
-            array[tail] = value;
-            tail = (tail + 1) % array.length;
-            size++;
-        }
-
-        int removeFirst() {
-            if (size == 0) {
-                throw new IllegalStateException("Deque is empty");
-            }
-            int value = array[head];
-            head = (head + 1) % array.length;
-            size--;
-            return value;
-        }
-
-        int size() {
-            return size;
-        }
-
-        private void resize() {
-            int newCapacity = array.length * 2;
-            int[] newArray = new int[newCapacity];
-            for (int i = 0; i < size; i++) {
-                newArray[i] = array[(head + i) % array.length];
-            }
-            array = newArray;
-            head = 0;
-            tail = size;
         }
     }
 }

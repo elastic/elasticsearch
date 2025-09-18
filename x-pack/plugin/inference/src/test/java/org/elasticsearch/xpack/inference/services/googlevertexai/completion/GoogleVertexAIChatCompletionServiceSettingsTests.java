@@ -37,8 +37,7 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
         GoogleVertexAiChatCompletionServiceSettings instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)
-            && (version.isPatchFrom(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19) == false)) {
+        if (version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
             return new GoogleVertexAiChatCompletionServiceSettings(
                 instance.projectId(),
                 instance.location(),

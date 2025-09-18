@@ -253,8 +253,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     }
 
     private static boolean isBeforeModelGarden(TransportVersion version) {
-        return version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)
-            && version.isPatchFrom(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED_8_19) == false;
+        return version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED);
     }
 
     @Override

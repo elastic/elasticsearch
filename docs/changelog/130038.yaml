@@ -1,0 +1,5 @@
+pr: 130038
+summary: Adding support for JinaAI late chunking
+area: Machine Learning
+type: enhancement
+issues: []

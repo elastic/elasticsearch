@@ -74,11 +74,20 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_CreatesSettings_WhenAllFieldsOfSettingsArePresent() {
+        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var isLateChunkingEnabled = randomBoolean();
         MatcherAssert.assertThat(
             JinaAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(JinaAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.INGEST.toString()))
+                new HashMap<>(
+                    Map.of(
+                        JinaAIEmbeddingsTaskSettings.INPUT_TYPE,
+                        inputType.toString(),
+                        JinaAIEmbeddingsTaskSettings.LATE_CHUNKING,
+                        isLateChunkingEnabled
+                    )
+                )
             ),
-            is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST))
+            is(new JinaAIEmbeddingsTaskSettings(inputType, isLateChunkingEnabled))
         );
     }
 
@@ -131,16 +140,45 @@ public class JinaAIEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testOf_KeepsOriginalValuesWhenRequestSettingsAreNull() {
-        var taskSettings = new JinaAIEmbeddingsTaskSettings(InputType.INGEST);
+        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var isLateChunkingEnabled = randomBoolean();
+        var taskSettings = new JinaAIEmbeddingsTaskSettings(inputType, isLateChunkingEnabled);
         var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(taskSettings, JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS);
         MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
-    public void testOf_UsesRequestTaskSettings() {
-        var taskSettings = new JinaAIEmbeddingsTaskSettings((InputType) null);
-        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(taskSettings, new JinaAIEmbeddingsTaskSettings(InputType.INGEST));
+    public void testOf_UsesRequestTaskSettingsWhenSettingsAreNull() {
+        var taskSettings = new JinaAIEmbeddingsTaskSettings(null, null);
 
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new JinaAIEmbeddingsTaskSettings(InputType.INGEST)));
+        var overriddenInputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var overriddenIsLateChunkingEnabled = randomBoolean();
+        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(
+            taskSettings,
+            new JinaAIEmbeddingsTaskSettings(overriddenInputType, overriddenIsLateChunkingEnabled)
+        );
+
+        MatcherAssert.assertThat(
+            overriddenTaskSettings,
+            is(new JinaAIEmbeddingsTaskSettings(overriddenInputType, overriddenIsLateChunkingEnabled))
+        );
+    }
+
+    public void testOf_UsesRequestTaskSettingsWhenSettingsAreNotNull() {
+        var inputType = randomFrom(VALID_INPUT_TYPE_VALUES);
+        var isLateChunkingEnabled = randomBoolean();
+        var taskSettings = new JinaAIEmbeddingsTaskSettings(inputType, isLateChunkingEnabled);
+
+        var overriddenInputType = randomValueOtherThan(inputType, () -> randomFrom(VALID_INPUT_TYPE_VALUES));
+        var overriddenIsLateChunkingEnabled = isLateChunkingEnabled == false;
+        var overriddenTaskSettings = JinaAIEmbeddingsTaskSettings.of(
+            taskSettings,
+            new JinaAIEmbeddingsTaskSettings(overriddenInputType, overriddenIsLateChunkingEnabled)
+        );
+
+        MatcherAssert.assertThat(
+            overriddenTaskSettings,
+            is(new JinaAIEmbeddingsTaskSettings(overriddenInputType, overriddenIsLateChunkingEnabled))
+        );
     }
 
     @Override

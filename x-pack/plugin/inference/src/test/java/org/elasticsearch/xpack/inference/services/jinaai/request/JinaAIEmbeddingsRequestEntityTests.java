@@ -27,6 +27,23 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
             InputType.INTERNAL_INGEST,
+            new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
+            "model",
+            JinaAIEmbeddingType.FLOAT
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","late_chunking":true,"embedding_type":"float","task":"retrieval.passage"}"""));
+    }
+
+    public void testXContent_WritesOnlyInputTypeField_WhenItIsTheOnlyOptionalFieldDefined() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
             "model",
             JinaAIEmbeddingType.FLOAT
@@ -38,6 +55,23 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage"}"""));
+    }
+
+    public void testXContent_WritesOnlyLateChunkingField_WhenItIsTheOnlyOptionalFieldDefined() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
+            new JinaAIEmbeddingsTaskSettings(null, false),
+            "model",
+            null
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","late_chunking":false,"task":"retrieval.passage"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {

@@ -34,6 +34,7 @@ public record JinaAIEmbeddingsRequestEntity(
     private static final String CLASSIFICATION = "classification";
     private static final String INPUT_FIELD = "input";
     private static final String MODEL_FIELD = "model";
+    private static final String LATE_CHUNKING = "late_chunking";
     public static final String TASK_TYPE_FIELD = "task";
     static final String EMBEDDING_TYPE_FIELD = "embedding_type";
 
@@ -48,6 +49,10 @@ public record JinaAIEmbeddingsRequestEntity(
         builder.startObject();
         builder.field(INPUT_FIELD, input);
         builder.field(MODEL_FIELD, model);
+
+        if (taskSettings.isLateChunkingEnabled() != null) {
+            builder.field(LATE_CHUNKING, taskSettings.isLateChunkingEnabled());
+        }
 
         if (embeddingType != null) {
             builder.field(EMBEDDING_TYPE_FIELD, embeddingType.toRequestString());

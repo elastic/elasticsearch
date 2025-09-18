@@ -19,4 +19,8 @@ public interface TaskSettings extends ToXContentObject, VersionedNamedWriteable 
     boolean isEmpty();
 
     TaskSettings updatedTaskSettings(Map<String, Object> newSettings);
+
+    default Boolean isLateChunkingEnabled() {
+        return null;
+    }
 }

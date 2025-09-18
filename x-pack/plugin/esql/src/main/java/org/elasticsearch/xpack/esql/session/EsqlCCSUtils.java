@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
 
 public class EsqlCCSUtils {
@@ -177,6 +178,15 @@ public class EsqlCCSUtils {
         } else {
             return "";
         }
+    }
+
+    static String createQualifiedLookupIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo, String localPattern) {
+        if (executionInfo.getClusters().isEmpty()) {
+            return localPattern;
+        }
+        return executionInfo.getRunningClusterAliases()
+            .map(clusterAlias -> RemoteClusterAware.buildRemoteIndexName(clusterAlias, localPattern))
+            .collect(joining(","));
     }
 
     static void updateExecutionInfoWithUnavailableClusters(

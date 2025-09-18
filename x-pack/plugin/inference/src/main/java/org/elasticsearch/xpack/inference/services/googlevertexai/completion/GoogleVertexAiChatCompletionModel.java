@@ -209,9 +209,6 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         var projectId = getServiceSettings().projectId();
         var location = getServiceSettings().location();
         var modelId = getServiceSettings().modelId();
-        var uri = getServiceSettings().uri();
-        var streamingUri = getServiceSettings().streamingUri();
-        var provider = getServiceSettings().provider();
 
         // Since we don't beforehand know which API is going to be used, we take a conservative approach and
         // count both endpoint for the rate limit
@@ -219,9 +216,6 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             projectId,
             location,
             modelId,
-            uri,
-            streamingUri,
-            provider,
             GoogleVertexAiUtils.GENERATE_CONTENT,
             GoogleVertexAiUtils.STREAM_GENERATE_CONTENT
         );

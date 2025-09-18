@@ -14,6 +14,11 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.Collections;
 
+/**
+ * A factory that produces {@link Iterable}s of {@link ShardRouting}s used to look for non-preferred allocation and
+ * try to relocate them. The first shard encountered that the allocation deciders indicate is in a <code>NOT_PREFERRED</code>
+ * allocation, and can be moved to a preferred allocation, will be moved and the iteration will stop.
+ */
 public interface NonPreferredShardIteratorFactory {
 
     /**

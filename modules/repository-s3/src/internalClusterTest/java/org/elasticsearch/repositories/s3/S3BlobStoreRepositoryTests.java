@@ -83,9 +83,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -105,6 +108,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
@@ -425,7 +429,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         if (randomBoolean()) {
             repository.blobStore()
                 .blobContainer(repository.basePath())
-                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, false);
         } else {
             repository.blobStore()
                 .blobContainer(repository.basePath())
@@ -434,7 +438,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                     getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
                     serialized.streamInput(),
                     serialized.length(),
-                    true
+                    false
                 );
         }
 
@@ -566,6 +570,65 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 empty()
             );
         }
+    }
+
+    public void testFailIfAlreadyExists() throws IOException {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
+            final String blobName = randomAlphaOfLengthBetween(8, 12);
+
+            // initial write: exactly one of these may succeed
+            final var parallelWrites = between(1, 4);
+            final var exceptionCount = new AtomicInteger(0);
+            final var successData = new AtomicReference<byte[]>();
+            final var writeBarrier = new CyclicBarrier(parallelWrites);
+            runInParallel(parallelWrites, ignored -> {
+                final byte[] data = getRandomData(container);
+                safeAwait(writeBarrier);
+                try {
+                    writeBlob(container, blobName, new BytesArray(data), true);
+                    assertTrue(successData.compareAndSet(null, data));
+                } catch (IOException e) {
+                    exceptionCount.incrementAndGet();
+                }
+            });
+
+            // the data in the blob comes from the successful write
+            assertNotNull(successData.get());
+            assertArrayEquals(successData.get(), readBlobFully(container, blobName, successData.get().length));
+
+            // all the other writes failed with an IOException
+            assertEquals(parallelWrites - 1, exceptionCount.get());
+
+            // verify that another write succeeds
+            final var overwriteData = getRandomData(container);
+            writeBlob(container, blobName, new BytesArray(overwriteData), false);
+            assertArrayEquals(overwriteData, readBlobFully(container, blobName, overwriteData.length));
+
+            // throw exception if failIfAlreadyExists is set to true
+            var exception = expectThrows(
+                IOException.class,
+                () -> writeBlob(container, blobName, new BytesArray(getRandomData(container)), true)
+            );
+            assertThat(exception.getMessage(), startsWith("Unable to upload"));
+
+            assertArrayEquals(overwriteData, readBlobFully(container, blobName, overwriteData.length));
+
+            container.delete(randomPurpose());
+        }
+    }
+
+    private static byte[] getRandomData(BlobContainer container) {
+        final byte[] data;
+        if (randomBoolean()) {
+            // single upload
+            data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
+        } else {
+            // multipart upload
+            int thresholdInBytes = Math.toIntExact(((S3BlobContainer) container).getLargeBlobThresholdInBytes());
+            data = randomBytes(randomIntBetween(thresholdInBytes, thresholdInBytes + scaledRandomIntBetween(1024, 1 << 16)));
+        }
+        return data;
     }
 
     /**

@@ -91,7 +91,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * This used to fail, but we've since compacted top n so it actually succeeds now.
      */
     public void testSortByManyLongsSuccess() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         Map<String, Object> response = sortByManyLongs(500);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "a").entry("type", "long"))
             .item(matchesMap().entry("name", "b").entry("type", "long"));
@@ -108,7 +108,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * This used to crash the node with an out of memory, but now it just trips a circuit breaker.
      */
     public void testSortByManyLongsTooMuchMemory() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         // 5000 is plenty to break on most nodes
         assertCircuitBreaks(attempt -> sortByManyLongs(attempt * 5000));
     }
@@ -117,7 +117,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * This should record an async response with a {@link CircuitBreakingException}.
      */
     public void testSortByManyLongsTooMuchMemoryAsync() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         Request request = new Request("POST", "/_query/async");
         request.addParameter("error_trace", "");
         request.setJsonEntity(makeSortByManyLongs(5000).toString().replace("\n", "\\n"));
@@ -194,6 +194,29 @@ public class HeapAttackIT extends ESRestTestCase {
         );
     }
 
+    public void testSortByManyLongsGiantTopN() throws IOException {
+        initManyLongs(10);
+        assertMap(
+            sortBySomeLongsLimit(100000),
+            matchesMap().entry("took", greaterThan(0))
+                .entry("is_partial", false)
+                .entry("columns", List.of(Map.of("name", "MAX(a)", "type", "long")))
+                .entry("values", List.of(List.of(9)))
+                .entry("documents_found", greaterThan(0))
+                .entry("values_loaded", greaterThan(0))
+        );
+    }
+
+    public void testSortByManyLongsGiantTopNTooMuchMemory() throws IOException {
+        initManyLongs(20);
+        assertCircuitBreaks(attempt -> sortBySomeLongsLimit(attempt * 500000));
+    }
+
+    public void testStupidTopN() throws IOException {
+        initManyLongs(1); // Doesn't actually matter how much data there is.
+        assertCircuitBreaks(attempt -> sortBySomeLongsLimit(2147483630));
+    }
+
     private static final int MAX_ATTEMPTS = 5;
 
     interface TryCircuitBreaking {
@@ -252,11 +275,25 @@ public class HeapAttackIT extends ESRestTestCase {
         return query;
     }
 
+    private Map<String, Object> sortBySomeLongsLimit(int count) throws IOException {
+        logger.info("sorting by 5 longs, keeping {}", count);
+        return responseAsMap(query(makeSortBySomeLongsLimit(count), null));
+    }
+
+    private String makeSortBySomeLongsLimit(int count) {
+        StringBuilder query = new StringBuilder("{\"query\": \"FROM manylongs\n");
+        query.append("| SORT a, b, c, d, e\n");
+        query.append("| LIMIT ").append(count).append("\n");
+        query.append("| STATS MAX(a)\n");
+        query.append("\"}");
+        return query.toString();
+    }
+
     /**
      * This groups on about 200 columns which is a lot but has never caused us trouble.
      */
     public void testGroupOnSomeLongs() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         Response resp = groupOnManyLongs(200);
         Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
@@ -268,7 +305,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * This groups on 5000 columns which used to throw a {@link StackOverflowError}.
      */
     public void testGroupOnManyLongs() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         Response resp = groupOnManyLongs(5000);
         Map<String, Object> map = responseAsMap(resp);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "MAX(a)").entry("type", "long"));
@@ -336,7 +373,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testManyConcat() throws IOException {
         int strings = 300;
-        initManyLongs();
+        initManyLongs(10);
         assertManyStrings(manyConcat("FROM manylongs", strings), strings);
     }
 
@@ -344,7 +381,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * Hits a circuit breaker by building many moderately long strings.
      */
     public void testHugeManyConcat() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         // 2000 is plenty to break on most nodes
         assertCircuitBreaks(attempt -> manyConcat("FROM manylongs", attempt * 2000));
     }
@@ -415,7 +452,7 @@ public class HeapAttackIT extends ESRestTestCase {
      */
     public void testManyRepeat() throws IOException {
         int strings = 30;
-        initManyLongs();
+        initManyLongs(10);
         assertManyStrings(manyRepeat("FROM manylongs", strings), 30);
     }
 
@@ -423,7 +460,7 @@ public class HeapAttackIT extends ESRestTestCase {
      * Hits a circuit breaker by building many moderately long strings.
      */
     public void testHugeManyRepeat() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         // 75 is plenty to break on most nodes
         assertCircuitBreaks(attempt -> manyRepeat("FROM manylongs", attempt * 75));
     }
@@ -481,7 +518,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testManyEval() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         Map<String, Object> response = manyEval(1);
         ListMatcher columns = matchesList();
         columns = columns.item(matchesMap().entry("name", "a").entry("type", "long"));
@@ -496,7 +533,7 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testTooManyEval() throws IOException {
-        initManyLongs();
+        initManyLongs(10);
         // 490 is plenty to fail on most nodes
         assertCircuitBreaks(attempt -> manyEval(attempt * 490));
     }
@@ -698,7 +735,7 @@ public class HeapAttackIT extends ESRestTestCase {
     public void testLookupExplosion() throws IOException {
         int sensorDataCount = 400;
         int lookupEntries = 10000;
-        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
@@ -706,18 +743,34 @@ public class HeapAttackIT extends ESRestTestCase {
         int sensorDataCount = 400;
         int lookupEntries = 1000;
         int joinFieldsCount = 990;
-        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, joinFieldsCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionManyMatchesManyFields() throws IOException {
         // 1500, 10000 is enough locally, but some CI machines need more.
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000, 30));
+        int lookupEntries = 10000;
+        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 30, lookupEntries));
     }
 
     public void testLookupExplosionManyMatches() throws IOException {
         // 1500, 10000 is enough locally, but some CI machines need more.
-        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, 10000, 1));
+        int lookupEntries = 10000;
+        assertCircuitBreaks(attempt -> lookupExplosion(attempt * 1500, lookupEntries, 1, lookupEntries));
+    }
+
+    public void testLookupExplosionManyMatchesFiltered() throws IOException {
+        // This test will only work with the expanding join optimization
+        // that pushes the filter to the right side of the lookup.
+        // Without the optimization, it will fail with circuit_breaking_exception
+        int sensorDataCount = 10000;
+        int lookupEntries = 10000;
+        int reductionFactor = 1000; // reduce the number of matches by this factor
+        // lookupEntries % reductionFactor must be 0 to ensure the number of rows returned matches the expected value
+        assertTrue(0 == lookupEntries % reductionFactor);
+        Map<?, ?> map = lookupExplosion(sensorDataCount, lookupEntries, 1, lookupEntries / reductionFactor);
+        assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries / reductionFactor))));
+
     }
 
     public void testLookupExplosionNoFetch() throws IOException {
@@ -744,7 +797,8 @@ public class HeapAttackIT extends ESRestTestCase {
         assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 500, 1));
     }
 
-    private Map<String, Object> lookupExplosion(int sensorDataCount, int lookupEntries, int joinFieldsCount) throws IOException {
+    private Map<String, Object> lookupExplosion(int sensorDataCount, int lookupEntries, int joinFieldsCount, int lookupEntriesToKeep)
+        throws IOException {
         try {
             lookupExplosionData(sensorDataCount, lookupEntries, joinFieldsCount);
             StringBuilder query = startQuery();
@@ -755,7 +809,14 @@ public class HeapAttackIT extends ESRestTestCase {
                 }
                 query.append("id").append(i);
             }
-            query.append(" | STATS COUNT(location)\"}");
+            if (lookupEntries != lookupEntriesToKeep) {
+                // add a filter to reduce the number of matches
+                // we add both a Lucene pushable filter and a non-pushable filter
+                // this is to make sure that even if there are non-pushable filters the pushable filters is still applied
+                query.append(" | WHERE ABS(filter_key) > -1 AND filter_key < ").append(lookupEntriesToKeep);
+
+            }
+            query.append(" | STATS COUNT(location) | LIMIT 100\"}");
             return responseAsMap(query(query.toString(), null));
         } finally {
             deleteIndex("sensor_data");
@@ -831,24 +892,34 @@ public class HeapAttackIT extends ESRestTestCase {
         }
     }
 
-    private void initManyLongs() throws IOException {
+    private void initManyLongs(int countPerLong) throws IOException {
         logger.info("loading many documents with longs");
         StringBuilder bulk = new StringBuilder();
-        for (int a = 0; a < 10; a++) {
-            for (int b = 0; b < 10; b++) {
-                for (int c = 0; c < 10; c++) {
-                    for (int d = 0; d < 10; d++) {
-                        for (int e = 0; e < 10; e++) {
+        int flush = 0;
+        for (int a = 0; a < countPerLong; a++) {
+            for (int b = 0; b < countPerLong; b++) {
+                for (int c = 0; c < countPerLong; c++) {
+                    for (int d = 0; d < countPerLong; d++) {
+                        for (int e = 0; e < countPerLong; e++) {
                             bulk.append(String.format(Locale.ROOT, """
                                 {"create":{}}
                                 {"a":%d,"b":%d,"c":%d,"d":%d,"e":%d}
                                 """, a, b, c, d, e));
+                            flush++;
+                            if (flush % 10_000 == 0) {
+                                bulk("manylongs", bulk.toString());
+                                bulk.setLength(0);
+                                logger.info(
+                                    "flushing {}/{} to manylongs",
+                                    flush,
+                                    countPerLong * countPerLong * countPerLong * countPerLong * countPerLong
+                                );
+
+                            }
                         }
                     }
                 }
             }
-            bulk("manylongs", bulk.toString());
-            bulk.setLength(0);
         }
         initIndex("manylongs", bulk.toString());
     }
@@ -1038,7 +1109,8 @@ public class HeapAttackIT extends ESRestTestCase {
             createIndexBuilder.append("\"id").append(i).append("\": { \"type\": \"long\" },");
         }
         createIndexBuilder.append("""
-                    "location": { "type": "geo_point" }
+                    "location": { "type": "geo_point" },
+                    "filter_key": { "type": "integer" }
                 }
             }""");
         CreateIndexResponse response = createIndex(
@@ -1058,7 +1130,7 @@ public class HeapAttackIT extends ESRestTestCase {
                 data.append(String.format(Locale.ROOT, "\"id%d\":%d, ", j, sensor));
             }
             data.append(String.format(Locale.ROOT, """
-                "location": "POINT(%s)"}\n""", location.apply(sensor)));
+                "location": "POINT(%s)", "filter_key": %d}\n""", location.apply(sensor), i));
             if (i % docsPerBulk == docsPerBulk - 1) {
                 bulk("sensor_lookup", data.toString());
                 data.setLength(0);

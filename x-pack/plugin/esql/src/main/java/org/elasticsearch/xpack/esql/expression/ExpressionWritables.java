@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesi
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoShape;
@@ -205,6 +207,9 @@ public class ExpressionWritables {
         entries.add(ToDatetime.ENTRY);
         entries.add(ToDateNanos.ENTRY);
         entries.add(ToDegrees.ENTRY);
+        if (EsqlCapabilities.Cap.TO_DENSE_VECTOR_FUNCTION.isEnabled()) {
+            entries.add(ToDenseVector.ENTRY);
+        }
         entries.add(ToDouble.ENTRY);
         entries.add(ToGeoShape.ENTRY);
         entries.add(ToCartesianShape.ENTRY);

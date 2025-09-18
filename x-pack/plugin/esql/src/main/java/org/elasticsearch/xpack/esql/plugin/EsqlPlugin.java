@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -110,6 +109,24 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         1000,
         1,
         10000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_default_size",
+        1_000_000,
+        1,
+        10_000_000,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(
+        "esql.query.timeseries_result_truncation_max_size",
+        10_000_000,
+        1,
+        1_000_000_000,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -251,6 +268,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
             QUERY_RESULT_TRUNCATION_MAX_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_DEFAULT_SIZE,
+            QUERY_TIMESERIES_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
             ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
             ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
@@ -316,7 +335,6 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
-        entries.add(TimeSeriesSourceOperator.Status.ENTRY);
         entries.add(TopNOperatorStatus.ENTRY);
         entries.add(MvExpandOperator.Status.ENTRY);
         entries.add(ValuesSourceReaderOperatorStatus.ENTRY);

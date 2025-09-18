@@ -222,31 +222,35 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;
-        // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
-        // execution for shards on the coordinating node itself
-        if (mergeResult != null) {
-            consumePartialMergeResult(mergeResult, topDocsList, aggsList);
-        }
-        Tuple<TopDocsStats, MergeResult> batchedResult;
-        while ((batchedResult = batchedResults.poll()) != null) {
-            topDocsStats.add(batchedResult.v1());
-            consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
-        }
-        for (QuerySearchResult result : buffer) {
-            topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
-            if (topDocsList != null) {
-                TopDocsAndMaxScore topDocs = result.consumeTopDocs();
-                setShardIndex(topDocs.topDocs, result.getShardIndex());
-                topDocsList.add(topDocs.topDocs);
-            }
-        }
+
         SearchPhaseController.ReducedQueryPhase reducePhase;
         long breakerSize = circuitBreakerBytes;
         final InternalAggregations aggs;
         try {
+            // consume partial merge result from the un-batched execution path that is used for BwC, shard-level retries, and shard level
+            // execution for shards on the coordinating node itself
+            if (mergeResult != null) {
+                consumePartialMergeResult(mergeResult, topDocsList, aggsList);
+                breakerSize = addEstimateAndMaybeBreak(mergeResult.estimatedSize);
+            }
+            Tuple<TopDocsStats, MergeResult> batchedResult;
+            while ((batchedResult = batchedResults.poll()) != null) {
+                topDocsStats.add(batchedResult.v1());
+                consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
+                // Add the estimate of the agg size
+                breakerSize = addEstimateAndMaybeBreak(batchedResult.v2().estimatedSize);
+            }
+            for (QuerySearchResult result : buffer) {
+                topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
+                if (topDocsList != null) {
+                    TopDocsAndMaxScore topDocs = result.consumeTopDocs();
+                    setShardIndex(topDocs.topDocs, result.getShardIndex());
+                    topDocsList.add(topDocs.topDocs);
+                }
+            }
             if (aggsList != null) {
                 // Add an estimate of the final reduce size
-                breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(breakerSize));
+                breakerSize = addEstimateAndMaybeBreak(estimateRamBytesUsedForReduce(circuitBreakerBytes));
                 aggs = aggregate(buffer.iterator(), new Iterator<>() {
                     @Override
                     public boolean hasNext() {
@@ -275,7 +279,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             );
             buffer = null;
         } finally {
-            releaseAggs(buffer);
+            // Buffer is non-null on exception
+            if (buffer != null) {
+                releaseAggs(buffer);
+                if (aggsList != null) {
+                    Releasables.close(aggsList);
+                }
+            }
         }
         if (hasAggs
             // reduced aggregations can be null if all shards failed
@@ -335,7 +345,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         List<QuerySearchResult> toConsume,
         List<SearchShard> processedShards,
         TopDocsStats topDocsStats,
-        MergeResult lastMerge,
+        @Nullable MergeResult lastMerge,
         int numReducePhases
     ) {
         // ensure consistent ordering
@@ -392,7 +402,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return new MergeResult(
             processedShards,
             newTopDocs,
-            newAggs == null ? null : DelayableWriteable.referencing(newAggs),
+            newAggs != null ? DelayableWriteable.referencing(newAggs) : null,
             newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0
         );
     }
@@ -457,12 +467,13 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Returns an estimation of the size that a reduce of the provided size
      * would take on memory.
      * This size is estimated as roughly 1.5 times the size of the serialized
-     * aggregations that need to be reduced. This estimation can be completely
-     * off for some aggregations but it is corrected with the real size after
-     * the reduce completes.
+     * aggregations that need to be reduced.
+     * This method expects an already accounted size, so only an extra 0.5x is returned.
+     * This estimation can be completely off for some aggregations
+     * but it is corrected with the real size after the reduce completes.
      */
     private static long estimateRamBytesUsedForReduce(long size) {
-        return Math.round(1.5d * size - size);
+        return Math.round(0.5d * size);
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
@@ -639,7 +650,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         });
     }
 
-    private static void releaseAggs(List<QuerySearchResult> toConsume) {
+    private static void releaseAggs(@Nullable List<QuerySearchResult> toConsume) {
         if (toConsume != null) {
             for (QuerySearchResult result : toConsume) {
                 result.releaseAggs();

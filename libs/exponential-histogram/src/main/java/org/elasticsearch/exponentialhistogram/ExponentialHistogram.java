@@ -217,6 +217,16 @@ public interface ExponentialHistogram extends Accountable {
     }
 
     /**
+     * Create a builder for an exponential histogram, which is initialized to copy the given histogram.
+     * @param toCopy the histogram to copy
+     * @param breaker the circuit breaker to use
+     * @return a new builder
+     */
+    static ExponentialHistogramBuilder builder(ExponentialHistogram toCopy, ExponentialHistogramCircuitBreaker breaker) {
+        return new ExponentialHistogramBuilder(toCopy, breaker);
+    }
+
+    /**
      * Creates a histogram representing the distribution of the given values with at most the given number of buckets.
      * If the given {@code maxBucketCount} is greater than or equal to the number of values, the resulting histogram will have a
      * relative error of less than {@code 2^(2^-MAX_SCALE) - 1}.

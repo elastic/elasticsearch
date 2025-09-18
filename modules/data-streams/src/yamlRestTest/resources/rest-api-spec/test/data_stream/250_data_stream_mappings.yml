@@ -34,7 +34,7 @@ setup:
         name: my-data-stream-1
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.mappings: {} }
-  - length: { data_streams.0.effective_mappings._doc.properties: 2 }
+  - length: { data_streams.0.effective_mappings.properties: 2 }
 
   - do:
       indices.get_data_stream:
@@ -56,7 +56,7 @@ setup:
   - match: { data_streams.0.name: my-data-stream-1 }
   - match: { data_streams.0.applied_to_data_stream: true }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
-  - match: { data_streams.0.effective_mappings._doc.properties.name.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.name.type: "keyword" }
 
   - do:
       indices.rollover:
@@ -71,9 +71,9 @@ setup:
       indices.get_data_stream_mappings:
         name: my-data-stream-1
   - match: { data_streams.0.name: my-data-stream-1 }
-  - length: { data_streams.0.effective_mappings._doc.properties: 3 }
+  - length: { data_streams.0.effective_mappings.properties: 3 }
   - match: { data_streams.0.mappings.properties.name.type: "keyword" }
-  - match: { data_streams.0.effective_mappings._doc.properties.name.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.name.type: "keyword" }
 
   - do:
       indices.get_data_stream:
@@ -149,9 +149,9 @@ setup:
   - match: { data_streams.0.mappings.properties.field1.type: "text" }
   - match: { data_streams.0.mappings.properties.field2: null }
   - match: { data_streams.0.mappings.properties.field3.type: "text" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field1.type: "text" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field2.type: "keyword" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field3.type: "text" }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "text" }
+  - match: { data_streams.0.effective_mappings.properties.field2.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field3.type: "text" }
 
   - do:
       cluster.put_component_template:
@@ -180,10 +180,10 @@ setup:
       indices.get_data_stream_mappings:
         name: my-component-only-data-stream-1
   - match: { data_streams.0.name: my-component-only-data-stream-1 }
-  - length: { data_streams.0.effective_mappings._doc.properties: 5 }
+  - length: { data_streams.0.effective_mappings.properties: 5 }
   - match: { data_streams.0.mappings.properties.field1.type: "text" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field3.type: "text" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field4.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field3.type: "text" }
+  - match: { data_streams.0.effective_mappings.properties.field4.type: "keyword" }
 
   - do:
       indices.get_data_stream:
@@ -212,7 +212,7 @@ setup:
   - match: { data_streams.0.name: my-component-only-data-stream-1 }
   - match: { data_streams.0.applied_to_data_stream: true }
   - match: { data_streams.0.mappings null }
-  - match: { data_streams.0.effective_mappings._doc.properties.field1.type: "keyword" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field2.type: "keyword" }
-  - match: { data_streams.0.effective_mappings._doc.properties.field3: null }
-  - match: { data_streams.0.effective_mappings._doc.properties.field4.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field1.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field2.type: "keyword" }
+  - match: { data_streams.0.effective_mappings.properties.field3: null }
+  - match: { data_streams.0.effective_mappings.properties.field4.type: "keyword" }

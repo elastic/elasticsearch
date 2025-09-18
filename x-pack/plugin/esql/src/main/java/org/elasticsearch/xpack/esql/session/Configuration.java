@@ -44,8 +44,10 @@ public class Configuration implements Writeable {
 
     private final QueryPragmas pragmas;
 
-    private final int resultTruncationMaxSize;
-    private final int resultTruncationDefaultSize;
+    private final int resultTruncationMaxSizeRegular;
+    private final int resultTruncationDefaultSizeRegular;
+    private final int resultTruncationMaxSizeTimeseries;
+    private final int resultTruncationDefaultSizeTimeseries;
 
     private final Locale locale;
 
@@ -63,13 +65,15 @@ public class Configuration implements Writeable {
         String username,
         String clusterName,
         QueryPragmas pragmas,
-        int resultTruncationMaxSize,
-        int resultTruncationDefaultSize,
+        int resultTruncationMaxSizeRegular,
+        int resultTruncationDefaultSizeRegular,
         String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
         long queryStartTimeNanos,
-        boolean allowPartialResults
+        boolean allowPartialResults,
+        int resultTruncationMaxSizeTimeseries,
+        int resultTruncationDefaultSizeTimeseries
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -77,8 +81,10 @@ public class Configuration implements Writeable {
         this.clusterName = clusterName;
         this.locale = locale;
         this.pragmas = pragmas;
-        this.resultTruncationMaxSize = resultTruncationMaxSize;
-        this.resultTruncationDefaultSize = resultTruncationDefaultSize;
+        this.resultTruncationMaxSizeRegular = resultTruncationMaxSizeRegular;
+        this.resultTruncationDefaultSizeRegular = resultTruncationDefaultSizeRegular;
+        this.resultTruncationMaxSizeTimeseries = resultTruncationMaxSizeTimeseries;
+        this.resultTruncationDefaultSizeTimeseries = resultTruncationDefaultSizeTimeseries;
         this.query = query;
         this.profile = profile;
         this.tables = tables;
@@ -94,8 +100,8 @@ public class Configuration implements Writeable {
         this.clusterName = in.readOptionalString();
         locale = Locale.forLanguageTag(in.readString());
         this.pragmas = new QueryPragmas(in);
-        this.resultTruncationMaxSize = in.readVInt();
-        this.resultTruncationDefaultSize = in.readVInt();
+        this.resultTruncationMaxSizeRegular = in.readVInt();
+        this.resultTruncationDefaultSizeRegular = in.readVInt();
         this.query = readQuery(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.profile = in.readBoolean();
@@ -118,6 +124,13 @@ public class Configuration implements Writeable {
         } else {
             this.allowPartialResults = false;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TIMESERIES_DEFAULT_LIMIT)) {
+            this.resultTruncationMaxSizeTimeseries = in.readVInt();
+            this.resultTruncationDefaultSizeTimeseries = in.readVInt();
+        } else {
+            this.resultTruncationMaxSizeTimeseries = this.resultTruncationMaxSizeRegular;
+            this.resultTruncationDefaultSizeTimeseries = this.resultTruncationDefaultSizeRegular;
+        }
     }
 
     @Override
@@ -130,8 +143,8 @@ public class Configuration implements Writeable {
         out.writeOptionalString(clusterName); // TODO this one is never null so maybe not optional
         out.writeString(locale.toLanguageTag());
         pragmas.writeTo(out);
-        out.writeVInt(resultTruncationMaxSize);
-        out.writeVInt(resultTruncationDefaultSize);
+        out.writeVInt(resultTruncationMaxSizeRegular);
+        out.writeVInt(resultTruncationDefaultSizeRegular);
         writeQuery(out, query);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(profile);
@@ -145,6 +158,10 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
             out.writeBoolean(allowPartialResults);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TIMESERIES_DEFAULT_LIMIT)) {
+            out.writeVInt(resultTruncationMaxSizeTimeseries);
+            out.writeVInt(resultTruncationDefaultSizeTimeseries);
         }
     }
 
@@ -168,12 +185,18 @@ public class Configuration implements Writeable {
         return pragmas;
     }
 
-    public int resultTruncationMaxSize() {
-        return resultTruncationMaxSize;
+    public int resultTruncationMaxSize(boolean isTimeseries) {
+        if (isTimeseries) {
+            return resultTruncationMaxSizeTimeseries;
+        }
+        return resultTruncationMaxSizeRegular;
     }
 
-    public int resultTruncationDefaultSize() {
-        return resultTruncationDefaultSize;
+    public int resultTruncationDefaultSize(boolean isTimeseries) {
+        if (isTimeseries) {
+            return resultTruncationDefaultSizeTimeseries;
+        }
+        return resultTruncationDefaultSizeRegular;
     }
 
     public Locale locale() {
@@ -220,13 +243,15 @@ public class Configuration implements Writeable {
             username,
             clusterName,
             pragmas,
-            resultTruncationMaxSize,
-            resultTruncationDefaultSize,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
             query,
             profile,
             Map.of(),
             queryStartTimeNanos,
-            allowPartialResults
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries
         );
     }
 
@@ -277,8 +302,8 @@ public class Configuration implements Writeable {
             && Objects.equals(now, that.now)
             && Objects.equals(username, that.username)
             && Objects.equals(clusterName, that.clusterName)
-            && resultTruncationMaxSize == that.resultTruncationMaxSize
-            && resultTruncationDefaultSize == that.resultTruncationDefaultSize
+            && resultTruncationMaxSizeRegular == that.resultTruncationMaxSizeRegular
+            && resultTruncationDefaultSizeRegular == that.resultTruncationDefaultSizeRegular
             && Objects.equals(pragmas, that.pragmas)
             && Objects.equals(locale, that.locale)
             && Objects.equals(that.query, query)
@@ -295,13 +320,15 @@ public class Configuration implements Writeable {
             username,
             clusterName,
             pragmas,
-            resultTruncationMaxSize,
-            resultTruncationDefaultSize,
+            resultTruncationMaxSizeRegular,
+            resultTruncationDefaultSizeRegular,
             locale,
             query,
             profile,
             tables,
-            allowPartialResults
+            allowPartialResults,
+            resultTruncationMaxSizeTimeseries,
+            resultTruncationDefaultSizeTimeseries
         );
     }
 
@@ -311,9 +338,17 @@ public class Configuration implements Writeable {
             + "pragmas="
             + pragmas
             + ", resultTruncationMaxSize="
-            + resultTruncationMaxSize
+            + "[regular="
+            + resultTruncationMaxSize(false)
+            + ",timeseries="
+            + resultTruncationMaxSize(true)
+            + "]"
             + ", resultTruncationDefaultSize="
-            + resultTruncationDefaultSize
+            + "[regular="
+            + resultTruncationDefaultSize(false)
+            + ",timeseries="
+            + resultTruncationDefaultSize(true)
+            + "]"
             + ", locale="
             + locale
             + ", query='"

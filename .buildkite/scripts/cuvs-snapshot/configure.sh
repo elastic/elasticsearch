@@ -36,8 +36,8 @@ LD_LIBRARY_PATH="$CUVS_DIR/libcuvs/linux-x64:$LD_LIBRARY_PATH"
 export LD_LIBRARY_PATH
 
 cd "$CUVS_DIR/cuvs-java/target"
-mvn install:install-file -Dfile="cuvs-java-$CUVS_VERSION.jar"
+mvn install:install-file -Dfile="cuvs-java-$CUVS_VERSION.jar" -DartifactId=elastic-cuvs-java -DgeneratePom=true
 
 cd "$ELASTICSEARCH_REPO_DIR"
 PLUGIN_GRADLE_FILE=x-pack/plugin/gpu/build.gradle
-sed -i "s|implementation 'com.nvidia.cuvs:cuvs-java:.*'|implementation 'com.nvidia.cuvs:cuvs-java:$CUVS_VERSION'|" "$PLUGIN_GRADLE_FILE"
+sed -i "s|implementation 'com.nvidia.cuvs:elastic-cuvs-java:.*'|implementation 'com.nvidia.cuvs:elastic-cuvs-java:$CUVS_VERSION'|" "$PLUGIN_GRADLE_FILE"

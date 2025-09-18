@@ -108,6 +108,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     private static final String INFERENCE_ID = "test_service";
     private static final String SEARCH_INFERENCE_ID = "search_test_service";
 
+    private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = TransportVersion.fromName(
+        "semantic_query_multiple_inference_ids"
+    );
+
     private static InferenceResultType inferenceResultType;
     private static DenseVectorFieldMapper.ElementType denseVectorElementType;
     private static boolean useSearchInferenceId;
@@ -408,9 +412,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                     in.setTransportVersion(version);
                     QueryBuilder deserializedQuery = in.readNamedWriteable(QueryBuilder.class);
 
-                    SemanticQueryBuilder expectedQuery = version.onOrAfter(TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)
-                        ? originalQuery
-                        : bwcQuery;
+                    SemanticQueryBuilder expectedQuery = version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS) ? originalQuery : bwcQuery;
                     assertThat(deserializedQuery, equalTo(expectedQuery));
                 }
             }
@@ -441,7 +443,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             try (BytesStreamOutput output = new BytesStreamOutput()) {
                 output.setTransportVersion(version);
 
-                if (version.onOrAfter(TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+                if (version.supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
                     output.writeNamedWriteable(originalQuery);
                     try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry())) {
                         in.setTransportVersion(version);

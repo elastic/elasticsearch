@@ -66,6 +66,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 
@@ -75,6 +76,8 @@ public class Knn extends FullTextFunction
         VectorFunction,
         PostAnalysisPlanVerificationAware,
         PostOptimizationVerificationAware {
+
+    private static final String[] ACCEPTED_FIELD_TYPES = { "dense_vector", "semantic_text" };
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -98,13 +101,18 @@ public class Knn extends FullTextFunction
         returnType = "boolean",
         preview = true,
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
-            + "knn function finds nearest vectors through approximate search on indexed dense_vectors.",
+            + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
         examples = { @Example(file = "knn-function", tag = "knn-function") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
     public Knn(
         Source source,
-        @Param(name = "field", type = { "dense_vector" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "dense_vector", "text" },
+            description = "Field that the query will target. "
+                + "knn function can be used with dense_vector or semantic_text fields. Other text fields are not allowed"
+        ) Expression field,
         @Param(
             name = "query",
             type = { "dense_vector" },
@@ -205,7 +213,12 @@ public class Knn extends FullTextFunction
     }
 
     private TypeResolution resolveField() {
-        return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
+        return isNotNull(field(), sourceText(), FIRST).and(
+            // It really should be semantic_text instead of text, but field_caps retrieves semantic_text fields as text
+            isType(field(), dt -> dt == TEXT, sourceText(), FIRST, ACCEPTED_FIELD_TYPES).or(
+                isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, ACCEPTED_FIELD_TYPES)
+            )
+        );
     }
 
     private TypeResolution resolveQuery() {

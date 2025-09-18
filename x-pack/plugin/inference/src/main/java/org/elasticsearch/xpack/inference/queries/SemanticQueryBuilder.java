@@ -56,6 +56,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     public static final String NAME = "semantic";
 
     public static final NodeFeature SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS = new NodeFeature("semantic_query.multiple_inference_ids");
+    public static final NodeFeature SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX = new NodeFeature("semantic_query.filter_field_caps_fix");
+
+    private static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV = TransportVersion.fromName(
+        "semantic_query_multiple_inference_ids"
+    );
 
     // Use a placeholder inference ID that will never overlap with a real inference endpoint (user-created or internal)
     private static final String PLACEHOLDER_INFERENCE_ID = "$PLACEHOLDER";
@@ -107,7 +112,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+        if (in.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
             this.inferenceResultsMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)));
         } else {
             InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
@@ -125,7 +130,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeString(query);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS)) {
+        if (out.getTransportVersion().supports(SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV)) {
             out.writeOptional((o, v) -> o.writeMap(v, StreamOutput::writeNamedWriteable), inferenceResultsMap);
         } else {
             InferenceResults inferenceResults = null;
@@ -175,6 +180,39 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     public static SemanticQueryBuilder fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
+    }
+
+    public static void registerInferenceAsyncAction(
+        QueryRewriteContext queryRewriteContext,
+        Map<String, InferenceResults> inferenceResultsMap,
+        String query,
+        String inferenceId
+    ) {
+        InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+            TaskType.ANY,
+            inferenceId,
+            null,
+            null,
+            null,
+            List.of(query),
+            Map.of(),
+            InputType.INTERNAL_SEARCH,
+            null,
+            false
+        );
+
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                InferenceAction.INSTANCE,
+                inferenceRequest,
+                listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                    inferenceResultsMap.put(inferenceId, validateAndConvertInferenceResults(inferenceResponse.getResults(), inferenceId));
+                    l.onResponse(null);
+                })
+            )
+        );
     }
 
     /**
@@ -278,34 +316,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
         Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
         for (String inferenceId : inferenceIds) {
-            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                TaskType.ANY,
-                inferenceId,
-                null,
-                null,
-                null,
-                List.of(query),
-                Map.of(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                false
-            );
-
-            queryRewriteContext.registerAsyncAction(
-                (client, listener) -> executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    inferenceRequest,
-                    listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                        inferenceResultsMap.put(
-                            inferenceId,
-                            validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
-                        );
-                        l.onResponse(null);
-                    })
-                )
-            );
+            registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
         }
 
         return new SemanticQueryBuilder(this, inferenceResultsMap);
@@ -313,27 +324,19 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private static InferenceResults validateAndConvertInferenceResults(
         InferenceServiceResults inferenceServiceResults,
-        String fieldName,
         String inferenceId
     ) {
         List<? extends InferenceResults> inferenceResultsList = inferenceServiceResults.transformToCoordinationFormat();
         if (inferenceResultsList.isEmpty()) {
             return new ErrorInferenceResults(
-                new IllegalArgumentException(
-                    "No inference results retrieved for field [" + fieldName + "] with inference ID [" + inferenceId + "]"
-                )
+                new IllegalArgumentException("No query inference results retrieved for inference ID [" + inferenceId + "]")
             );
         } else if (inferenceResultsList.size() > 1) {
             // We don't chunk queries, so there should always be one inference result.
             // Thus, if we receive more than one inference result, it is a server-side error.
             return new ErrorInferenceResults(
                 new IllegalStateException(
-                    inferenceResultsList.size()
-                        + " inference results retrieved for field ["
-                        + fieldName
-                        + "] with inference ID ["
-                        + inferenceId
-                        + "]"
+                    inferenceResultsList.size() + " query inference results retrieved for inference ID [" + inferenceId + "]"
                 )
             );
         }
@@ -345,17 +348,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             && inferenceResults instanceof WarningInferenceResults == false) {
             return new ErrorInferenceResults(
                 new IllegalArgumentException(
-                    "Field ["
-                        + fieldName
-                        + "] with inference ID ["
-                        + inferenceId
-                        + "] expected query inference results to be of type ["
+                    "Expected query inference results to be of type ["
                         + TextExpansionResults.NAME
                         + "] or ["
                         + MlTextEmbeddingResults.NAME
                         + "], got ["
                         + inferenceResults.getWriteableName()
-                        + "]. Has the inference endpoint configuration changed?"
+                        + "]. Has the inference endpoint ["
+                        + inferenceId
+                        + "] configuration changed?"
                 )
             );
         }

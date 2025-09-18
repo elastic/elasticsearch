@@ -121,6 +121,7 @@ public class EsqlCCSUtils {
     }
 
     static void updateExecutionInfoToReturnEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
+        // This applies even for subplans - if we had an error and have to skip a cluster, then it will remain skipped.
         executionInfo.markEndQuery();
         Exception exceptionForResponse;
         if (e instanceof ConnectTransportException) {
@@ -322,20 +323,19 @@ public class EsqlCCSUtils {
     public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
         XPackLicenseState licenseState,
-        List<IndexPattern> patterns,
+        IndexPattern pattern,
         EsqlExecutionInfo executionInfo
     ) throws ElasticsearchStatusException {
-        if (patterns.isEmpty()) {
+        if (pattern == null) {
             return;
         }
-        assert patterns.size() == 1 : "Only single index pattern is supported";
         try {
             var groupedIndices = indicesGrouper.groupIndices(
                 // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
                 // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
                 Set.copyOf(indicesGrouper.getConfiguredClusters()),
                 IndicesOptions.DEFAULT,
-                patterns.getFirst().indexPattern()
+                pattern.indexPattern()
             );
 
             executionInfo.clusterInfoInitializing(true);

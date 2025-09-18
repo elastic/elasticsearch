@@ -78,7 +78,7 @@ import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatR
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -111,7 +111,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -1636,6 +1636,15 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
                                     "updatable": false,
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                                },
+                                "headers": {
+                                    "description": "Custom headers to include in the requests to OpenAI.",
+                                    "label": "Custom Headers",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": true,
+                                    "type": "map",
+                                    "supported_task_types": ["completion", "chat_completion"]
                                 }
                             }
                         }

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +31,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
     private static final String USER_ROLE = "user";
     private static final String ASSISTANT_ROLE = "assistant";
+    private static final ThinkingConfig thinkingConfig = new ThinkingConfig(256);
+    private static final ThinkingConfig emptyThinkingConfig = new ThinkingConfig();
 
     public void testBasicSerialization_SingleMessage() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
@@ -43,7 +46,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true); // stream doesn't affect VertexAI request body
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -86,7 +92,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var unifiedRequest = UnifiedCompletionRequest.of(messages);
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -143,7 +152,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, false);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -209,7 +221,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, false);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -265,7 +280,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(completionRequestWithGenerationConfig, true);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            thinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -283,7 +301,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                     "stopSequences": ["stop1", "stop2"],
                     "temperature": 0.5,
                     "maxOutputTokens": 100,
-                    "topP": 0.9
+                    "topP": 0.9,
+                    "thinkingConfig": {
+                      "thinkingBudget": 256
+                    }
                 }
             }
             """;
@@ -310,7 +331,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(completionRequestWithGenerationConfig, true);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -333,6 +357,46 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         assertJsonEquals(jsonString, expectedJson);
     }
 
+    public void testSerialization_WithOnlyThinkingConfig() throws IOException {
+        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString("Partial config."),
+            USER_ROLE,
+            null,
+            null
+        );
+
+        // No generation config fields set on unifiedRequest
+        var completionRequestWithNoGenerationConfig = UnifiedCompletionRequest.of(List.of(message));
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(completionRequestWithNoGenerationConfig, true);
+
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            thinkingConfig
+        );
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        String jsonString = Strings.toString(builder);
+        String expectedJson = """
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [ { "text": "Partial config." } ]
+                    }
+                ],
+                "generationConfig": {
+                    "thinkingConfig": {
+                      "thinkingBudget": 256
+                    }
+                }
+            }
+            """;
+        assertJsonEquals(jsonString, expectedJson);
+    }
+
     public void testSerialization_NoGenerationConfig() throws IOException {
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentString("No extra config."),
@@ -345,7 +409,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -381,7 +448,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var unifiedRequest = UnifiedCompletionRequest.of(messageList);
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -414,7 +484,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         var builder = JsonXContent.contentBuilder();
         var statusException = assertThrows(ElasticsearchStatusException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
@@ -435,7 +508,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var unifiedRequest = UnifiedCompletionRequest.of(List.of(message));
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, false);
 
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         var builder = JsonXContent.contentBuilder();
         var statusException = assertThrows(ElasticsearchStatusException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
@@ -471,7 +547,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 ],
                 "temperature": 0.1,
                 "maxOutputTokens": 100,
-                "topP": 0.2
+                "topP": 0.2,
+                "thinkingConfig": {
+                  "thinkingBudget": 256
+                }
               },
               "tools": [
                 {
@@ -535,7 +614,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            thinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -589,7 +671,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -629,7 +714,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
 
             UnifiedChatInput unifiedChatInput = new UnifiedChatInput(requestContentObject, true);
             GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
-                unifiedChatInput
+                unifiedChatInput,
+                emptyThinkingConfig
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -711,7 +797,8 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         for (var request : requests) {
             UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
             GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
-                unifiedChatInput
+                unifiedChatInput,
+                emptyThinkingConfig
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -755,7 +842,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -819,7 +909,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -874,7 +967,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -903,7 +999,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         var statusException = expectThrows(ElasticsearchStatusException.class, () -> entity.toXContent(builder, ToXContent.EMPTY_PARAMS));
@@ -987,7 +1086,10 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         );
 
         UnifiedChatInput unifiedChatInput = new UnifiedChatInput(request, true);
-        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(unifiedChatInput);
+        GoogleVertexAiUnifiedChatCompletionRequestEntity entity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            unifiedChatInput,
+            emptyThinkingConfig
+        );
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         entity.toXContent(builder, ToXContent.EMPTY_PARAMS);

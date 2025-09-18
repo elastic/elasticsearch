@@ -85,24 +85,23 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         GenericRequestManager<ChatCompletionInput> manager;
         switch (model.getServiceSettings().provider()) {
-            case ANTHROPIC:
-                manager = new GenericRequestManager<>(
-                    serviceComponents.threadPool(),
-                    model,
-                    GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER,
-                    inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
-                    ChatCompletionInput.class
-                );
-                break;
-            case null, default:
-                manager = new GenericRequestManager<>(
-                    serviceComponents.threadPool(),
-                    model,
-                    GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
-                    inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
-                    ChatCompletionInput.class
-                );
-                break;
+            case ANTHROPIC -> manager = new GenericRequestManager<>(
+                serviceComponents.threadPool(),
+                model,
+                GOOGLE_MODEL_GARDEN_ANTHROPIC_COMPLETION_HANDLER,
+                inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
+                ChatCompletionInput.class
+            );
+            case GOOGLE -> manager = new GenericRequestManager<>(
+                serviceComponents.threadPool(),
+                model,
+                GOOGLE_VERTEX_AI_COMPLETION_HANDLER,
+                inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
+                ChatCompletionInput.class
+            );
+            default -> throw new IllegalStateException(
+                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
+            );
         }
 
         return new SingleInputSenderExecutableAction(sender, manager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);

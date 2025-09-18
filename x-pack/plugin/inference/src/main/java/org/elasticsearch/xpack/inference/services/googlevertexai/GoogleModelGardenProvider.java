@@ -13,6 +13,7 @@ import java.util.Locale;
  * Enum representing the supported model garden providers.
  */
 public enum GoogleModelGardenProvider {
+    GOOGLE,
     ANTHROPIC;
 
     public static final String NAME = "google_model_garden_provider";

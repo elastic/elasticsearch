@@ -42,9 +42,12 @@ public class GoogleVertexAiUnifiedChatCompletionRequest implements GoogleVertexA
         ToXContentObject requestEntity;
         switch (model.getServiceSettings().provider()) {
             case ANTHROPIC -> requestEntity = new GoogleModelGardenAnthropicChatCompletionRequestEntity(unifiedChatInput);
-            case null, default -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
+            case GOOGLE -> requestEntity = new GoogleVertexAiUnifiedChatCompletionRequestEntity(
                 unifiedChatInput,
                 model.getTaskSettings().thinkingConfig()
+            );
+            default -> throw new IllegalStateException(
+                "Unsupported Google Model Garden provider: " + model.getServiceSettings().provider()
             );
         }
 

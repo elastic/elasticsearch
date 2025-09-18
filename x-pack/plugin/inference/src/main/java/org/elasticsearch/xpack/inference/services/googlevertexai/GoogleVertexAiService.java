@@ -269,24 +269,23 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
         GenericRequestManager<UnifiedChatInput> manager;
 
         switch (updatedChatCompletionModel.getServiceSettings().provider()) {
-            case ANTHROPIC:
-                manager = new GenericRequestManager<>(
-                    getServiceComponents().threadPool(),
-                    updatedChatCompletionModel,
-                    GOOGLE_MODEL_GARDEN_ANTHROPIC_CHAT_COMPLETION_HANDLER,
-                    unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, updatedChatCompletionModel),
-                    UnifiedChatInput.class
-                );
-                break;
-            case null, default:
-                manager = new GenericRequestManager<>(
-                    getServiceComponents().threadPool(),
-                    updatedChatCompletionModel,
-                    GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
-                    unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, updatedChatCompletionModel),
-                    UnifiedChatInput.class
-                );
-                break;
+            case ANTHROPIC -> manager = new GenericRequestManager<>(
+                getServiceComponents().threadPool(),
+                updatedChatCompletionModel,
+                GOOGLE_MODEL_GARDEN_ANTHROPIC_CHAT_COMPLETION_HANDLER,
+                unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, updatedChatCompletionModel),
+                UnifiedChatInput.class
+            );
+            case GOOGLE -> manager = new GenericRequestManager<>(
+                getServiceComponents().threadPool(),
+                updatedChatCompletionModel,
+                GOOGLE_VERTEX_AI_CHAT_COMPLETION_HANDLER,
+                unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, updatedChatCompletionModel),
+                UnifiedChatInput.class
+            );
+            default -> throw new IllegalStateException(
+                "Unsupported Google Model Garden provider: " + updatedChatCompletionModel.getServiceSettings().provider()
+            );
         }
         var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         var action = new SenderExecutableAction(getSender(), manager, errorMessage);

@@ -91,7 +91,8 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         this.modelId = modelIdFromStreamInput == null || modelIdFromStreamInput.isEmpty() ? null : modelIdFromStreamInput;
         this.uri = uriFromStreamInput;
         this.streamingUri = streamingUriFromStreamInput;
-        this.provider = providerFromStreamInput;
+        // Default to GOOGLE if not set
+        this.provider = Objects.requireNonNullElse(providerFromStreamInput, GoogleModelGardenProvider.GOOGLE);
         this.rateLimitSettings = rateLimitSettingsFromStreamInput;
 
     }
@@ -178,7 +179,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         this.modelId = modelId;
         this.uri = uri;
         this.streamingUri = streamingUri;
-        this.provider = provider;
+        this.provider = Objects.requireNonNullElse(provider, GoogleModelGardenProvider.GOOGLE);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 

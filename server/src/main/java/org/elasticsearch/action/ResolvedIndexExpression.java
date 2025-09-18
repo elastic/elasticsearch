@@ -41,6 +41,11 @@ import java.util.List;
  * @param remoteExpressions the remote expressions that replace the original
  */
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
+    /**
+     * Indicates if a local index resolution attempt was successful or failed.
+     * Failures can be due to missing concrete resources or unauthorized concrete resources.
+     * A wildcard expression resolving to nothing is still considered a successful resolution.
+     */
     enum LocalIndexResolutionResult {
         SUCCESS,
         CONCRETE_RESOURCE_MISSING,
@@ -49,9 +54,6 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
 
     /**
      * Represents local (non-remote) resolution results, including expanded indices, the resolution result, and if any, an exception.
-     * @param expressions
-     * @param localIndexResolutionResult
-     * @param exception
      */
     public record LocalExpressions(
         List<String> expressions,

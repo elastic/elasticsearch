@@ -51,7 +51,7 @@ public interface IndicesRequest {
 
         /**
          * Record the results of index resolution. See {@link ResolvedIndexExpressions} for details.
-         * Note: this method does not replace {@link indices(String...)}. {@link indices(String...)} must still be called to update
+         * Note: this method does not replace {@link #indices(String...)}. {@link #indices(String...)} must still be called to update
          * the actual list of indices the request relates to.
          */
         default void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {}

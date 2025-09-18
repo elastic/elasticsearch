@@ -662,25 +662,31 @@ public class EsqlSession {
                     result.withIndices(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
                 );
             } else {
-                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, result.fieldNames, switch (preAnalysis.indexMode()) {
-                    case IndexMode.TIME_SERIES -> {
-                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                        yield requestFilter != null
-                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
-                            : indexModeFilter;
-                    }
-                    default -> requestFilter;
-                }, preAnalysis.indexMode() == IndexMode.TIME_SERIES, listener.delegateFailure((l, mainIindexResolution) -> {
-                    // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                    // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, mainIindexResolution.failures());
-                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                        executionInfo,
-                        mainIindexResolution,
-                        requestFilter != null
-                    );
-                    l.onResponse(result.withIndices(mainIindexResolution));
-                }));
+                indexResolver.resolveAsMergedMapping(
+                    indexExpressionToResolve, //
+                    result.fieldNames,
+                    switch (preAnalysis.indexMode()) {
+                        case IndexMode.TIME_SERIES -> {
+                            var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                            yield requestFilter != null
+                                ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                                : indexModeFilter;
+                        }
+                        default -> requestFilter;
+                    },
+                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                    listener.delegateFailureAndWrap((l, mainIndexResolution) -> {
+                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, mainIndexResolution.failures());
+                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                            executionInfo,
+                            mainIndexResolution,
+                            requestFilter != null
+                        );
+                        l.onResponse(result.withIndices(mainIndexResolution));
+                    })
+                );
             }
         } else {
             // occurs when dealing with local relations (row a = 1)

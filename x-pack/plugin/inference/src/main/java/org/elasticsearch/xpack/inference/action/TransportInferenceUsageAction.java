@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.usage.ModelStats;
 
 import java.util.Map;
 import java.util.TreeMap;
@@ -61,13 +62,10 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
     ) {
         GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY, false);
         client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(response -> {
-            Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
+            Map<String, ModelStats> stats = new TreeMap<>();
             for (ModelConfigurations model : response.getEndpoints()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
-                InferenceFeatureSetUsage.ModelStats stat = stats.computeIfAbsent(
-                    statKey,
-                    key -> new InferenceFeatureSetUsage.ModelStats(model.getService(), model.getTaskType())
-                );
+                ModelStats stat = stats.computeIfAbsent(statKey, key -> new ModelStats(model.getService(), model.getTaskType()));
                 stat.add();
             }
             InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());

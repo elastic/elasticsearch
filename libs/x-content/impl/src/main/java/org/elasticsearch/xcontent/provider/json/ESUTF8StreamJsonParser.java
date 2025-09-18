@@ -28,6 +28,7 @@ import java.util.List;
 public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements OptimizedTextCapable {
     protected int stringEnd = -1;
     protected int stringLength;
+    protected byte[] lastOptimisedValue;
 
     private final List<Integer> backslashes = new ArrayList<>();
 
@@ -53,6 +54,9 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
     @Override
     public Text getValueAsText() throws IOException {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete) {
+            if (lastOptimisedValue != null) {
+                return new Text(new XContentString.UTF8Bytes(lastOptimisedValue), stringLength);
+            }
             if (stringEnd > 0) {
                 final int len = stringEnd - 1 - _inputPtr;
                 return new Text(new XContentString.UTF8Bytes(_inputBuffer, _inputPtr, len), stringLength);
@@ -137,37 +141,40 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser implements Opti
                 copyPtr = backslash + 1;
             }
             System.arraycopy(inputBuffer, copyPtr, buff, destPtr, ptr - copyPtr);
+            lastOptimisedValue = buff;
             return new Text(new XContentString.UTF8Bytes(buff), stringLength);
         }
     }
 
     @Override
     public JsonToken nextToken() throws IOException {
-        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
-            _inputPtr = stringEnd;
-            _tokenIncomplete = false;
-        }
+        maybeResetCurrentTokenState();
         stringEnd = -1;
         return super.nextToken();
     }
 
     @Override
     public boolean nextFieldName(SerializableString str) throws IOException {
-        if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
-            _inputPtr = stringEnd;
-            _tokenIncomplete = false;
-        }
+        maybeResetCurrentTokenState();
         stringEnd = -1;
         return super.nextFieldName(str);
     }
 
     @Override
     public String nextFieldName() throws IOException {
+        maybeResetCurrentTokenState();
+        stringEnd = -1;
+        return super.nextFieldName();
+    }
+
+    /**
+     * Resets the current token state before moving to the next.
+     */
+    private void maybeResetCurrentTokenState() {
         if (_currToken == JsonToken.VALUE_STRING && _tokenIncomplete && stringEnd > 0) {
             _inputPtr = stringEnd;
             _tokenIncomplete = false;
+            lastOptimisedValue = null;
         }
-        stringEnd = -1;
-        return super.nextFieldName();
     }
 }

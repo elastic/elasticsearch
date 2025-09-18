@@ -773,7 +773,7 @@ public class OsProbe {
 
     }
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(OsProbe.class);
 
     OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
@@ -913,10 +913,12 @@ public class OsProbe {
      * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
+        String className = "com.sun.management.OperatingSystemMXBean";
         try {
-            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
+            return Class.forName(className).getMethod(methodName);
         } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

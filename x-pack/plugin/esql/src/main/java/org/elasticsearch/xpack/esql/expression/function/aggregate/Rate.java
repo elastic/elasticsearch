@@ -138,4 +138,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     Expression timestamp() {
         return timestamp;
     }
+
+    @Override
+    public boolean requiredTimeSeriesSource() {
+        return true;
+    }
 }

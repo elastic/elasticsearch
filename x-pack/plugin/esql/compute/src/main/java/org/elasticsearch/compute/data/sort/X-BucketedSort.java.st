@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-$if(hasExtra)$
+$if(hasExtra && !(long && Extralong))$
 import org.elasticsearch.common.util.$ExtraType$Array;
 $endif$
 import org.elasticsearch.common.util.$Type$Array;

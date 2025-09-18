@@ -119,6 +119,7 @@ public class EsqlQueryGenerator {
         Executor executor,
         boolean isTimeSeries
     ) {
+        boolean canGenerateTimeSeries = isTimeSeries;
         CommandGenerator.CommandDescription desc = commandGenerator.generate(List.of(), List.of(), schema);
         executor.run(commandGenerator, desc);
         if (executor.continueExecuting() == false) {
@@ -129,7 +130,28 @@ public class EsqlQueryGenerator {
             if (executor.currentSchema().isEmpty()) {
                 break;
             }
-            commandGenerator = isTimeSeries ? randomMetricsPipeCommandGenerator() : randomPipeCommandGenerator();
+            boolean commandAllowed = false;
+            while (commandAllowed == false) {
+                commandGenerator = isTimeSeries && canGenerateTimeSeries
+                    ? randomMetricsPipeCommandGenerator()
+                    : randomPipeCommandGenerator();
+                if (isTimeSeries == false) {
+                    commandAllowed = true;
+                } else {
+                    if (commandGenerator.equals(TimeSeriesStatsGenerator.INSTANCE) || commandGenerator.equals(StatsGenerator.INSTANCE)) {
+                        if (canGenerateTimeSeries) {
+                            canGenerateTimeSeries = false;
+                            commandAllowed = true;
+                        }
+                    } else if (commandGenerator.equals(RenameGenerator.INSTANCE)) {
+                        // https://github.com/elastic/elasticsearch/issues/134994
+                        canGenerateTimeSeries = false;
+                        commandAllowed = true;
+                    } else {
+                        commandAllowed = true;
+                    }
+                }
+            }
             desc = commandGenerator.generate(executor.previousCommands(), executor.currentSchema(), schema);
             if (desc == CommandGenerator.EMPTY_DESCRIPTION) {
                 continue;

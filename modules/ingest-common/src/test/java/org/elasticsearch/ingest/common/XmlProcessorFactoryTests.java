@@ -144,7 +144,7 @@ public class XmlProcessorFactoryTests extends ESTestCase {
         expectCreationFailure(
             config,
             IllegalArgumentException.class,
-            "XPath target field [//author/text()] must be a string, got [Integer]"
+            "XPath [//author/text()] target field must be a string, got [Integer]"
         );
     }
 

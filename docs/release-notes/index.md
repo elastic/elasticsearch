@@ -20,10 +20,81 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % ### Fixes [elasticsearch-next-fixes]
 % *
 
-## 9.0.7 [elasticsearch-9.0.7-release-notes]
+## 9.1.4 [elasticsearch-9.1.4-release-notes]
 ```{applies_to}
-stack: ga 9.0.7
+stack: ga 9.1.4
 ```
+
+### Features and enhancements [elasticsearch-9.1.4-features-enhancements]
+
+Authorization:
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` [#133793](https://github.com/elastic/elasticsearch/pull/133793) (issue: [#133703](https://github.com/elastic/elasticsearch/issues/133703))
+
+FIPS:
+* Bump bc-fips to 1.0.2.6 [#133198](https://github.com/elastic/elasticsearch/pull/133198)
+
+Infra/Plugins:
+* Add Reason field to elastic-agent upgrade details metadata [#134711](https://github.com/elastic/elasticsearch/pull/134711)
+
+Network:
+* Upgrade Netty to 4.1.126.Final [#134182](https://github.com/elastic/elasticsearch/pull/134182)
+
+Security:
+* Bump bcpkix version [#132853](https://github.com/elastic/elasticsearch/pull/132853)
+
+
+### Fixes [elasticsearch-9.1.4-fixes]
+
+Aggregations:
+* Aggs: Fix CB on reduction phase [#133398](https://github.com/elastic/elasticsearch/pull/133398)
+
+Authorization:
+* Remove `DocumentSubsetBitsetCache` locking [#133681](https://github.com/elastic/elasticsearch/pull/133681) (issue: [#132842](https://github.com/elastic/elasticsearch/issues/132842))
+
+ES|QL:
+* Reserve memory for Lucene's TopN [#134235](https://github.com/elastic/elasticsearch/pull/134235)
+* Track memory in evaluators [#133392](https://github.com/elastic/elasticsearch/pull/133392)
+
+Indices APIs:
+* Fix unnecessary determinization in index pattern conflict checks [#134231](https://github.com/elastic/elasticsearch/pull/134231) (issue: [#133652](https://github.com/elastic/elasticsearch/issues/133652))
+
+Infra/Core:
+* Remove `java.xml` from system modules [#133671](https://github.com/elastic/elasticsearch/pull/133671)
+
+Infra/Scripting:
+* Update `DefBootstrap` to handle Error from `ClassValue` [#133604](https://github.com/elastic/elasticsearch/pull/133604)
+
+Infra/Settings:
+* Use latest setting value when initializing setting watch [#134091](https://github.com/elastic/elasticsearch/pull/134091) (issue: [#133701](https://github.com/elastic/elasticsearch/issues/133701))
+
+Ingest Node:
+* Avoid stale enrich results after policy execution [#133752](https://github.com/elastic/elasticsearch/pull/133752)
+* Fix `allow_duplicates` edge case bug in append processor [#134319](https://github.com/elastic/elasticsearch/pull/134319)
+* Fix enrich caches outdated value after policy run [#133680](https://github.com/elastic/elasticsearch/pull/133680)
+
+Machine Learning:
+* Ensuring only a single request executor object is created [#133424](https://github.com/elastic/elasticsearch/pull/133424)
+* Fix double-counting of inference memory in the assignment rebalancer [#133919](https://github.com/elastic/elasticsearch/pull/133919)
+
+Mapping:
+* Allow trailing empty string field names in paths of flattened field [#133611](https://github.com/elastic/elasticsearch/pull/133611) (issue: [#130139](https://github.com/elastic/elasticsearch/issues/130139))
+* Fixed a bug where text fields in LogsDB indices did not use their keyword multi fields for block loading [#134253](https://github.com/elastic/elasticsearch/pull/134253)
+
+Network:
+* Remove Transfer-Encoding from HTTP request with no content [#133775](https://github.com/elastic/elasticsearch/pull/133775)
+
+Relevance:
+* Disallow creating `semantic_text` fields in indices created prior to 8.11.0 [#133080](https://github.com/elastic/elasticsearch/pull/133080)
+
+Search:
+* KQL: Support boolean operators in field queries [#133737](https://github.com/elastic/elasticsearch/pull/133737) (issue: [#132366](https://github.com/elastic/elasticsearch/issues/132366))
+* Prevent field caps from failing due to can match failure [#134134](https://github.com/elastic/elasticsearch/pull/134134) (issue: [#116106](https://github.com/elastic/elasticsearch/issues/116106))
+* Use inner query for equals/hashCode() in `SourceConfirmedTextQuery` [#134451](https://github.com/elastic/elasticsearch/pull/134451) (issue: [#134432](https://github.com/elastic/elasticsearch/issues/134432))
+
+Snapshot/Restore:
+* Delay S3 repo warning if default region absent [#133848](https://github.com/elastic/elasticsearch/pull/133848)
+
+## 9.0.7 [elasticsearch-9.0.7-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.7-features-enhancements]
 
@@ -73,8 +144,6 @@ Relevance:
 
 Search:
 * KQL: Support boolean operators in field queries [#133737](https://github.com/elastic/elasticsearch/pull/133737) (issue: [#132366](https://github.com/elastic/elasticsearch/issues/132366))
-
-
 
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
 

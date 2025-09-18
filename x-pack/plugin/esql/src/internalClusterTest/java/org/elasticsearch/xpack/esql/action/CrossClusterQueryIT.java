@@ -791,11 +791,12 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteFailureInlinestats() throws IOException {
+        assumeTrue("requires inlinestats", EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.isEnabled());
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");
         // This will fail in the main plan
-        String q = Strings.format("FROM %s,cluster-a:%s* | INLINESTATS SUM(v) | SORT v", localIndex, remote1Index);
+        String q = Strings.format("FROM %s,cluster-a:%s* | INLINE STATS SUM(v) | SORT v", localIndex, remote1Index);
 
         try (EsqlQueryResponse resp = runQuery(q, randomBoolean())) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
@@ -808,8 +809,8 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertClusterInfoSkipped(remoteCluster);
             assertThat(remoteCluster.getFailures().getFirst().reason(), containsString("Accessing failing field"));
         }
-        // This will fail in the INLINESTATS subplan, skipping should still work the same
-        q = Strings.format("FROM cluster-a:%s* | INLINESTATS SUM(fail_me) | SORT fail_me", remote1Index);
+        // This will fail in the INLINE STATS subplan, skipping should still work the same
+        q = Strings.format("FROM cluster-a:%s* | INLINE STATS SUM(fail_me) | SORT fail_me", remote1Index);
 
         try (EsqlQueryResponse resp = runQuery(q, randomBoolean())) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();

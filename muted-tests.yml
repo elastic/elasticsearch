@@ -76,9 +76,6 @@ tests:
 - class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
   method: testSeqNoCASLinearizability
   issue: https://github.com/elastic/elasticsearch/issues/117249
-- class: org.elasticsearch.discovery.ClusterDisruptionIT
-  method: testAckedIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/117024
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117027
@@ -543,9 +540,6 @@ tests:
 - class: org.elasticsearch.discovery.DiscoveryDisruptionIT
   method: testElectMasterWithLatestVersion
   issue: https://github.com/elastic/elasticsearch/issues/134748
-- class: org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorTests
-  method: testSliceIndex
-  issue: https://github.com/elastic/elasticsearch/issues/134808
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkBeforeStatsByWithWhere}
   issue: https://github.com/elastic/elasticsearch/issues/134817
@@ -579,6 +573,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:stats.CountDistinctWithConditions}
   issue: https://github.com/elastic/elasticsearch/issues/134993
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryInlineStats
+  issue: https://github.com/elastic/elasticsearch/issues/135032
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:fork.ForkBeforeStatsWithWhere}
+  issue: https://github.com/elastic/elasticsearch/issues/135041
 
 # Examples:
 #

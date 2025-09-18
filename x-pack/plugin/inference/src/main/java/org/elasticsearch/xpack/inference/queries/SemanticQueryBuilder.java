@@ -229,30 +229,33 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         QueryRewriteContext queryRewriteContext,
         Set<String> inferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
-        String query
+        @Nullable String query
     ) {
         boolean modifiedInferenceResultsMap = false;
         Map<FullyQualifiedInferenceId, InferenceResults> currentInferenceResultsMap = inferenceResultsMap != null
             ? inferenceResultsMap
             : Map.of();
-        for (String inferenceId : inferenceIds) {
-            FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                queryRewriteContext.getLocalClusterAlias(),
-                inferenceId
-            );
-            if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
-                if (modifiedInferenceResultsMap == false) {
-                    // Copy the inference results map to ensure it is mutable and thread safe
-                    currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
-                    modifiedInferenceResultsMap = true;
-                }
 
-                registerInferenceAsyncAction(
-                    queryRewriteContext,
-                    ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
-                    query,
+        if (query != null) {
+            for (String inferenceId : inferenceIds) {
+                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
+                    queryRewriteContext.getLocalClusterAlias(),
                     inferenceId
                 );
+                if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                    if (modifiedInferenceResultsMap == false) {
+                        // Copy the inference results map to ensure it is mutable and thread safe
+                        currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
+                        modifiedInferenceResultsMap = true;
+                    }
+
+                    registerInferenceAsyncAction(
+                        queryRewriteContext,
+                        ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
+                        query,
+                        inferenceId
+                    );
+                }
             }
         }
 

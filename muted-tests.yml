@@ -573,6 +573,9 @@ tests:
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/126748
+- class: org.elasticsearch.xpack.logsdb.patterntext.PatternTextBasicRestIT
+  method: testBulkInsertThenMatchAllSource {disableTemplating=false}
+  issue: https://github.com/elastic/elasticsearch/issues/134975
 
 # Examples:
 #

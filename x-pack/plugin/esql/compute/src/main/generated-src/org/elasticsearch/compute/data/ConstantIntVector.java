@@ -120,6 +120,11 @@ final class ConstantIntVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public IntVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantIntVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
         return RAM_BYTES_USED;
     }

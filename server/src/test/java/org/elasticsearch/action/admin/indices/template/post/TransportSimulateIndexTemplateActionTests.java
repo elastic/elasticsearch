@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,29 +63,33 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         // Create a setting provider that sets the test-setting to 0
         Set<IndexSettingProvider> indexSettingsProviders = Set.of(new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void provideAdditionalMetadata(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings allSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                Settings.Builder additionalSettings,
+                BiConsumer<String, Map<String, String>> additionalCustomMetadata
             ) {
-                return Settings.builder().put("test-setting", 0).build();
+                additionalSettings.put("test-setting", 0);
             }
         }, new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void provideAdditionalMetadata(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
                 ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                Settings.Builder additionalSettings,
+                BiConsumer<String, Map<String, String>> additionalCustomMetadata
             ) {
-                return Settings.builder().put("test-setting-2", 10).build();
+                additionalSettings.put("test-setting-2", 10);
             }
 
             @Override
@@ -97,6 +102,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             matchingTemplate,
             indexName,
             simulatedProject,
+            null,
             isDslOnlyMode,
             xContentRegistry(),
             indicesService,

@@ -249,25 +249,34 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+        ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = defaultConfigIds.get(inferenceEntityId);
                 if (maybeDefault != null) {
                     getDefaultConfig(true, maybeDefault, listener);
                 } else {
-                    delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 }
                 return;
             }
 
-            delegate.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+            listener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+        }, (e) -> {
+            logger.warn(format("Failed to load inference endpoint with secrets [%s]", inferenceEntityId), e);
+            listener.onFailure(
+                new ElasticsearchException(
+                    format("Failed to load inference endpoint with secrets [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    e
+                )
+            );
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(2)
+            .setAllowPartialSearchResults(false)
             .request();
 
         client.search(modelSearch, searchListener);
@@ -280,21 +289,29 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+        ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = defaultConfigIds.get(inferenceEntityId);
                 if (maybeDefault != null) {
                     getDefaultConfig(true, maybeDefault, listener);
                 } else {
-                    delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 }
                 return;
             }
 
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
-            delegate.onResponse(modelConfigs.get(0));
+            listener.onResponse(modelConfigs.get(0));
+        }, e -> {
+            logger.warn(format("Failed to load inference endpoint [%s]", inferenceEntityId), e);
+            listener.onFailure(
+                new ElasticsearchException(
+                    format("Failed to load inference endpoint [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    e
+                )
+            );
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
@@ -597,6 +614,7 @@ public class ModelRegistry implements ClusterStateListener {
             } else {
                 // since updating the secrets was successful, we can remove the lock and respond to the final listener
                 preventDeletionLock.remove(inferenceEntityId);
+                refreshInferenceEndpointCache();
                 finalListener.onResponse(true);
             }
         }).<BulkResponse>andThen((subListener, configResponse) -> {
@@ -827,7 +845,10 @@ public class ModelRegistry implements ClusterStateListener {
         client.execute(
             DeleteByQueryAction.INSTANCE,
             request,
-            getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener)
+            ActionListener.runAfter(
+                getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener),
+                this::refreshInferenceEndpointCache
+            )
         );
     }
 
@@ -880,6 +901,17 @@ public class ModelRegistry implements ClusterStateListener {
                 listener.onFailure(exc);
             }
         };
+    }
+
+    private void refreshInferenceEndpointCache() {
+        client.execute(
+            ClearInferenceEndpointCacheAction.INSTANCE,
+            new ClearInferenceEndpointCacheAction.Request(),
+            ActionListener.wrap(
+                ignored -> logger.debug("Successfully refreshed inference endpoint cache."),
+                e -> logger.atDebug().withThrowable(e).log("Failed to refresh inference endpoint cache.")
+            )
+        );
     }
 
     private static DeleteByQueryRequest createDeleteRequest(Set<String> inferenceEntityIds) {

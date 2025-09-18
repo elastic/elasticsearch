@@ -104,21 +104,35 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         return Boolean.parseBoolean(System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.TRUE.toString()));
     }
 
+    /**
+     * The default minimum number of documents per ordinal required to use ordinal range encoding.
+     * If the average number of documents per ordinal is below this threshold, it is more efficient to encode doc values in blocks.
+     * A much smaller value may be used in tests to exercise ordinal range encoding more frequently.
+     */
+    public static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
+
+    /**
+     * The block shift used in DirectMonotonicWriter when encoding the start docs of each ordinal with ordinal range encoding.
+     */
+    public static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
+
     final int skipIndexIntervalSize;
+    final int minDocsPerOrdinalForRangeEncoding;
     private final boolean enableOptimizedMerge;
 
     /** Default constructor. */
     public ES819TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, OPTIMIZED_MERGE_ENABLE_DEFAULT);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, boolean enableOptimizedMerge) {
+    public ES819TSDBDocValuesFormat(int skipIndexIntervalSize, int minDocsPerOrdinalForRangeEncoding, boolean enableOptimizedMerge) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }
         this.skipIndexIntervalSize = skipIndexIntervalSize;
+        this.minDocsPerOrdinalForRangeEncoding = minDocsPerOrdinalForRangeEncoding;
         this.enableOptimizedMerge = enableOptimizedMerge;
     }
 
@@ -127,6 +141,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         return new ES819TSDBDocValuesConsumer(
             state,
             skipIndexIntervalSize,
+            minDocsPerOrdinalForRangeEncoding,
             enableOptimizedMerge,
             DATA_CODEC,
             DATA_EXTENSION,

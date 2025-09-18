@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -37,6 +38,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,6 +68,9 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.blobcache.BlobCacheMetrics.LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY;
+import static org.elasticsearch.blobcache.BlobCacheMetrics.NON_LUCENE_EXTENSION_TO_RECORD;
 
 /**
  * A caching layer on a local node to minimize network roundtrips to the remote blob store.
@@ -328,7 +333,6 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder writeBytes = new LongAdder();
 
-    private final LongAdder readCount = new LongAdder();
     private final LongAdder readBytes = new LongAdder();
 
     private final LongAdder evictCount = new LongAdder();
@@ -741,8 +745,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             evictCount.sum(),
             writeCount.sum(),
             writeBytes.sum(),
-            readCount.sum(),
-            readBytes.sum()
+            blobCacheMetrics.readCount(),
+            readBytes.sum(),
+            blobCacheMetrics.missCount()
         );
     }
 
@@ -1113,7 +1118,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                                     + '-'
                                     + rangeToRead.start()
                                     + ']';
-                            blobCacheService.readCount.increment();
+                            blobCacheService.blobCacheMetrics.recordRead();
                             l.onResponse(read);
                         })
                     );
@@ -1228,12 +1233,14 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 return false;
             }
             var fileRegion = lastAccessedRegion;
+            boolean incrementReads = false;
             if (fileRegion != null && fileRegion.chunk.regionKey.region == startRegion) {
                 // existing item, check if we need to promote item
                 fileRegion.touch();
 
             } else {
                 fileRegion = cache.get(cacheKey, length, startRegion);
+                incrementReads = true;
             }
             final var region = fileRegion.chunk;
             if (region.tracker.checkAvailable(end - getRegionStart(startRegion)) == false) {
@@ -1241,6 +1248,10 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             }
             boolean res = region.tryRead(buf, offset);
             lastAccessedRegion = res ? fileRegion : null;
+            if (res && incrementReads) {
+                blobCacheMetrics.recordRead();
+                // todo: should we add to readBytes? readBytes.add(end - offset);
+            }
             return res;
         }
 
@@ -1248,7 +1259,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             final ByteRange rangeToWrite,
             final ByteRange rangeToRead,
             final RangeAvailableHandler reader,
-            final RangeMissingHandler writer
+            final RangeMissingHandler writer,
+            String resourceDescription
         ) throws Exception {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
@@ -1267,6 +1279,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                     IntConsumer progressUpdater,
                     ActionListener<Void> completionListener
                 ) throws IOException {
+                    String blobFileExtension = getFileExtension(resourceDescription);
                     writer.fillCacheRange(
                         channel,
                         channelPos,
@@ -1277,7 +1290,8 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                         completionListener.map(unused -> {
                             var elapsedTime = TimeUnit.NANOSECONDS.toMillis(relativeTimeInNanosSupplier.getAsLong() - startTime);
                             blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
-                            blobCacheMetrics.getCacheMissCounter().increment();
+                            blobCacheMetrics.getCacheMissCounter()
+                                .incrementBy(1L, Map.of(LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY, blobFileExtension));
                             return null;
                         })
                     );
@@ -1309,7 +1323,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 mapSubRangeToRegion(rangeToWrite, region),
                 mapSubRangeToRegion(rangeToRead, region),
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
                 ioExecutor,
                 readFuture
             );
@@ -1341,7 +1355,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                             mapSubRangeToRegion(rangeToWrite, region),
                             subRangeToRead,
                             readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
-                            writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart)),
+                            metricRecordingWriter(
+                                writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
+                            ),
                             ioExecutor,
                             listener
                         );
@@ -1414,6 +1430,16 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
             }
             return adjustedWriter;
+        }
+
+        private RangeMissingHandler metricRecordingWriter(RangeMissingHandler writer) {
+            return new DelegatingRangeMissingHandler(writer) {
+                @Override
+                public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                    blobCacheMetrics.recordMiss();
+                    return super.sharedInputStreamFactory(gaps);
+                }
+            };
         }
 
         private RangeAvailableHandler readerWithOffset(RangeAvailableHandler reader, CacheFileRegion<KeyType> fileRegion, int readOffset) {
@@ -1558,9 +1584,11 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
         long writeCount,
         long writeBytes,
         long readCount,
-        long readBytes
+        long readBytes,
+        // miss-count not exposed in REST API for now
+        long missCount
     ) {
-        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        public static final Stats EMPTY = new Stats(0, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L);
     }
 
     private class LFUCache implements Cache<KeyType, CacheFileRegion<KeyType>> {
@@ -2029,6 +2057,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void onAfter() {
                 assert pendingEpoch.get() == epoch.get() + 1;
                 epoch.incrementAndGet();
+                blobCacheMetrics.recordEpochChange();
             }
 
             @Override
@@ -2052,6 +2081,19 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             public void close() {
                 this.isClosed = true;
             }
+        }
+    }
+
+    private static String getFileExtension(String resourceDescription) {
+        // TODO: consider introspecting resourceDescription for compound files
+        if (resourceDescription.endsWith(LuceneFilesExtensions.CFS.getExtension())) {
+            return LuceneFilesExtensions.CFS.getExtension();
+        }
+        String extension = IndexFileNames.getExtension(resourceDescription);
+        if (LuceneFilesExtensions.isLuceneExtension(extension)) {
+            return extension;
+        } else {
+            return NON_LUCENE_EXTENSION_TO_RECORD;
         }
     }
 }

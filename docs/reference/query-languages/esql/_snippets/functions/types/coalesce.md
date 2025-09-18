@@ -12,6 +12,9 @@
 | date_nanos | date_nanos | date_nanos |
 | geo_point | geo_point | geo_point |
 | geo_shape | geo_shape | geo_shape |
+| geohash | geohash | geohash |
+| geohex | geohex | geohex |
+| geotile | geotile | geotile |
 | integer | integer | integer |
 | integer | | integer |
 | ip | ip | ip |

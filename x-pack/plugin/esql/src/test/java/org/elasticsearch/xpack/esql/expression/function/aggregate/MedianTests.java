@@ -47,7 +47,7 @@ public class MedianTests extends AbstractAggregationTestCase {
                     List.of(DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200), DataType.INTEGER, "number")),
-                        "Median[field=Attribute[channel=0]]",
+                        standardAggregatorName("Percentile", DataType.INTEGER),
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -56,7 +56,7 @@ public class MedianTests extends AbstractAggregationTestCase {
                     List.of(DataType.LONG),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.LONG, "number")),
-                        "Median[field=Attribute[channel=0]]",
+                        standardAggregatorName("Percentile", DataType.LONG),
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -65,7 +65,7 @@ public class MedianTests extends AbstractAggregationTestCase {
                     List.of(DataType.DOUBLE),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200.), DataType.DOUBLE, "number")),
-                        "Median[field=Attribute[channel=0]]",
+                        standardAggregatorName("Percentile", DataType.DOUBLE),
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -94,7 +94,7 @@ public class MedianTests extends AbstractAggregationTestCase {
 
                 return new TestCaseSupplier.TestCase(
                     List.of(fieldTypedData),
-                    "Median[number=Attribute[channel=0]]",
+                    standardAggregatorName("Percentile", fieldSupplier.type()),
                     DataType.DOUBLE,
                     equalTo(expected)
                 );

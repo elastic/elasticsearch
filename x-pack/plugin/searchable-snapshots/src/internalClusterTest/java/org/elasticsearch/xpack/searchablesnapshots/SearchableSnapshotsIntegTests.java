@@ -496,7 +496,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             final IndicesService service = internalCluster().getInstance(IndicesService.class, node);
             if (service != null && service.hasIndex(restoredIndex)) {
                 assertThat(
-                    getRepositoryOnNode(repositoryName, node).getRestoreThrottleTimeInNanos(),
+                    getRepositoryOnNode(repositoryName, node).getSnapshotStats().totalReadThrottledNanos(),
                     useRateLimits ? greaterThan(0L) : equalTo(0L)
                 );
             }

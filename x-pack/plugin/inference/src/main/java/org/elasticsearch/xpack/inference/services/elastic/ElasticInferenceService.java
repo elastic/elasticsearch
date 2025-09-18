@@ -91,7 +91,10 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
     public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
-    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 512;
+    // The maximum batch size for sparse text embeddings is set to 16.
+    // This value was reduced from 512 due to memory constraints; batch sizes above 32 can cause GPU out-of-memory errors.
+    // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
+    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
@@ -101,8 +104,10 @@ public class ElasticInferenceService extends SenderService {
     );
     private static final String SERVICE_NAME = "Elastic";
 
-    // TODO: check with team, what makes the most sense
-    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 32;
+    // TODO: revisit this value once EIS supports dense models
+    // The maximum batch size for dense text embeddings is proactively set to 16.
+    // This mirrors the memory constraints observed with sparse embeddings
+    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
@@ -188,7 +193,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
                     TaskType.CHAT_COMPLETION,
                     NAME,
-                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1, null),
+                    new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
@@ -201,7 +206,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,
@@ -219,8 +224,7 @@ public class ElasticInferenceService extends SenderService {
                         DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
                         defaultDenseTextEmbeddingsSimilarity(),
                         null,
-                        null,
-                        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS
+                        null
                     ),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
@@ -240,7 +244,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_RERANK_ENDPOINT_ID_V1,
                     TaskType.RERANK,
                     NAME,
-                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1, null),
+                    new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
@@ -617,8 +621,7 @@ public class ElasticInferenceService extends SenderService {
                 modelId,
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens,
-                serviceSettings.rateLimitSettings()
+                maxInputTokens
             );
 
             return new ElasticInferenceServiceDenseTextEmbeddingsModel(embeddingsModel, updateServiceSettings);

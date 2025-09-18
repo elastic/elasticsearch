@@ -494,7 +494,7 @@ public final class MappingLookup {
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
         if (isSourceSynthetic()) {
-            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics);
+            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
         }
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {

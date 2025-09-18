@@ -60,6 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.RemoteClusterConnection;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteClusterSettings;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
@@ -493,10 +494,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         RemoteClusterStats makeRemoteClusterStats(String clusterAlias) {
             RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
             RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
-            var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            var compression = RemoteClusterSettings.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
             return new RemoteClusterStats(
                 remoteConnectionInfo.getModeInfo().modeName(),
-                remoteConnection.isSkipUnavailable(),
+                remoteClusterService.isSkipUnavailable(clusterAlias),
                 compression.toString()
             );
         }

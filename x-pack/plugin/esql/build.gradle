@@ -35,6 +35,8 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  compileOnly project(path: xpackModule('downsample'))
   implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')

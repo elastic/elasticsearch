@@ -1,6 +1,0 @@
-pr: 131945
-summary: Restrict remote ENRICH after FORK
-area: ES|QL
-type: bug
-issues:
- - 131445

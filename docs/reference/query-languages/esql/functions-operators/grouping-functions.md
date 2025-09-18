@@ -7,16 +7,25 @@ mapped_pages:
 # {{esql}} grouping functions [esql-group-functions]
 
 
-The [`STATS`](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command supports these grouping functions:
+The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) command supports these grouping functions:
 
 :::{include} ../_snippets/lists/grouping-functions.md
 :::
+
+The [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.md) command supports these grouping functions:
+
+* [`BUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-bucket)
+* [`TBUCKET`](/reference/query-languages/esql/functions-operators/grouping-functions.md#esql-tbucket)
 
 
 :::{include} ../_snippets/functions/layout/bucket.md
 :::
 
-:::{note} 
+:::{include} ../_snippets/functions/layout/tbucket.md
+:::
+
+
+:::{note}
 The `CATEGORIZE` function requires a [platinum license](https://www.elastic.co/subscriptions).
 :::
 

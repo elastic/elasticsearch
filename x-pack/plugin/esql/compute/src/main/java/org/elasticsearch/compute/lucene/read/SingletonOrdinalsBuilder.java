@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.Releasable;
@@ -32,16 +33,19 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     private int maxOrd = Integer.MIN_VALUE;
     private final int[] ords;
     private int count;
+    private final boolean isDense;
 
-    public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count) {
+    public SingletonOrdinalsBuilder(BlockFactory blockFactory, SortedDocValues docValues, int count, boolean isDense) {
         this.blockFactory = blockFactory;
         this.docValues = docValues;
         blockFactory.adjustBreaker(ordsSize(count));
         this.ords = new int[count];
+        this.isDense = isDense;
     }
 
     @Override
     public SingletonOrdinalsBuilder appendNull() {
+        assert isDense == false;
         ords[count++] = -1; // real ords can't be < 0, so we use -1 as null
         return this;
     }
@@ -55,6 +59,15 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     }
 
     @Override
+    public BlockLoader.SingletonOrdinalsBuilder appendOrds(int[] values, int from, int length, int minOrd, int maxOrd) {
+        System.arraycopy(values, from, ords, count, length);
+        this.count += length;
+        this.minOrd = Math.min(this.minOrd, minOrd);
+        this.maxOrd = Math.max(this.maxOrd, maxOrd);
+        return this;
+    }
+
+    @Override
     public SingletonOrdinalsBuilder beginPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
     }
@@ -62,6 +75,41 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
     @Override
     public SingletonOrdinalsBuilder endPositionEntry() {
         throw new UnsupportedOperationException("should only have one value per doc");
+    }
+
+    private BytesRefBlock tryBuildConstantBlock() {
+        if (minOrd != maxOrd) {
+            return null;
+        }
+        if (isDense == false) {
+            for (int ord : ords) {
+                if (ord == -1) {
+                    return null;
+                }
+            }
+        }
+        final BytesRef v;
+        try {
+            v = BytesRef.deepCopyOf(docValues.lookupOrd(minOrd));
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to lookup ordinals", e);
+        }
+        BytesRefVector bytes = null;
+        IntVector ordinals = null;
+        boolean success = false;
+        try {
+            bytes = blockFactory.newConstantBytesRefVector(v, 1);
+            ordinals = blockFactory.newConstantIntVector(0, ords.length);
+            // Ideally, we would return a ConstantBytesRefVector, but we return an ordinal constant block instead
+            // to ensure ordinal optimizations are applied when constant optimization is not available.
+            final var result = new OrdinalBytesRefBlock(ordinals.asBlock(), bytes);
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(bytes, ordinals);
+            }
+        }
     }
 
     BytesRefBlock buildOrdinal() {
@@ -73,33 +121,61 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
         try {
             int[] newOrds = new int[valueCount];
             Arrays.fill(newOrds, -1);
-            for (int ord : ords) {
-                if (ord != -1) {
+            // Re-mapping ordinals to be more space-efficient:
+            if (isDense) {
+                for (int ord : ords) {
                     newOrds[ord - minOrd] = 0;
+                }
+            } else {
+                for (int ord : ords) {
+                    if (ord != -1) {
+                        newOrds[ord - minOrd] = 0;
+                    }
                 }
             }
             // resolve the ordinals and remaps the ordinals
-            int nextOrd = -1;
-            try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(Math.min(valueCount, ords.length))) {
-                for (int i = 0; i < newOrds.length; i++) {
-                    if (newOrds[i] != -1) {
-                        newOrds[i] = ++nextOrd;
-                        bytesBuilder.appendBytesRef(docValues.lookupOrd(i + minOrd));
-                    }
+            try {
+                int nextOrd = -1;
+                BytesRef firstTerm = minOrd != Integer.MAX_VALUE ? docValues.lookupOrd(minOrd) : null;
+                int estimatedSize;
+                if (firstTerm != null) {
+                    estimatedSize = Math.min(valueCount, ords.length) * firstTerm.length;
+                } else {
+                    estimatedSize = Math.min(valueCount, ords.length);
                 }
-                bytesVector = bytesBuilder.build();
+                try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(estimatedSize)) {
+                    if (firstTerm != null) {
+                        newOrds[0] = ++nextOrd;
+                        bytesBuilder.appendBytesRef(firstTerm);
+                    }
+                    for (int i = firstTerm != null ? 1 : 0; i < newOrds.length; i++) {
+                        if (newOrds[i] != -1) {
+                            newOrds[i] = ++nextOrd;
+                            bytesBuilder.appendBytesRef(docValues.lookupOrd(i + minOrd));
+                        }
+                    }
+                    bytesVector = bytesBuilder.build();
+                }
             } catch (IOException e) {
                 throw new UncheckedIOException("error resolving ordinals", e);
             }
-            try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ords.length)) {
-                for (int ord : ords) {
-                    if (ord == -1) {
-                        ordinalsBuilder.appendNull();
-                    } else {
-                        ordinalsBuilder.appendInt(newOrds[ord - minOrd]);
-                    }
+            if (isDense) {
+                // Reusing ords array and overwrite all slots with re-mapped ordinals
+                for (int i = 0; i < ords.length; i++) {
+                    ords[i] = newOrds[ords[i] - minOrd];
                 }
-                ordinalBlock = ordinalsBuilder.build();
+                ordinalBlock = blockFactory.newIntArrayVector(ords, ords.length).asBlock();
+            } else {
+                try (IntBlock.Builder ordinalsBuilder = blockFactory.newIntBlockBuilder(ords.length)) {
+                    for (int ord : ords) {
+                        if (ord == -1) {
+                            ordinalsBuilder.appendNull();
+                        } else {
+                            ordinalsBuilder.appendInt(newOrds[ord - minOrd]);
+                        }
+                    }
+                    ordinalBlock = ordinalsBuilder.build();
+                }
             }
             final OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(ordinalBlock, bytesVector);
             bytesVector = null;
@@ -172,6 +248,10 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
 
     @Override
     public BytesRefBlock build() {
+        var constantBlock = tryBuildConstantBlock();
+        if (constantBlock != null) {
+            return constantBlock;
+        }
         return shouldBuildOrdinalsBlock() ? buildOrdinal() : buildRegularBlock();
     }
 

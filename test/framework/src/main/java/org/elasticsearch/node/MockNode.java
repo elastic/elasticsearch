@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -24,7 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -49,11 +50,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -143,10 +146,11 @@ public class MockNode extends Node {
             Settings settings,
             Map<String, ScriptEngine> engines,
             Map<String, ScriptContext<?>> contexts,
-            LongSupplier timeProvider
+            LongSupplier timeProvider,
+            ProjectResolver projectResolver
         ) {
             if (pluginsService.filterPlugins(MockScriptService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider);
+                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider, projectResolver);
             }
             return new MockScriptService(settings, engines, contexts);
         }
@@ -170,7 +174,9 @@ public class MockNode extends Node {
             ClusterSettings clusterSettings,
             TaskManager taskManager,
             Tracer tracer,
-            String nodeId
+            String nodeId,
+            LinkedProjectConfigService linkedProjectConfigService,
+            ProjectResolver projectResolver
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -188,7 +194,9 @@ public class MockNode extends Node {
                     clusterSettings,
                     taskManager,
                     tracer,
-                    nodeId
+                    nodeId,
+                    linkedProjectConfigService,
+                    projectResolver
                 );
             } else {
                 return new MockTransportService(
@@ -238,31 +246,37 @@ public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
+    // handle for temporarily entitled node paths for this node; these will be removed on close.
+    private final Closeable entitledNodePaths;
+
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
+        this(settings, classpathPlugins, true, () -> {});
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings);
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
         super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
 
@@ -273,10 +287,10 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+        this.entitledNodePaths = entitledNodePaths;
     }
 
     private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
-        TestEntitlementBootstrap.registerNodeBaseDirs(settings, configPath);
         return InternalSettingsPreparer.prepareEnvironment(
             Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
             Collections.emptyMap(),
@@ -290,8 +304,7 @@ public class MockNode extends Node {
         try {
             return super.awaitClose(timeout, timeUnit);
         } finally {
-            // wipePendingDataDirectories requires entitlement delegation to work due to this using FileSystemUtils ES-10920
-            // TestEntitlementBootstrap.unregisterNodeBaseDirs(settings(), getEnvironment().configDir());
+            IOUtils.closeWhileHandlingException(entitledNodePaths);
         }
     }
 

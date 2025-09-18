@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -26,12 +25,11 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AsyncOperator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
-import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.AsyncOperatorTestCase;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
@@ -47,11 +45,10 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
 
-public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
-    private ThreadPool threadPool;
+public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends AsyncOperatorTestCase {
+    protected ThreadPool threadPool;
+    protected int inputsCount;
 
     @Before
     public void setThreadPool() {
@@ -66,6 +63,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
+    }
+
+    @Before
+    public void initChannels() {
+        inputsCount = randomIntBetween(1, 10);
     }
 
     @After
@@ -88,63 +90,53 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
-                    for (int i = 0; i < length; i++) {
-                        if (randomInt() % 100 == 0) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                Block[] blocks = new Block[inputsCount];
+                try {
+                    for (int b = 0; b < inputsCount; b++) {
+                        try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
+                            for (int i = 0; i < length; i++) {
+                                if (randomInt() % 100 == 0) {
+                                    builder.appendNull();
+                                } else {
+                                    builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
+                                }
+                            }
+                            blocks[b] = builder.build();
                         }
-
                     }
-                    currentPosition += length;
-                    return new Page(builder.build());
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
                 }
+
+                currentPosition += length;
+                return new Page(blocks);
+
             }
         };
     }
 
-    @Override
-    public void testOperatorStatus() {
-        DriverContext driverContext = driverContext();
-        try (var operator = simple().get(driverContext)) {
-            AsyncOperator.Status status = asInstanceOf(AsyncOperator.Status.class, operator.status());
-
-            assertThat(status, notNullValue());
-            assertThat(status.receivedPages(), equalTo(0L));
-            assertThat(status.completedPages(), equalTo(0L));
-            assertThat(status.procesNanos(), greaterThanOrEqualTo(0L));
-        }
-    }
-
     @SuppressWarnings("unchecked")
-    protected InferenceRunner mockedSimpleInferenceRunner() {
-        Client client = new NoOpClient(threadPool) {
+    protected InferenceService mockedInferenceService() {
+        Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                Runnable runnable = () -> {
-                    if (action == InferenceAction.INSTANCE && request instanceof InferenceAction.Request inferenceRequest) {
-                        InferenceAction.Response inferenceResponse = new InferenceAction.Response(mockInferenceResult(inferenceRequest));
-                        listener.onResponse((Response) inferenceResponse);
+                runWithRandomDelay(() -> {
+                    if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                        listener.onResponse((Response) new InferenceAction.Response(mockInferenceResult(inferenceRequest)));
                         return;
                     }
 
-                    fail("Unexpected call to action [" + action.name() + "]");
-                };
-
-                if (randomBoolean()) {
-                    runnable.run();
-                } else {
-                    threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 100)), threadPool.executor(ThreadPool.Names.SEARCH));
-                }
+                    listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
+                });
             }
         };
 
-        return new InferenceRunner(client, threadPool);
+        return new InferenceService(mockClient);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);
@@ -201,7 +193,14 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         return context -> new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                return BlockUtils.deepCopyOf(page.getBlock(channel), blockFactory());
+                Block b = page.getBlock(channel);
+                b.incRef();
+                return b;
+            }
+
+            @Override
+            public long baseRamBytesUsed() {
+                return 0;
             }
 
             @Override
@@ -209,5 +208,36 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
             }
         };
+    }
+
+    private void runWithRandomDelay(Runnable runnable) {
+        if (randomBoolean()) {
+            runnable.run();
+        } else {
+            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
+        }
+    }
+
+    public static class BlockStringReader {
+
+        private final StringBuilder sb = new StringBuilder();
+        private BytesRef scratch = new BytesRef();
+
+        public String readString(BytesRefBlock block, int pos) {
+            sb.setLength(0);
+            int valueIndex = block.getFirstValueIndex(pos);
+            while (valueIndex < block.getFirstValueIndex(pos) + block.getValueCount(pos)) {
+                scratch = block.getBytesRef(valueIndex, scratch);
+                sb.append(scratch.utf8ToString());
+                if (valueIndex < block.getValueCount(pos) - 1) {
+                    sb.append("\n");
+                }
+                valueIndex++;
+            }
+            scratch = block.getBytesRef(block.getFirstValueIndex(pos), scratch);
+
+            return sb.toString();
+        }
+
     }
 }

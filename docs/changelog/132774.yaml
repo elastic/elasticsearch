@@ -1,0 +1,5 @@
+pr: 132774
+summary: Improve cpu utilization with dynamic slice size in doc partitioning
+area: ES|QL
+type: enhancement
+issues: []

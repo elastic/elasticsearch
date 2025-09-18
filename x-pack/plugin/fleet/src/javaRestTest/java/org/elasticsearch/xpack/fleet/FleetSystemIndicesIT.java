@@ -293,4 +293,20 @@ public class FleetSystemIndicesIT extends AbstractFleetIT {
             assertThat(policyMap.size(), equalTo(2));
         });
     }
+
+    public void testCreationOfIntegrationKnowledge() throws Exception {
+        Request request = new Request("PUT", ".integration_knowledge");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".integration_knowledge/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("content"));
+
+        request = new Request("GET", ".integration_knowledge-7/_mapping");
+        response = client().performRequest(request);
+        responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("content"));
+    }
 }

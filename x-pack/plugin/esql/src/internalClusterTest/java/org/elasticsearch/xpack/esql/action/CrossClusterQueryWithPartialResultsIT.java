@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterTestCase {
 
@@ -291,7 +292,11 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertThat(returnedIds, equalTo(local.okIds));
                 assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
                 EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                // It could also return partial on failure
+                assertThat(
+                    remoteInfo.getStatus(),
+                    oneOf(EsqlExecutionInfo.Cluster.Status.SKIPPED, EsqlExecutionInfo.Cluster.Status.PARTIAL)
+                );
                 assertClusterFailure(resp, REMOTE_CLUSTER_1, simulatedFailure.getMessage());
             }
         } finally {

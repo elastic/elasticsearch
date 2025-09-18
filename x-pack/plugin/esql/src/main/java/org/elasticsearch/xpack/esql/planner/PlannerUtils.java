@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -63,6 +65,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -159,6 +162,15 @@ public class PlannerUtils {
         return indices.toArray(String[]::new);
     }
 
+    public static boolean requiresSortedTimeSeriesSource(PhysicalPlan plan) {
+        return plan.anyMatch(e -> {
+            if (e instanceof FragmentExec f) {
+                return f.fragment().anyMatch(l -> l instanceof EsRelation r && r.indexMode() == IndexMode.TIME_SERIES);
+            }
+            return false;
+        });
+    }
+
     private static void forEachRelation(PhysicalPlan plan, Consumer<EsRelation> action) {
         plan.forEachDown(FragmentExec.class, f -> f.fragment().forEachDown(EsRelation.class, r -> {
             if (r.indexMode() != IndexMode.LOOKUP) {
@@ -199,12 +211,22 @@ public class PlannerUtils {
     ) {
         final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
+        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
+            .stream()
+            .map(x -> ((LookupJoinExec) x).right())
+            .collect(Collectors.toSet());
 
-        var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+        PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+            if (lookupJoinExecRightChildren.contains(f)) {
+                // Do not optimize the right child of a lookup join exec
+                // The data node does not have the right stats to perform the optimization because the stats are on the lookup node
+                // Also we only ship logical plans across the network, so the plan needs to remain logical
+                return f;
+            }
             isCoordPlan.set(Boolean.FALSE);
-            var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            var physicalFragment = localMapper.map(optimizedFragment);
-            var filter = f.esFilter();
+            LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            PhysicalPlan physicalFragment = localMapper.map(optimizedFragment);
+            QueryBuilder filter = f.esFilter();
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
@@ -296,7 +318,7 @@ public class PlannerUtils {
      * This specifically excludes spatial data types, which are not themselves sortable.
      */
     public static ElementType toSortableElementType(DataType dataType) {
-        if (DataType.isSpatial(dataType)) {
+        if (DataType.isSpatialOrGrid(dataType)) {
             return ElementType.UNKNOWN;
         }
         return toElementType(dataType);
@@ -317,7 +339,7 @@ public class PlannerUtils {
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
 
         return switch (dataType) {
-            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
+            case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG, GEOHASH, GEOTILE, GEOHEX -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
             // unsupported fields are passed through as a BytesRef

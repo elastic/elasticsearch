@@ -1,0 +1,289 @@
+###############################################
+# Tests for DecayLinear function
+#
+
+intLinear
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intLinear2
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = decay(value, 5 + 5, 5 + 5, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intExp
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "exp"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
+;
+
+intGauss
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = round(decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "gauss"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+intLinearWithOffset
+required_capability: decay_function
+
+ROW value = 95
+| EVAL decay_result = decay(value, 100, 50, {"offset": 10, "decay": 0.3, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+intExpWithOffset
+required_capability: decay_function
+
+ROW value = 120
+| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "exp"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.6968453
+;
+
+intGaussWithOffset
+required_capability: decay_function
+
+ROW value = 120
+| EVAL decay_result = round(decay(value, 100, 50, {"offset": 5, "decay": 0.3, "type": "gauss"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.8973067
+;
+
+intWithoutOptions
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10, 10) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intOnlyWithOffset
+required_capability: decay_function
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10, 10, {"offset": 100}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+intMultipleRows
+required_capability: decay_function
+
+// tag::decay[]
+FROM employees
+| EVAL decay_result = decay(salary, 0, 100000, {"offset": 5, "decay": 0.5, "type": "linear"})
+| SORT decay_result DESC
+// end::decay[]
+| KEEP decay_result
+| LIMIT 5;
+
+// tag::decay-result[]
+decay_result:double
+0.873405
+0.8703
+0.870145
+0.867845
+0.86395
+// end::decay-result[]
+;
+
+intOriginReference
+required_capability: decay_function
+
+ROW value = 5, origin = 10
+| EVAL decay_result = decay(value, origin, 10, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intScaleReference
+required_capability: decay_function
+
+ROW value = 5, scale = 10
+| EVAL decay_result = decay(value, 10, scale, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intScaleAndOriginReference
+required_capability: decay_function
+
+ROW value = 5, origin = 10, scale = 10
+| EVAL decay_result = decay(value, origin, scale, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+doubleLinear
+required_capability: decay_function
+
+ROW value = 5.0
+| EVAL decay_result = decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+doubleExp
+required_capability: decay_function
+
+ROW value = 5.0
+| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "exp"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.7071068
+;
+
+doubleGauss
+required_capability: decay_function
+
+ROW value = 5.0
+| EVAL decay_result = round(decay(value, 10.0, 10.0, {"offset": 0.0, "decay": 0.5, "type": "gauss"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.8408964
+;
+
+longLinear
+required_capability: decay_function
+
+ROW value = 15::long
+| EVAL decay_result = decay(value, 10::long, 10::long, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+cartesianPointLinear1
+required_capability: decay_function
+
+ROW value = TO_CARTESIANPOINT("POINT(5 5)")
+| EVAL decay_result = decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 0.0, "decay": 0.25, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.46966991411008935
+;
+
+cartesianPointLinear2
+required_capability: decay_function
+
+ROW value = TO_CARTESIANPOINT("POINT(10 0)")
+| EVAL decay_result = ROUND(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 0.0, "decay": 0.25, "type": "linear"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.25
+;
+
+cartesianPointLinearWithOffset
+required_capability: decay_function
+
+ROW value = TO_CARTESIANPOINT("POINT(10 0)")
+| EVAL decay_result = ROUND(decay(value, TO_CARTESIANPOINT("POINT(0 0)"), 10.0, {"offset": 5.0, "decay": 0.25, "type": "linear"}), 7) 
+| KEEP decay_result;
+
+decay_result:double
+0.625
+;
+
+
+geoPointLinear
+required_capability: decay_function
+
+ROW value = TO_GEOPOINT("POINT(0 0)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(1 1)"), "200km", {"offset": "0km", "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.606876005579706
+;
+
+datetimeLinear1
+required_capability: decay_function
+
+ROW value = TO_DATETIME("2023-01-01T00:00:00Z") 
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours, {"offset": 0 seconds, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+datetimeLinear2
+required_capability: decay_function
+
+ROW value = TO_DATETIME("2023-01-01T12:00:00Z")
+| EVAL decay_result = decay(value, TO_DATETIME("2023-01-01T00:00:00Z"), 24 hours, {"offset": 0 seconds, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+dateNanosLinear1
+required_capability: decay_function
+
+ROW value = TO_DATE_NANOS("2023-01-01T00:00:00Z")
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours, {"offset": 0 seconds, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+dateNanosLinear2
+required_capability: decay_function
+
+ROW value = TO_DATE_NANOS("2023-01-01T12:00:00Z") 
+| EVAL decay_result = decay(value, TO_DATE_NANOS("2023-01-01T00:00:00Z"), 24 hours, {"offset": 0 seconds, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;

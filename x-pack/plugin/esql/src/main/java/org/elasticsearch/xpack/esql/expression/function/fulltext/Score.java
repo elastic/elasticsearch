@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,20 +110,26 @@ public class Score extends Function implements EvaluatorMapper {
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new EvalOperator.ExpressionEvaluator() {
+            return new ScorerEvaluator(scoreFactory.get(context));
+        }
+    }
 
-                private final ScoreOperator.ExpressionScorer scorer = scoreFactory.get(context);
+    private record ScorerEvaluator(ScoreOperator.ExpressionScorer scorer) implements EvalOperator.ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScorerEvaluator.class);
 
-                @Override
-                public void close() {
-                    scorer.close();
-                }
+        @Override
+        public Block eval(Page page) {
+            return scorer.score(page);
+        }
 
-                @Override
-                public Block eval(Page page) {
-                    return scorer.score(page);
-                }
-            };
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
+        }
+
+        @Override
+        public void close() {
+            scorer.close();
         }
     }
 

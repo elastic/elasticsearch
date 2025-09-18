@@ -79,7 +79,9 @@ public class EvalMapperTests extends ESTestCase {
         false,
         Map.of(),
         System.nanoTime(),
-        false
+        false,
+        10000000,
+        100000
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -161,7 +163,11 @@ public class EvalMapperTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, type, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     static DriverContext driverContext() {

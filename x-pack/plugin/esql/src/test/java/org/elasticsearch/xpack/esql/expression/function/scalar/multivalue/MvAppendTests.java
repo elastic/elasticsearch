@@ -29,6 +29,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSliceTests.randomGrid;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvAppendTests extends AbstractScalarFunctionTestCase {
@@ -89,21 +90,13 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
     }
 
     private static void longs(List<TestCaseSupplier> suppliers) {
-        suppliers.add(new TestCaseSupplier(List.of(DataType.LONG, DataType.LONG), () -> {
-            List<Long> field1 = randomList(1, 10, () -> randomLong());
-            List<Long> field2 = randomList(1, 10, () -> randomLong());
-            var result = new ArrayList<>(field1);
-            result.addAll(field2);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field1, DataType.LONG, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataType.LONG, "field2")
-                ),
-                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataType.LONG,
-                equalTo(result)
-            );
-        }));
+        addLongTestCase(suppliers, DataType.LONG, ESTestCase::randomLong);
+        addLongTestCase(suppliers, DataType.DATETIME, ESTestCase::randomLong);
+        addLongTestCase(suppliers, DataType.DATE_NANOS, ESTestCase::randomNonNegativeLong);
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            addLongTestCase(suppliers, gridType, () -> randomGrid(gridType));
+        }
+
         suppliers.add(new TestCaseSupplier(List.of(DataType.UNSIGNED_LONG, DataType.UNSIGNED_LONG), () -> {
             List<Long> field1 = randomList(1, 10, ESTestCase::randomLong);
             List<Long> field2 = randomList(1, 10, ESTestCase::randomLong);
@@ -118,33 +111,21 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 equalTo(result)
             );
         }));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DATETIME, DataType.DATETIME), () -> {
-            List<Long> field1 = randomList(1, 10, () -> randomLong());
-            List<Long> field2 = randomList(1, 10, () -> randomLong());
+    }
+
+    private static void addLongTestCase(List<TestCaseSupplier> suppliers, DataType dataType, Supplier<Long> longSupplier) {
+        suppliers.add(new TestCaseSupplier(List.of(dataType, dataType), () -> {
+            List<Long> field1 = randomList(1, 10, longSupplier);
+            List<Long> field2 = randomList(1, 10, longSupplier);
             var result = new ArrayList<>(field1);
             result.addAll(field2);
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(field1, DataType.DATETIME, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataType.DATETIME, "field2")
+                    new TestCaseSupplier.TypedData(field1, dataType, "field1"),
+                    new TestCaseSupplier.TypedData(field2, dataType, "field2")
                 ),
                 "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataType.DATETIME,
-                equalTo(result)
-            );
-        }));
-        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> {
-            List<Long> field1 = randomList(1, 10, () -> randomNonNegativeLong());
-            List<Long> field2 = randomList(1, 10, () -> randomNonNegativeLong());
-            var result = new ArrayList<>(field1);
-            result.addAll(field2);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(field1, DataType.DATE_NANOS, "field1"),
-                    new TestCaseSupplier.TypedData(field2, DataType.DATE_NANOS, "field2")
-                ),
-                "MvAppendLongEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
-                DataType.DATE_NANOS,
+                dataType,
                 equalTo(result)
             );
         }));

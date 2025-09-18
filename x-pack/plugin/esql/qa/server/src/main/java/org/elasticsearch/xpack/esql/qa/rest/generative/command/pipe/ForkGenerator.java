@@ -40,7 +40,7 @@ public class ForkGenerator implements CommandGenerator {
             completeCommand.append(command.commandString());
         }
 
-        final int branchCount = randomIntBetween(2, 3);
+        final int branchCount = randomIntBetween(2, 8);
         final int branchToRetain = randomIntBetween(1, branchCount);
 
         StringBuilder forkCmd = new StringBuilder(" | FORK ");
@@ -114,7 +114,7 @@ public class ForkGenerator implements CommandGenerator {
                 }
             };
 
-            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec);
+            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false);
             if (exec.previousCommands().size() > 1) {
                 String previousCmd = exec.previousCommands()
                     .stream()

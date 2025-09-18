@@ -68,4 +68,9 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
 }

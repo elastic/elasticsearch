@@ -6,25 +6,23 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.IOSession;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
@@ -42,8 +40,6 @@ import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,16 +63,13 @@ import java.util.stream.Collectors;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
@@ -217,6 +210,20 @@ public class SSLService {
     }
 
     /**
+     * Return an encapsulated object for the named profile.
+     * A profile is named according to the settings prefix under which it is defined (e.g. {@code xpack.http.ssl} or
+     * {@code xpack.security.transport.ssl}
+     * @throws IllegalArgumentException if the named profile does not exist
+     */
+    public SslProfile profile(String profileName) {
+        final SslConfiguration configuration = getSSLConfiguration(profileName);
+        if (configuration == null) {
+            throw new IllegalArgumentException(Strings.format("No SSL configuration for context name [%s]", profileName));
+        }
+        return sslContextHolder(configuration);
+    }
+
+    /**
      * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
      * that should be used to create the context.
      *
@@ -224,134 +231,14 @@ public class SSLService {
      *                      return a context created from the default configuration
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
-     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
-     * and {@link #sslIOSessionStrategy(SslConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
+     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)}
+     * and {@link SslProfile#ioSessionStrategy()}
+     * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
     public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
         SslConfiguration config = sslConfiguration(settingsToUse);
-        return sslIOSessionStrategy(config);
-    }
-
-    public SSLIOSessionStrategy sslIOSessionStrategy(SslConfiguration config) {
-        SSLContext sslContext = sslContext(config);
-        String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.getCipherSuites(), false);
-        String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        HostnameVerifier verifier;
-
-        if (config.verificationMode().isHostnameVerificationEnabled()) {
-            verifier = SSLIOSessionStrategy.getDefaultHostnameVerifier();
-        } else {
-            verifier = NoopHostnameVerifier.INSTANCE;
-        }
-
-        final SSLIOSessionStrategy strategy = sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
-        return strategy;
-    }
-
-    public static HostnameVerifier getHostnameVerifier(SslConfiguration sslConfiguration) {
-        if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
-            return new DefaultHostnameVerifier();
-        } else {
-            return NoopHostnameVerifier.INSTANCE;
-        }
-    }
-
-    /**
-     * The {@link SSLParameters} that are associated with the {@code sslContext}.
-     * <p>
-     * This method exists to simplify testing since {@link SSLContext#getSupportedSSLParameters()} is {@code final}.
-     *
-     * @param sslContext The SSL context for the current SSL settings
-     * @return Never {@code null}.
-     */
-    SSLParameters sslParameters(SSLContext sslContext) {
-        return sslContext.getSupportedSSLParameters();
-    }
-
-    /**
-     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings)} because {@link SSLIOSessionStrategy} does
-     * not expose any of the parameters that you give it.
-     *
-     * @param sslContext SSL Context used to handle SSL / TCP requests
-     * @param protocols  Supported protocols
-     * @param ciphers    Supported ciphers
-     * @param verifier   Hostname verifier
-     * @return Never {@code null}.
-     */
-    SSLIOSessionStrategy sslIOSessionStrategy(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
-        return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier) {
-            @Override
-            protected void verifySession(HttpHost host, IOSession iosession, SSLSession session) throws SSLException {
-                if (verifier.verify(host.getHostName(), session) == false) {
-                    final Certificate[] certs = session.getPeerCertificates();
-                    final X509Certificate x509 = (X509Certificate) certs[0];
-                    final X500Principal x500Principal = x509.getSubjectX500Principal();
-                    final String altNames = Strings.collectionToCommaDelimitedString(SslDiagnostics.describeValidHostnames(x509));
-                    throw new SSLPeerUnverifiedException(
-                        LoggerMessageFormat.format(
-                            "Expected SSL certificate to be valid for host [{}],"
-                                + " but it is only valid for subject alternative names [{}] and subject [{}]",
-                            new Object[] { host.getHostName(), altNames, x500Principal.toString() }
-                        )
-                    );
-                }
-            }
-        };
-    }
-
-    /**
-     * Create a new {@link SSLSocketFactory} based on the provided configuration.
-     * The socket factory will also properly configure the ciphers and protocols on each socket that is created
-     *
-     * @param configuration The SSL configuration to use. Typically obtained from {@link #getSSLConfiguration(String)}
-     * @return Never {@code null}.
-     */
-    public SSLSocketFactory sslSocketFactory(SslConfiguration configuration) {
-        final SSLContextHolder contextHolder = sslContextHolder(configuration);
-        SSLSocketFactory socketFactory = contextHolder.sslContext().getSocketFactory();
-        final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
-            () -> contextHolder.sslContext().getSocketFactory(),
-            configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
-            supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.getCipherSuites(), false)
-        );
-        contextHolder.addReloadListener(securitySSLSocketFactory::reload);
-        return securitySSLSocketFactory;
-    }
-
-    /**
-     * Creates an {@link SSLEngine} based on the provided configuration. This SSLEngine can be used for a connection that requires
-     * hostname verification assuming the provided
-     * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
-     *
-     * @param configuration the ssl configuration
-     * @param host          the host of the remote endpoint. If using hostname verification, this should match what is in the remote
-     *                      endpoint's certificate
-     * @param port          the port of the remote endpoint
-     * @return {@link SSLEngine}
-     * @see #getSSLConfiguration(String)
-     */
-    public SSLEngine createSSLEngine(SslConfiguration configuration, String host, int port) {
-        SSLContext sslContext = sslContext(configuration);
-        SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
-        String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
-        String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
-        if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
-            // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
-            // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
-            // man in the middle attacks for all of our connections.
-            parameters.setEndpointIdentificationAlgorithm("HTTPS");
-        }
-        // we use the cipher suite order so that we can prefer the ciphers we set first in the list
-        parameters.setUseCipherSuitesOrder(true);
-        configuration.clientAuth().configure(parameters);
-
-        // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
-        // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
-        // engine will be overwritten by the value in the SSLParameters
-        sslEngine.setSSLParameters(parameters);
-        return sslEngine;
+        return SSLIOSessionStrategyBuilder.INSTANCE.build(config, sslContext(config));
     }
 
     /**
@@ -375,11 +262,11 @@ public class SSLService {
     /**
      * Returns the {@link SSLContext} for the configuration. Mainly used for testing
      */
-    public SSLContext sslContext(SslConfiguration configuration) {
+    SSLContext sslContext(SslConfiguration configuration) {
         return sslContextHolder(configuration).sslContext();
     }
 
-    public void reloadSSLContext(SslConfiguration configuration) {
+    void reloadSSLContext(SslConfiguration configuration) {
         sslContextHolder(configuration).reload();
     }
 
@@ -428,7 +315,7 @@ public class SSLService {
      *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
-    String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
+    static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
         List<String> supportedCiphersList = new ArrayList<>(requestedCiphers.size());
         List<String> unsupportedCiphers = new LinkedList<>();
         boolean found;
@@ -797,7 +684,7 @@ public class SSLService {
         }
     }
 
-    final class SSLContextHolder {
+    final class SSLContextHolder implements SslProfile {
         private volatile SSLContext context;
         private final SslKeyConfig keyConfig;
         private final SslTrustConfig trustConfig;
@@ -812,8 +699,72 @@ public class SSLService {
             this.reloadListeners = new ArrayList<>();
         }
 
-        SSLContext sslContext() {
+        public SSLContext sslContext() {
             return context;
+        }
+
+        @Override
+        public SslConfiguration configuration() {
+            return this.sslConfiguration;
+        }
+
+        @Override
+        public SSLSocketFactory socketFactory() {
+            SSLSocketFactory socketFactory = context.getSocketFactory();
+            final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
+                () -> context.getSocketFactory(),
+                sslConfiguration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
+                supportedCiphers(socketFactory.getSupportedCipherSuites(), sslConfiguration.getCipherSuites(), false)
+            );
+            this.addReloadListener(securitySSLSocketFactory::reload);
+            return securitySSLSocketFactory;
+        }
+
+        @Override
+        public HostnameVerifier hostnameVerifier() {
+            if (this.sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
+                return new DefaultHostnameVerifier();
+            } else {
+                return NoopHostnameVerifier.INSTANCE;
+            }
+        }
+
+        @Override
+        public SSLConnectionSocketFactory connectionSocketFactory() {
+            return new SSLConnectionSocketFactory(socketFactory(), hostnameVerifier());
+        }
+
+        @Override
+        public SSLIOSessionStrategy ioSessionStrategy() {
+            return SSLIOSessionStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
+        }
+
+        @Override
+        public TlsStrategy clientTlsStrategy() {
+            return TlsStrategyBuilder.INSTANCE.build(this.sslConfiguration, context);
+        }
+
+        @Override
+        public SSLEngine engine(String host, int port) {
+            final SSLEngine sslEngine = this.context.createSSLEngine(host, port);
+            final String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), this.sslConfiguration.getCipherSuites(), false);
+            final String[] supportedProtocols = this.configuration().supportedProtocols().toArray(Strings.EMPTY_ARRAY);
+            final SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
+            if (this.sslConfiguration.verificationMode().isHostnameVerificationEnabled() && host != null) {
+                // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
+                // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
+                // man in the middle attacks for all of our connections.
+                parameters.setEndpointIdentificationAlgorithm("HTTPS");
+            }
+            // we use the cipher suite order so that we can prefer the ciphers we set first in the list
+            parameters.setUseCipherSuitesOrder(true);
+            this.sslConfiguration.clientAuth().configure(parameters);
+
+            // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
+            // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
+            // engine will be overwritten by the value in the SSLParameters
+            sslEngine.setSSLParameters(parameters);
+            return sslEngine;
         }
 
         synchronized void reload() {

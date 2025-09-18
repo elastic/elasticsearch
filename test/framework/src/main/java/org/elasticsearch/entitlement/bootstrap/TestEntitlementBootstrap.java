@@ -9,22 +9,18 @@
 
 package org.elasticsearch.entitlement.bootstrap;
 
-import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
-import org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
-import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
 import org.elasticsearch.entitlement.runtime.policy.TestPolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -35,175 +31,52 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toCollection;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
-import static org.elasticsearch.env.Environment.PATH_DATA_SETTING;
-import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
-import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
-import static org.elasticsearch.env.Environment.PATH_SHARED_DATA_SETTING;
 
 public class TestEntitlementBootstrap {
-
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
-    private static Map<BaseDir, Collection<Path>> baseDirPaths = new ConcurrentHashMap<>();
-    private static TestPolicyManager policyManager;
+    private static TestPathLookup TEST_PATH_LOOKUP;
+    private static TestPolicyManager POLICY_MANAGER;
 
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap(@Nullable Path tempDir) throws IOException {
-        if (isEnabledForTest() == false) {
+    public static void bootstrap(Path tempDir) throws IOException {
+        if (isEnabledForTests() == false) {
             return;
         }
-        var previousTempDir = baseDirPaths.put(TEMP, zeroOrOne(tempDir));
-        assert previousTempDir == null : "Test entitlement bootstrap called multiple times";
-        TestPathLookup pathLookup = new TestPathLookup(baseDirPaths);
-        policyManager = createPolicyManager(pathLookup);
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
-        logger.debug("Loading entitlement agent");
-        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+        assert POLICY_MANAGER == null && TEST_PATH_LOOKUP == null : "Test entitlement bootstrap called multiple times";
+        TEST_PATH_LOOKUP = new TestPathLookup(tempDir);
+        POLICY_MANAGER = createPolicyManager(TEST_PATH_LOOKUP);
+        loadAgent(POLICY_MANAGER, TEST_PATH_LOOKUP);
     }
 
-    public static void registerNodeBaseDirs(Settings settings, Path configPath) {
-        if (policyManager == null) {
-            return;
-        }
-
-        Path homeDir = homeDir(settings);
-        Path configDir = configDir(configPath, homeDir);
-        Collection<Path> dataDirs = dataDirs(settings, homeDir);
-        Collection<Path> sharedDataDir = sharedDataDir(settings);
-        Collection<Path> repoDirs = repoDirs(settings);
-        logger.debug(
-            "Registering node dirs: config [{}], dataDirs [{}], sharedDataDir [{}], repoDirs [{}]",
-            configDir,
-            dataDirs,
-            sharedDataDir,
-            repoDirs
-        );
-        baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
-        baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
-        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(sharedDataDir)));
-        baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(repoDirs)));
-        policyManager.clearModuleEntitlementsCache();
-    }
-
-    public static void unregisterNodeBaseDirs(Settings settings, Path configPath) {
-        if (policyManager == null) {
-            return;
-        }
-
-        Path homeDir = homeDir(settings);
-        Path configDir = configDir(configPath, homeDir);
-        Collection<Path> dataDirs = dataDirs(settings, homeDir);
-        Collection<Path> sharedDataDir = sharedDataDir(settings);
-        Collection<Path> repoDirs = repoDirs(settings);
-        logger.debug(
-            "Unregistering node dirs: config [{}], dataDirs [{}], sharedDataDir [{}], repoDirs [{}]",
-            configDir,
-            dataDirs,
-            sharedDataDir,
-            repoDirs
-        );
-        baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
-        baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
-        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(sharedDataDir)));
-        baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(repoDirs)));
-        policyManager.clearModuleEntitlementsCache();
-    }
-
-    private static Path homeDir(Settings settings) {
-        return absolutePath(PATH_HOME_SETTING.get(settings));
-    }
-
-    private static Path configDir(Path configDir, Path homeDir) {
-        return configDir != null ? unwrapFilterPath(configDir) : homeDir.resolve("config");
-    }
-
-    private static Collection<Path> dataDirs(Settings settings, Path homeDir) {
-        List<String> dataDirs = PATH_DATA_SETTING.get(settings);
-        return dataDirs.isEmpty()
-            ? List.of(homeDir.resolve("data"))
-            : dataDirs.stream().map(TestEntitlementBootstrap::absolutePath).toList();
-    }
-
-    private static Collection<Path> sharedDataDir(Settings settings) {
-        String sharedDataDir = PATH_SHARED_DATA_SETTING.get(settings);
-        return Strings.hasText(sharedDataDir) ? List.of(absolutePath(sharedDataDir)) : List.of();
-    }
-
-    private static Collection<Path> repoDirs(Settings settings) {
-        return PATH_REPO_SETTING.get(settings).stream().map(TestEntitlementBootstrap::absolutePath).toList();
-    }
-
-    private static BiFunction<BaseDir, Collection<Path>, Collection<Path>> baseDirModifier(Consumer<Collection<Path>> consumer) {
-        // always return a new unmodifiable copy
-        return (BaseDir baseDir, Collection<Path> paths) -> {
-            paths = paths == null ? new HashSet<>() : new HashSet<>(paths);
-            consumer.accept(paths);
-            return Collections.unmodifiableCollection(paths);
-        };
-    }
-
-    private static Path unwrapFilterPath(Path path) {
-        while (path instanceof FilterPath fPath) {
-            path = fPath.getDelegate();
-        }
-        return path;
-    }
-
-    @SuppressForbidden(reason = "must be resolved using the default file system, rather then the mocked test file system")
-    private static Path absolutePath(String path) {
-        return Paths.get(path).toAbsolutePath().normalize();
-    }
-
-    private static <T> List<T> zeroOrOne(T item) {
-        if (item == null) {
-            return List.of();
-        } else {
-            return List.of(item);
-        }
-    }
-
-    public static boolean isEnabledForTest() {
+    public static boolean isEnabledForTests() {
         return Booleans.parseBoolean(System.getProperty("es.entitlement.enableForTests", "false"));
     }
 
-    public static void setActive(boolean newValue) {
-        policyManager.setActive(newValue);
+    static TestPolicyManager testPolicyManager() {
+        return POLICY_MANAGER;
     }
 
-    public static void setTriviallyAllowingTestCode(boolean newValue) {
-        policyManager.setTriviallyAllowingTestCode(newValue);
+    static TestPathLookup testPathLookup() {
+        return TEST_PATH_LOOKUP;
     }
 
-    public static void setEntitledTestPackages(String[] entitledTestPackages) {
-        policyManager.setEntitledTestPackages(entitledTestPackages);
-    }
-
-    public static void resetAfterTest() {
-        // reset all base dirs except TEMP, which is initialized just once statically
-        baseDirPaths.keySet().retainAll(List.of(TEMP));
-        if (policyManager != null) {
-            policyManager.resetAfterTest();
-        }
+    private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
+        logger.debug("Loading entitlement agent");
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
@@ -224,7 +97,7 @@ public class TestEntitlementBootstrap {
 
         String separator = System.getProperty("path.separator");
 
-        // In productions, plugins would have access to their respective bundle directories,
+        // In production, plugins would have access to their respective bundle directories,
         // and so they'd be able to read from their jars. In testing, we approximate this
         // by considering the entire classpath to be "source paths" of all plugins. This
         // also has the effect of granting read access to everything on the test-only classpath,

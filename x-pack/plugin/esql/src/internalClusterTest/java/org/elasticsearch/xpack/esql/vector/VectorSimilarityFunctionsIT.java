@@ -14,12 +14,17 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlClientException;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.expression.function.vector.Hamming;
 import org.elasticsearch.xpack.esql.expression.function.vector.L1Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.L2Norm;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction.SimilarityEvaluatorFunction;
@@ -28,6 +33,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -51,8 +57,27 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             params.add(new Object[] { "v_l2_norm", (SimilarityEvaluatorFunction) L2Norm::calculateSimilarity });
         }
+        if (EsqlCapabilities.Cap.HAMMING_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            params.add(new Object[] { "v_hamming", (SimilarityEvaluatorFunction) Hamming::calculateSimilarity });
+        }
 
         return params;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // testDifferentDimensions fails the final driver on the coordinator, leading to cancellation of the entire request.
+            // If the exchange sink is opened on a remote node but the compute request hasn't been sent, we cannot close the exchange
+            // sink (for now).Here, we reduce the inactive sinks interval to ensure those inactive sinks are removed quickly.
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
     }
 
     private final String functionName;
@@ -81,10 +106,13 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
                 float[] left = readVector((List<Float>) values.get(0));
                 float[] right = readVector((List<Float>) values.get(1));
                 Double similarity = (Double) values.get(2);
-
-                assertNotNull(similarity);
-                float expectedSimilarity = similarityFunction.calculateSimilarity(left, right);
-                assertEquals(expectedSimilarity, similarity, 0.0001);
+                if (left == null || right == null) {
+                    assertNull(similarity);
+                } else {
+                    assertNotNull(similarity);
+                    float expectedSimilarity = similarityFunction.calculateSimilarity(left, right);
+                    assertEquals(expectedSimilarity, similarity, 0.0001);
+                }
             });
         }
     }
@@ -103,10 +131,13 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             valuesList.forEach(values -> {
                 float[] left = readVector((List<Float>) values.get(0));
                 Double similarity = (Double) values.get(1);
-
-                assertNotNull(similarity);
-                float expectedSimilarity = similarityFunction.calculateSimilarity(left, randomVector);
-                assertEquals(expectedSimilarity, similarity, 0.0001);
+                if (left == null || randomVector == null) {
+                    assertNull(similarity);
+                } else {
+                    assertNotNull(similarity);
+                    float expectedSimilarity = similarityFunction.calculateSimilarity(left, randomVector);
+                    assertEquals(expectedSimilarity, similarity, 0.0001);
+                }
             });
         }
     }
@@ -138,13 +169,20 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
             assertEquals(1, valuesList.size());
 
             Double similarity = (Double) valuesList.get(0).get(0);
-            assertNotNull(similarity);
-            float expectedSimilarity = similarityFunction.calculateSimilarity(vectorLeft, vectorRight);
-            assertEquals(expectedSimilarity, similarity, 0.0001);
+            if (vectorLeft == null || vectorRight == null) {
+                assertNull(similarity);
+            } else {
+                assertNotNull(similarity);
+                float expectedSimilarity = similarityFunction.calculateSimilarity(vectorLeft, vectorRight);
+                assertEquals(expectedSimilarity, similarity, 0.0001);
+            }
         }
     }
 
     private static float[] readVector(List<Float> leftVector) {
+        if (leftVector == null) {
+            return null;
+        }
         float[] leftScratch = new float[leftVector.size()];
         for (int i = 0; i < leftVector.size(); i++) {
             leftScratch[i] = leftVector.get(i);
@@ -173,6 +211,9 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     private List<Float> randomVector() {
         assert numDims != 0 : "numDims must be set before calling randomVector()";
+        if (rarely()) {
+            return null;
+        }
         List<Float> vector = new ArrayList<>(numDims);
         for (int j = 0; j < numDims; j++) {
             vector.add(randomFloat());
@@ -182,7 +223,7 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
 
     private float[] randomVectorArray() {
         assert numDims != 0 : "numDims must be set before calling randomVectorArray()";
-        return randomVectorArray(numDims);
+        return rarely() ? null : randomVectorArray(numDims);
     }
 
     private static float[] randomVectorArray(int dimensions) {

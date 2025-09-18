@@ -149,34 +149,30 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
             new Object[] {
                 new Test(
                     "TS time_series_idx | LIMIT 10",
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)) : Collections.emptyMap(),
+                    Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)),
                     Map.ofEntries(),
-                    Build.current().isSnapshot()
+                    true
                 ) },
             new Object[] {
                 new Test(
-                    "TS time_series_idx | STATS max(id) BY host | LIMIT 10",
+                    "TS time_series_idx | STATS max(cpu) BY host | LIMIT 10",
+                    Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1)),
+                    Map.ofEntries(Map.entry("MAX", 1)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
+                    """
+                        FROM idx
+                        | EVAL ip = TO_IP(host), x = TO_STRING(host), y = TO_STRING(host)
+                        | INLINE STATS MAX(id)
+                        """,
+                    Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINE STATS", 1) : Collections.emptyMap(),
                     Build.current().isSnapshot()
-                        ? Map.ofEntries(Map.entry("TS", 1), Map.entry("STATS", 1), Map.entry("LIMIT", 1))
+                        ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
                         : Collections.emptyMap(),
-                    Build.current().isSnapshot() ? Map.ofEntries(Map.entry("MAX", 1)) : Collections.emptyMap(),
                     Build.current().isSnapshot()
                 ) }
-            // awaits fix for https://github.com/elastic/elasticsearch/issues/116003
-            // ,
-            // new Object[] {
-            // new Test(
-            // """
-            // FROM idx
-            // | EVAL ip = to_ip(host), x = to_string(host), y = to_string(host)
-            // | INLINESTATS max(id)
-            // """,
-            // Build.current().isSnapshot() ? Map.of("FROM", 1, "EVAL", 1, "INLINESTATS", 1) : Collections.emptyMap(),
-            // Build.current().isSnapshot()
-            // ? Map.ofEntries(Map.entry("MAX", 1), Map.entry("TO_IP", 1), Map.entry("TO_STRING", 2))
-            // : Collections.emptyMap(),
-            // Build.current().isSnapshot()
-            // ) }
         );
     }
 

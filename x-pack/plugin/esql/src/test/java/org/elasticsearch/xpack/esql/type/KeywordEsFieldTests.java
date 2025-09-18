@@ -21,7 +21,8 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
         int precision = randomInt();
         boolean normalized = randomBoolean();
         boolean isAlias = randomBoolean();
-        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias);
+        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
+        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias, tsType);
     }
 
     @Override
@@ -37,15 +38,17 @@ public class KeywordEsFieldTests extends AbstractEsFieldTypeTests<KeywordEsField
         int precision = instance.getPrecision();
         boolean normalized = instance.getNormalized();
         boolean isAlias = instance.isAlias();
-        switch (between(0, 5)) {
+        EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
+        switch (between(0, 6)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 2 -> hasDocValues = false == hasDocValues;
             case 3 -> precision = randomValueOtherThan(precision, ESTestCase::randomInt);
             case 4 -> normalized = false == normalized;
             case 5 -> isAlias = false == isAlias;
+            case 6 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
-        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias);
+        return new KeywordEsField(name, properties, hasDocValues, precision, normalized, isAlias, tsType);
     }
 }

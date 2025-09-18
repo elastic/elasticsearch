@@ -28,12 +28,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
+import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
+import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSecurityTestCase {
@@ -78,7 +79,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
         if (isOldCluster()) {
             startTrial();
             enableLogsdbByDefault();
-            createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
+            String templateId = getClass().getSimpleName().toLowerCase(Locale.ROOT);
+            createTemplate(dataStreamName, templateId, TEMPLATE);
 
             Instant startTime = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, startTime);
@@ -88,6 +90,8 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
             assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
             assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
+            // check prior to rollover
+            assertDataStream(dataStreamName, templateId);
             ensureGreen(dataStreamName);
             search(dataStreamName);
             query(dataStreamName);
@@ -115,9 +119,20 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeWithSe
         }
     }
 
+    static void assertDataStream(String dataStreamName, String templateId) throws IOException {
+        var getDataStreamsRequest = new Request("GET", "/_data_stream/" + dataStreamName);
+        var getDataStreamResponse = client().performRequest(getDataStreamsRequest);
+        assertOK(getDataStreamResponse);
+        var dataStreams = entityAsMap(getDataStreamResponse);
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateId));
+    }
+
     static void createTemplate(String dataStreamName, String id, String template) throws IOException {
         final String INDEX_TEMPLATE = """
             {
+                "priority": 200,
                 "index_patterns": ["$DATASTREAM"],
                 "template": $TEMPLATE,
                 "data_stream": {

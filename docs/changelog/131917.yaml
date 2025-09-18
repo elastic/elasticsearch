@@ -1,6 +1,0 @@
-pr: 131917
-summary: Fix NPE on empty to_lower/to_upper call
-area: ES|QL
-type: bug
-issues:
- - 131913

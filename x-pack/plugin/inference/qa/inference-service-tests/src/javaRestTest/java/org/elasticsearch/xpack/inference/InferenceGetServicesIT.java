@@ -34,6 +34,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             allProviders(),
             containsInAnyOrder(
                 List.of(
+                    "ai21",
                     "alibabacloud-ai-search",
                     "amazonbedrock",
                     "anthropic",
@@ -47,6 +48,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "hugging_face",
                     "jinaai",
+                    "llama",
                     "mistral",
                     "openai",
                     "streaming_completion_test_service",
@@ -91,6 +93,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "googlevertexai",
                     "hugging_face",
                     "jinaai",
+                    "llama",
                     "mistral",
                     "openai",
                     "text_embedding_test_service",
@@ -131,6 +134,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providersFor(TaskType.COMPLETION),
             containsInAnyOrder(
                 List.of(
+                    "ai21",
+                    "llama",
                     "alibabacloud-ai-search",
                     "amazonbedrock",
                     "anthropic",
@@ -157,6 +162,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             providersFor(TaskType.CHAT_COMPLETION),
             containsInAnyOrder(
                 List.of(
+                    "ai21",
+                    "llama",
                     "deepseek",
                     "elastic",
                     "openai",

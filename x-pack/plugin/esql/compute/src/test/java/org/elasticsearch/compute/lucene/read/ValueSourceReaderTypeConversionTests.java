@@ -244,7 +244,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     ) {
         return new ValuesSourceReaderOperator.Factory(
             ByteSizeValue.ofGb(1),
-            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, shardIdx -> {
+            List.of(new ValuesSourceReaderOperator.FieldInfo(name, elementType, false, shardIdx -> {
                 if (shardIdx < 0 || shardIdx >= INDICES.size()) {
                     fail("unexpected shardIdx [" + shardIdx + "]");
                 }
@@ -277,6 +277,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             shardContexts,
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             DataPartitioning.SHARD,
+            DataPartitioning.AutoStrategy.DEFAULT,
             1,// randomIntBetween(1, 10),
             pageSize,
             LuceneOperator.NO_LIMIT,
@@ -543,15 +544,20 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, shardIdx -> getBlockLoaderFor(shardIdx, ft, null));
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, null));
     }
 
     private static ValuesSourceReaderOperator.FieldInfo fieldInfo(MappedFieldType ft, MappedFieldType ftX, ElementType elementType) {
-        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, shardIdx -> getBlockLoaderFor(shardIdx, ft, ftX));
+        return new ValuesSourceReaderOperator.FieldInfo(ft.name(), elementType, false, shardIdx -> getBlockLoaderFor(shardIdx, ft, ftX));
     }
 
     private ValuesSourceReaderOperator.FieldInfo fieldInfo(String fieldName, ElementType elementType, DataType toType) {
-        return new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, shardIdx -> getBlockLoaderFor(shardIdx, fieldName, toType));
+        return new ValuesSourceReaderOperator.FieldInfo(
+            fieldName,
+            elementType,
+            false,
+            shardIdx -> getBlockLoaderFor(shardIdx, fieldName, toType)
+        );
     }
 
     private static MappedFieldType.BlockLoaderContext blContext() {
@@ -877,6 +883,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 new ValuesSourceReaderOperator.FieldInfo(
                     "constant_bytes",
                     ElementType.BYTES_REF,
+                    false,
                     shardIdx -> BlockLoader.constantBytes(new BytesRef("foo"))
                 ),
                 checks::constantBytes,
@@ -885,7 +892,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         );
         r.add(
             new FieldCase(
-                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
+                new ValuesSourceReaderOperator.FieldInfo("null", ElementType.NULL, false, shardIdx -> BlockLoader.CONSTANT_NULLS),
                 checks::constantNulls,
                 StatusChecks::constantNulls
             )
@@ -1312,6 +1319,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             List.of(shardContext),
             ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
             randomFrom(DataPartitioning.values()),
+            DataPartitioning.AutoStrategy.DEFAULT,
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
@@ -1402,8 +1410,18 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     new ValuesSourceReaderOperator.Factory(
                         ByteSizeValue.ofGb(1),
                         List.of(
-                            new ValuesSourceReaderOperator.FieldInfo("null1", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS),
-                            new ValuesSourceReaderOperator.FieldInfo("null2", ElementType.NULL, shardIdx -> BlockLoader.CONSTANT_NULLS)
+                            new ValuesSourceReaderOperator.FieldInfo(
+                                "null1",
+                                ElementType.NULL,
+                                false,
+                                shardIdx -> BlockLoader.CONSTANT_NULLS
+                            ),
+                            new ValuesSourceReaderOperator.FieldInfo(
+                                "null2",
+                                ElementType.NULL,
+                                false,
+                                shardIdx -> BlockLoader.CONSTANT_NULLS
+                            )
                         ),
                         shardContexts,
                         0
@@ -1473,6 +1491,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 contexts,
                 ctx -> List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())),
                 DataPartitioning.SHARD,
+                DataPartitioning.AutoStrategy.DEFAULT,
                 randomIntBetween(1, 10),
                 1000,
                 LuceneOperator.NO_LIMIT,
@@ -1482,7 +1501,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             MappedFieldType ft = mapperService(indexKey).fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, shardIdx -> {
+                List.of(new ValuesSourceReaderOperator.FieldInfo("key", ElementType.INT, false, shardIdx -> {
                     seenShards.add(shardIdx);
                     return ft.blockLoader(blContext());
                 })),
@@ -1665,6 +1684,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 }
 
                 @Override
+                public long baseRamBytesUsed() {
+                    return 0;
+                }
+
+                @Override
                 public void close() {}
             };
         }
@@ -1689,8 +1713,8 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             }
             return new ColumnAtATimeReader() {
                 @Override
-                public Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-                    Block block = reader.read(factory, docs, offset);
+                public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                    Block block = reader.read(factory, docs, offset, nullsFiltered);
                     Page page = new Page((org.elasticsearch.compute.data.Block) block);
                     return convertEvaluator.eval(page);
                 }

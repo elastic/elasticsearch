@@ -44,7 +44,12 @@ public class DocBlock extends AbstractVectorBlock implements Block, RefCounted {
 
     @Override
     public Block filter(int... positions) {
-        return new DocBlock(asVector().filter(positions));
+        return new DocBlock(vector.filter(positions));
+    }
+
+    @Override
+    public Block deepCopy(BlockFactory blockFactory) {
+        return new DocBlock(vector.deepCopy(blockFactory));
     }
 
     @Override

@@ -21,6 +21,8 @@ import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 
+import groovy.xml.XmlParser;
+import groovy.xml.XmlNodePrinter;
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -35,11 +37,11 @@ buildscript {
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.jdk-download'
   id 'elasticsearch.global-build-info'
   id 'elasticsearch.build-complete'
   id 'elasticsearch.build-scan'
-  id 'elasticsearch.jdk-download'
-  id 'elasticsearch.internal-distribution-download'
   id 'elasticsearch.runtime-jdk-provision'
   id 'elasticsearch.ide'
   id 'elasticsearch.forbidden-dependencies'
@@ -194,6 +196,21 @@ tasks.register("updateCIBwcVersions") {
       ]
     )
 
+    writeBuildkitePipeline(
+      ".buildkite/pipelines/periodic-java-ea.yml",
+      ".buildkite/pipelines/periodic-java-ea.template.yml",
+      [
+        new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
+      ],
+      [
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic-java-ea.bwc.template.yml",
+          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
+      ]
+    )
+
     expandBwcSteps(
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
@@ -325,14 +342,14 @@ allprojects {
       resolveJavaToolChain = true
 
       // ensure we have best possible caching of bwc builds
-      dependsOn ":distribution:bwc:bugfix:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix2:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix3:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix4:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:bugfix5:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:minor:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged:buildBwcLinuxTar"
-      dependsOn ":distribution:bwc:staged2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major1:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:major4:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor1:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor2:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor3:buildBwcLinuxTar"
+      dependsOn ":distribution:bwc:minor4:buildBwcLinuxTar"
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)

@@ -23,7 +23,6 @@ public class MetadataAttributeTests extends AbstractAttributeTestCase<MetadataAt
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
         DataType type = randomFrom(DataType.types());
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
         boolean searchable = randomBoolean();

@@ -241,7 +241,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         assert assertConsistentRoutingNodes(routingTable, nodes, routingNodes);
         assert assertConsistentProjectState(routingTable, metadata);
         this.minVersions = blocks.hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-            ? new CompatibilityVersions(TransportVersions.MINIMUM_COMPATIBLE, Map.of()) // empty map because cluster state is unknown
+            ? new CompatibilityVersions(TransportVersion.minimumCompatible(), Map.of()) // empty map because cluster state is unknown
             : CompatibilityVersions.minimumVersions(compatibilityVersions.values());
 
         assert compatibilityVersions.isEmpty()

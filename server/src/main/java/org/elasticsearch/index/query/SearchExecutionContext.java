@@ -36,6 +36,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
@@ -197,6 +198,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             searcher,
             nowInMillis,
             indexNameMatcher,
+            clusterAlias,
             new Index(
                 RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
                 indexSettings.getIndex().getUUID()
@@ -226,6 +228,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.searcher,
             source.nowInMillis,
             source.indexNameMatcher,
+            source.getLocalClusterAlias(),
             source.getFullyQualifiedIndex(),
             source.allowExpensiveQueries,
             source.getValuesSourceRegistry(),
@@ -251,6 +254,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         Predicate<String> indexNameMatcher,
+        String clusterAlias,
         Index fullyQualifiedIndex,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
@@ -266,12 +270,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             runtimeMappings,
             indexSettings,
+            null,
+            clusterAlias,
             fullyQualifiedIndex,
             indexNameMatcher,
             namedWriteableRegistry,
             valuesSourceRegistry,
             allowExpensiveQueries,
             scriptService,
+            null,
             null,
             null,
             null,
@@ -446,7 +453,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return new SourceLoader.Synthetic(
                 filter,
                 () -> mappingLookup.getMapping().syntheticFieldLoader(null),
-                mapperMetrics.sourceFieldMetrics()
+                mapperMetrics.sourceFieldMetrics(),
+                IgnoredSourceFieldMapper.ignoredSourceFormat(indexSettings.getIndexVersionCreated())
             );
         }
         return mappingLookup.newSourceLoader(filter, mapperMetrics.sourceFieldMetrics());
@@ -501,14 +509,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            var sourceProvider = createSourceProvider();
+            var sourceProvider = createSourceProvider(null);
             setLookupProviders(sourceProvider, LeafFieldLookupProvider.fromStoredFields());
         }
         return this.lookup;
     }
 
-    public SourceProvider createSourceProvider() {
-        return SourceProvider.fromLookup(mappingLookup, null, mapperMetrics.sourceFieldMetrics());
+    public SourceProvider createSourceProvider(SourceFilter sourceFilter) {
+        return SourceProvider.fromLookup(mappingLookup, sourceFilter, mapperMetrics.sourceFieldMetrics());
     }
 
     /**
@@ -526,6 +534,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
+            fieldName -> mappingLookup.getMapper(fieldName) == null,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                 fieldType,
                 new FieldDataContext(

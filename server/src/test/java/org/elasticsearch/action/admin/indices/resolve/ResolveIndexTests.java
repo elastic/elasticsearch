@@ -32,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -45,6 +46,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,14 +70,22 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class ResolveIndexTests extends ESTestCase {
 
     private final Object[][] indices = new Object[][] {
-        // name, isClosed, isHidden, isSystem, isFrozen, dataStream, aliases
-        { "logs-pgsql-prod-20200101", false, false, false, true, null, new String[] { "logs-pgsql-prod" } },
-        { "logs-pgsql-prod-20200102", false, false, false, true, null, new String[] { "logs-pgsql-prod", "one-off-alias" } },
-        { "logs-pgsql-prod-20200103", false, false, false, false, null, new String[] { "logs-pgsql-prod" } },
-        { "logs-pgsql-test-20200101", true, false, false, false, null, new String[] { "logs-pgsql-test" } },
-        { "logs-pgsql-test-20200102", false, false, false, false, null, new String[] { "logs-pgsql-test" } },
-        { "logs-pgsql-test-20200103", false, false, false, false, null, new String[] { "logs-pgsql-test" } },
-        { ".test-system-index", false, false, true, false, null, new String[] {} } };
+        // name, isClosed, isHidden, isSystem, isFrozen, dataStream, aliases, mode
+        { "logs-pgsql-prod-20200101", false, false, false, true, null, new String[] { "logs-pgsql-prod" }, IndexMode.STANDARD },
+        {
+            "logs-pgsql-prod-20200102",
+            false,
+            false,
+            false,
+            true,
+            null,
+            new String[] { "logs-pgsql-prod", "one-off-alias" },
+            IndexMode.TIME_SERIES },
+        { "logs-pgsql-prod-20200103", false, false, false, false, null, new String[] { "logs-pgsql-prod" }, IndexMode.STANDARD },
+        { "logs-pgsql-test-20200101", true, false, false, false, null, new String[] { "logs-pgsql-test" }, IndexMode.STANDARD },
+        { "logs-pgsql-test-20200102", false, false, false, false, null, new String[] { "logs-pgsql-test" }, IndexMode.STANDARD },
+        { "logs-pgsql-test-20200103", false, false, false, false, null, new String[] { "logs-pgsql-test" }, IndexMode.STANDARD },
+        { ".test-system-index", false, false, true, false, null, new String[] {}, IndexMode.STANDARD } };
 
     private final Object[][] dataStreams = new Object[][] {
         // name, numBackingIndices
@@ -161,6 +171,84 @@ public class ResolveIndexTests extends ESTestCase {
         validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
     }
 
+    public void testResolveModesFilter() {
+        String[] names = randomFrom(new String[] { "*" }, new String[] { "_all" });
+        List<ResolvedIndex> indices = new ArrayList<>();
+        List<ResolvedAlias> aliases = new ArrayList<>();
+        List<ResolvedDataStream> dataStreams = new ArrayList<>();
+
+        // One type
+        TransportAction.resolveIndices(
+            names,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            EnumSet.of(IndexMode.TIME_SERIES)
+        );
+        validateIndices(indices, "logs-pgsql-prod-20200102");
+        assertThat(aliases.size(), equalTo(2));
+        var alias1 = aliases.get(0);
+        assertThat(alias1.getName(), equalTo("logs-pgsql-prod"));
+        assertThat(alias1.getIndices(), arrayContaining("logs-pgsql-prod-20200102"));
+        var alias2 = aliases.get(1);
+        assertThat(alias2.getName(), equalTo("one-off-alias"));
+        assertThat(alias2.getIndices(), arrayContaining("logs-pgsql-prod-20200102"));
+        assertThat(dataStreams.size(), equalTo(0));
+
+        indices = new ArrayList<>();
+        aliases = new ArrayList<>();
+        dataStreams = new ArrayList<>();
+        // Everything
+        TransportAction.resolveIndices(
+            names,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            EnumSet.of(IndexMode.TIME_SERIES, IndexMode.STANDARD)
+        );
+        validateIndices(
+            indices,
+            ".ds-logs-mysql-prod-" + dateString + "-000001",
+            ".ds-logs-mysql-prod-" + dateString + "-000002",
+            ".ds-logs-mysql-prod-" + dateString + "-000003",
+            ".ds-logs-mysql-prod-" + dateString + "-000004",
+            ".ds-logs-mysql-test-" + dateString + "-000001",
+            ".ds-logs-mysql-test-" + dateString + "-000002",
+            ".test-system-index",
+            "logs-pgsql-prod-20200101",
+            "logs-pgsql-prod-20200102",
+            "logs-pgsql-prod-20200103",
+            "logs-pgsql-test-20200101",
+            "logs-pgsql-test-20200102",
+            "logs-pgsql-test-20200103"
+        );
+        validateAliases(aliases, "logs-pgsql-prod", "logs-pgsql-test", "one-off-alias");
+        validateDataStreams(dataStreams, "logs-mysql-prod", "logs-mysql-test");
+        // Not matched
+        indices = new ArrayList<>();
+        aliases = new ArrayList<>();
+        dataStreams = new ArrayList<>();
+        TransportAction.resolveIndices(
+            names,
+            IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN,
+            projectState,
+            resolver,
+            indices,
+            aliases,
+            dataStreams,
+            EnumSet.of(IndexMode.LOOKUP)
+        );
+        assertThat(indices.size(), equalTo(0));
+        assertThat(aliases.size(), equalTo(0));
+        assertThat(dataStreams.size(), equalTo(0));
+    }
+
     public void testResolveWithPattern() {
         String[] names = new String[] { "logs-pgsql*" };
         IndicesOptions indicesOptions = Request.DEFAULT_INDICES_OPTIONS;
@@ -234,8 +322,8 @@ public class ResolveIndexTests extends ESTestCase {
         String tomorrowSuffix = dateFormatter.format(now.plus(Duration.ofDays(1L)));
         Object[][] indices = new Object[][] {
             // name, isClosed, isHidden, isFrozen, dataStream, aliases
-            { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY },
-            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY } };
+            { "logs-pgsql-prod-" + todaySuffix, false, true, false, false, null, Strings.EMPTY_ARRAY, IndexMode.STANDARD },
+            { "logs-pgsql-prod-" + tomorrowSuffix, false, true, false, false, null, Strings.EMPTY_ARRAY, IndexMode.STANDARD } };
         final ProjectMetadata project = buildProjectMetadata(randomProjectIdOrDefault(), new Object[][] {}, indices).build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
         Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(
@@ -356,6 +444,7 @@ public class ResolveIndexTests extends ESTestCase {
             assertThat(resolvedIndex.getAliases(), is(((String[]) indexInfo[6])));
             assertThat(resolvedIndex.getAttributes(), is(flagsToAttributes(indexInfo)));
             assertThat(resolvedIndex.getDataStream(), equalTo((String) indexInfo[5]));
+            assertThat(resolvedIndex.getMode().toString(), equalTo(((IndexMode) indexInfo[7]).toString()));
         }
     }
 
@@ -444,7 +533,8 @@ public class ResolveIndexTests extends ESTestCase {
             boolean hidden = (boolean) indexInfo[2];
             boolean system = (boolean) indexInfo[3];
             boolean frozen = (boolean) indexInfo[4];
-            allIndices.add(createIndexMetadata(indexName, aliases, closed, hidden, system, frozen));
+            IndexMode mode = (IndexMode) indexInfo[7];
+            allIndices.add(createIndexMetadata(indexName, aliases, closed, hidden, system, frozen, mode));
         }
 
         for (IndexMetadata index : allIndices) {
@@ -460,12 +550,14 @@ public class ResolveIndexTests extends ESTestCase {
         boolean closed,
         boolean hidden,
         boolean system,
-        boolean frozen
+        boolean frozen,
+        IndexMode mode
     ) {
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
-            .put("index.frozen", frozen);
+            .put("index.frozen", frozen)
+            .put("index.mode", mode.toString());
 
         IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)
             .settings(settingsBuilder)
@@ -482,7 +574,7 @@ public class ResolveIndexTests extends ESTestCase {
     }
 
     private static IndexMetadata createIndexMetadata(String name, boolean hidden) {
-        return createIndexMetadata(name, Strings.EMPTY_ARRAY, false, true, false, false);
+        return createIndexMetadata(name, Strings.EMPTY_ARRAY, false, true, false, false, IndexMode.STANDARD);
     }
 
     private static Object[] findInfo(Object[][] indexSource, String indexName) {
@@ -507,7 +599,8 @@ public class ResolveIndexTests extends ESTestCase {
                         false,
                         false,
                         dataStreamName,
-                        Strings.EMPTY_ARRAY };
+                        Strings.EMPTY_ARRAY,
+                        IndexMode.STANDARD };
                 }
             }
         }

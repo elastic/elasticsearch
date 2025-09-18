@@ -12,6 +12,9 @@
 | double | long |
 | geo_point | long |
 | geo_shape | long |
+| geohash | long |
+| geohex | long |
+| geotile | long |
 | integer | long |
 | ip | long |
 | keyword | long |

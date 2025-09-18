@@ -1,9 +1,12 @@
-## `TS` [esql-ts]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `TS` command is similar to the `FROM` source command,
 but with two key differences: it targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
 and enables the use of time-series aggregation functions
-with the [STATS](/reference/query-languages/esql/commands/processing-commands.md#esql-stats-by) command.
+with the [STATS](/reference/query-languages/esql/commands/stats-by.md) command.
 
 **Syntax**
 

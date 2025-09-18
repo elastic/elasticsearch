@@ -25,7 +25,6 @@ import java.util.Arrays;
 class RoundTo$Type$ {
     static final RoundTo.Build BUILD = (source, field, points) -> {
         $type$[] f = points.stream().mapTo$Type$(p -> ((Number) p).$type$Value()).toArray();
-        Arrays.sort(f);
         return switch (f.length) {
             // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
             case 1 -> new RoundTo$Type$1Evaluator.Factory(source, field, f[0]);

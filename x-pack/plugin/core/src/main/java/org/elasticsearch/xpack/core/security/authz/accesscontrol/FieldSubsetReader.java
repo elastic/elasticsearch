@@ -29,6 +29,7 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
@@ -71,33 +72,43 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * @param in reader to filter
      * @param filter fields to filter.
      */
-    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter);
+    public static DirectoryReader wrap(
+        DirectoryReader in,
+        CharacterRunAutomaton filter,
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+    ) throws IOException {
+        return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat);
     }
 
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final CharacterRunAutomaton filter;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-        FieldSubsetDirectoryReader(DirectoryReader in, final CharacterRunAutomaton filter) throws IOException {
+        FieldSubsetDirectoryReader(
+            DirectoryReader in,
+            final CharacterRunAutomaton filter,
+            final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
+        ) throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter);
+                        return new FieldSubsetReader(reader, filter, ignoredSourceFormat);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }
             });
             this.filter = filter;
+            this.ignoredSourceFormat = ignoredSourceFormat;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter);
+            return new FieldSubsetDirectoryReader(in, filter, ignoredSourceFormat);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -127,13 +138,15 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     private final FieldInfos fieldInfos;
     /** An automaton that only accepts authorized fields. */
     private final CharacterRunAutomaton filter;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
     /** {@link Terms} cache with filtered stats for the {@link FieldNamesFieldMapper} field. */
     private volatile Optional<Terms> fieldNamesFilterTerms;
 
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) throws IOException {
+    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat)
+        throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
@@ -143,6 +156,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
         this.filter = filter;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     /** returns true if this field is allowed. */
@@ -178,7 +192,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return new StoredFields() {
             @Override
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+                storedFields.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));
             }
         };
     }
@@ -255,7 +269,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
     @Override
     protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
-        return new FieldSubsetStoredFieldsReader(reader);
+        return new FieldSubsetStoredFieldsReader(reader, ignoredSourceFormat);
     }
 
     @Override
@@ -334,24 +348,26 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      */
     class FieldSubsetStoredFieldsReader extends StoredFieldsReader {
         final StoredFieldsReader reader;
+        final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-        FieldSubsetStoredFieldsReader(StoredFieldsReader reader) {
+        FieldSubsetStoredFieldsReader(StoredFieldsReader reader, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
             this.reader = reader;
+            this.ignoredSourceFormat = ignoredSourceFormat;
         }
 
         @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor));
+            reader.document(docID, new FieldSubsetStoredFieldVisitor(visitor, ignoredSourceFormat));
         }
 
         @Override
         public StoredFieldsReader clone() {
-            return new FieldSubsetStoredFieldsReader(reader.clone());
+            return new FieldSubsetStoredFieldsReader(reader.clone(), ignoredSourceFormat);
         }
 
         @Override
         public StoredFieldsReader getMergeInstance() {
-            return new FieldSubsetStoredFieldsReader(reader.getMergeInstance());
+            return new FieldSubsetStoredFieldsReader(reader.getMergeInstance(), ignoredSourceFormat);
         }
 
         @Override
@@ -370,9 +386,11 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      */
     class FieldSubsetStoredFieldVisitor extends StoredFieldVisitor {
         final StoredFieldVisitor visitor;
+        final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
-        FieldSubsetStoredFieldVisitor(StoredFieldVisitor visitor) {
+        FieldSubsetStoredFieldVisitor(StoredFieldVisitor visitor, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
             this.visitor = visitor;
+            this.ignoredSourceFormat = ignoredSourceFormat;
         }
 
         @Override
@@ -385,22 +403,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
                 visitor.binaryField(fieldInfo, BytesReference.toBytes(BytesReference.bytes(xContentBuilder)));
             } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
-                // for _ignored_source, parse, filter out the field and its contents, and serialize back downstream
-                IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(value);
-                Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
-                if (transformedField.isEmpty() == false) {
-                    // The unfiltered map contains at least one element, the field name with its value. If the field contains
-                    // an object or an array, the value of the first element is a map or a list, respectively. Otherwise,
-                    // it's a single leaf value, e.g. a string or a number.
-                    var topValue = mappedNameValue.map().values().iterator().next();
-                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
-                        // The field contains an object or an array, reconstruct it from the transformed map in case
-                        // any subfield has been filtered out.
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
-                    } else {
-                        // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
-                        visitor.binaryField(fieldInfo, value);
-                    }
+                assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+                BytesRef valueRef = new BytesRef(value);
+                BytesRef filtered = ignoredSourceFormat.filterValue(valueRef, v -> filter(v, filter, 0));
+                if (filtered != null) {
+                    byte[] filteredBytes = ArrayUtil.copyOfSubArray(filtered.bytes, filtered.offset, filtered.offset + filtered.length);
+                    visitor.binaryField(fieldInfo, filteredBytes);
                 }
             } else {
                 visitor.binaryField(fieldInfo, value);

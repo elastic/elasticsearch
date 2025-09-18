@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
+
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -19,10 +21,25 @@ import java.util.function.Function;
  * @param requiresSource        should source be loaded
  * @param requiredStoredFields  a set of stored fields to load
  */
-public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
+public record StoredFieldsSpec(
+    boolean requiresSource,
+    boolean requiresMetadata,
+    Set<String> requiredStoredFields,
+    IgnoredFieldsSpec ignoredFieldsSpec
+) {
+    public StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
+        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredFieldsSpec.NONE);
+    }
 
     public boolean noRequirements() {
-        return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty();
+        return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty() && ignoredFieldsSpec.noRequirements();
+    }
+
+    public boolean onlyRequiresIgnoredFields() {
+        return requiresSource == false
+            && requiresMetadata == false
+            && requiredStoredFields.isEmpty()
+            && ignoredFieldsSpec.noRequirements() == false;
     }
 
     /**
@@ -56,8 +73,21 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,
             this.requiresMetadata || other.requiresMetadata,
-            mergedFields
+            mergedFields,
+            ignoredFieldsSpec.merge(other.ignoredFieldsSpec)
         );
+    }
+
+    public Set<String> requiredStoredFields() {
+        if (ignoredFieldsSpec.noRequirements()) {
+            return requiredStoredFields;
+        }
+        if (requiredStoredFields.isEmpty()) {
+            return ignoredFieldsSpec.requiredStoredFields();
+        }
+        Set<String> mergedFields = new HashSet<>(requiredStoredFields);
+        mergedFields.addAll(ignoredFieldsSpec.requiredStoredFields());
+        return mergedFields;
     }
 
     public static <T> StoredFieldsSpec build(Collection<T> sources, Function<T, StoredFieldsSpec> converter) {

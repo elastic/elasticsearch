@@ -35,7 +35,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
     @Override
     protected GenerateSnapshotNameStep createRandomInstance() {
-        return new GenerateSnapshotNameStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(5, 10));
+        return new GenerateSnapshotNameStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(5, 10), (i, s) -> i);
     }
 
     @Override
@@ -50,12 +50,12 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             case 2 -> snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(5, 10));
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new GenerateSnapshotNameStep(key, nextKey, snapshotRepository);
+        return new GenerateSnapshotNameStep(key, nextKey, snapshotRepository, null);
     }
 
     @Override
     protected GenerateSnapshotNameStep copyInstance(GenerateSnapshotNameStep instance) {
-        return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey(), instance.getSnapshotRepository());
+        return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey(), instance.getSnapshotRepository(), null);
     }
 
     public void testPerformAction() {

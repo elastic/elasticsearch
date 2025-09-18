@@ -79,7 +79,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
 
         // if we evaluate the condition now, it hasn't been met, because it hasn't been an hour
         returnVal.set(now);
-        step.evaluateCondition(state, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMeta, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 assertThat(complete, is(false));
@@ -92,7 +92,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
         }, MASTER_TIMEOUT);
 
         returnVal.set(t1); // similarly, if we were in the past, enough time also wouldn't have passed
-        step.evaluateCondition(state, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMeta, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 assertThat(complete, is(false));
@@ -105,7 +105,7 @@ public class WaitUntilReplicateForTimePassesStepTests extends AbstractStepTestCa
         }, MASTER_TIMEOUT);
 
         returnVal.set(t2); // but two hours from now in the future, an hour will have passed
-        step.evaluateCondition(state, indexMeta.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMeta, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 assertThat(complete, is(true));

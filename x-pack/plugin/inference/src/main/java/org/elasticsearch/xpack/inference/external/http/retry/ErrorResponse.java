@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.inference.external.http.HttpResult;
+
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 public class ErrorResponse {
@@ -45,5 +49,40 @@ public class ErrorResponse {
     @Override
     public int hashCode() {
         return Objects.hash(errorMessage, errorStructureFound);
+    }
+
+    /**
+     * Creates an ErrorResponse from the given HttpResult.
+     * Attempts to read the body as a UTF-8 string and constructs an ErrorResponse.
+     * If reading fails, returns a generic UNDEFINED_ERROR.
+     *
+     * @param response the HttpResult containing the error response
+     * @return an ErrorResponse instance
+     */
+    public static ErrorResponse fromResponse(HttpResult response) {
+        try {
+            String errorMessage = new String(response.body(), StandardCharsets.UTF_8);
+            return new ErrorResponse(errorMessage);
+        } catch (Exception e) {
+            // swallow the error
+        }
+
+        return ErrorResponse.UNDEFINED_ERROR;
+    }
+
+    /**
+     * Parses a string response into an ErrorResponse.
+     * If the string is not blank, creates a new ErrorResponse with the string as the error message.
+     * If the string is blank, returns UNDEFINED_ERROR.
+     *
+     * @param response the error response as a string
+     * @return an ErrorResponse instance
+     */
+    public static ErrorResponse fromString(String response) {
+        if (Strings.isNullOrBlank(response) == false) {
+            return new ErrorResponse(response);
+        } else {
+            return ErrorResponse.UNDEFINED_ERROR;
+        }
     }
 }

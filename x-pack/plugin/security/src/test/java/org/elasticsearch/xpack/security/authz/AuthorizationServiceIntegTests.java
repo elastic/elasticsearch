@@ -34,7 +34,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -175,7 +175,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
         final String concreteClusterAlias
     ) throws InterruptedException {
         try (var ignored = threadContext.stashContext()) {
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+            assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), nullValue());
             final AtomicReference<RoleDescriptorsIntersection> actual = new AtomicReference<>();
             final CountDownLatch latch = new CountDownLatch(1);
             // A request ID is set during authentication and is required for authorization; since we are not authenticating, set it
@@ -197,7 +197,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                             TransportVersion.current(),
                             authentication.getEffectiveSubject(),
                             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                                assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), not(nullValue()));
+                                assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), not(nullValue()));
                                 actual.set(newValue);
                             }), latch)
                         );
@@ -209,7 +209,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
                     TransportVersion.current(),
                     authentication.getEffectiveSubject(),
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(newValue -> {
-                        assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+                        assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), nullValue());
                         actual.set(newValue);
                     }), latch)
                 );
@@ -217,7 +217,7 @@ public class AuthorizationServiceIntegTests extends SecurityIntegTestCase {
 
             latch.await();
             // Validate original authz info is restored after call complete
-            assertThat(threadContext.getTransient(AUTHORIZATION_INFO_KEY), nullValue());
+            assertThat(AUTHORIZATION_INFO_VALUE.get(threadContext), nullValue());
             return actual.get();
         }
     }

@@ -39,7 +39,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -98,9 +97,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Internal
     abstract public Property<File> getWorkingDir();
 
-    @Internal
-    abstract public Property<Boolean> getSpoolOutput();
-
     private String output;
 
     @Inject
@@ -117,7 +113,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
         // For now mimic default behaviour of Gradle Exec task here
         setupDefaultEnvironment(providerFactory);
         getCaptureOutput().convention(false);
-        getSpoolOutput().convention(false);
     }
 
     /**
@@ -146,34 +141,12 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @TaskAction
     public void run() {
-        boolean spoolOutput = getSpoolOutput().get();
-        if (spoolOutput && getCaptureOutput().get()) {
-            throw new GradleException("Capturing output is not supported when spoolOutput is true.");
-        }
         if (getCaptureOutput().get() && getIndentingConsoleOutput().isPresent()) {
             throw new GradleException("Capturing output is not supported when indentingConsoleOutput is configured.");
         }
         Consumer<Logger> outputLogger;
-        OutputStream out;
-        if (spoolOutput) {
-            File spoolFile = new File(projectLayout.getBuildDirectory().dir("buffered-output").get().getAsFile(), this.getName());
-            out = new LazyFileOutputStream(spoolFile);
-            outputLogger = logger -> {
-                try {
-                    // the file may not exist if the command never output anything
-                    if (Files.exists(spoolFile.toPath())) {
-                        try (var lines = Files.lines(spoolFile.toPath())) {
-                            lines.forEach(logger::error);
-                        }
-                    }
-                } catch (IOException e) {
-                    throw new RuntimeException("could not log", e);
-                }
-            };
-        } else {
-            out = new ByteArrayOutputStream();
-            outputLogger = getIndentingConsoleOutput().isPresent() ? logger -> {} : logger -> logger.error(byteStreamToString(out));
-        }
+        OutputStream out = new ByteArrayOutputStream();
+        outputLogger = getIndentingConsoleOutput().isPresent() ? logger -> {} : logger -> logger.error(byteStreamToString(out));
 
         OutputStream finalOutputStream = getIndentingConsoleOutput().isPresent()
             ? new IndentingOutputStream(System.out, getIndentingConsoleOutput().get())

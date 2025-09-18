@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AbsIntEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator fieldVal;
@@ -46,6 +49,13 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
       }
       return eval(page.getPositionCount(), fieldValVector).asBlock();
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += fieldVal.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public IntBlock eval(int positionCount, IntBlock fieldValBlock) {

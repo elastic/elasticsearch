@@ -108,6 +108,7 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             }
         });
         // Group the new aggregations by tsid. This is equivalent to grouping by all dimensions.
+        // NOTE - we do not add the tsid to the aggregates list because we do not want to include it in the final output
         groupings.add(tsid.get());
         // Add the time bucket grouping for the new agg
         // NOCOMMIT - validation rule for groupings?
@@ -127,8 +128,6 @@ public class TimeSeriesGroupByAll extends Rule<LogicalPlan, LogicalPlan> {
             null,
             true
         );
-        // NOCOMMIT - We should drop the _tsid here
-        // return new Drop(aggregate.source(), newAggregate, List.of(tsid.get()));
         return newAggregate;
     }
 

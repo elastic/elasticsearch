@@ -135,8 +135,6 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);
-        // Drop drop = as(limit.child(), Drop.class);
-        // TimeSeriesAggregate outerStats = as(drop.child(), TimeSeriesAggregate.class);
         Aggregate outerStats = as(limit.child(), Aggregate.class);
         // TODO: Add asserts about the specific aggregation details here
         Eval eval = as(outerStats.child(), Eval.class);
@@ -144,6 +142,10 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
     }
 
     /**
+     * Test that for a bare over time aggregation with no groupings (and two dimensions in the schema), we get out
+     * three aggregations (expected to be the translation of the original aggregation and the two dimension output columns)
+     * and a single grouping (expected to be the TSID).
+     *
      * <pre>{@code
      * Limit[10[INTEGER],false]
      * \_TimeSeriesAggregate[[_tsid{m}#31],[COUNT(network.cost{f}#21,true[BOOLEAN]) AS count#30, VALUES(cluster{f}#6,true[BOOLEAN])
@@ -159,10 +161,9 @@ public class TranslateTimeSeriesAggregateTests extends AbstractLogicalPlanOptimi
             | LIMIT 10
             """);
         Limit limit = as(plan, Limit.class);
-        // Drop drop = as(limit.child(), Drop.class);
-        // TimeSeriesAggregate outerStats = as(drop.child(), TimeSeriesAggregate.class);
         TimeSeriesAggregate outerStats = as(limit.child(), TimeSeriesAggregate.class);
-        // TODO: Add asserts about the specific aggregation details here
+        assertEquals(3, outerStats.aggregates().size());
+        assertEquals(1, outerStats.groupings().size());
         EsRelation relation = as(outerStats.child(), EsRelation.class);
     }
 

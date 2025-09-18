@@ -37,7 +37,8 @@ public interface UpdateApiKeyRequestTranslator {
                 a -> new Payload(
                     (List<RoleDescriptor>) a[0],
                     (Map<String, Object>) a[1],
-                    TimeValue.parseTimeValue((String) a[2], null, "expiration")
+                    TimeValue.parseTimeValue((String) a[2], null, "expiration"),
+                    (String) a[3]
                 )
             );
             parser.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> {
@@ -46,6 +47,7 @@ public interface UpdateApiKeyRequestTranslator {
             }, new ParseField("role_descriptors"));
             parser.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField("metadata"));
             parser.declareString(optionalConstructorArg(), new ParseField("expiration"));
+            parser.declareString(optionalConstructorArg(), new ParseField("certificate_identity"));
             return parser;
         }
 
@@ -59,9 +61,20 @@ public interface UpdateApiKeyRequestTranslator {
                 return UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
             }
             final Payload payload = PARSER.parse(request.contentParser(), null);
-            return new UpdateApiKeyRequest(apiKeyId, payload.roleDescriptors, payload.metadata, payload.expiration);
+            return new UpdateApiKeyRequest(
+                apiKeyId,
+                payload.roleDescriptors,
+                payload.metadata,
+                payload.expiration,
+                payload.certificateIdentity
+            );
         }
 
-        protected record Payload(List<RoleDescriptor> roleDescriptors, Map<String, Object> metadata, TimeValue expiration) {}
+        protected record Payload(
+            List<RoleDescriptor> roleDescriptors,
+            Map<String, Object> metadata,
+            TimeValue expiration,
+            String certificateIdentity
+        ) {}
     }
 }

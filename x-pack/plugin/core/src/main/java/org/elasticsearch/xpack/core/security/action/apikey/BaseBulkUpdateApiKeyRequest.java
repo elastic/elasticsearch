@@ -54,11 +54,12 @@ public abstract class BaseBulkUpdateApiKeyRequest extends BaseUpdateApiKeyReques
         return Objects.equals(getIds(), that.getIds())
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(expiration, that.expiration)
-            && Objects.equals(roleDescriptors, that.roleDescriptors);
+            && Objects.equals(roleDescriptors, that.roleDescriptors)
+            && Objects.equals(certificateIdentity, that.certificateIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getIds(), expiration, metadata, roleDescriptors);
+        return Objects.hash(getIds(), expiration, metadata, roleDescriptors, certificateIdentity);
     }
 }

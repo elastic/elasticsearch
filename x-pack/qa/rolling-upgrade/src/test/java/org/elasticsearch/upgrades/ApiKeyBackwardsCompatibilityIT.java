@@ -206,6 +206,45 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    public void testCertificateIdentityBackwardsCompatibility() throws Exception {
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                // Old nodes don't support certificate identity feature
+                var exception = expectThrows(Exception.class,
+                    () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+                assertThat(exception.getMessage(),
+                    anyOf(
+                        containsString("unknown field [certificate_identity]"),
+                        containsString("certificate_identity not supported")
+                    ));
+            }
+            case MIXED -> {
+                // Mixed cluster should reject certificate identity due to feature gating
+                var exception = expectThrows(Exception.class,
+                    () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
+                assertThat(exception.getMessage(),
+                    containsString("cluster is in a mixed-version state and does not yet support the certificate_identity field"));
+            }
+            case UPGRADED -> {
+                // Fully upgraded cluster should support certificate identity
+                final Tuple<String, String> apiKey = createCrossClusterApiKeyWithCertIdentity("CN=test-.*");
+
+                // Verify the API key was created with certificate identity
+                final Request getApiKeyRequest = new Request("GET", "/_security/api_key");
+                getApiKeyRequest.addParameter("id", apiKey.v1());
+                final Response getResponse = client().performRequest(getApiKeyRequest);
+                assertOK(getResponse);
+
+                final ObjectPath getPath = ObjectPath.createFromResponse(getResponse);
+                assertThat(getPath.evaluate("api_keys.0.certificate_identity"), equalTo("CN=test-.*"));
+
+                // Verify authentication works
+                authenticateWithApiKey(apiKey.v1(), apiKey.v2());
+            }
+        }
+    }
+
+
     private Tuple<String, String> createOrGrantApiKey(String roles) throws IOException {
         return createOrGrantApiKey(client(), roles);
     }
@@ -424,4 +463,31 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         final List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
         apiKeysVerifier.accept(apiKeys);
     }
+
+    private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(String certificateIdentity) throws IOException {
+        final String name = "test-cc-api-key-" + randomAlphaOfLengthBetween(3, 5);
+        final Request createApiKeyRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createApiKeyRequest.setJsonEntity(Strings.format("""
+        {
+            "name": "%s",
+            "certificate_identity": "%s",
+            "access": {
+                "search": [
+                    {
+                        "names": ["test-*"]
+                    }
+                ]
+            }
+        }""", name, certificateIdentity));
+
+        final Response createResponse = client().performRequest(createApiKeyRequest);
+        assertOK(createResponse);
+        final ObjectPath path = ObjectPath.createFromResponse(createResponse);
+        final String id = path.evaluate("id");
+        final String key = path.evaluate("api_key");
+        assertThat(id, notNullValue());
+        assertThat(key, notNullValue());
+        return Tuple.tuple(id, key);
+    }
+
 }

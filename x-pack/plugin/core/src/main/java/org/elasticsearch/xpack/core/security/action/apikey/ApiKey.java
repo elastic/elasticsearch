@@ -416,6 +416,8 @@ public final class ApiKey implements ToXContentObject {
             + roleDescriptors
             + ", limited_by="
             + limitedBy
+            + ", certificate_identity"
+            + certificateIdentity
             + "]";
     }
 

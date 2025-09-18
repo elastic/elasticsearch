@@ -110,4 +110,31 @@ public class RestUpdateCrossClusterApiKeyActionTests extends ESTestCase {
             containsString("current license is non-compliant for [advanced-remote-cluster-security]")
         );
     }
+
+    public void testUpdateWithCertificateIdentity() throws Exception {
+        final String id = randomAlphaOfLength(10);
+        final String access = randomCrossClusterApiKeyAccessField();
+        final String certificateIdentity = "CN=test,OU=engineering,DC=example,DC=com";
+
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(Strings.format("""
+                {
+                  "access": %s,
+                  "certificate_identity": "%s"
+                }""", access, certificateIdentity)),
+            XContentType.JSON
+        ).withParams(Map.of("id", id)).build();
+
+        final NodeClient client = mock(NodeClient.class);
+        action.handleRequest(restRequest, mock(RestChannel.class), client);
+
+        final ArgumentCaptor<UpdateCrossClusterApiKeyRequest> requestCaptor = ArgumentCaptor.forClass(
+            UpdateCrossClusterApiKeyRequest.class
+        );
+        verify(client).execute(eq(UpdateCrossClusterApiKeyAction.INSTANCE), requestCaptor.capture(), any());
+
+        final UpdateCrossClusterApiKeyRequest request = requestCaptor.getValue();
+        assertThat(request.getCertificateIdentity(), equalTo(certificateIdentity));
+    }
+
 }

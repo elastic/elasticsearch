@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -365,7 +366,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
     }
 
@@ -645,7 +647,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata(),
-            newExpiration
+            newExpiration,
+            null
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
         final var expectedUpdateKeyAuditEventString = String.format(
@@ -679,6 +682,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             keyIds,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata(),
+            null,
             null
         );
         auditTrail.accessGranted(requestId, authentication, BulkUpdateApiKeyAction.NAME, bulkUpdateApiKeyRequest, authorizationInfo);
@@ -933,7 +937,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             createRequest.getId(),
             updateAccess,
             updateMetadataWithSerialization.metadata(),
-            newExpiration
+            newExpiration,
+            null
         );
         auditTrail.accessGranted(requestId, authentication, UpdateCrossClusterApiKeyAction.NAME, updateRequest, authorizationInfo);
 

@@ -54,7 +54,8 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
                 List.of(request.getId()),
                 request.getRoleDescriptors(),
                 request.getMetadata(),
-                request.getExpiration()
+                request.getExpiration(),
+                request.getCertificateIdentity()
             ) {
                 @Override
                 public ApiKey.Type getType() {

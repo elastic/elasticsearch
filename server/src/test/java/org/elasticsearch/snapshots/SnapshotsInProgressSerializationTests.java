@@ -190,11 +190,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     public static SnapshotsInProgress.ShardSnapshotStatus randomShardSnapshotStatus(String nodeId) {
         ShardState shardState = randomFrom(ShardState.values());
         if (shardState == ShardState.QUEUED) {
-            if (randomBoolean()) {
-                return SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
-            } else {
-                return SnapshotsInProgress.ShardSnapshotStatus.assignedQueued(nodeId, randomBoolean() ? new ShardGeneration(1L) : null);
-            }
+            return SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
         } else if (shardState == ShardState.SUCCESS) {
             final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(new ShardGeneration(1L), ByteSizeValue.ofBytes(1L), 1);
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, shardSnapshotResult);

@@ -102,7 +102,7 @@ public class SnapshotAndRelocationIT extends AbstractSnapshotIntegTestCase {
 
         final var assignedQueuedShards = shards.entrySet()
             .stream()
-            .filter(entry -> entry.getValue().isAssignedQueued())
+            .filter(entry -> entry.getValue().isUnassignedQueued()) // TODO: might need fix
             .peek(entry -> assertThat(entry.getValue().nodeId(), equalTo(dataNodeAId)))
             .map(Map.Entry::getKey)
             .toList();

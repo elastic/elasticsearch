@@ -16,11 +16,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.snapshots.PerNodeShardSnapshotCounter;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Context for finalizing a snapshot.
@@ -44,6 +46,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
 
     private final IndexVersion repositoryMetaVersion;
 
+    private final Function<ClusterState, PerNodeShardSnapshotCounter> perNodeShardSnapshotCounterFunction;
     private final Runnable onDone;
 
     /**
@@ -68,6 +71,30 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         ActionListener<RepositoryData> listener,
         Runnable onDone
     ) {
+        this(
+            serializeProjectMetadata,
+            updatedShardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            ignore -> PerNodeShardSnapshotCounter.DISABLED,
+            listener,
+            onDone
+        );
+    }
+
+    public FinalizeSnapshotContext(
+        boolean serializeProjectMetadata,
+        UpdatedShardGenerations updatedShardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        IndexVersion repositoryMetaVersion,
+        Function<ClusterState, PerNodeShardSnapshotCounter> perNodeShardSnapshotCounterFunction,
+        ActionListener<RepositoryData> listener,
+        Runnable onDone
+    ) {
         super(listener);
         this.serializeProjectMetadata = serializeProjectMetadata;
         this.updatedShardGenerations = updatedShardGenerations;
@@ -75,6 +102,7 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         this.clusterMetadata = clusterMetadata;
         this.snapshotInfo = snapshotInfo;
         this.repositoryMetaVersion = repositoryMetaVersion;
+        this.perNodeShardSnapshotCounterFunction = perNodeShardSnapshotCounterFunction;
         this.onDone = onDone;
     }
 
@@ -114,7 +142,8 @@ public final class FinalizeSnapshotContext extends DelegatingActionListener<Repo
         final ClusterState updatedState = SnapshotsServiceUtils.stateWithoutSnapshot(
             state,
             snapshotInfo.snapshot(),
-            updatedShardGenerations
+            updatedShardGenerations,
+            perNodeShardSnapshotCounterFunction
         );
         // Now that the updated cluster state may have changed in-progress shard snapshots' shard generations to the latest shard
         // generation, let's mark any now unreferenced shard generations as obsolete and ready to be deleted.

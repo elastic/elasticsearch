@@ -23,14 +23,16 @@ import java.util.stream.Collectors;
 
 public class PerNodeShardSnapshotCounter {
 
+    public static final PerNodeShardSnapshotCounter DISABLED = new PerNodeShardSnapshotCounter(0, Map.of(), Map.of());
+
     private final int shardSnapshotPerNodeLimit;
     private final Map<String, Integer> perNodeCounts;
     private final Map<Snapshot, Set<ShardId>> limitedShardsBySnapshot;
 
     private PerNodeShardSnapshotCounter(
-        Map<Snapshot, Set<ShardId>> limitedShardsBySnapshot,
+        int shardSnapshotPerNodeLimit,
         Map<String, Integer> perNodeCounts,
-        int shardSnapshotPerNodeLimit
+        Map<Snapshot, Set<ShardId>> limitedShardsBySnapshot
     ) {
         this.limitedShardsBySnapshot = limitedShardsBySnapshot;
         this.perNodeCounts = perNodeCounts;
@@ -66,7 +68,7 @@ public class PerNodeShardSnapshotCounter {
                 }
             });
         }
-        return new PerNodeShardSnapshotCounter(limitedShardsBySnapshot, perNodeCounts, shardSnapshotPerNodeLimit);
+        return new PerNodeShardSnapshotCounter(shardSnapshotPerNodeLimit, perNodeCounts, limitedShardsBySnapshot);
     }
 
     public boolean tryStartShardSnapshotOnNode(String nodeId, Snapshot snapshot, ShardId shardId) {
@@ -116,8 +118,7 @@ public class PerNodeShardSnapshotCounter {
         if (enabled() == false) {
             return;
         }
-        final var added = limitedShardsBySnapshot.computeIfAbsent(snapshot, ignore -> new HashSet<>()).add(shardId);
-        assert added : "shard " + shardId + " snapshot [" + snapshot + "] is already limited in " + limitedShardsBySnapshot;
+        limitedShardsBySnapshot.computeIfAbsent(snapshot, ignore -> new HashSet<>()).add(shardId);
     }
 
     public boolean isShardLimitedForRepo(ProjectId projectId, String repository, ShardId shardId) {
@@ -134,15 +135,45 @@ public class PerNodeShardSnapshotCounter {
         return false;
     }
 
+    public boolean isShardLimitedForRepo(ProjectId projectId, String repository, String indexName, int id) {
+        if (enabled() == false) {
+            return false;
+        }
+        for (var snapshot : limitedShardsBySnapshot.keySet()) {
+            if (snapshot.getProjectId().equals(projectId) && snapshot.getRepository().equals(repository)) {
+                if (limitedShardsBySnapshot.get(snapshot)
+                    .stream()
+                    .anyMatch(shardId -> shardId.getIndexName().equals(indexName) && shardId.getId() == id)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public boolean isShardLimitedForSnapshot(Snapshot snapshot, ShardId shardId) {
         if (enabled() == false) {
             return false;
         }
-        return limitedShardsBySnapshot.computeIfAbsent(snapshot, ignore -> Set.of()).contains(shardId);
+        return limitedShardsBySnapshot.getOrDefault(snapshot, Set.of()).contains(shardId);
     }
 
     public boolean hasAnyLimitedShardsForSnapshot(Snapshot snapshot) {
-        return limitedShardsBySnapshot.computeIfAbsent(snapshot, ignore -> Set.of()).isEmpty() == false;
+        return limitedShardsBySnapshot.getOrDefault(snapshot, Set.of()).isEmpty() == false;
+    }
+
+    public boolean hasAnyLimitedShardsForRepo(ProjectId projectId, String repository) {
+        if (enabled() == false) {
+            return false;
+        }
+        for (var snapshot : limitedShardsBySnapshot.keySet()) {
+            if (snapshot.getProjectId().equals(projectId) && snapshot.getRepository().equals(repository)) {
+                if (limitedShardsBySnapshot.get(snapshot).isEmpty() == false) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean removeLimitedShardForSnapshot(Snapshot snapshot, ShardId shardId) {

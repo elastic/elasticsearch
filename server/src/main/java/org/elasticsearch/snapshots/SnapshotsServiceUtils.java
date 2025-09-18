@@ -425,6 +425,7 @@ public class SnapshotsServiceUtils {
                         logger.debug("failing snapshot of shard [{}] because index got deleted", shardId);
                         shards.put(shardId, SnapshotsInProgress.ShardSnapshotStatus.MISSING);
                         knownFailures.put(shardSnapshotEntry.getKey(), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
+                        perNodeShardSnapshotCounter.removeLimitedShardForSnapshot(snapshotEntry.snapshot(), shardId);
                     } else {
                         // if no failure is known for the shard we keep waiting
                         shards.put(shardId, shardStatus);
@@ -622,8 +623,10 @@ public class SnapshotsServiceUtils {
      */
     public static Tuple<ClusterState, List<SnapshotDeletionsInProgress.Entry>> readyDeletions(
         ClusterState currentState,
+        Function<ClusterState, PerNodeShardSnapshotCounter> perNodeShardSnapshotCounterFunction,
         @Nullable ProjectId projectId
     ) {
+        final var perNodeShardSnapshotCounter = perNodeShardSnapshotCounterFunction.apply(currentState);
         final SnapshotDeletionsInProgress deletions = SnapshotDeletionsInProgress.get(currentState);
         if (deletions.hasDeletionsInProgress() == false || (projectId != null && deletions.hasDeletionsInProgress(projectId) == false)) {
             return Tuple.tuple(currentState, List.of());
@@ -643,7 +646,8 @@ public class SnapshotsServiceUtils {
             final var projectRepo = new ProjectRepo(entry.projectId(), entry.repository());
             if (repositoriesSeen.add(projectRepo)
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
-                && snapshotsInProgress.forRepo(projectRepo).stream().noneMatch(SnapshotsServiceUtils::isWritingToRepository)) {
+                && snapshotsInProgress.forRepo(projectRepo).stream().noneMatch(SnapshotsServiceUtils::isWritingToRepository)
+                && perNodeShardSnapshotCounter.hasAnyLimitedShardsForRepo(entry.projectId(), entry.repository()) == false) {
                 changed = true;
                 final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
                 readyDeletions.add(newEntry);
@@ -678,7 +682,8 @@ public class SnapshotsServiceUtils {
     public static ClusterState stateWithoutSnapshot(
         ClusterState state,
         Snapshot snapshot,
-        FinalizeSnapshotContext.UpdatedShardGenerations updatedShardGenerations
+        FinalizeSnapshotContext.UpdatedShardGenerations updatedShardGenerations,
+        Function<ClusterState, PerNodeShardSnapshotCounter> perNodeShardSnapshotCounterFunction
     ) {
         final SnapshotsInProgress inProgressSnapshots = SnapshotsInProgress.get(state);
         ClusterState result = state;
@@ -789,7 +794,7 @@ public class SnapshotsServiceUtils {
                 )
                 .build();
         }
-        return readyDeletions(result, projectId).v1();
+        return readyDeletions(result, perNodeShardSnapshotCounterFunction, projectId).v1();
     }
 
     public static void addSnapshotEntry(

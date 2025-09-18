@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -103,7 +102,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             return null;
         }
 
-        try (OutputBuilder<Page> outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
+        try (OutputBuilder outputBuilder = outputBuilder(ongoingInferenceResult.inputPage)) {
             for (InferenceAction.Response response : ongoingInferenceResult.responses) {
                 outputBuilder.addInferenceResponse(response);
             }
@@ -126,12 +125,12 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      *
      * @param input The corresponding input page used to generate the inference requests.
      */
-    protected abstract OutputBuilder<Page> outputBuilder(Page input);
+    protected abstract OutputBuilder outputBuilder(Page input);
 
     /**
-     * An interface for accumulating inference responses and constructing a result (can be a {@link  Page} or a {@link Block}).
+     * An interface for accumulating inference responses and constructing the result page..
      */
-    public interface OutputBuilder<T> extends Releasable {
+    public interface OutputBuilder extends Releasable {
 
         /**
          * Adds an inference response to the output.
@@ -149,7 +148,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
          *
          * @return The constructed output block.
          */
-        T buildOutput();
+        Page buildOutput();
 
         static <IR extends InferenceServiceResults> IR inferenceResults(InferenceAction.Response inferenceResponse, Class<IR> clazz) {
             InferenceServiceResults results = inferenceResponse.getResults();

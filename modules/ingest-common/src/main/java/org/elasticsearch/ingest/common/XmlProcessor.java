@@ -371,20 +371,9 @@ public final class XmlProcessor extends AbstractProcessor {
             });
         }
 
-        // Use pre-compiled pattern to detect namespace prefixes
-
         for (Map.Entry<String, String> entry : xpathExpressions.entrySet()) {
             String xpathExpression = entry.getKey();
             String targetFieldName = entry.getValue();
-
-            // Validate namespace prefixes if no namespaces are configured
-            if (hasNamespaces == false && NAMESPACE_PATTERN.matcher(xpathExpression).find()) {
-                throw new IllegalArgumentException(
-                    "Invalid XPath expression ["
-                        + xpathExpression
-                        + "]: contains namespace prefixes but no namespace configuration provided"
-                );
-            }
 
             try {
                 XPathExpression compiledExpression = xpath.compile(xpathExpression);
@@ -444,6 +433,15 @@ public final class XmlProcessor extends AbstractProcessor {
                 for (Map.Entry<String, Object> entry : xpathConfig.entrySet()) {
                     String xpathExpression = entry.getKey();
                     if (entry.getValue() instanceof String xpathTargetField) {
+
+                        // If no namespaces are configured, then reject xpath expressions that contain namespaces
+                        if (namespaces.isEmpty() && NAMESPACE_PATTERN.matcher(xpathExpression).find()) {
+                            throw new IllegalArgumentException(
+                                "Invalid XPath expression ["
+                                    + xpathExpression
+                                    + "]: contains namespace prefixes but no namespace configuration provided"
+                            );
+                        }
                         xpathExpressions.put(xpathExpression, xpathTargetField);
                     } else {
                         throw new IllegalArgumentException(

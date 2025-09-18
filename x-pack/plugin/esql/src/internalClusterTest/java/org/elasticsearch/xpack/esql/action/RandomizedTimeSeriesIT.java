@@ -306,15 +306,6 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     timeseries.size() - 2
                 ).v2().v1().toEpochMilli()) * 1000;
                 return new RateRange(irate * 0.999, irate * 1.001); // Add 0.1% tolerance
-            } else if (deltaAgg.equals(DeltaAgg.DELTA)) {
-                var firstVal = timeseries.getFirst().v2().v2();
-                var lastVal = timeseries.getLast().v2().v2();
-                var delta = lastVal - firstVal;
-                if (delta < 0) {
-                    return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
-                } else {
-                    return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
-                }
             } else if (deltaAgg.equals(DeltaAgg.IDELTA)) {
                 var lastVal = timeseries.getLast().v2().v2();
                 var secondLastVal = timeseries.get(timeseries.size() - 2).v2().v2();
@@ -328,10 +319,12 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 var firstVal = timeseries.getFirst().v2().v2();
                 var lastVal = timeseries.getLast().v2().v2();
                 var delta = lastVal - firstVal;
+                // We extrapolate, so the 'larger' bound is extrapolated to size of the window
+                var windowSizeFactor = secondsInWindow * 1000.0 / (lastTs.toEpochMilli() - firstTs.toEpochMilli());
                 if (delta < 0) {
-                    return new RateRange(delta * 1.001, delta * 0.999); // Add 0.1% tolerance
+                    return new RateRange(delta * 1.001 * windowSizeFactor, delta * 0.999); // Add 0.1% tolerance
                 } else {
-                    return new RateRange(delta * 0.999, delta * 1.001); // Add 0.1% tolerance
+                    return new RateRange(delta * 0.999, delta * 1.001 * windowSizeFactor); // Add 0.1% tolerance
                 }
             }
             assert deltaAgg == DeltaAgg.RATE || deltaAgg == DeltaAgg.INCREASE;

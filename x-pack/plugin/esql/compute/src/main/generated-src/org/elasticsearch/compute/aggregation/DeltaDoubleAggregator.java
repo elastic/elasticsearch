@@ -192,7 +192,32 @@ public class DeltaDoubleAggregator {
                         rates.appendNull();
                         continue;
                     }
-                    rates.appendDouble(state.lastValue - state.firstValue);
+                    if (evalContext instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
+                        // At this point we want to apply extrapolation
+                        var rangeStart = tsContext.rangeStartInMillis(groupId);
+                        var rangeEnd = tsContext.rangeEndInMillis(groupId);
+                        double startGap = state.firstTimestamp - rangeStart;
+                        final double averageSampleInterval = (state.lastTimestamp - state.firstTimestamp) / state.valuesSeen;
+                        final double slope = (state.lastValue - state.firstValue) / (state.lastTimestamp - state.firstTimestamp);
+                        double endGap = rangeEnd - state.lastTimestamp;
+                        double calculatedFirstValue = state.firstValue;
+                        if (startGap > 0) {
+                            if (startGap > averageSampleInterval * 1.1) {
+                                startGap = averageSampleInterval / 2.0;
+                            }
+                            calculatedFirstValue = calculatedFirstValue - startGap * slope;
+                        }
+                        double calculatedLastValue = state.lastValue;
+                        if (endGap > 0) {
+                            if (endGap > averageSampleInterval * 1.1) {
+                                endGap = averageSampleInterval / 2.0;
+                            }
+                            calculatedLastValue = calculatedLastValue + endGap * slope;
+                        }
+                        rates.appendDouble(calculatedLastValue - calculatedFirstValue);
+                    } else {
+                        rates.appendDouble(state.lastValue - state.firstValue);
+                    }
                 }
                 return rates.build();
             }

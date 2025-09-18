@@ -154,7 +154,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         assert allocation.ignoreDisable() == false;
         assert allocation.isSimulating() == false || allocation.routingNodes().hasInactiveShards() == false
             : "expect no initializing shard, but got " + allocation.routingNodes();
-        // TODO: Cannot assert the following because shards can be moved by commands without simulation
+        // TODO: ES-12943 cannot assert the following because shards moved by commands are not simulated promptly in DesiredBalanceComputer
         // assert allocation.isSimulating() == false || allocation.routingNodes().getRelocatingShardCount() == 0
         // : "expect no relocating shard, but got " + allocation.routingNodes();
 

@@ -541,7 +541,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
     }
 
     private void createAndStartTransform(String transformId, String transformSrc, String transformDest) throws Exception {
-
         var createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
         var config = Strings.format("""
             {
@@ -583,7 +582,10 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         startAndWaitForContinuousTransform(transformId, transformDest, null);
     }
 
-    // GH#134263
+    /**
+     * For Github Issue #134263
+     * https://github.com/elastic/elasticsearch/issues/134263
+     */
     public void testGetTransformsDoesNotErrorOnPageSize() throws Exception {
         var transformId1 = "multiple-transforms-1";
         var transformSrc = "reviews_multiple_transforms_test";
@@ -595,6 +597,9 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
         assertThat(getTransformIdFromAll(0, 1), equalTo(transformId1));
         assertThat(getTransformIdFromAll(1, 1), equalTo(transformId2));
+
+        getTransformConfig(transformId1, null, null); // no errors are returned
+        getTransformConfig(transformId2, null, null); // no errors are returned
 
         assertThat(getAllTransformIds(), containsInAnyOrder(transformId1, transformId2));
 

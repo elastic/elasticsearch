@@ -9,12 +9,16 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.injection.guice.Inject;
@@ -27,8 +31,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
+import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
@@ -37,15 +41,19 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
-import org.elasticsearch.xpack.transform.TransformServices;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toSet;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
@@ -54,7 +62,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         "Found task for transform [%s], but no configuration for it. To delete this transform use DELETE with force=true.";
 
     private final ClusterService clusterService;
-    private final TransformConfigManager transformConfigManager;
+    private final Client client;
 
     @Inject
     public TransportGetTransformAction(
@@ -62,12 +70,11 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         ActionFilters actionFilters,
         ClusterService clusterService,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        TransformServices transformServices
+        NamedXContentRegistry xContentRegistry
     ) {
         super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
-        this.transformConfigManager = transformServices.configManager();
+        this.client = client;
     }
 
     @Override
@@ -78,7 +85,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
         // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
-            getAllTransformIds(r, TimeValue.THIRTY_SECONDS, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
+            getAllTransformIds(request, r, TimeValue.THIRTY_SECONDS, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
                 var errors = TransformTask.findTransformTasks(request.getId(), clusterState)
                     .stream()
                     .map(PersistentTasksCustomMetadata.PersistentTask::getId)
@@ -119,7 +126,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected String executionOrigin() {
-        return ClientHelper.TRANSFORM_ORIGIN;
+        return TRANSFORM_ORIGIN;
     }
 
     @Override
@@ -134,17 +141,129 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
 
     @Override
     protected SearchSourceBuilder customSearchOptions(SearchSourceBuilder searchSourceBuilder) {
-        // sort by Transform's id in ASC order, matching what we will do above for the active TransformTasks
         return searchSourceBuilder.sort("_index", SortOrder.DESC).sort(TransformField.ID.getPreferredName(), SortOrder.ASC);
     }
 
-    private void getAllTransformIds(QueryPage<TransformConfig> queryPage, TimeValue timeout, ActionListener<Set<String>> listener) {
-        if (queryPage.count() == queryPage.results().size()) {
-            listener.onResponse(queryPage.results().stream().map(TransformConfig::getId).collect(toSet()));
+    private void getAllTransformIds(
+        Request request,
+        QueryPage<TransformConfig> initialResults,
+        TimeValue timeout,
+        ActionListener<Set<String>> listener
+    ) {
+        ActionListener<Stream<String>> transformIdListener = listener.map(stream -> stream.collect(toSet()));
+        if (initialResults.count() == initialResults.results().size()) {
+            transformIdListener.onResponse(initialResults.results().stream().map(TransformConfig::getId));
         } else {
             // if we do not have all of our transform ids already, we have to go get them
-            transformConfigManager.getAllTransformIds(timeout, listener);
+            // we'll read everything after our current page, then we'll reverse and read everything before our current page
+            var from = request.getPageParams().getFrom();
+            var size = request.getPageParams().getSize();
+            var idTokens = ExpandedIdsMatcher.tokenizeExpression(request.getResourceId());
+
+            getAllTransformIds(idTokens, false, from, size, timeout, transformIdListener.delegateFailureAndWrap((l, nextPages) -> {
+                var currentPages = Stream.concat(initialResults.results().stream().map(TransformConfig::getId), nextPages);
+                if (from > 0) {
+                    getAllTransformIds(idTokens, true, from, size, timeout, l.map(firstPages -> Stream.concat(firstPages, currentPages)));
+                } else {
+                    l.onResponse(currentPages);
+                }
+            }));
         }
+    }
+
+    private void getAllTransformIds(
+        String[] idTokens,
+        boolean reverse,
+        int from,
+        int size,
+        TimeValue timeout,
+        ActionListener<Stream<String>> listener
+    ) {
+        SearchRequest request = client.prepareSearch(
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
+            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+        )
+            .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
+            .addSort("_index", SortOrder.DESC)
+            .setFrom(from)
+            .setSize(size)
+            .setTimeout(timeout)
+            .setFetchSource(false)
+            .setTrackTotalHits(true)
+            .addDocValueField(TransformField.ID.getPreferredName())
+            .setQuery(query(idTokens))
+            .request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            request,
+            listener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
+                var transformIds = Arrays.stream(searchResponse.getHits().getHits())
+                    .map(hit -> (String) hit.field(TransformField.ID.getPreferredName()).getValue())
+                    .filter(Predicate.not(org.elasticsearch.common.Strings::isNullOrEmpty))
+                    .toList()
+                    .stream();
+
+                if (searchResponse.getHits().getHits().length == size) {
+                    if (reverse == false) {
+                        getAllTransformIds(
+                            idTokens,
+                            false,
+                            from + size,
+                            size,
+                            timeout,
+                            l.map(nextTransformIds -> Stream.concat(transformIds, nextTransformIds))
+                        );
+                    } else if (from > 0) {
+                        var nextPage = from - size;
+                        var nextFrom = Math.max(0, nextPage);
+                        var nextSize = nextPage < 0 ? from : size;
+                        getAllTransformIds(
+                            idTokens,
+                            true,
+                            nextFrom,
+                            nextSize,
+                            timeout,
+                            l.map(nextTransformIds -> Stream.concat(transformIds, nextTransformIds))
+                        );
+                    } else {
+                        // else this is the first page
+                        l.onResponse(transformIds);
+                    }
+                } else {
+                    l.onResponse(transformIds);
+                }
+            }),
+            client::search
+        );
+    }
+
+    private static QueryBuilder query(String[] idTokens) {
+        var queryBuilder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME));
+
+        if (org.elasticsearch.common.Strings.isAllOrWildcard(idTokens) == false) {
+            var shouldQueries = new BoolQueryBuilder();
+            var terms = new ArrayList<String>();
+            for (String token : idTokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    shouldQueries.should(QueryBuilders.wildcardQuery(TransformField.ID.getPreferredName(), token));
+                } else {
+                    terms.add(token);
+                }
+            }
+
+            if (terms.isEmpty() == false) {
+                shouldQueries.should(QueryBuilders.termsQuery(TransformField.ID.getPreferredName(), terms));
+            }
+
+            if (shouldQueries.should().isEmpty() == false) {
+                queryBuilder.filter(shouldQueries);
+            }
+        }
+
+        return QueryBuilders.constantScoreQuery(queryBuilder);
     }
 
 }

@@ -413,6 +413,95 @@ If you want to avoid unnecessary inference and keep existing embeddings:
     * Use **partial updates through the Bulk API**.
     * Omit any `semantic_text` fields that did not change from the `doc` object in your request.
 
+## Returning semantic field embeddings in `_source`
+
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
+
+By default, the embeddings generated for `semantic_text` fields are stored internally and **not included in `_source`** when retrieving documents.
+
+To include the full inference fields, including their embeddings, in `_source`, set the `_source.exclude_vectors` option to `false`.
+This works with the
+[Get](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get),
+[Search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search),
+and
+[Reindex](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex)
+APIs.
+
+```console
+POST my-index/_search
+{
+  "_source": {
+    "exclude_vectors": false
+  },
+  "query": {
+    "match_all": {}
+  }
+}
+```
+
+The embeddings will appear under `_inference_fields` in `_source`.
+
+**Use cases**
+Including embeddings in `_source` is useful when you want to:
+
+* Reindex documents into another index **with the same `inference_id`** without re-running inference.
+* Export or migrate documents while preserving their embeddings.
+* Inspect or debug the raw embeddings generated for your content.
+
+### Example: Reindex while preserving embeddings
+
+```console
+POST _reindex
+{
+  "source": {
+    "index": "my-index-src",
+    "_source": {
+      "exclude_vectors": false            <1>
+    }
+  },
+  "dest": {
+    "index": "my-index-dest"
+  }
+}
+```
+
+1. Sends the source documents with their stored embeddings to the destination index.
+
+::::{warning}
+If the target index’s `semantic_text` field does **not** use the **same `inference_id`** as the source index,
+the documents will **fail the reindex task**.
+Matching `inference_id` values are required to reuse the existing embeddings.
+::::
+
+This allows documents to be re-indexed without triggering inference again, **as long as the target `semantic_text` field uses the same `inference_id` as the source**.
+
+::::{note}
+**For versions prior to 9.2.0**
+
+Older versions do not support the `exclude_vectors` option to retrieve the embeddings of the semantic text fields.
+To return the `_inference_fields`, use the `fields` option in a search request instead:
+
+```console
+POST test-index/_search
+{
+  "query": {
+    "match": {
+      "my_semantic_field": "Which country is Paris in?"
+    }
+  },
+  "fields": [
+    "_inference_fields"
+  ]
+}
+```
+
+This returns the chunked embeddings used for semantic search under `_inference_fields` in `_source`.
+Note that the `fields` option is **not** available for the Reindex API.
+::::
+
 ## Customizing `semantic_text` indexing [custom-indexing]
 
 `semantic_text` uses defaults for indexing data based on the {{infer}} endpoint

@@ -28,11 +28,9 @@ import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
-import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -40,9 +38,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.KeywordDocValuesField;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SourceProvider;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -115,7 +112,32 @@ public class PatternTextFieldType extends StringFieldType {
 
     @Override
     public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return SourceValueFetcher.toString(name(), context, format);
+        return new ValueFetcher() {
+            PatternTextCompositeValues docValues;
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                try {
+                    this.docValues = PatternTextCompositeValues.from(context.reader(), PatternTextFieldType.this);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            @Override
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                if (false == docValues.advanceExact(doc)) {
+                    return List.of();
+                }
+                return List.of(docValues.binaryValue().utf8ToString());
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                // PatternedTextCompositeValues may require a stored field, but it handles loading this field internally.
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        };
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider(
@@ -127,11 +149,10 @@ public class PatternTextFieldType extends StringFieldType {
 
         return context -> {
             ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
-            SourceProvider sourceProvider = searchExecutionContext.lookup();
             valueFetcher.setNextReader(context);
             return docID -> {
                 try {
-                    return valueFetcher.fetchValues(sourceProvider.getSource(context, docID), docID, new ArrayList<>());
+                    return valueFetcher.fetchValues(null, docID, new ArrayList<>());
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -293,17 +314,7 @@ public class PatternTextFieldType extends StringFieldType {
         if (fieldDataContext.fielddataOperation() != FielddataOperation.SCRIPT) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }
-        if (textFieldType.isSyntheticSource()) {
-            return new PatternTextIndexFieldData.Builder(this);
-        }
-        return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-            name(),
-            CoreValuesSourceType.KEYWORD,
-            SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
-            fieldDataContext.lookupSupplier().get(),
-            KeywordDocValuesField::new
-        );
-
+        return new PatternTextIndexFieldData.Builder(this);
     }
 
     String templateFieldName() {

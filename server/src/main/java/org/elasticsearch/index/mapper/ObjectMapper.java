@@ -654,8 +654,7 @@ public class ObjectMapper extends Mapper {
         ) {
             Map<String, Mapper> mergedMappers = new HashMap<>();
             for (Mapper childOfExistingMapper : existing.mappers.values()) {
-                if (subobjects.value() == Subobjects.DISABLED
-                    && childOfExistingMapper instanceof ObjectMapper objectMapper) {
+                if (subobjects.value() == Subobjects.DISABLED && childOfExistingMapper instanceof ObjectMapper objectMapper) {
                     // An existing mapping with sub-objects is merged with a mapping that has set `subobjects: false`
                     objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
                         .forEach(m -> mergedMappers.put(m.leafName(), m));
@@ -666,8 +665,7 @@ public class ObjectMapper extends Mapper {
             for (Mapper mergeWithMapper : mergeWithObject) {
                 Mapper mergeIntoMapper = mergedMappers.get(mergeWithMapper.leafName());
                 if (mergeIntoMapper == null) {
-                    if (subobjects.value() == Subobjects.DISABLED
-                        && mergeWithMapper instanceof ObjectMapper objectMapper) {
+                    if (subobjects.value() == Subobjects.DISABLED && mergeWithMapper instanceof ObjectMapper objectMapper) {
                         // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects.
                         List<FieldMapper> flattenedMappers = objectMapper.asFlattenedFieldMappers(
                             objectMergeContext.getMapperBuilderContext()

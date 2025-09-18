@@ -28,7 +28,7 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setupIndex() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         createAndPopulateIndex();
     }
 
@@ -105,6 +105,58 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
                 List.of(6, "The quick brown fox jumps over the lazy dog", 0.0177, List.of("fork1", "fork2")),
                 List.of(4, "The dog is brown but this document is very very long", 0.0107, "fork2"),
                 List.of(3, "This dog is really brown", 0.0103, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testFuseSimpleLinear() {
+        var query = """
+            FROM test METADATA _score, _id, _index
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | SORT _score, _id DESC )
+               ( WHERE content:"dog" | SORT _score, _id DESC )
+            | FUSE linear
+            | SORT _score DESC
+            | EVAL _fork = mv_sort(_fork)
+            | EVAL _score = round(_score, 4)
+            | KEEP id, content, _score, _fork
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
+            assertThat(getValuesList(resp.values()).size(), equalTo(3));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(6, "The quick brown fox jumps over the lazy dog", 1.3025, List.of("fork1", "fork2")),
+                List.of(3, "This dog is really brown", 0.4963, "fork2"),
+                List.of(4, "The dog is brown but this document is very very long", 0.3536, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testFuseLinearWithWeightsAndNormalizer() {
+        var query = """
+            FROM test METADATA _score, _id, _index
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | SORT _score, _id DESC )
+               ( WHERE content:"dog" | SORT _score, _id DESC )
+            | FUSE LINEAR WITH {"weights": { "fork1": 0.4, "fork2": 0.6}, "normalizer": "l2_norm"}
+            | SORT _score DESC
+            | EVAL _fork = mv_sort(_fork)
+            | EVAL _score = round(_score, 4)
+            | KEEP id, content, _score, _fork
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
+            assertThat(getValuesList(resp.values()).size(), equalTo(3));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(6, "The quick brown fox jumps over the lazy dog", 0.7241, List.of("fork1", "fork2")),
+                List.of(3, "This dog is really brown", 0.4112, "fork2"),
+                List.of(4, "The dog is brown but this document is very very long", 0.293, "fork2")
             );
             assertValues(resp.values(), expectedValues);
         }

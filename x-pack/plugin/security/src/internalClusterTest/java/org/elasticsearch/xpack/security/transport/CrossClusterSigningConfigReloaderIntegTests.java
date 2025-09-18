@@ -200,15 +200,16 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
     }
 
     public void testValidationFailsWhenUpdateWithInvalidPath() throws Exception {
+        Path unknownFile = createTempDir().resolve("unknown_file");
         var exception = assertThrows(
             IllegalArgumentException.class,
             () -> updateClusterSettings(
                 Settings.builder()
-                    .put(SIGNING_CERT_PATH.getConcreteSettingForNamespace("test").getKey(), "/unknown/path")
-                    .put(SIGNING_KEY_PATH.getConcreteSettingForNamespace("test").getKey(), "/unknown/path")
+                    .put(SIGNING_CERT_PATH.getConcreteSettingForNamespace("test").getKey(), unknownFile)
+                    .put(SIGNING_KEY_PATH.getConcreteSettingForNamespace("test").getKey(), unknownFile)
             )
         );
-        assertThat(exception.getMessage(), equalTo("File [/unknown/path] configured for remote cluster [test] does no exist"));
+        assertThat(exception.getMessage(), equalTo("File [" + unknownFile + "] configured for remote cluster [test] does no exist"));
     }
 
     private void addAndRemoveClusterConfigsRuntime(

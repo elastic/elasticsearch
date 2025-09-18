@@ -1,5 +1,5 @@
 idelta_of_double_no_grouping
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s
 | STATS cost_change=sum(idelta(network.cost)) BY time_bucket = bucket(@timestamp,1minute)
 | SORT cost_change DESC, time_bucket DESC | LIMIT 10;
@@ -18,8 +18,7 @@ null               | 2024-05-10T00:01:00.000Z
 ;
 
 idelta_of_integer
-required_capability: metrics_command
-required_capability: k8s_dataset_additional_fields
+required_capability: ts_command_v0
 TS k8s | STATS clients = avg(idelta(network.eth0.currently_connected_clients)) BY time_bucket = bucket(@timestamp,1minute) | SORT time_bucket | LIMIT 10;
 
 clients:double      | time_bucket:datetime
@@ -36,8 +35,7 @@ null                | 2024-05-10T00:01:00.000Z
 ;
 
 idelta_of_integer_grouping
-required_capability: metrics_command
-required_capability: k8s_dataset_additional_fields
+required_capability: ts_command_v0
 TS k8s | STATS clients = avg(idelta(network.eth0.currently_connected_clients)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
 clients:double | cluster:keyword | time_bucket:datetime
@@ -55,7 +53,7 @@ null           | prod            | 2024-05-10T00:03:00.000Z
 ;
 
 idelta_with_filtering
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | WHERE pod == "one" | STATS tx = sum(idelta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:double | cluster:keyword | time_bucket:datetime
@@ -71,7 +69,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 ;
 
 idelta_with_inline_filtering
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS tx = sum(idelta(network.bytes_in)) WHERE pod == "one"  BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:double | cluster:keyword | time_bucket:datetime
@@ -88,7 +86,7 @@ tx:double | cluster:keyword | time_bucket:datetime
 ;
 
 eval_on_idelta
-required_capability: metrics_command
+required_capability: ts_command_v0
 TS k8s | STATS avg_bytes = avg(idelta(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (avg_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
 
 avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
@@ -105,7 +103,7 @@ avg_bytes:double    | cluster:keyword | time_bucket:datetime     | kb_minus_offs
 ;
 
 idelta_multi_values
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
@@ -124,7 +122,7 @@ null          | two         | 2024-05-10T00:07:00.000Z
 ;
 
 idelta_null_values
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: k8s_dataset_additional_fields
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
@@ -144,7 +142,7 @@ null          | two         | 2024-05-10T00:13:00.000Z
 ;
 
 idelta_all_value_types
-required_capability: metrics_command
+required_capability: ts_command_v0
 required_capability: k8s_dataset_additional_fields
 TS k8s | STATS events = sum(idelta(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
 

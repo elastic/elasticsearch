@@ -30,7 +30,7 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
 
     public enum FuseType {
         RRF,
-        LINEAR
+        LINEAR;
     };
 
     public Fuse(

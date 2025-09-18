@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
 import java.util.List;
@@ -22,7 +21,6 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FieldNameUtilsTests extends ESTestCase {
@@ -1606,11 +1604,6 @@ public class FieldNameUtilsTests extends ESTestCase {
 
     public void testMetrics() {
         var query = "TS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
-        if (EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled() == false) {
-            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query, EsqlTestUtils.TEST_CFG));
-            assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
-            return;
-        }
         assertFieldNames(
             query,
             Set.of(
@@ -2242,7 +2235,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testRerankerAfterFuse() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
@@ -2257,7 +2250,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testSimpleFuse() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM employees METADATA _id, _index, _score
@@ -2270,7 +2263,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithMatchAndScore() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
@@ -2284,7 +2277,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithDisjunctionAndPostFilter() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
@@ -2299,7 +2292,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithStats() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
@@ -2312,7 +2305,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithMultipleForkBranches() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM books METADATA _id, _index, _score
@@ -2329,7 +2322,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testFuseWithSemanticSearch() {
-        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V2.isEnabled());
+        assumeTrue("FUSE required", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
         assertTrue("FORK required", EsqlCapabilities.Cap.FORK_V9.isEnabled());
         assertFieldNames("""
             FROM semantic_text METADATA _id, _score, _index

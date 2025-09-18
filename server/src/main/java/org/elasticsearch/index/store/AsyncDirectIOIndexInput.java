@@ -146,7 +146,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     public void seek(long pos) throws IOException {
         if (pos != getFilePointer()) {
             final long absolutePos = pos + offset;
-            if (absolutePos >= filePos && absolutePos <= filePos + buffer.limit()) {
+            if (absolutePos >= filePos && absolutePos < filePos + buffer.capacity()) {
                 // the new position is within the existing buffer
                 buffer.position(Math.toIntExact(absolutePos - filePos));
             } else {
@@ -171,7 +171,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     }
 
     private void refill(int bytesToRead, int delta) throws IOException {
-        filePos += buffer.capacity();
+        long nextFilePos = filePos + buffer.capacity();
         // BaseDirectoryTestCase#testSeekPastEOF test for consecutive read past EOF,
         // hence throwing EOFException early to maintain buffer state (position in particular)
         if (filePos > offset + length || ((offset + length) - filePos < bytesToRead)) {
@@ -179,10 +179,16 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         }
         buffer.clear();
         try {
-            if (prefetcher.readBytes(filePos, buffer, delta)) {
-                // successfully read from prefetch buffer
+            if (prefetcher.readBytes(nextFilePos, buffer, delta)) {
+                // handle potentially differently aligned prefetch buffer
+                // this gets tricky as the prefetch buffer is always blockSize aligned
+                // but the prefetches might be aligned on an earlier block boundary
+                // so we need to adjust the filePos accordingly
+                long currentLogicalPos = nextFilePos + delta;
+                filePos = currentLogicalPos - buffer.position();
                 return;
             }
+            filePos = nextFilePos;
             // read may return -1 here iff filePos == channel.size(), but that's ok as it just reaches
             // EOF
             // when filePos > channel.size(), an EOFException will be thrown from above

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -111,36 +112,43 @@ public class InferenceFunctionEvaluator {
         DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
 
         // Create the inference operator for the specific function type using the provider
+        try {
+            Operator inferenceOperator = inferenceOperatorProvider.getOperator(f, driverContext);
 
-        try (Operator inferenceOperator = inferenceOperatorProvider.getOperator(f, driverContext)) {
-            // Execute the inference operation asynchronously and handle the result
-            // The operator will perform the actual inference call and return a page with the result
-            driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
-                Page output = inferenceOperator.getOutput();
+            try {
+                // Feed the operator with a single page to trigger execution
+                // The actual input data is already bound in the operator through expression evaluators
+                inferenceOperator.addInput(new Page(1));
 
-                try {
-                    if (output == null) {
-                        l.onFailure(new IllegalStateException("Expected output page from inference operator"));
-                        return;
+                // Execute the inference operation asynchronously and handle the result
+                // The operator will perform the actual inference call and return a page with the result
+                driverContext.waitForAsyncActions(listener.delegateFailureIgnoreResponseAndWrap(l -> {
+                    Page output = inferenceOperator.getOutput();
+
+                    try {
+                        if (output == null) {
+                            l.onFailure(new IllegalStateException("Expected output page from inference operator"));
+                            return;
+                        }
+
+                        if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
+                            l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
+                            return;
+                        }
+
+                        // Convert the operator result back to an ESQL expression (Literal)
+                        l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
+                    } finally {
+                        Releasables.close(inferenceOperator);
+                        if (output != null) {
+                            output.releaseBlocks();
+                        }
                     }
-
-                    if (output.getPositionCount() != 1 || output.getBlockCount() != 1) {
-                        l.onFailure(new IllegalStateException("Expected a single block with a single value from inference operator"));
-                        return;
-                    }
-
-                    // Convert the operator result back to an ESQL expression (Literal)
-                    l.onResponse(Literal.of(f, BlockUtils.toJavaObject(output.getBlock(0), 0)));
-                } finally {
-                    if (output != null) {
-                        output.releaseBlocks();
-                    }
-                }
-            }));
-
-            // Feed the operator with a single page to trigger execution
-            // The actual input data is already bound in the operator through expression evaluators
-            inferenceOperator.addInput(new Page(1));
+                }));
+            } catch (Exception e) {
+                Releasables.close(inferenceOperator);
+                listener.onFailure(e);
+            }
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {

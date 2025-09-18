@@ -33,8 +33,8 @@ import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.GROK;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.INLINE_STATS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.KEEP;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_ON_EXPRESSION;
-import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LOOKUP_JOIN_ON_FIELDS;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.MV_EXPAND;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.RENAME;
 import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.ROW;
@@ -620,7 +620,7 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(0, drop(c));
         assertEquals(0, keep(c));
         assertEquals(1L, rename(c));
-        assertEquals(0, inlinestats(c));
+        assertEquals(0, inlineStats(c));
         assertEquals(0, lookupJoinOnFields(c));
         assertEquals(1L, lookupJoinOnExpression(c));
         assertEquals(1, function("max", c));
@@ -719,7 +719,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     private long lookupJoinOnFields(Counters c) {
-        return c.get(FEATURES_PREFIX + LOOKUP_JOIN_ON_FIELDS);
+        return c.get(FEATURES_PREFIX + LOOKUP_JOIN);
     }
 
     private long lookupJoinOnExpression(Counters c) {

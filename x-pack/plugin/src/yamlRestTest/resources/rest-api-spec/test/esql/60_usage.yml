@@ -66,11 +66,11 @@ setup:
   - set: { esql.features.sort: sort_counter }
   - set: { esql.features.stats: stats_counter }
   - set: { esql.features.where: where_counter }
-  - set: { esql.features.lookup_join_on_fields: lookup_join_on_fields_counter }
+  - set: { esql.features.lookup_join: lookup_join_counter }
   - set: { esql.features.lookup_join_on_expression: lookup_join_on_expression_counter }
   - set: { esql.features.lookup: lookup_counter }
   - set: { esql.features.change_point: change_point_counter }
-  - set: {esql.features.inline_stats: inline_stats_counter}
+  - set: { esql.features.inline_stats: inline_stats_counter }
   - set: { esql.features.rerank: rerank_counter }
   - set: { esql.features.insist: insist_counter }
   - set: { esql.features.fork: fork_counter }
@@ -110,11 +110,11 @@ setup:
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - gt: { esql.features.where: $where_counter }
-  - match: { esql.features.lookup_join_on_fields: $lookup_join_on_fields_counter }
+  - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
   - match: { esql.features.lookup: $lookup_counter }
   - match: { esql.features.change_point: $change_point_counter }
-  - match: {esql.features.inline_stats: $inline_stats_counter}
+  - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
   - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }
@@ -165,11 +165,11 @@ setup:
   - set: { esql.features.sort: sort_counter }
   - set: { esql.features.stats: stats_counter }
   - set: { esql.features.where: where_counter }
-  - set: { esql.features.lookup_join_on_fields: lookup_join_on_fields_counter }
+  - set: { esql.features.lookup_join: lookup_join_counter }
   - set: { esql.features.lookup_join_on_expression: lookup_join_on_expression_counter }
   - set: { esql.features.lookup: lookup_counter }
   - set: { esql.features.change_point: change_point_counter }
-  - set: {esql.features.inline_stats: inline_stats_counter}
+  - set: { esql.features.inline_stats: inline_stats_counter }
   - set: { esql.features.rerank: rerank_counter }
   - set: { esql.features.insist: insist_counter }
   - set: { esql.features.fork: fork_counter }
@@ -209,11 +209,11 @@ setup:
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
   - gt: { esql.features.where: $where_counter }
-  - match: { esql.features.lookup_join_on_fields: $lookup_join_on_fields_counter }
+  - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }
   - match: { esql.features.lookup: $lookup_counter }
   - match: { esql.features.change_point: $change_point_counter }
-  - match: {esql.features.inline_stats: $inline_stats_counter}
+  - match: { esql.features.inline_stats: $inline_stats_counter }
   - match: { esql.features.rerank: $rerank_counter }
   - match: { esql.features.insist: $insist_counter }
   - match: { esql.features.fork: $fork_counter }

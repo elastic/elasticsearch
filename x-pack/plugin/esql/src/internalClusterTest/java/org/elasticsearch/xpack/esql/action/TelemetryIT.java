@@ -142,7 +142,7 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                         | EVAL y = to_str(host)
                         | LOOKUP JOIN lookup_idx ON host
                         """,
-                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("LOOKUP JOIN ON FIELDS", 1)),
+                    Map.ofEntries(Map.entry("FROM", 1), Map.entry("EVAL", 1), Map.entry("LOOKUP JOIN", 1)),
                     Map.ofEntries(Map.entry("TO_STRING", 1)),
                     true
                 ) },

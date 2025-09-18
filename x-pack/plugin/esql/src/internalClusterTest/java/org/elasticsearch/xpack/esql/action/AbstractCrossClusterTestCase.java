@@ -45,7 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_SUPPORTS_REMOTE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -370,6 +370,6 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
     }
 
     protected static String randomStats() {
-        return INLINESTATS_SUPPORTS_REMOTE.isEnabled() ? randomFrom("STATS", "INLINESTATS") : "STATS";
+        return INLINE_STATS_SUPPORTS_REMOTE.isEnabled() ? randomFrom("STATS", "INLINE STATS") : "STATS";
     }
 }

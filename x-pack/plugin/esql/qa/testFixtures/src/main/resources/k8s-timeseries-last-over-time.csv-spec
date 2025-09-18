@@ -1,7 +1,5 @@
 last_over_time_of_integer
-required_capability: metrics_command
-required_capability: last_over_time
-required_capability: k8s_dataset_additional_fields
+required_capability: ts_command_v0
 TS k8s | STATS clients = avg(last_over_time(network.eth0.currently_connected_clients)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
 clients:double | cluster:keyword | time_bucket:datetime
@@ -18,8 +16,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_of_integer
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | STATS clients = avg(network.eth0.currently_connected_clients) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
 clients:double | cluster:keyword | time_bucket:datetime
@@ -36,8 +33,7 @@ clients:double | cluster:keyword | time_bucket:datetime
 ;
 
 last_over_time_of_long
-required_capability: metrics_command
-required_capability: last_over_time
+required_capability: ts_command_v0
 TS k8s | STATS bytes = avg(last_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
 bytes:double | cluster:keyword | time_bucket:datetime
@@ -54,8 +50,7 @@ bytes:double | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_of_long
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | STATS bytes = avg(network.bytes_in) BY cluster, time_bucket = bucket(@timestamp,1minute) | SORT time_bucket, cluster | LIMIT 10;
 
 bytes:double | cluster:keyword | time_bucket:datetime
@@ -72,8 +67,7 @@ bytes:double | cluster:keyword | time_bucket:datetime
 ;
 
 last_over_time_with_filtering
-required_capability: metrics_command
-required_capability: last_over_time
+required_capability: ts_command_v0
 TS k8s | WHERE pod == "one" | STATS tx = sum(last_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:long | cluster:keyword | time_bucket:datetime
@@ -90,8 +84,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 
 implicit_last_over_time_with_filtering
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | WHERE pod == "one" | STATS tx = sum(network.bytes_in) BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:long | cluster:keyword | time_bucket:datetime
@@ -107,8 +100,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_with_inline_filtering
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s  | STATS tx = sum(network.bytes_in) WHERE pod == "one" BY cluster, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, cluster | LIMIT 10;
 
 tx:long | cluster:keyword | time_bucket:datetime
@@ -126,8 +118,7 @@ tx:long | cluster:keyword | time_bucket:datetime
 
 
 last_over_time_older_than_10d
-required_capability: metrics_command
-required_capability: last_over_time
+required_capability: ts_command_v0
 TS k8s | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(last_over_time(network.eth0.rx)) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;
 
 cost:double | pod:keyword | time_bucket:datetime
@@ -139,8 +130,7 @@ cost:double | pod:keyword | time_bucket:datetime
 ;
 
 implicit_last_over_time_older_than_10d
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS cost = avg(network.eth0.rx) BY pod, time_bucket = bucket(@timestamp, 10minute) | SORT time_bucket, pod | LIMIT 5;
 
 cost:double | pod:keyword | time_bucket:datetime
@@ -152,8 +142,7 @@ cost:double | pod:keyword | time_bucket:datetime
 ;
 
 eval_on_last_over_time
-required_capability: metrics_command
-required_capability: last_over_time
+required_capability: ts_command_v0
 TS k8s | STATS max_bytes = avg(last_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (max_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
 
 max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
@@ -169,8 +158,7 @@ max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset
 ;
 
 implicit_eval_on_last_over_time
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | STATS max_bytes = avg(network.bytes_in) BY cluster, time_bucket = bucket(@timestamp, 10minute) | EVAL kb_minus_offset = (max_bytes - 100) / 1000.0 | LIMIT 10 | SORT time_bucket, cluster ;
 
 max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset:double
@@ -186,9 +174,7 @@ max_bytes:double  | cluster:keyword | time_bucket:datetime     | kb_minus_offset
 ;
 
 last_over_time_multi_values
-required_capability: metrics_command
-required_capability: last_over_time
-required_capability: k8s_dataset_additional_fields
+required_capability: ts_command_v0
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(last_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:long | pod:keyword | time_bucket:datetime
@@ -206,8 +192,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 
 implicit_last_over_time_multi_values
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | WHERE @timestamp < "2024-05-10T00:10:00.000Z" | STATS events = sum(events_received) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:long | pod:keyword | time_bucket:datetime
@@ -225,9 +210,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 
 last_over_time_null_values
-required_capability: metrics_command
-required_capability: last_over_time
-required_capability: k8s_dataset_additional_fields
+required_capability: ts_command_v0
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(last_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:long | pod:keyword | time_bucket:datetime
@@ -244,8 +227,7 @@ null        | two         | 2024-05-10T00:13:00.000Z
 ;
 
 implicit_last_over_time_null_values
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | WHERE @timestamp > "2024-05-10T00:10:00.000Z" and @timestamp < "2024-05-10T00:15:00.000Z" | STATS events = sum(events_received) by pod, time_bucket = bucket(@timestamp, 1minute) | SORT events desc, pod, time_bucket  | LIMIT 10;
 
 events:long | pod:keyword | time_bucket:datetime
@@ -262,9 +244,7 @@ null        | two         | 2024-05-10T00:13:00.000Z
 ;
 
 last_over_time_all_value_types
-required_capability: metrics_command
-required_capability: last_over_time
-required_capability: k8s_dataset_additional_fields
+required_capability: ts_command_v0
 TS k8s | STATS events = sum(last_over_time(events_received)) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
 
 events:long | pod:keyword | time_bucket:datetime
@@ -281,8 +261,7 @@ events:long | pod:keyword | time_bucket:datetime
 
 
 implicit_last_over_time_all_value_types
-required_capability: metrics_command
-required_capability: implicit_last_over_time
+required_capability: ts_command_v0
 TS k8s | STATS events = sum(events_received) by pod, time_bucket = bucket(@timestamp, 10minute) | SORT events desc, pod, time_bucket | LIMIT 10 ;
 
 events:long | pod:keyword | time_bucket:datetime

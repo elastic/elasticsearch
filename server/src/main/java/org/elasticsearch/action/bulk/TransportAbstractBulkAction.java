@@ -42,6 +42,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -90,6 +91,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     protected final Executor systemCoordinationExecutor;
     private final ActionType<BulkResponse> bulkAction;
     protected final FeatureService featureService;
+    protected final SamplingService samplingService;
 
     public TransportAbstractBulkAction(
         ActionType<BulkResponse> action,
@@ -103,7 +105,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         LongSupplier relativeTimeNanosProvider,
-        FeatureService featureService
+        FeatureService featureService,
+        SamplingService samplingService
     ) {
         super(action.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -119,6 +122,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         clusterService.addStateApplier(this.ingestForwarder);
         this.relativeTimeNanosProvider = relativeTimeNanosProvider;
         this.bulkAction = action;
+        this.samplingService = samplingService;
     }
 
     @Override
@@ -204,13 +208,18 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
-                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
+                applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener, false);
             }
         });
     }
 
-    private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener)
-        throws IOException {
+    private boolean applyPipelines(
+        Task task,
+        BulkRequest bulkRequest,
+        Executor executor,
+        ActionListener<BulkResponse> listener,
+        boolean haveRunIngestService
+    ) throws IOException {
         boolean hasIndexRequestsWithPipelines = false;
         ClusterState state = clusterService.state();
         ProjectId projectId = projectResolver.getProjectId();
@@ -303,6 +312,16 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 }
             });
             return true;
+        } else if (haveRunIngestService == false && samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+            /*
+             * Else ample only if this request has not passed through IngestService::executeBulkRequest. Otherwise, some request within the
+             * bulk had pipelines and we sampled in IngestService already.
+             */
+            for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                if (actionRequest instanceof IndexRequest ir) {
+                    samplingService.maybeSample(project, ir);
+                }
+            }
         }
         return false;
     }
@@ -338,7 +357,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                         @Override
                         protected void doRun() throws IOException {
-                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener);
+                            applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, actionListener, true);
                         }
 
                         @Override
@@ -416,7 +435,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         Task task,
         BulkRequest bulkRequest,
         Executor executor,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        boolean haveRunIngestService
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
 
@@ -434,7 +454,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
         var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
 
-        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, haveRunIngestService) == false) {
             doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }

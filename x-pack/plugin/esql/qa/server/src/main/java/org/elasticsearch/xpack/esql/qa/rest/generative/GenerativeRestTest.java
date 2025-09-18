@@ -62,7 +62,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
 
         // Awaiting fixes for correctness
-        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
+
+        // TS-command tests
+        "time-series .* the first aggregation .* is not allowed",
+        "count_star .* can't be used with TS command",
+        "time_series aggregate.* can only be used with the TS command",
+        "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
+        "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block", // https://github.com/elastic/elasticsearch/issues/134793
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -78,6 +86,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     protected abstract boolean supportsSourceFieldMapping();
+
+    protected boolean requiresTimeSeries() {
+        return false;
+    }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
@@ -142,8 +154,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 EsqlQueryGenerator.QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec);
+            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries());
         }
+    }
+
+    protected CommandGenerator sourceCommand() {
+        return EsqlQueryGenerator.sourceCommand();
     }
 
     private static CommandGenerator.ValidationResult checkResults(
@@ -234,7 +250,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries()).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

@@ -285,7 +285,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't load metrics in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METRICS_COMMAND.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName())
             );
             assumeFalse(
                 "can't use QSTR function in csv tests",

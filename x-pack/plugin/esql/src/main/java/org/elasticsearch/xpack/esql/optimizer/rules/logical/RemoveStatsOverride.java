@@ -26,9 +26,9 @@ import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
  * becomes
  * {@code STATS BY x = c + 10}
  * and
- * {@code INLINESTATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
+ * {@code INLINE STATS x = COUNT(*), x = MIN(a) BY x = b + 1, x = c + 10}
  * becomes
- * {@code INLINESTATS BY x = c + 10}
+ * {@code INLINE STATS BY x = c + 10}
  * This is "last one wins", with groups having priority over aggregates.
  * Separately, it replaces expressions used as group keys inside the aggregates with references:
  * {@code STATS max(a + b + 1) BY a + b}

@@ -41,8 +41,8 @@ sourceCommand
     : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesCommand
     // in development
-    | {this.isDevVersion()}? timeSeriesCommand
     | {this.isDevVersion()}? explainCommand
     ;
 
@@ -66,7 +66,7 @@ processingCommand
     | forkCommand
     | rerankCommand
     // in development
-    | {this.isDevVersion()}? inlinestatsCommand
+    | {this.isDevVersion()}? inlineStatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? fuseCommand
@@ -105,7 +105,7 @@ fromCommand
     ;
 
 timeSeriesCommand
-    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    : TS indexPatternAndMetadataFields
     ;
 
 indexPatternAndMetadataFields:
@@ -327,8 +327,10 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+inlineStatsCommand
+    : DEV_INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    // TODO: drop after next minor release
+    | DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
     ;
 
 insistCommand

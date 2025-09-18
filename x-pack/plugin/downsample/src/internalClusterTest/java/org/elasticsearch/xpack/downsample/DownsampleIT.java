@@ -36,7 +36,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -227,9 +227,11 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
 
         // check that TS command is available
         var response = clusterAdmin().nodesCapabilities(
-            new NodesCapabilitiesRequest().method(RestRequest.Method.POST).path("/_query").capabilities(METRICS_COMMAND.capabilityName())
+            new NodesCapabilitiesRequest().method(RestRequest.Method.POST)
+                .path("/_query")
+                .capabilities(AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.capabilityName())
         ).actionGet();
-        assumeTrue("TS command must be available for this test", response.isSupported().orElse(Boolean.FALSE));
+        assumeTrue("Require aggregate_metric_double casting", response.isSupported().orElse(Boolean.FALSE));
 
         // Since the downsampled field (cpu) is downsampled in one index and not in the other, we want to confirm
         // first that the field is unsupported and has 2 original types - double and aggregate_metric_double

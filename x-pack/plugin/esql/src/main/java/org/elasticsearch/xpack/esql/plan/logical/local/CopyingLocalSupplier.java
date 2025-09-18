@@ -31,7 +31,7 @@ import java.util.Arrays;
  * It delegates all its operations to {@link ImmediateLocalSupplier} and, to prevent the double release, it will always
  * create a deep copy of the blocks received in the constructor initially.
  *
- * Example with the flow and the blocks reuse for a query like "row x = 1 | inlinestats y = max(x)"
+ * Example with the flow and the blocks reuse for a query like "row x = 1 | inline stats y = max(x)"
  * Step 1:
  * Limit[1000[INTEGER],true]
  * \_InlineJoin[LEFT,[],[],[]]

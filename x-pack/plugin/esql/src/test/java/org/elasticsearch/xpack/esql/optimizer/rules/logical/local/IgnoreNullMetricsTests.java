@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -116,7 +115,6 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     }
 
     public void testSimple() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan actual = localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)) BY BUCKET(@timestamp, 1 min)
@@ -147,7 +145,6 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     }
 
     public void testDimensionsAreNotFiltered() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan actual = localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)) BY dimension_1
@@ -164,7 +161,6 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     }
 
     public void testFiltersAreJoinedWithOr() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan actual = localPlan("""
             TS test
             | STATS max(max_over_time(metric_1)), min(min_over_time(metric_2))
@@ -200,7 +196,6 @@ public class IgnoreNullMetricsTests extends ESTestCase {
     public void testSkipCoalescedMetrics() {
         // Note: this test is passing because the reference attribute metric_2 in the stats block does not inherit the
         // metric property from the original field.
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan actual = localPlan("""
             TS test
             | EVAL metric_2 = coalesce(metric_2, 0)
@@ -222,7 +217,6 @@ public class IgnoreNullMetricsTests extends ESTestCase {
      * check that stats blocks after the first are not sourced for adding metrics to the filter
      */
     public void testMultipleStats() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         LogicalPlan actual = localPlan("""
             TS test
             | STATS m = max(max_over_time(metric_1))

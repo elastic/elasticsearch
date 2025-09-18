@@ -466,10 +466,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     @AwaitsFix(bugUrl = "disabled until JOIN infrastructrure properly lands")
     public void testInlineStatsProfile() throws IOException {
-        assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
+        assumeTrue("INLINE STATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
 
-        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINESTATS AVG(value) | SORT value ASC");
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | INLINE STATS AVG(value) | SORT value ASC");
         builder.profile(true);
         if (Build.current().isSnapshot()) {
             // Lock to shard level partitioning, so we get consistent profile output

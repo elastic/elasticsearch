@@ -32,6 +32,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -1302,6 +1303,79 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testEncodeRangeWithSortedSetPrimarySortField() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, true, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+
+            int numDocs = 512 + random().nextInt(512);
+            int numHosts = numDocs / 20;
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                int batchIndex = i / numHosts;
+                {
+                    String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    d.add(new SortedSetDocValuesField(hostnameField, new BytesRef(hostName)));
+                }
+                {
+                    String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex + 1);
+                    d.add(new SortedSetDocValuesField(hostnameField, new BytesRef(hostName)));
+                }
+                // Index sorting doesn't work with NumericDocValuesField:
+                long timestamp = baseTimestamp + (1000L * i);
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var hostNameDV = leaf.getSortedSetDocValues(hostnameField);
+                assertNotNull(hostNameDV);
+                var timestampDV = DocValues.unwrapSingleton(leaf.getSortedNumericDocValues(timestampField));
+                assertNotNull(timestampDV);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, hostNameDV.nextDoc());
+
+                    int batchIndex = i / numHosts;
+                    assertEquals(2, hostNameDV.docValueCount());
+
+                    long firstOrd = hostNameDV.nextOrd();
+                    assertEquals(batchIndex, firstOrd);
+                    String expectedFirstHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    String actualFirstHostName = hostNameDV.lookupOrd(firstOrd).utf8ToString();
+                    assertEquals(expectedFirstHostName, actualFirstHostName);
+
+                    batchIndex++;
+                    long secondOrd = hostNameDV.nextOrd();
+                    assertEquals(batchIndex, secondOrd);
+                    String expectedSecondHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    String actualSecondHostName = hostNameDV.lookupOrd(secondOrd).utf8ToString();
+                    assertEquals(expectedSecondHostName, actualSecondHostName);
+
+                    assertEquals(i, timestampDV.nextDoc());
+                    long timestamp = timestampDV.longValue();
+                    long lowerBound = baseTimestamp;
+                    long upperBound = baseTimestamp + (1000L * numDocs);
+                    assertTrue(
+                        "unexpected timestamp [" + timestamp + "], expected between [" + lowerBound + "] and [" + upperBound + "]",
+                        timestamp >= lowerBound && timestamp < upperBound
+                    );
+                }
+            }
+        }
+    }
+
     private static BaseDenseNumericValues getBaseDenseNumericValues(LeafReader leafReader, String field) throws IOException {
         return (BaseDenseNumericValues) DocValues.unwrapSingleton(leafReader.getSortedNumericDocValues(field));
     }
@@ -1315,11 +1389,15 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     }
 
     private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, String timestampField) {
+        return getTimeSeriesIndexWriterConfig(hostnameField, false, timestampField);
+    }
+
+    private IndexWriterConfig getTimeSeriesIndexWriterConfig(String hostnameField, boolean multiValued, String timestampField) {
         var config = new IndexWriterConfig();
         if (hostnameField != null) {
             config.setIndexSort(
                 new Sort(
-                    new SortField(hostnameField, SortField.Type.STRING, false),
+                    multiValued ? new SortedSetSortField(hostnameField, false) : new SortField(hostnameField, SortField.Type.STRING, false),
                     new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
                 )
             );

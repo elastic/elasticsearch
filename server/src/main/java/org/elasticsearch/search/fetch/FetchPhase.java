@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -25,6 +26,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -46,7 +49,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.index.get.ShardGetService.maybeExcludeSyntheticVectorFields;
+import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
+import static org.elasticsearch.index.get.ShardGetService.shouldExcludeInferenceFieldsFromSource;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -113,12 +117,14 @@ public final class FetchPhase {
     }
 
     private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
+        var lookup = context.getSearchExecutionContext().getMappingLookup();
+
         // Optionally remove sparse and dense vector fields early to:
         // - Reduce the in-memory size of the source
         // - Speed up retrieval of the synthetic source
         // Note: These vectors will no longer be accessible via _source for any sub-fetch processors,
         // but they are typically accessed through doc values instead (e.g: re-scorer).
-        var res = maybeExcludeSyntheticVectorFields(
+        var res = maybeExcludeVectorFields(
             context.getSearchExecutionContext().getMappingLookup(),
             context.getSearchExecutionContext().getIndexSettings(),
             context.fetchSourceContext(),
@@ -127,6 +133,18 @@ public final class FetchPhase {
         if (context.fetchSourceContext() != res.v1()) {
             context.fetchSourceContext(res.v1());
         }
+
+        if (lookup.inferenceFields().isEmpty() == false
+            && shouldExcludeInferenceFieldsFromSource(context.indexShard().indexSettings(), context.fetchSourceContext()) == false) {
+            // Rehydrate the inference fields into the {@code _source} because they were explicitly requested.
+            var fetchFieldsContext = context.fetchFieldsContext();
+            if (fetchFieldsContext == null) {
+                fetchFieldsContext = new FetchFieldsContext(new ArrayList<>());
+            }
+            fetchFieldsContext.fields().add(new FieldAndFormat(InferenceMetadataFieldsMapper.NAME, null));
+            context.fetchFieldsContext(fetchFieldsContext);
+        }
+
         SourceLoader sourceLoader = context.newSourceLoader(res.v2());
         FetchContext fetchContext = new FetchContext(context, sourceLoader);
 

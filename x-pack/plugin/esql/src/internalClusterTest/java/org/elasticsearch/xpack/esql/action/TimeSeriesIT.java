@@ -40,12 +40,6 @@ import static org.hamcrest.Matchers.not;
 
 public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
 
-    @Override
-    public EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("time series available in snapshot builds only", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
-        return super.run(request);
-    }
-
     public void testEmpty() {
         Settings settings = Settings.builder().put("mode", "time_series").putList("routing_path", List.of("host")).build();
         client().admin()

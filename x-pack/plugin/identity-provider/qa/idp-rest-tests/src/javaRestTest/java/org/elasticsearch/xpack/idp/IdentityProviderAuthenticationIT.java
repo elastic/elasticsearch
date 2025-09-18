@@ -42,7 +42,6 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathConstants;
-import javax.xml.xpath.XPathFactory;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -170,8 +169,7 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         Document document = builder.parse(new InputSource(new StringReader(samlResponse)));
 
         // Create XPath evaluator
-        XPathFactory xPathFactory = XPathFactory.newInstance();
-        XPath xpath = xPathFactory.newXPath();
+        XPath xpath = XmlUtils.getHardenedXPath();
 
         // Validate SAML Response structure
         Element responseElement = (Element) xpath.evaluate("//*[local-name()='Response']", document, XPathConstants.NODE);

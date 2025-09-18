@@ -114,7 +114,7 @@ public class ForkGenerator implements CommandGenerator {
                 }
             };
 
-            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec);
+            EsqlQueryGenerator.generatePipeline(3, gen, schema, exec, false);
             if (exec.previousCommands().size() > 1) {
                 String previousCmd = exec.previousCommands()
                     .stream()

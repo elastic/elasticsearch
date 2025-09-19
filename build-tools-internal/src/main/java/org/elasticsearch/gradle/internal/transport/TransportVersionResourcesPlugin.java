@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.internal.ProjectSubscribeServicePlugin;
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.Directory;
@@ -23,7 +24,6 @@ import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.Map;
 import java.util.Properties;
-import java.util.function.Consumer;
 
 public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
@@ -70,6 +70,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
                 t.getShouldValidateDensity().convention(true);
                 t.getShouldValidatePrimaryIdNotPatch().convention(true);
+                t.getCurrentUpperBoundName().convention(currentVersion.getMajor() + "." + currentVersion.getMinor());
             });
         project.getTasks().named(PrecommitPlugin.PRECOMMIT_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
@@ -83,7 +84,7 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
             t.into(resourceRoot + "/definitions", c -> c.from(generateManifestTask));
         });
 
-        Consumer<GenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
+        Action<GenerateTransportVersionDefinitionTask> generationConfiguration = t -> {
             t.setGroup(taskGroup);
             t.getReferencesFiles().setFrom(tvReferencesConfig);
             t.getIncrement().convention(1000);
@@ -92,17 +93,17 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
 
         var generateDefinitionsTask = project.getTasks()
             .register("generateTransportVersion", GenerateTransportVersionDefinitionTask.class, t -> {
-                generationConfiguration.accept(t);
                 t.setDescription("(Re)generates a transport version definition file");
             });
+        generateDefinitionsTask.configure(generationConfiguration);
         validateTask.configure(t -> t.mustRunAfter(generateDefinitionsTask));
 
         var resolveConflictTask = project.getTasks()
             .register("resolveTransportVersionConflict", GenerateTransportVersionDefinitionTask.class, t -> {
-                generationConfiguration.accept(t);
                 t.setDescription("Resolve merge conflicts in transport version internal state files");
                 t.getResolveConflict().set(true);
             });
+        resolveConflictTask.configure(generationConfiguration);
         validateTask.configure(t -> t.mustRunAfter(resolveConflictTask));
 
         var generateInitialTask = project.getTasks()

@@ -21,10 +21,7 @@ public class UpdateCrossClusterApiKeyRequestTests extends ESTestCase {
         final var request = new UpdateCrossClusterApiKeyRequest(randomAlphaOfLength(10), null, null, null, null);
         final ActionRequestValidationException ve = request.validate();
         assertThat(ve, notNullValue());
-        assertThat(
-            ve.validationErrors(),
-            contains("must update either [access] or [metadata] or [certificate_identity] for cross-cluster API keys")
-        );
+        assertThat(ve.validationErrors(), contains("must update [access] or [metadata] or [certificate_identity] for cross-cluster API keys"));
     }
 
     public void testMetadataKeyValidation() {

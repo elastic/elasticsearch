@@ -2712,7 +2712,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
     }

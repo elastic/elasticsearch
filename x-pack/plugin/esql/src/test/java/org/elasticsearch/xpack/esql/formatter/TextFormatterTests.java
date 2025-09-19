@@ -95,7 +95,9 @@ public class TextFormatterTests extends ESTestCase {
      * column size.
      */
     public void testFormatWithHeader() {
-        String[] result = getTextBodyContent(new TextFormatter(esqlResponse, true, false).format()).split("\n");
+        String[] result = getTextBodyContent(
+            new TextFormatter(esqlResponse.columns(), esqlResponse::values, true, new boolean[esqlResponse.columns().size()]).format()
+        ).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
@@ -124,7 +126,9 @@ public class TextFormatterTests extends ESTestCase {
      * truncation of long columns.
      */
     public void testFormatWithDropNullColumns() {
-        String[] result = getTextBodyContent(new TextFormatter(esqlResponse, true, true).format()).split("\n");
+        String[] result = getTextBodyContent(
+            new TextFormatter(esqlResponse.columns(), esqlResponse::values, true, esqlResponse.nullColumns()).format()
+        ).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|superduperwidename!!!|      baz      |"
@@ -153,7 +157,7 @@ public class TextFormatterTests extends ESTestCase {
      * truncation of long columns.
      */
     public void testFormatWithoutHeader() {
-        EsqlQueryResponse response = new EsqlQueryResponse(
+        final var esqlResponse = new EsqlQueryResponse(
             columns,
             List.of(
                 new Page(
@@ -191,7 +195,9 @@ public class TextFormatterTests extends ESTestCase {
             new EsqlExecutionInfo(randomBoolean())
         );
 
-        String[] result = getTextBodyContent(new TextFormatter(response, false, false).format()).split("\n");
+        String[] result = getTextBodyContent(
+            new TextFormatter(esqlResponse.columns(), esqlResponse::values, false, new boolean[esqlResponse.columns().size()]).format()
+        ).split("\n");
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
@@ -209,33 +215,30 @@ public class TextFormatterTests extends ESTestCase {
         final var smallFieldContent = "is twenty characters";
         final var largeFieldContent = "a".repeat(between(smallFieldContent.length(), 200));
         final var paddingLength = largeFieldContent.length() - smallFieldContent.length();
+        final var esqlResponse = new EsqlQueryResponse(
+            List.of(new ColumnInfoImpl("foo", "keyword", null)),
+            List.of(
+                new Page(
+                    blockFactory.newBytesRefBlockBuilder(2)
+                        .appendBytesRef(new BytesRef(smallFieldContent))
+                        .appendBytesRef(new BytesRef(largeFieldContent))
+                        .build()
+                )
+            ),
+            0,
+            0,
+            null,
+            randomBoolean(),
+            randomBoolean(),
+            new EsqlExecutionInfo(randomBoolean())
+        );
         assertEquals(
             Strings.format("""
                 is twenty characters%s
                 aaaaaaaaaaaaaaaaaaaa%s
                 """, " ".repeat(paddingLength), "a".repeat(paddingLength)),
             getTextBodyContent(
-                new TextFormatter(
-                    new EsqlQueryResponse(
-                        List.of(new ColumnInfoImpl("foo", "keyword", null)),
-                        List.of(
-                            new Page(
-                                blockFactory.newBytesRefBlockBuilder(2)
-                                    .appendBytesRef(new BytesRef(smallFieldContent))
-                                    .appendBytesRef(new BytesRef(largeFieldContent))
-                                    .build()
-                            )
-                        ),
-                        0,
-                        0,
-                        null,
-                        randomBoolean(),
-                        randomBoolean(),
-                        new EsqlExecutionInfo(randomBoolean())
-                    ),
-                    false,
-                    false
-                ).format()
+                new TextFormatter(esqlResponse.columns(), esqlResponse::values, false, new boolean[esqlResponse.columns().size()]).format()
             )
         );
     }

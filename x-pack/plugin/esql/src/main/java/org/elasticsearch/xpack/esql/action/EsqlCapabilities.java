@@ -1400,6 +1400,11 @@ public class EsqlCapabilities {
         L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Support for ESQL query response stream.
+         */
+        RESPONSE_STREAM,
+
+        /**
          * Support for the options field of CATEGORIZE.
          */
         CATEGORIZE_OPTIONS,

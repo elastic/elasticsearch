@@ -1,7 +1,7 @@
 setup:
   - requires:
       cluster_features: "search.semantic_text_supports_multi_match_query"
-      reason: semantic_text multi_match support introduced in 9.2.0
+      reason: semantic_text multi_match support
 
   - do:
       inference.put:
@@ -192,7 +192,7 @@ setup:
   - match: { hits.total.value: 2 }
 
 ---
-"Multi-match boost and query name progression":
+"Multi-match boost and query name propagation":
   - skip:
       features: ["headers", "close_to"]
 
@@ -304,4 +304,4 @@ setup:
               query: "test query"
               fields: [ "title", "content" ]
               type: "phrase_prefix"
-              
+

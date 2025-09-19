@@ -18,6 +18,7 @@ import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,9 +33,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLockObtainFailedException;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
+import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -44,12 +50,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -74,6 +82,12 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 
         // Latch to unblock merges
         private final CountDownLatch runMerges = new CountDownLatch(1);
+
+        // Reference to the ThreadPoolMergeExecutorService
+        private final AtomicReference<ThreadPoolMergeExecutorService> threadPoolMergeExecutorServiceReference = new AtomicReference<>();
+
+        // This future is completed once the shard that is expected to fail has its store closed
+        private final PlainActionFuture<Void> shardStoreClosedListener = new PlainActionFuture<>();
 
         private final boolean isDataNode;
 
@@ -140,6 +154,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                 ThreadPoolMergeExecutorService executor,
                 MergeMetrics metrics
             ) {
+                threadPoolMergeExecutorServiceReference.set(Objects.requireNonNull(executor));
                 return new ThreadPoolMergeScheduler(shardId, indexSettings, executor, merge -> 0L, metrics) {
 
                     @Override
@@ -190,6 +205,23 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                 };
             }
         }
+
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            if (isDataNode) {
+                indexModule.addIndexEventListener(new IndexEventListener() {
+                    @Override
+                    public void onStoreClosed(ShardId shardId) {
+                        shardStoreClosedListener.onResponse(null);
+                    }
+                });
+            }
+        }
+
+        public void registerMergeEventListener(MergeEventListener listener) {
+            var threadPoolMergeExecutorService = Objects.requireNonNull(threadPoolMergeExecutorServiceReference.get());
+            threadPoolMergeExecutorService.registerMergeEventListener(listener);
+        }
     }
 
     @Override
@@ -228,6 +260,9 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                 .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), Integer.MAX_VALUE)
                 .build()
         );
+
+        final var mergesListener = new AssertingMergeEventListener();
+        plugin.registerMergeEventListener(mergesListener);
 
         // Kick off enough merges to block the thread pool
         var maxRunningThreads = Math.min(maxMergeThreads, indexMaxThreadCount);
@@ -275,16 +310,31 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 
         ensureRed(indexName);
 
+        // verify that the shard store is effectively closed
+        safeGet(plugin.shardStoreClosedListener);
+
+        final var shardId = new ShardId(resolveIndex(indexName), 0);
+        var nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, dataNode);
+        try {
+            var shardLock = nodeEnvironment.shardLock(shardId, getTestName(), 10_000L);
+            shardLock.close();
+        } catch (ShardLockObtainFailedException ex) {
+            throw new AssertionError("Shard " + shardId + " is still locked after 10 seconds", ex);
+        }
+
         // check the state of the shard
         var routingTable = internalCluster().clusterService(dataNode).state().routingTable(ProjectId.DEFAULT);
-        var indexRoutingTable = routingTable.index(resolveIndex(indexName));
-        var primary = asInstanceOf(IndexShardRoutingTable.class, indexRoutingTable.shard(0)).primaryShard();
+        var indexRoutingTable = routingTable.index(shardId.getIndex());
+        var primary = asInstanceOf(IndexShardRoutingTable.class, indexRoutingTable.shard(shardId.id())).primaryShard();
         assertThat(primary.state(), equalTo(ShardRoutingState.UNASSIGNED));
         assertThat(primary.unassignedInfo(), notNullValue());
         assertThat(primary.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         var failure = ExceptionsHelper.unwrap(primary.unassignedInfo().failure(), IOException.class);
         assertThat(failure, notNullValue());
         assertThat(failure.getMessage(), containsString(FAILING_MERGE_ON_PURPOSE));
+
+        // verify the number of queued, completed and aborted merges
+        mergesListener.verify();
 
         assertAcked(indicesAdmin().prepareDelete(indexName));
     }
@@ -308,6 +358,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                 }
                 bulkRequest.get();
             }
+            // Sleep a bit to wait for merges to kick in
             long sleepInMillis = randomLongBetween(50L, 200L);
             safeSleep(sleepInMillis);
             millisWaited += sleepInMillis;
@@ -326,5 +377,35 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                 .get();
             assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
         });
+    }
+
+    private static class AssertingMergeEventListener implements MergeEventListener {
+
+        private final AtomicInteger mergesQueued = new AtomicInteger();
+        private final AtomicInteger mergesCompleted = new AtomicInteger();
+        private final AtomicInteger mergesAborted = new AtomicInteger();
+
+        @Override
+        public void onMergeQueued(OnGoingMerge merge, long estimateMergeMemoryBytes) {
+            mergesQueued.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeCompleted(OnGoingMerge merge) {
+            mergesCompleted.incrementAndGet();
+        }
+
+        @Override
+        public void onMergeAborted(OnGoingMerge merge) {
+            mergesAborted.incrementAndGet();
+        }
+
+        private void verify() {
+            int queued = mergesQueued.get();
+            int completed = mergesCompleted.get();
+            int aborted = mergesAborted.get();
+            var error = format("Queued merges mismatch (queued=%d, completed=%d, aborted=%d)", queued, completed, aborted);
+            assertThat(error, queued, equalTo(completed + aborted));
+        }
     }
 }

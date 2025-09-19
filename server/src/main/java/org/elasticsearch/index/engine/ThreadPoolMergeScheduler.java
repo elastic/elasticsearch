@@ -243,16 +243,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // note that estimating the size of the merge might open a searcher
             final var mergeTask = newMergeTask(pendingMerge.source(), pendingMerge.merge(), pendingMerge.trigger());
             if (tragedy == null) {
+                mergeMetrics.incrementQueuedMergeBytes(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes());
+                mergeQueued(mergeTask.onGoingMerge);
+
                 queued = threadPoolMergeExecutorService.submitMergeTask(mergeTask); // may abort the merge immediately
                 // TODO Enable the following assertions once unit tests are fixed to not use Mockito
                 // assert queued || pendingMerge.merge().isAborted();
-                if (queued) {
-                    mergeMetrics.incrementQueuedMergeBytes(mergeTask.getOnGoingMerge(), mergeTask.getMergeMemoryEstimateBytes());
-                    mergeQueued(mergeTask.onGoingMerge);
-                }
             } else {
                 // merge scheduler is failing due to a tragic event
-                abortMergeTask(mergeTask);
+                mergeTask.abort();
             }
         } finally {
             if (queued && tragedy != null) {
@@ -383,7 +382,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             //
             // In order to avoid waiting indefinitely in IndexWriter#abortMerges for merges that won't be executed, the current thread is
             // used to abort all remaining non-executed merges:
-            // - the merges in pendingMerges that are waiting to be enqueued,
             // - the merge tasks in backloggedMergeTasks that are waiting to be re-enqueued,
             // - the merge tasks in the thread pool executor task queue that are waiting to be executed.
             //

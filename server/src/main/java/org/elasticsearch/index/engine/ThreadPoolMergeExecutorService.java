@@ -703,16 +703,12 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             lock.lock();
             try {
                 for (Iterator<Tuple<E, Long>> iterator = enqueuedByBudget.iterator(); iterator.hasNext();) {
-                    var next = iterator.next();
-                    E item = next.v1();
+                    E item = iterator.next().v1();
                     if (predicate.test(item)) {
                         iterator.remove();
                         c.add(item);
                         removed++;
                     }
-                }
-                if (removed > 0) {
-                    elementAvailable.signalAll();
                 }
                 return removed;
             } finally {

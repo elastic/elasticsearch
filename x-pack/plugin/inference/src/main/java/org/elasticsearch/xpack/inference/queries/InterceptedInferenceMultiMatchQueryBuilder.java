@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.queries;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -53,6 +54,10 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
 
     @Override
     protected QueryBuilder doRewriteBwC(QueryRewriteContext queryRewriteContext) {
+        if (queryRewriteContext.getMinTransportVersion().before(TransportVersions.MULTI_MATCH_WITH_NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+            return originalQuery;
+        }
+
         return this;
     }
 

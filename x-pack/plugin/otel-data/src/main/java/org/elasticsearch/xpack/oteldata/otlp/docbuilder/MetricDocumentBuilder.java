@@ -47,7 +47,6 @@ public class MetricDocumentBuilder {
         Map<String, String> dynamicTemplates,
         DataPointGroupingContext.DataPointGroup dataPointGroup
     ) throws IOException {
-        TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
         List<DataPoint> dataPoints = dataPointGroup.dataPoints();
         builder.startObject();
         builder.field("@timestamp", TimeUnit.NANOSECONDS.toMillis(dataPointGroup.getTimestampUnixNano()));
@@ -60,7 +59,6 @@ public class MetricDocumentBuilder {
         buildDataPointAttributes(builder, dataPointGroup.dataPointAttributes(), dataPointGroup.unit());
         String metricNamesHash = dataPointGroup.getMetricNamesHash(hasher);
         builder.field("_metric_names_hash", metricNamesHash);
-        tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
 
         long docCount = 0;
         builder.startObject("metrics");
@@ -82,6 +80,8 @@ public class MetricDocumentBuilder {
             builder.field("_doc_count", docCount);
         }
         builder.endObject();
+        TsidBuilder tsidBuilder = dataPointGroup.tsidBuilder();
+        tsidBuilder.addStringDimension("_metric_names_hash", metricNamesHash);
         return tsidBuilder.buildTsid();
     }
 

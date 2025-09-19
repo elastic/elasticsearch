@@ -135,7 +135,8 @@ public class OTLPMetricsTransportAction extends HandledTransportAction<
                 new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
                     .setRequireDataStream(true)
                     .source(xContentBuilder)
-                    .tsid(tsid)
+                    // TODO uncomment after https://github.com/elastic/elasticsearch/pull/132566 is merged and before merging this PR
+                    //.tsid(tsid)
                     .setDynamicTemplates(dynamicTemplates)
             );
         }

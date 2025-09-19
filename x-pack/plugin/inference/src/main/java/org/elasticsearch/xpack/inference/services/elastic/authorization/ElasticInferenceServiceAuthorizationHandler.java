@@ -14,7 +14,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.Scheduler;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.DefaultModelConfig;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 
 import java.io.Closeable;
@@ -61,7 +59,6 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
     private final AtomicReference<AuthorizedContent> authorizedContent = new AtomicReference<>(AuthorizedContent.empty());
     private final ModelRegistry modelRegistry;
     private final ElasticInferenceServiceAuthorizationRequestHandler authorizationHandler;
-    private final AtomicReference<ElasticInferenceService.Configuration> configuration;
     private final Map<String, DefaultModelConfig> defaultModelsConfigs;
     private final CountDownLatch firstAuthorizationCompletedLatch = new CountDownLatch(1);
     private final EnumSet<TaskType> implementedTaskTypes;
@@ -117,10 +114,6 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         this.inferenceService = inferenceService;
         this.sender = Objects.requireNonNull(sender);
         this.elasticInferenceServiceSettings = Objects.requireNonNull(elasticInferenceServiceSettings);
-
-        configuration = new AtomicReference<>(
-            new ElasticInferenceService.Configuration(authorizedContent.get().taskTypesAndModels.getAuthorizedTaskTypes())
-        );
         this.callback = callback;
     }
 
@@ -166,10 +159,6 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
 
     public synchronized boolean hideFromConfigurationApi() {
         return authorizedContent.get().taskTypesAndModels.isAuthorized() == false;
-    }
-
-    public synchronized InferenceServiceConfiguration getConfiguration() {
-        return configuration.get().get();
     }
 
     @Override
@@ -256,8 +245,6 @@ public class ElasticInferenceServiceAuthorizationHandler implements Closeable {
         authorizedContent.set(
             new AuthorizedContent(authorizedTaskTypesAndModels, authorizedDefaultConfigIds, authorizedDefaultModelObjects)
         );
-
-        configuration.set(new ElasticInferenceService.Configuration(authorizedContent.get().taskTypesAndModels.getAuthorizedTaskTypes()));
 
         authorizedContent.get().configIds().forEach(modelRegistry::putDefaultIdIfAbsent);
         handleRevokedDefaultConfigs(authorizedDefaultModelIds);

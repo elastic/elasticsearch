@@ -37,6 +37,7 @@ PUT my-rank-vectors-float/_doc/1
   "my_vector" : [[0.5, 10, 6], [-0.5, 10, 10]]
 }
 ```
+% TESTSETUP
 
 In addition to the `float` element type, `byte` and `bit` element types are also supported.
 

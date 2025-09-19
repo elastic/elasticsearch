@@ -18,6 +18,7 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ```
+% TEST[skip:we don't have hdfs set up while testing this]
 
 The following settings are supported:
 

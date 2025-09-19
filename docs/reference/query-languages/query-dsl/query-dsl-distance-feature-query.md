@@ -43,6 +43,7 @@ To see how you can set up an index for the `distance_feature` query, try the fol
       }
     }
     ```
+    % TESTSETUP
 
 2. Index several documents to this index.
 
@@ -60,7 +61,6 @@ To see how you can set up an index for the `distance_feature` query, try the fol
       "production_date": "2018-01-01",
       "location": [-71.3, 41.15]
     }
-
 
     PUT /items/_doc/3?refresh
     {

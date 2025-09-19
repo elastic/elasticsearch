@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -90,6 +91,7 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
+import static org.elasticsearch.index.mapper.Mapper.IgnoreAbove.getIgnoreAboveDefaultValue;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -169,6 +171,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         );
         private final Parameter<Integer> ignoreAbove;
         private final int ignoreAboveDefault;
+        private final IndexMode indexMode;
 
         private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> toType(m).indexOptions);
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
@@ -206,6 +209,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 mappingParserContext.scriptCompiler(),
                 IGNORE_ABOVE_SETTING.get(mappingParserContext.getSettings()),
                 mappingParserContext.getIndexSettings().getIndexVersionCreated(),
+                mappingParserContext.getIndexSettings().getMode(),
                 mappingParserContext.getIndexSettings().sourceKeepMode()
             );
         }
@@ -214,8 +218,27 @@ public final class KeywordFieldMapper extends FieldMapper {
             String name,
             IndexAnalyzers indexAnalyzers,
             ScriptCompiler scriptCompiler,
+            IndexVersion indexCreatedVersion,
+            SourceKeepMode sourceKeepMode
+        ) {
+            this(
+                name,
+                indexAnalyzers,
+                scriptCompiler,
+                getIgnoreAboveDefaultValue(IndexMode.STANDARD, indexCreatedVersion),
+                indexCreatedVersion,
+                IndexMode.STANDARD,
+                sourceKeepMode
+            );
+        }
+
+        private Builder(
+            String name,
+            IndexAnalyzers indexAnalyzers,
+            ScriptCompiler scriptCompiler,
             int ignoreAboveDefault,
             IndexVersion indexCreatedVersion,
+            IndexMode indexMode,
             SourceKeepMode indexSourceKeepMode
         ) {
             super(name);
@@ -245,17 +268,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }).precludesParameters(normalizer);
             this.ignoreAboveDefault = ignoreAboveDefault;
-            this.ignoreAbove = Parameter.intParam("ignore_above", true, m -> toType(m).fieldType().ignoreAbove(), ignoreAboveDefault)
-                .addValidator(v -> {
-                    if (v < 0) {
-                        throw new IllegalArgumentException("[ignore_above] must be positive, got [" + v + "]");
-                    }
-                });
+            this.ignoreAbove = Parameter.ignoreAboveParam(m -> toType(m).fieldType().ignoreAbove().get(), ignoreAboveDefault);
+            this.indexMode = indexMode;
             this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {
-            this(name, null, ScriptCompiler.NONE, Integer.MAX_VALUE, indexCreatedVersion, SourceKeepMode.NONE);
+            this(name, null, ScriptCompiler.NONE, indexCreatedVersion, SourceKeepMode.NONE);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -418,7 +437,9 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
-        private final int ignoreAbove;
+        private static final IgnoreAbove IGNORE_ABOVE_DEFAULT = new IgnoreAbove(null, IndexMode.STANDARD);
+
+        private final IgnoreAbove ignoreAbove;
         private final String nullValue;
         private final NamedAnalyzer normalizer;
         private final boolean eagerGlobalOrdinals;
@@ -446,7 +467,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;
-            this.ignoreAbove = builder.ignoreAbove.getValue();
+            this.ignoreAbove = new IgnoreAbove(builder.ignoreAbove.getValue(), builder.indexMode, builder.indexCreatedVersion);
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
@@ -454,20 +475,20 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.originalName = isSyntheticSource ? name + "._original" : null;
         }
 
+        public KeywordFieldType(String name) {
+            this(name, true, true, Collections.emptyMap());
+        }
+
         public KeywordFieldType(String name, boolean isIndexed, boolean hasDocValues, Map<String, String> meta) {
             super(name, isIndexed, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = Integer.MAX_VALUE;
+            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
             this.isDimension = false;
             this.isSyntheticSource = false;
             this.originalName = null;
-        }
-
-        public KeywordFieldType(String name) {
-            this(name, true, true, Collections.emptyMap());
         }
 
         public KeywordFieldType(String name, FieldType fieldType) {
@@ -480,7 +501,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 Collections.emptyMap()
             );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = Integer.MAX_VALUE;
+            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -492,7 +513,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, textSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.normalizer = Lucene.KEYWORD_ANALYZER;
-            this.ignoreAbove = Integer.MAX_VALUE;
+            this.ignoreAbove = IGNORE_ABOVE_DEFAULT;
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
@@ -800,10 +821,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private String applyIgnoreAboveAndNormalizer(String value) {
-            if (value.length() > ignoreAbove) {
-                return null;
-            }
-
+            if (ignoreAbove.isIgnored(value)) return null;
             return normalizeValue(normalizer(), name(), value);
         }
 
@@ -922,7 +940,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         /** Values that have more chars than the return value of this method will
          *  be skipped at parsing time. */
-        public int ignoreAbove() {
+        public IgnoreAbove ignoreAbove() {
             return ignoreAbove;
         }
 
@@ -974,7 +992,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
     private final int ignoreAboveDefault;
-    private final int ignoreAbove;
+    private final IndexMode indexMode;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
     private final String originalName;
@@ -1003,7 +1021,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.isSyntheticSource = isSyntheticSource;
         this.ignoreAboveDefault = builder.ignoreAboveDefault;
-        this.ignoreAbove = builder.ignoreAbove.getValue();
+        this.indexMode = builder.indexMode;
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
         this.originalName = mappedFieldType.originalName();
@@ -1060,7 +1078,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return false;
         }
 
-        if (value.stringLength() > fieldType().ignoreAbove()) {
+        if (fieldType().ignoreAbove().isIgnored(value)) {
             context.addIgnoredField(fullPath());
             if (isSyntheticSource) {
                 // Save a copy of the field so synthetic source can load it
@@ -1151,9 +1169,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexAnalyzers, scriptCompiler, ignoreAboveDefault, indexCreatedVersion, indexSourceKeepMode)
-            .dimension(fieldType().isDimension())
-            .init(this);
+        return new Builder(
+            leafName(),
+            indexAnalyzers,
+            scriptCompiler,
+            ignoreAboveDefault,
+            indexCreatedVersion,
+            indexMode,
+            indexSourceKeepMode
+        ).dimension(fieldType().isDimension()).init(this);
     }
 
     @Override
@@ -1216,7 +1240,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
         }
 
-        if (fieldType().ignoreAbove != Integer.MAX_VALUE) {
+        if (fieldType().ignoreAbove.isSet()) {
             layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(originalName) {
                 @Override
                 protected void writeValue(Object value, XContentBuilder b) throws IOException {

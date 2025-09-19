@@ -1,28 +1,32 @@
 {
-  "security.oidc_logout":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-oidc-logout.html",
-      "description":"Logout of OpenID Connect"
+  "security.oidc_logout": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-oidc-logout.html",
+      "description": "Logout of OpenID Connect"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/oidc/logout",
-          "methods":[
+          "path": "/_security/oidc/logout",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "body":{
-      "description":"Access token and refresh token to invalidate",
-      "required":true
+    "body": {
+      "description": "Access token and refresh token to invalidate",
+      "required": true
     }
   }
 }

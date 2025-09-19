@@ -519,8 +519,10 @@ public class DateUtils {
     private static final boolean USES_COMPAT = System.getProperty("java.locale.providers", "").contains("COMPAT");
     // check for all textual fields, and localized zone offset
     // the weird thing with Z is to ONLY match 4 in a row, with no Z before or after (but those groups can also be empty)
+    private static final Predicate<String> LEGACY_DATE_FORMAT_MATCHER = Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|qqq|ccc|eee|(?<!Z)Z{4}(?!Z)")
+        .asPredicate();
     private static final Predicate<String> CONTAINS_CHANGING_TEXT_SPECIFIERS = USES_COMPAT
-        ? Pattern.compile("[BEGOavz]|LLL|MMM|QQQ|qqq|ccc|eee|(?<!Z)Z{4}(?!Z)").asPredicate()
+        ? LEGACY_DATE_FORMAT_MATCHER
         : Predicates.never();
     // week dates are changing on CLDR, as the rules are changing for start-of-week and min-days-in-week
     private static final Predicate<String> CONTAINS_WEEK_DATE_SPECIFIERS = USES_COMPAT
@@ -546,5 +548,9 @@ public class DateUtils {
                 ReferenceDocs.JDK_LOCALE_DIFFERENCES
             );
         }
+    }
+
+    public static boolean containsCompatOnlyDateFormat(String format) {
+        return LEGACY_DATE_FORMAT_MATCHER.test(format);
     }
 }

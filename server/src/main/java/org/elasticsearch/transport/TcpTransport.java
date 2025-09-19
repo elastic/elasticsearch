@@ -1129,7 +1129,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                         nodeChannels.channels.forEach(ch -> {
                             // Mark the channel init time
                             ch.getChannelStats().markAccessed(relativeMillisTime);
-                            ch.addCloseListener(new ActionListener<Void>() {
+                            ch.addCloseListener(new ActionListener<>() {
                                 @Override
                                 public void onResponse(Void ignored) {
                                     nodeChannels.close();
@@ -1137,7 +1137,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    nodeChannels.closeAndFail(e);
+                                    nodeChannels.closeAndFail(new NodeDisconnectedException(node, "closed exceptionally: " + ch, null, e));
                                 }
                             });
                         });

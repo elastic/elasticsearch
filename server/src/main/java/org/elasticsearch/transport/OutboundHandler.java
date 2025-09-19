@@ -459,6 +459,16 @@ public final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
+            logger.error(
+                Strings.format(
+                    "unexpected exception calling sendMessage for transport message [%s] of size [%d] on [%s]",
+                    messageDescription.get(),
+                    messageSize,
+                    channel
+                ),
+                ex
+            );
+            assert Thread.currentThread().getName().startsWith("TEST-") : ex;
             channel.setCloseException(ex);
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;

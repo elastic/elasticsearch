@@ -457,6 +457,9 @@ Read-only access to the search action from a <<remote-clusters,remote cluster>>.
 +
 This privilege is not available in {serverless-full}.
 
+`read_failure_store`::
+Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the <<component-selectors,index component selector syntax>>.
+
 `view_index_metadata`::
 Read-only access to index and data stream metadata (aliases, exists,
 field capabilities, field mappings, get index, get data stream, ilm explain,

@@ -46,3 +46,4 @@ JDK_LOCALE_DIFFERENCES                                          mapping-date-for
 ALLOCATION_EXPLAIN_MAX_RETRY                                    cluster-allocation-explain.html#maximum-number-of-retries-exceeded
 SECURE_SETTINGS                                                 secure-settings.html
 CLUSTER_SHARD_LIMIT                                             misc-cluster-settings.html#cluster-shard-limit
+DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block

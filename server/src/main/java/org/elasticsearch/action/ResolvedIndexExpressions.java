@@ -10,6 +10,7 @@
 package org.elasticsearch.action;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -61,7 +62,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                 new ResolvedIndexExpression(
                     original,
                     new ResolvedIndexExpression.LocalExpressions(localExpressions, resolutionResult, null),
-                    new ArrayList<>()
+                    new HashSet<>()
                 )
             );
         }

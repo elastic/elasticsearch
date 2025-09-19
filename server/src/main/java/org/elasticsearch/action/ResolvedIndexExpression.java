@@ -12,7 +12,6 @@ package org.elasticsearch.action;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -41,7 +40,7 @@ import java.util.Set;
  *                         and failure info
  * @param remoteExpressions the remote expressions that replace the original
  */
-public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
+public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, Set<String> remoteExpressions) {
     /**
      * Indicates if a local index resolution attempt was successful or failed.
      * Failures can be due to missing concrete resources or unauthorized concrete resources.

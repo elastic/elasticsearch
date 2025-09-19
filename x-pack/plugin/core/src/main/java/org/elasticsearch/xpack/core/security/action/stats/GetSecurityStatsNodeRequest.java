@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.AbstractTransportRequest;
@@ -23,6 +24,9 @@ public class GetSecurityStatsNodeRequest extends AbstractTransportRequest {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.SECURITY_STATS_ENDPOINT)) { // shouldn't happen
+            throw new UnsupportedOperationException("node doesn't support security stats endpoint");
+        }
         super.writeTo(out);
     }
 }

@@ -1828,7 +1828,7 @@ public class Security extends Plugin
             new RestDisableProfileAction(settings, getLicenseState()),
             new RestGetSecuritySettingsAction(settings, getLicenseState()),
             new RestUpdateSecuritySettingsAction(settings, getLicenseState()),
-            new RestSecurityStatsAction(settings, getLicenseState())
+            new RestSecurityStatsAction(settings, getLicenseState(), clusterSupportsFeature)
         ).filter(Objects::nonNull).toList();
     }
 

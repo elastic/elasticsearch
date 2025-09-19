@@ -38,13 +38,10 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
             .put("cluster.remote.my_remote.signing.keystore.alias", "wholelottakey")
             .put("path.home", createTempDir())
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
-        addStorePathToBuilder("my_remote", "signing", true, builder);
-        addStorePathToBuilder("my_remote", "truststore", false, builder);
 
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "secretpassword");
-        secureSettings.setString("cluster.remote.my_remote.signing.truststore.secure_password", "changeit");
-        builder.setSecureSettings(secureSettings);
+        addStorePathToBuilder("my_remote", "signing", true, "secretpassword", "secretpassword", builder);
+        addStorePathToBuilder("my_remote", "truststore", false, "changeit", "secretpassword", builder);
+
         var manager = new CrossClusterApiKeySignatureManager(TestEnvironment.newEnvironment(builder.build()));
         var signature = manager.signerForClusterAlias("my_remote").sign("a_header");
         assertTrue(manager.verifierForClusterAlias("my_remote").verify(signature, "a_header"));
@@ -55,13 +52,10 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
             .put("cluster.remote.my_remote.signing.keystore.alias", "wholelottakey")
             .put("path.home", createTempDir())
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
-        addStorePathToBuilder("my_remote", "signing", true, builder);
-        addStorePathToBuilder("my_remote", "truststore", false, builder);
 
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "secretpassword");
-        secureSettings.setString("cluster.remote.my_remote.signing.truststore.secure_password", "changeit");
-        builder.setSecureSettings(secureSettings);
+        addStorePathToBuilder("my_remote", "signing", true, "secretpassword", "secretpassword", builder);
+        addStorePathToBuilder("my_remote", "truststore", false, "changeit", "secretpassword", builder);
+
         var manager = new CrossClusterApiKeySignatureManager(TestEnvironment.newEnvironment(builder.build()));
         var signature = manager.signerForClusterAlias("my_remote").sign("a_header");
         assertFalse(manager.verifierForClusterAlias("my_remote").verify(signature, "another_header"));
@@ -122,10 +116,8 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
             .put("path.home", createTempDir())
             .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
 
-        addStorePathToBuilder("my_remote", "signing", true, builder);
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "secretpassword");
-        builder.setSecureSettings(secureSettings);
+        addStorePathToBuilder("my_remote", "signing", true, "secretpassword", "secretpassword", builder);
+
         var exception = assertThrows(
             IllegalStateException.class,
             () -> new CrossClusterApiKeySignatureManager(TestEnvironment.newEnvironment(builder.build()))
@@ -137,11 +129,7 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         var ca = getDataPath("/org/elasticsearch/xpack/security/signature/root.crt");
         var builder = settingsBuilder.put("cluster.remote.my_remote.signing.certificate_authorities", ca);
 
-        addStorePathToBuilder("my_remote", "signing_with_intermediate", true, builder);
-
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "password123password");
-        builder.setSecureSettings(secureSettings);
+        addStorePathToBuilder("my_remote", "signing_with_intermediate", true, "password123password", "password123password", builder);
 
         var environment = TestEnvironment.newEnvironment(builder.build());
         var manager = new CrossClusterApiKeySignatureManager(environment);
@@ -153,15 +141,11 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertTrue(verifier.verify(signature, "test"));
     }
 
-    public void testSignAndVerifyFailsIntermediateCertMissing() throws Exception {
+    public void testSignAndVerifyFailsIntermediateCertMissing() {
         var ca = getDataPath("/org/elasticsearch/xpack/security/signature/root.crt");
         var builder = settingsBuilder.put("cluster.remote.my_remote.signing.certificate_authorities", ca);
 
-        addStorePathToBuilder("my_remote", "signing_no_intermediate", true, builder);
-
-        MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("cluster.remote.my_remote.signing.keystore.secure_password", "password123password");
-        builder.setSecureSettings(secureSettings);
+        addStorePathToBuilder("my_remote", "signing_no_intermediate", true, "password123password", "password123password", builder);
 
         var environment = TestEnvironment.newEnvironment(builder.build());
         var manager = new CrossClusterApiKeySignatureManager(environment);
@@ -174,10 +158,25 @@ public class CrossClusterApiKeySignatureManagerTests extends ESTestCase {
         assertThat(exception.getMessage(), containsString("Failed to verify signature for [my_remote]"));
     }
 
-    private void addStorePathToBuilder(String remoteCluster, String storeName, boolean isKeyStore, Settings.Builder builder) {
+    private void addStorePathToBuilder(
+        String remoteCluster,
+        String storeName,
+        boolean isKeyStore,
+        String password,
+        String passwordFips,
+        Settings.Builder builder
+    ) {
         String storeType = inFipsJvm() ? "BCFKS" : "PKCS12";
         String extension = inFipsJvm() ? ".bcfks" : ".jks";
         String storeKind = isKeyStore ? "keystore" : "truststore";
+        String keystorePassword = inFipsJvm() ? passwordFips : password;
+
+        if (builder.getSecureSettings() == null) {
+            builder.setSecureSettings(new MockSecureSettings());
+        }
+        MockSecureSettings secureSettings = (MockSecureSettings) builder.getSecureSettings();
+
+        secureSettings.setString("cluster.remote." + remoteCluster + ".signing." + storeKind + ".secure_password", keystorePassword);
 
         builder.put("cluster.remote." + remoteCluster + ".signing." + storeKind + ".type", storeType)
             .put(

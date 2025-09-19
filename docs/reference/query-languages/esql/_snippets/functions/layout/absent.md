@@ -2,7 +2,7 @@
 
 ## `ABSENT` [esql-absent]
 ```{applies_to}
-stack: coming
+stack: ga 9.2.0
 ```
 
 **Syntax**

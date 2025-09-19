@@ -191,6 +191,24 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(inputError.getMessage(), is("Validation Failed: 1: Field [top_n] cannot be specified for task type [text_embedding];"));
     }
 
+    public void testValidation_TextEmbedding_WithQuery() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            "query",
+            null,
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [query] cannot be specified for task type [text_embedding];"));
+    }
+
     public void testValidation_Rerank_Null() {
         InferenceAction.Request queryNullRequest = new InferenceAction.Request(
             TaskType.RERANK,
@@ -249,7 +267,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         InferenceAction.Request queryRequest = new InferenceAction.Request(
             TaskType.SPARSE_EMBEDDING,
             "model",
-            "",
+            null,
             null,
             null,
             List.of("input"),
@@ -306,6 +324,27 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(
             queryError.getMessage(),
             is("Validation Failed: 1: Field [top_n] cannot be specified for task type [sparse_embedding];")
+        );
+    }
+
+    public void testValidation_SparseEmbedding_WithQuery() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.SPARSE_EMBEDDING,
+            "model",
+            "query",
+            null,
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [query] cannot be specified for task type [sparse_embedding];")
         );
     }
 
@@ -691,13 +730,6 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                                 mutated = instance;
                             }
 
-        // We always assume that a request has been rerouted, if it came from a node without adaptive rate limiting
-        if (version.before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
-            mutated.setHasBeenRerouted(true);
-        } else {
-            mutated.setHasBeenRerouted(instance.hasBeenRerouted());
-        }
-
         return mutated;
     }
 
@@ -749,7 +781,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 
-    public void testWriteTo_WhenVersionIsBeforeAdaptiveRateLimiting_ShouldSetHasBeenReroutedToTrue() throws IOException {
+    public void testWriteTo_ForHasBeenReroutedChanges() throws IOException {
         var instance = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,
             "model",
@@ -763,15 +795,39 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             false
         );
 
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.V_8_13_0
-        );
+        {
+            // From a version before the rerouting logic was added
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.V_8_17_0
+            );
 
-        // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
-        assertTrue(deserializedInstance.hasBeenRerouted());
+            assertEquals(instance, deserializedInstance);
+        }
+        {
+            // From a version with rerouting
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING
+            );
+
+            assertEquals(instance, deserializedInstance);
+        }
+        {
+            // From a version with rerouting removed
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
+            );
+
+            assertEquals(instance, deserializedInstance);
+        }
     }
 
     public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {

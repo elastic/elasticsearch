@@ -96,13 +96,13 @@ public class InferenceResolverTests extends ESTestCase {
                 "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
                 List.of("text-embedding-inference-id")
             );
-        }
 
-        // Test inference ID collection with nested functions
-        assertCollectInferenceIds(
-            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(TEXT_EMBEDDING(\"nested\", \"nested-id\"), \"outer-id\")",
-            List.of("nested-id", "outer-id")
-        );
+            // Test inference ID collection with nested functions
+            assertCollectInferenceIds(
+                "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(TEXT_EMBEDDING(\"nested\", \"nested-id\"), \"outer-id\")",
+                List.of("nested-id", "outer-id")
+            );
+        }
 
         // Multiple inference plans
         assertCollectInferenceIds("""

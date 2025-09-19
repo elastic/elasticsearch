@@ -38,7 +38,7 @@ public class BytesArrayIndexOfBenchmark {
 
     static final byte MARKER = (byte) '\n';
 
-    @Param(value = { "4096", "16384", "65536", "1048576" })
+    @Param(value = { "64", "127", "128", "4096", "16384", "65536", "1048576" })
     public int size;
 
     BytesArray bytesArray;

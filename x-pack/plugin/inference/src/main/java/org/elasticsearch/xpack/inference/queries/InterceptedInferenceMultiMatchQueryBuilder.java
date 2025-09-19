@@ -95,7 +95,7 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
 
     @Override
     protected boolean useDefaultFields() {
-        return false;
+        return true;
     }
 
     @Override

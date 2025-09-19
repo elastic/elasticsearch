@@ -268,7 +268,7 @@ public enum DataType {
     // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
     VERSION(builder().esType("version").estimatedSize(15).docValues()),
     OBJECT(builder().esType("object").estimatedSize(1024)),
-    SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(1024)),
+    SOURCE(builder().esType(SourceFieldMapper.NAME).estimatedSize(10 * 1024)),
     DATE_PERIOD(builder().typeName("DATE_PERIOD").estimatedSize(3 * Integer.BYTES)),
     TIME_DURATION(builder().typeName("TIME_DURATION").estimatedSize(Integer.BYTES + Long.BYTES)),
     // WKB for points is typically 21 bytes.

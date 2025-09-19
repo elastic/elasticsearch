@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -348,7 +349,7 @@ class IndicesAndAliasesResolver {
                 } else {
                     split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                 }
-                List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
+                final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
                     projectMetadata,
@@ -356,7 +357,8 @@ class IndicesAndAliasesResolver {
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
-                resolvedIndicesBuilder.addLocal(replaced);
+                replaceable.setResolvedIndexExpressions(resolved);
+                resolvedIndicesBuilder.addLocal(resolved.getLocalIndicesList());
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }
 

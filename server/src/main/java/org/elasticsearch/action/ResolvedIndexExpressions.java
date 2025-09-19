@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,4 +38,8 @@ import java.util.Map;
  * }
  * }</pre>
  */
-public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expressions) {}
+public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expressions) {
+    public List<String> getLocalIndicesList() {
+        return expressions.values().stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
+    }
+}

@@ -1,5 +1,0 @@
-pr: 134711
-summary: Add Reason field to elastic-agent upgrade details metadata
-area: Infra/Plugins
-type: enhancement
-issues: []

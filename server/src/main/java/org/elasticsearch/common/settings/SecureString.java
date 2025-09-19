@@ -54,9 +54,59 @@ public final class SecureString implements CharSequence, Releasable {
             return false;
         }
 
+        return compareChars(0, that, 0, chars.length);
+    }
+
+    public boolean startsWith(CharSequence other) {
+        ensureNotClosed();
+        if (this.length() < other.length()) {
+            return false;
+        }
+        return compareChars(0, other, 0, other.length());
+    }
+
+    /**
+     * Compare the characters in this {@code SecureString} from {@code thisOffset} to {@code thisOffset + len}
+     * against that characters in {@code other} from {@code otherOffset} to {@code otherOffset + len}
+     * <br />
+     * This operation is performed in constant time (relative to {@code len})
+     */
+    public synchronized boolean regionMatches(int thisOffset, CharSequence other, int otherOffset, int len) {
+        ensureNotClosed();
+        if (otherOffset < 0 || thisOffset < 0) {
+            // cannot start from a negative value
+            return false;
+        }
+
+        // Perform some calculations as long to prevent overflow
+        if (thisOffset + (long) len > this.length() || otherOffset + (long) len > other.length()) {
+            // cannot compare a region that runs past the end of the source
+            return false;
+        }
+
+        if (len < 0) {
+            throw new IllegalArgumentException("length cannot be negative");
+        }
+        if (len == 0) {
+            // zero length regions are always equals
+            return true;
+        }
+
+        return compareChars(thisOffset, other, otherOffset, len);
+    }
+
+    /**
+     * Constant time comparison of a range from {@link #chars} against an identical length range from {@code other}
+     */
+    private boolean compareChars(int thisOffset, CharSequence other, int otherOffset, int len) {
+        assert len <= this.chars.length : "len is longer that secure-string: " + len + " vs " + this.chars.length;
+        assert len <= other.length() : "len is longer that comparison string: " + len + " vs " + other.length();
+
         int equals = 0;
-        for (int i = 0; i < chars.length; i++) {
-            equals |= chars[i] ^ that.charAt(i);
+        for (int i = 0; i < len; i++) {
+            final char t = chars[thisOffset + i];
+            final char o = other.charAt(otherOffset + i);
+            equals |= t ^ o;
         }
 
         return equals == 0;

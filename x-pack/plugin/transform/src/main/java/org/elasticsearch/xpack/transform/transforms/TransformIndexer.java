@@ -628,6 +628,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected void afterFinishOrFailure() {
         finishIndexerThreadShutdown();
+        super.afterFinishOrFailure();
     }
 
     @Override

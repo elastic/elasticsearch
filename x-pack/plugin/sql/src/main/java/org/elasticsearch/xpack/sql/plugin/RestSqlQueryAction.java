@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -33,6 +34,11 @@ import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER
 @ServerlessScope(Scope.PUBLIC)
 public class RestSqlQueryAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestSqlQueryAction.class);
+    private final Settings settings;
+
+    public RestSqlQueryAction(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -41,6 +47,10 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);

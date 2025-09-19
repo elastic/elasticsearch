@@ -8,12 +8,12 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
-import java.util.Optional;
 
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.INDEX_TEMPLATE;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
@@ -33,9 +33,9 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         boolean includeBarField,
         boolean includeBazField
     ) {
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("type1", Optional.empty());
-        rootBuilder.add(new ObjectMapper.Builder("disabled", Optional.empty()).enabled(disabledFieldEnabled));
-        ObjectMapper.Builder fooBuilder = new ObjectMapper.Builder("foo", Optional.empty()).enabled(fooFieldEnabled);
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("type1");
+        rootBuilder.add(new ObjectMapper.Builder("disabled").enabled(disabledFieldEnabled));
+        ObjectMapper.Builder fooBuilder = new ObjectMapper.Builder("foo").enabled(fooFieldEnabled);
         if (includeBarField) {
             fooBuilder.add(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers(), false));
         }
@@ -84,9 +84,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     public void testMergeDisabledField() {
         // GIVEN a mapping with "foo" field disabled
         // the field is disabled, and we are not trying to re-enable it, hence merge should work
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("disabled", Optional.empty())
-        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(new ObjectMapper.Builder("disabled"))
+            .build(MapperBuilderContext.root(false, false));
 
         RootObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
         assertFalse(((ObjectMapper) merged.getMapper("disabled")).isEnabled());
@@ -107,9 +106,8 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
     public void testMergeEnabledForRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
-        ObjectMapper firstMapper = new RootObjectMapper.Builder("_doc", Optional.empty()).build(MapperBuilderContext.root(false, false));
-        ObjectMapper secondMapper = new RootObjectMapper.Builder("_doc", Optional.empty()).enabled(false)
-            .build(MapperBuilderContext.root(false, false));
+        ObjectMapper firstMapper = new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root(false, false));
+        ObjectMapper secondMapper = new RootObjectMapper.Builder("_doc").enabled(false).build(MapperBuilderContext.root(false, false));
 
         MapperException e = expectThrows(
             MapperException.class,
@@ -149,9 +147,9 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergedFieldNamesFieldWithDotsSubobjectsFalse() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(createObjectSubobjectsFalseLeafWithDots())
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithDots())
             .build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(createObjectSubobjectsFalseLeafWithDots())
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithDots())
             .build(MapperBuilderContext.root(false, false));
 
         final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
@@ -164,9 +162,9 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergedFieldNamesMultiFields() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(createTextKeywordMultiField("text"))
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text"))
             .build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(createTextKeywordMultiField("text"))
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text"))
             .build(MapperBuilderContext.root(false, false));
 
         final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
@@ -180,12 +178,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergedFieldNamesMultiFieldsWithinSubobjectsFalse() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            createObjectSubobjectsFalseLeafWithMultiField()
-        ).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            createObjectSubobjectsFalseLeafWithMultiField()
-        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithMultiField())
+            .build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(createObjectSubobjectsFalseLeafWithMultiField())
+            .build(MapperBuilderContext.root(false, false));
 
         final ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE));
 
@@ -215,9 +211,9 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeWithLimitTruncatedObjectField() {
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
                 new KeywordFieldMapper.Builder("child1", IndexVersion.current())
             ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
@@ -246,13 +242,12 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeSameObjectDifferentFields() {
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("parent", Optional.empty()).add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()))
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("parent").add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("parent", Optional.empty()).add(
-                new KeywordFieldMapper.Builder("child1", IndexVersion.current()).ignoreAbove(42)
-            ).add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("parent").add(new KeywordFieldMapper.Builder("child1", IndexVersion.current()).ignoreAbove(42))
+                .add(new KeywordFieldMapper.Builder("child2", IndexVersion.current()))
         ).build(MapperBuilderContext.root(false, false));
 
         ObjectMapper mergedAdd0 = root.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, 0));
@@ -273,12 +268,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeWithLimitMultiField() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            createTextKeywordMultiField("text", "keyword1")
-        ).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            createTextKeywordMultiField("text", "keyword2")
-        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text", "keyword1"))
+            .build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(createTextKeywordMultiField("text", "keyword2"))
+            .build(MapperBuilderContext.root(false, false));
 
         assertEquals(2, mergeInto.getTotalFieldsCount());
         assertEquals(2, mergeWith.getTotalFieldsCount());
@@ -290,10 +283,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeWithLimitRuntimeField() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).addRuntimeField(
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").addRuntimeField(
             new TestRuntimeField("existing_runtime_field", "keyword")
         ).add(createTextKeywordMultiField("text", "keyword1")).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).addRuntimeField(
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").addRuntimeField(
             new TestRuntimeField("existing_runtime_field", "keyword")
         ).addRuntimeField(new TestRuntimeField("new_runtime_field", "keyword")).build(MapperBuilderContext.root(false, false));
 
@@ -307,14 +300,12 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeSubobjectsFalseWithObject() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED))
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED))
         ).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
-            new ObjectMapper.Builder("parent", Optional.empty()).add(
-                new ObjectMapper.Builder("child", Optional.empty()).add(
-                    new KeywordFieldMapper.Builder("grandchild", IndexVersion.current())
-                )
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(
+            new ObjectMapper.Builder("parent").add(
+                new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("grandchild", IndexVersion.current()))
             )
         ).build(MapperBuilderContext.root(false, false));
 
@@ -325,10 +316,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testConflictingDynamicUpdate() {
-        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc").add(
             new KeywordFieldMapper.Builder("http.status_code", IndexVersion.current())
         ).build(MapperBuilderContext.root(false, false));
-        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc").add(
             new NumberFieldMapper.Builder(
                 "http.status_code",
                 NumberFieldMapper.NumberType.LONG,
@@ -358,7 +349,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));
         assertEquals("host.name", fieldMapper.leafName());
         assertEquals("host.name", fieldMapper.fullPath());
-        return new RootObjectMapper.Builder("_doc", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(fieldBuilder)
+        return new RootObjectMapper.Builder("_doc", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(fieldBuilder)
             .build(MapperBuilderContext.root(false, false));
     }
 
@@ -378,7 +369,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("host.name", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
-            new ObjectMapper.Builder("metrics", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(fieldBuilder)
+            new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(fieldBuilder)
         );
     }
 
@@ -401,7 +392,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("keyword", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(
-            new ObjectMapper.Builder("metrics", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(fieldBuilder)
+            new ObjectMapper.Builder("metrics", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(fieldBuilder)
         );
     }
 

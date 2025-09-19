@@ -37,9 +37,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
+import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
 
 /**
  * <p>
@@ -60,7 +62,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     public static final NodeFeature NEW_SEMANTIC_QUERY_INTERCEPTORS = new NodeFeature("search.new_semantic_query_interceptors");
 
     protected final T originalQuery;
-    protected final Map<String, InferenceResults> inferenceResultsMap;
+    protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
         Objects.requireNonNull(originalQuery, "original query must not be null");
@@ -72,12 +74,20 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     protected InterceptedInferenceQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.originalQuery = (T) in.readNamedWriteable(QueryBuilder.class);
-        this.inferenceResultsMap = in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)));
+        if (in.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            this.inferenceResultsMap = in.readOptional(
+                i1 -> i1.readImmutableMap(FullyQualifiedInferenceId::new, i2 -> i2.readNamedWriteable(InferenceResults.class))
+            );
+        } else {
+            this.inferenceResultsMap = convertFromBwcInferenceResultsMap(
+                in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
+            );
+        }
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
@@ -122,7 +132,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * @param inferenceResultsMap The inference results map
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap);
+    protected abstract QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap);
 
     /**
      * Rewrite to a {@link QueryBuilder} appropriate for a specific index's mappings. The implementation can use
@@ -168,7 +178,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(originalQuery);
-        out.writeOptional((o, v) -> o.writeMap(v, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        if (out.getTransportVersion().supports(INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS)) {
+            out.writeOptional(
+                (o, v) -> o.writeMap(v, StreamOutput::writeWriteable, StreamOutput::writeNamedWriteable),
+                inferenceResultsMap
+            );
+        } else {
+            out.writeOptional((o1, v) -> o1.writeMap(v, (o2, id) -> {
+                if (id.clusterAlias().equals(LOCAL_CLUSTER_GROUP_KEY) == false) {
+                    throw new IllegalArgumentException("Cannot serialize remote cluster inference results in a mixed-version cluster");
+                }
+                o2.writeString(id.inferenceId());
+            }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
+        }
     }
 
     @Override
@@ -227,11 +249,6 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     }
 
     private QueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (this.inferenceResultsMap != null) {
-            inferenceResultsErrorCheck(this.inferenceResultsMap);
-            return this;
-        }
-
         QueryBuilder rewrittenBwC = doRewriteBwC(queryRewriteContext);
         if (rewrittenBwC != this) {
             return rewrittenBwC;
@@ -271,17 +288,27 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             inferenceIds = Set.of(inferenceIdOverride);
         }
 
-        // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results are
-        // provided by the user.
-        String query = getQuery();
-        Map<String, InferenceResults> inferenceResultsMap = new ConcurrentHashMap<>();
-        if (query != null) {
-            for (String inferenceId : inferenceIds) {
-                SemanticQueryBuilder.registerInferenceAsyncAction(queryRewriteContext, inferenceResultsMap, query, inferenceId);
+        QueryBuilder rewritten = this;
+        if (queryRewriteContext.hasAsyncActions() == false) {
+            // If the query is null, there's nothing to generate inference results for. This can happen if pre-computed inference results
+            // are provided by the user. Ensure that we set an empty inference results map in this case so that it is always non-null after
+            // coordinator node rewrite.
+            Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = SemanticQueryBuilder.getInferenceResults(
+                queryRewriteContext,
+                inferenceIds,
+                this.inferenceResultsMap,
+                getQuery()
+            );
+
+            if (modifiedInferenceResultsMap == this.inferenceResultsMap) {
+                // The inference results map is fully populated, so we can perform error checking
+                inferenceResultsErrorCheck(modifiedInferenceResultsMap);
+            } else {
+                rewritten = copy(modifiedInferenceResultsMap);
             }
         }
 
-        return copy(inferenceResultsMap);
+        return rewritten;
     }
 
     private static Set<String> getInferenceIdsForFields(
@@ -360,9 +387,9 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         inferenceFields.compute(field, (k, v) -> v == null ? weight : v * weight);
     }
 
-    private static void inferenceResultsErrorCheck(Map<String, InferenceResults> inferenceResultsMap) {
+    private static void inferenceResultsErrorCheck(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         for (var entry : inferenceResultsMap.entrySet()) {
-            String inferenceId = entry.getKey();
+            String inferenceId = entry.getKey().inferenceId();
             InferenceResults inferenceResults = entry.getValue();
 
             if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {

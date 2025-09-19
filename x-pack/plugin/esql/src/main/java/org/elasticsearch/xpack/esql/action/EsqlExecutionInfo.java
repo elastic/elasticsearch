@@ -152,7 +152,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     /**
      * Call when ES|QL "planning" phase is complete and query execution (in ComputeService) is about to start.
-     * Note this is currently only built for a single phase planning/execution model. When INLINESTATS
+     * Note this is currently only built for a single phase planning/execution model. When INLINE STATS
      * moves towards GA we may need to revisit this model. Currently, it should never be called more than once.
      */
     public void markEndPlanning() {
@@ -317,6 +317,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public Stream<Cluster> getClusterStates(Cluster.Status status) {
         assert clusterInfo.isEmpty() == false : "ClusterMap in EsqlExecutionInfo must not be empty";
         return clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status);
+    }
+
+    public Stream<String> getRunningClusterAliases() {
+        return getClusterStates(Cluster.Status.RUNNING).map(Cluster::getClusterAlias);
     }
 
     @Override

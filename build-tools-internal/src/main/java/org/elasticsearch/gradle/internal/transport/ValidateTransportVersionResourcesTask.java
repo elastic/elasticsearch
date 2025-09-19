@@ -60,6 +60,13 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     @Input
     public abstract Property<Boolean> getShouldValidatePrimaryIdNotPatch();
 
+    /**
+     * The name of the upper bounds file which will be used at runtime on the current branch. Normally
+     * this equates to VersionProperties.getElasticsearchVersion().
+     */
+    @Input
+    public abstract Property<String> getCurrentUpperBoundName();
+
     private record IdAndDefinition(TransportVersionId id, TransportVersionDefinition definition) {}
 
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
@@ -76,6 +83,7 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
         Map<String, TransportVersionDefinition> allDefinitions = collectAllDefinitions(referableDefinitions, unreferableDefinitions);
         Map<Integer, List<IdAndDefinition>> idsByBase = collectIdsByBase(allDefinitions.values());
         Map<String, TransportVersionUpperBound> upperBounds = resources.getUpperBounds();
+        boolean onReleaseBranch = checkIfDefinitelyOnReleaseBranch(upperBounds);
 
         for (var definition : referableDefinitions.values()) {
             validateNamedDefinition(definition, referencedNames);
@@ -93,7 +101,9 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             validateUpperBound(upperBound, allDefinitions, idsByBase);
         }
 
-        validatePrimaryIds(resources, upperBounds, allDefinitions);
+        if (onReleaseBranch == false) {
+            validatePrimaryIds(resources, upperBounds, allDefinitions);
+        }
     }
 
     private Map<String, TransportVersionDefinition> collectAllDefinitions(
@@ -316,6 +326,15 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
             highestDefinition,
             "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
         );
+    }
+
+    private boolean checkIfDefinitelyOnReleaseBranch(Map<String, TransportVersionUpperBound> upperBounds) {
+        // only want to look at definitions <= the current upper bound.
+        // TODO: we should filter all of the upper bounds/definitions that are validated by this, not just in this method
+        String currentUpperBoundName = getCurrentUpperBoundName().get();
+        TransportVersionUpperBound currentUpperBound = upperBounds.get(currentUpperBoundName);
+
+        return upperBounds.values().stream().anyMatch(u -> u.definitionId().complete() > currentUpperBound.definitionId().complete());
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

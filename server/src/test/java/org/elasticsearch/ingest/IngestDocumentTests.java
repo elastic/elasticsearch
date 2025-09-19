@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -2161,5 +2162,48 @@ public class IngestDocumentTests extends ESTestCase {
             }
         }
         logger.debug("LEVEL {}/{}: COMPLETE", level, maxCallDepth);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetUnmodifiableSourceAndMetadata() {
+        assertMutatingThrows(ctx -> ctx.remove("foo"));
+        assertMutatingThrows(ctx -> ctx.put("foo", "bar"));
+        assertMutatingThrows(ctx -> ((List<Object>) ctx.get("listField")).add("bar"));
+        assertMutatingThrows(ctx -> ((List<Object>) ctx.get("listField")).remove("bar"));
+        assertMutatingThrows(ctx -> ((Set<Object>) ctx.get("setField")).add("bar"));
+        assertMutatingThrows(ctx -> ((Set<Object>) ctx.get("setField")).remove("bar"));
+        assertMutatingThrows(ctx -> ((Map<String, Object>) ctx.get("mapField")).put("bar", "baz"));
+        assertMutatingThrows(ctx -> ((Map<?, ?>) ctx.get("mapField")).remove("bar"));
+        assertMutatingThrows(ctx -> ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).add("bar"));
+        assertMutatingThrows(
+            ctx -> ((List<Object>) ((List<Object>) ((Set<Object>) ctx.get("setField")).iterator().next()).iterator().next()).add("bar")
+        );
+
+        /*
+         * The source can also have a byte array. But we do not throw an UnsupportedOperationException when a byte array is changed --
+         * we just ignore the change.
+         */
+        Map<String, Object> document = new HashMap<>();
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument.setFieldValue("byteArrayField", randomByteArrayOfLength(10));
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableSourceAndMetadata();
+        byte originalByteValue = ((byte[]) unmodifiableDocument.get("byteArrayField"))[0];
+        ((byte[]) unmodifiableDocument.get("byteArrayField"))[0] = (byte) (originalByteValue + 1);
+        assertThat(((byte[]) unmodifiableDocument.get("byteArrayField"))[0], equalTo(originalByteValue));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void assertMutatingThrows(Consumer<Map<String, Object>> mutation) {
+        Map<String, Object> document = new HashMap<>();
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        ingestDocument.setFieldValue("listField", new ArrayList<>());
+        ingestDocument.setFieldValue("mapField", new HashMap<>());
+        ingestDocument.setFieldValue("setField", new HashSet<>());
+        List<Object> listWithinSet = new ArrayList<>();
+        listWithinSet.add(new ArrayList<>());
+        ingestDocument.getFieldValue("setField", Set.class).add(listWithinSet);
+        Map<String, Object> unmodifiableDocument = ingestDocument.getUnmodifiableSourceAndMetadata();
+        assertThrows(UnsupportedOperationException.class, () -> mutation.accept(unmodifiableDocument));
+        mutation.accept(ingestDocument.getSourceAndMetadata()); // no exception expected
     }
 }

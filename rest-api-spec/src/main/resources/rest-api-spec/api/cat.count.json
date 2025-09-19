@@ -49,6 +49,10 @@
         "description": "Return help information",
         "default": false
       },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
+      },
       "s": {
         "type": "list",
         "description": "Comma-separated list of column names or column aliases to sort by"
@@ -57,6 +61,31 @@
         "type": "boolean",
         "description": "Verbose mode. Display column headers",
         "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
+      },
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
       }
     }
   }

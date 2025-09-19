@@ -1,5 +1,0 @@
-pr: 133775
-summary: Remove Transfer-Encoding from HTTP request with no content
-area: Network
-type: bug
-issues: []

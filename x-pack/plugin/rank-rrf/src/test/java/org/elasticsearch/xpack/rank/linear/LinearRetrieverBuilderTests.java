@@ -101,6 +101,25 @@ public class LinearRetrieverBuilderTests extends AbstractRetrieverBuilderTests<L
             MinMaxScoreNormalizer.INSTANCE
         );
 
+        // Zero weights
+        retriever = new LinearRetrieverBuilder(
+            null,
+            List.of("field_1^0", "field_2^1.0"),
+            "zero_test",
+            MinMaxScoreNormalizer.INSTANCE,
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[0],
+            new ScoreNormalizer[0]
+        );
+        assertMultiFieldsParamsRewrite(
+            retriever,
+            queryRewriteContext,
+            Map.of("field_1", 0.0f, "field_2", 1.0f),
+            Map.of(),
+            "zero_test",
+            MinMaxScoreNormalizer.INSTANCE
+        );
+
         // Glob matching on inference and non-inference fields with per-field boosting
         retriever = new LinearRetrieverBuilder(
             null,

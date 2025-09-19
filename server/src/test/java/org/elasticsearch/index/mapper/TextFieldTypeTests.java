@@ -323,7 +323,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
         BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
 
         // then
@@ -372,7 +371,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
         BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
 
         // then
@@ -420,7 +418,6 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         );
 
         // when
-        ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
         BlockLoader blockLoader = ft.blockLoader(mock(MappedFieldType.BlockLoaderContext.class));
 
         // then

@@ -3,9 +3,9 @@
 ```esql
 FROM employees
 | KEEP emp_no, salary
-| INLINESTATS avg_lt_50 = ROUND(AVG(salary)) WHERE salary < 50000,
-              avg_lt_60 = ROUND(AVG(salary)) WHERE salary >=50000 AND salary < 60000,
-              avg_gt_60 = ROUND(AVG(salary)) WHERE salary >= 60000
+| INLINE STATS avg_lt_50 = ROUND(AVG(salary)) WHERE salary < 50000,
+               avg_lt_60 = ROUND(AVG(salary)) WHERE salary >=50000 AND salary < 60000,
+               avg_gt_60 = ROUND(AVG(salary)) WHERE salary >= 60000
 ```
 
 | emp_no:integer | salary:integer | avg_lt_50:double | avg_lt_60:double | avg_gt_60:double |

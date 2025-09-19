@@ -17,7 +17,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.ClassRule;
@@ -48,7 +47,6 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     }
 
     public void testTimeSeriesQuerying() throws IOException {
-        assumeTrue("time series querying relies on query pragma", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
         var settings = Settings.builder()
             .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
             .build();
@@ -69,7 +67,6 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
             .query("FROM k8s | KEEP k8s.pod.name, @timestamp | SORT @timestamp, k8s.pod.name");
-        builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
         @SuppressWarnings("unchecked")
         List<Map<?, ?>> columns = (List<Map<?, ?>>) result.get("columns");

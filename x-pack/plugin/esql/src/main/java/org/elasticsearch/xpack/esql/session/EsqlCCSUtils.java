@@ -121,6 +121,7 @@ public class EsqlCCSUtils {
     }
 
     static void updateExecutionInfoToReturnEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
+        // This applies even for subplans - if we had an error and have to skip a cluster, then it will remain skipped.
         executionInfo.markEndQuery();
         Exception exceptionForResponse;
         if (e instanceof ConnectTransportException) {
@@ -293,7 +294,7 @@ public class EsqlCCSUtils {
 
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
-        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINE STATS is made CCS compatible
         execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
             for (String clusterAlias : execInfo.clusterAliases()) {

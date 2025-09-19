@@ -51,6 +51,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.TransportVersions.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -91,6 +92,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String query;
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final Boolean lenient;
+    private final boolean ccsRequest;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         this(fieldName, query, null);
@@ -116,6 +118,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = query;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
         this.lenient = lenient;
+        this.ccsRequest = false;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
@@ -139,6 +142,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             this.lenient = in.readOptionalBoolean();
         } else {
             this.lenient = null;
+        }
+        if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            this.ccsRequest = in.readBoolean();
+        } else {
+            this.ccsRequest = false;
         }
     }
 
@@ -174,9 +182,24 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         if (out.getTransportVersion().onOrAfter(TransportVersions.SEMANTIC_QUERY_LENIENT)) {
             out.writeOptionalBoolean(lenient);
         }
+        if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            out.writeBoolean(ccsRequest);
+        } else if (ccsRequest) {
+            throw new IllegalArgumentException(
+                "One or more nodes does not support ["
+                    + NAME
+                    + "] query cross-cluster search. Please update all nodes to at least "
+                    + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                    + "."
+            );
+        }
     }
 
-    private SemanticQueryBuilder(SemanticQueryBuilder other, Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
+    private SemanticQueryBuilder(
+        SemanticQueryBuilder other,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
+    ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
         this.boost = other.boost;
@@ -184,6 +207,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         // No need to copy the map here since this is only called internally. We can safely assume that the caller will not modify the map.
         this.inferenceResultsMap = inferenceResultsMap;
         this.lenient = other.lenient;
+        this.ccsRequest = ccsRequest;
     }
 
     @Override
@@ -404,8 +428,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
-            throw new IllegalArgumentException(NAME + " query does not support cross-cluster search");
+        boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
+            throw new IllegalArgumentException(
+                NAME + " query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"
+            );
         }
 
         SemanticQueryBuilder rewritten = this;
@@ -422,7 +449,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 // The inference results map is fully populated, so we can perform error checking
                 inferenceResultsErrorCheck(modifiedInferenceResultsMap);
             } else {
-                rewritten = new SemanticQueryBuilder(this, modifiedInferenceResultsMap);
+                rewritten = new SemanticQueryBuilder(this, modifiedInferenceResultsMap, ccsRequest);
             }
         }
 
@@ -517,11 +544,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
-            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap);
+            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
+            && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsMap);
+        return Objects.hash(fieldName, query, inferenceResultsMap, ccsRequest);
     }
 }

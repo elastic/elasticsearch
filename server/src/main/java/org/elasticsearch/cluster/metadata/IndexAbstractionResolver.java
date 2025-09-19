@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndexComponentSelector;
@@ -23,7 +22,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -293,13 +291,5 @@ public class IndexAbstractionResolver {
                 indexNameExpressionResolver,
                 includeDataStreams
             );
-    }
-
-    private static void exclude(Set<String> expressionsToExclude, Map<String, ResolvedIndexExpression> resolvedIndexExpressions) {
-        if (expressionsToExclude.isEmpty() == false) {
-            for (ResolvedIndexExpression prior : resolvedIndexExpressions.values()) {
-                prior.localExpressions().expressions().removeAll(expressionsToExclude);
-            }
-        }
     }
 }

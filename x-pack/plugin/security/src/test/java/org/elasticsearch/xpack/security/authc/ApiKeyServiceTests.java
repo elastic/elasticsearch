@@ -3264,8 +3264,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
 
         FeatureService mockFeatureService = mock(FeatureService.class);
-        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE)))
-            .thenReturn(true);
+        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE))).thenReturn(true);
 
         final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
 

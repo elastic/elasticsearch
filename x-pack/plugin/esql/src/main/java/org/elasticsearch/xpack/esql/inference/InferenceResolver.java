@@ -172,23 +172,26 @@ public class InferenceResolver {
      * @return The inference ID as a string
      */
     private static String inferenceId(InferencePlan<?> plan) {
-        return inferenceId(plan.inferenceId());
+        return BytesRefs.toString(plan.inferenceId().fold(FoldContext.small()));
     }
 
-    private static String inferenceId(Expression e) {
-        return BytesRefs.toString(e.fold(FoldContext.small()));
-    }
-
-    public String inferenceId(UnresolvedFunction f, FunctionDefinition def) {
+    /**
+     * Extracts the inference ID from an InferenceFunction expression that is not yet resolved.
+     *
+     * @param f   The UnresolvedFunction expression representing the inference function
+     * @param def The FunctionDefinition of the inference function
+     * @return The inference ID as a string, or null if not found or invalid
+     */
+    private static String inferenceId(UnresolvedFunction f, FunctionDefinition def) {
         EsqlFunctionRegistry.FunctionDescription functionDescription = EsqlFunctionRegistry.description(def);
 
         for (int i = 0; i < functionDescription.args().size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = functionDescription.args().get(i);
 
             if (arg.name().equals(InferenceFunction.INFERENCE_ID_PARAMETER_NAME)) {
-                Expression argValue = f.arguments().get(i);
-                if (argValue != null && argValue.foldable() && DataType.isString(argValue.dataType())) {
-                    return inferenceId(argValue);
+                Expression inferenceId = f.arguments().get(i);
+                if (inferenceId != null && inferenceId.foldable() && DataType.isString(inferenceId.dataType())) {
+                    return BytesRefs.toString(inferenceId.fold(FoldContext.small()));
                 }
             }
         }

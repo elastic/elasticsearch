@@ -345,6 +345,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     public AsyncDirectIOIndexInput clone() {
         try {
             var clone = new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
+            // TODO figure out how to make this async
             clone.seekInternal(getFilePointer());
             return clone;
         } catch (IOException ioe) {
@@ -358,6 +359,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
         }
         var slice = new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
+        // TODO figure out how to make this async
         slice.seekInternal(0L);
         return slice;
     }

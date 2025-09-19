@@ -612,7 +612,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                                 .item("ProjectOperator")
                                 .item("ExchangeSinkOperator")
                     );
-                    case "node_reduce" -> assertThat(sig, matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"));
+                    case "node_reduce" -> assertThat(
+                        sig,
+                        // If the coordinating node and data node are the same node then we get this
+                        either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator"))
+                            // If the coordinating node and data node are *not* the same node we get this
+                            .or(matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("ExchangeSinkOperator"))
+                    );
                     case "final" -> assertMap(
                         sig,
                         matchesList().item("ExchangeSourceOperator").item("TopNOperator").item("ProjectOperator").item("OutputOperator")

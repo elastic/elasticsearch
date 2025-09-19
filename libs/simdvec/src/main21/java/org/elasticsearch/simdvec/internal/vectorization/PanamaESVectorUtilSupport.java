@@ -1122,4 +1122,27 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
         quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
     }
+
+    @Override
+    public int indexOf(final byte[] bytes, final int offset, final int length, final byte marker) {
+        final ByteVector markerVector = ByteVector.broadcast(ByteVector.SPECIES_PREFERRED, marker);
+        final int upperBound = offset + ByteVector.SPECIES_PREFERRED.loopBound(length);
+
+        int i = offset;
+        for (; i < upperBound; i += ByteVector.SPECIES_PREFERRED.length()) {
+            ByteVector chunk = ByteVector.fromArray(ByteVector.SPECIES_PREFERRED, bytes, i);
+            VectorMask<Byte> mask = chunk.eq(markerVector);
+            if (mask.anyTrue()) {
+                return (i - offset) + mask.firstTrue();
+            }
+        }
+        // tail
+        final int end = offset + length;
+        for (; i < end; i++) {
+            if (bytes[i] == marker) {
+                return i - offset;
+            }
+        }
+        return -1;
+    }
 }

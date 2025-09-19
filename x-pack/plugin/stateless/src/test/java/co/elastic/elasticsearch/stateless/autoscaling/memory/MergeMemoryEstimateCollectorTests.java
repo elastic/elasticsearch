@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.ShardMergeMemoryEstimate;
 
 import org.apache.lucene.index.MergePolicy;
@@ -41,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.MergeMemoryEstimateCollector.MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
@@ -67,7 +67,7 @@ public class MergeMemoryEstimateCollectorTests extends ESTestCase {
         List<TransportPublishMergeMemoryEstimate.Request> requests = Collections.synchronizedList(new ArrayList<>());
         var collector = new MergeMemoryEstimateCollector(
             settings,
-            () -> ServerlessTransportVersions.AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION,
+            () -> AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION,
             () -> "node1",
             requests::add
         );

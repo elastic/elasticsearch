@@ -17,8 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -34,8 +33,10 @@ public record ShardMappingSize(
     String nodeId
 ) implements Writeable {
 
+    private static final TransportVersion TRACK_LIVE_DOCS_IN_MEMORY_BYTES = TransportVersion.fromName("track_live_docs_in_memory_bytes");
+
     public static ShardMappingSize from(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(ServerlessTransportVersions.TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
+        if (in.getTransportVersion().supports(TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
             return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), in.readVLong(), in.readString());
         } else {
             return new ShardMappingSize(in.readVLong(), in.readVInt(), in.readVInt(), in.readVLong(), 0L, in.readString());
@@ -48,7 +49,7 @@ public record ShardMappingSize(
         out.writeVInt(numSegments);
         out.writeVInt(totalFields);
         out.writeVLong(postingsInMemoryBytes);
-        if (out.getTransportVersion().onOrAfter(ServerlessTransportVersions.TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
+        if (out.getTransportVersion().supports(TRACK_LIVE_DOCS_IN_MEMORY_BYTES)) {
             out.writeVLong(liveDocsBytes);
         }
         out.writeString(nodeId);

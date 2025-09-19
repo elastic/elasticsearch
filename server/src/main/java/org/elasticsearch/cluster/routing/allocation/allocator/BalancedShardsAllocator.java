@@ -805,35 +805,100 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
+            final Map<String, ShardRouting> bestNonPreferredShardsByNode = new HashMap<>();
+            final Map<String, ShardMovementPriorityComparator> comparatorCache = new HashMap<>();
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
                 ShardRouting shardRouting = it.next();
                 ProjectIndex index = projectIndex(shardRouting);
-                final MoveDecision moveDecision = decideMove(index, shardRouting);
+                final MoveDecision moveDecision = decideMove(index, shardRouting, bestNonPreferredShardsByNode, comparatorCache);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
-                    final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
-                    final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
-                    sourceNode.removeShard(index, shardRouting);
-                    Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
-                        shardRouting,
-                        targetNode.getNodeId(),
-                        allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                        "move",
-                        allocation.changes()
-                    );
-                    final ShardRouting shard = relocatingShards.v2();
-                    targetNode.addShard(projectIndex(shard), shard);
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
-                    }
-                    shardMoved = true;
-                    if (completeEarlyOnShardAssignmentChange) {
-                        return true;
+                    // Defer moving of not-preferred until we've moved the NOs
+                    if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
+                        bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), shardRouting);
+                    } else {
+                        executeMove(shardRouting, index, moveDecision);
+                        shardMoved = true;
+                        if (completeEarlyOnShardAssignmentChange) {
+                            return true;
+                        }
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.canRemain() == false) {
                     logger.trace("[{}][{}] can't move", shardRouting.index(), shardRouting.id());
                 }
             }
+
+            // If we get here, attempt to move one of the best not-preferred shards that we identified earlier
+            for (var entry : bestNonPreferredShardsByNode.entrySet()) {
+                final var shardRouting = entry.getValue();
+                final var index = projectIndex(shardRouting);
+                // Have to re-check move decision in case we made a move that invalidated our existing assessment
+                final MoveDecision moveDecision = decideMove(index, shardRouting);
+                if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
+                    executeMove(entry.getValue(), index, moveDecision);
+                    // We only ever move a single non-preferred shard at a time
+                    return true;
+                }
+            }
+
             return shardMoved;
+        }
+
+        private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision) {
+            final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+            final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
+            sourceNode.removeShard(index, shardRouting);
+            Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+                shardRouting,
+                targetNode.getNodeId(),
+                allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                "move",
+                allocation.changes()
+            );
+            final ShardRouting shard = relocatingShards.v2();
+            targetNode.addShard(projectIndex(shard), shard);
+            if (logger.isTraceEnabled()) {
+                logger.trace("Moved shard [{}] to node [{}]", shardRouting, targetNode.getRoutingNode());
+            }
+        }
+
+        private static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
+
+            private final Map<ShardId, Double> shardWriteLoads;
+            private final double lowThreshold;
+            private final double highThreshold;
+
+            ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
+                shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
+                double maxWriteLoadOnNode = 0;
+                for (ShardRouting shardRouting : routingNode) {
+                    maxWriteLoadOnNode = Math.max(maxWriteLoadOnNode, shardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0));
+                }
+                lowThreshold = maxWriteLoadOnNode * 0.5;
+                highThreshold = maxWriteLoadOnNode * 0.8;
+            }
+
+            @Override
+            public int compare(ShardRouting o1, ShardRouting o2) {
+                // If we have no shard write-load data, shortcut
+                if (highThreshold == 0) {
+                    return 0;
+                }
+                // Otherwise, we prefer middle, high, then low write-load shards
+                return Integer.compare(
+                    getWriteLoadLevel(shardWriteLoads.getOrDefault(o1.shardId(), 0.0)),
+                    getWriteLoadLevel(shardWriteLoads.getOrDefault(o2.shardId(), 0.0))
+                );
+            }
+
+            private int getWriteLoadLevel(double writeLoad) {
+                if (writeLoad < lowThreshold) {
+                    return 2;
+                }
+                if (writeLoad < highThreshold) {
+                    return 0;
+                }
+                return 1;
+            }
         }
 
         /**
@@ -848,7 +913,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          */
-        public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
+        public MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting) {
+            // This is when we're not calling in a loop, so we don't need to keep track of "best non-preferred" shards
+            return decideMove(index, shardRouting, Map.of(), Map.of());
+        }
+
+        private MoveDecision decideMove(
+            ProjectIndex index,
+            ShardRouting shardRouting,
+            Map<String, ShardRouting> bestNonPreferredShardsByNode,
+            Map<String, ShardMovementPriorityComparator> comparatorCache
+        ) {
             NodeSorter sorter = nodeSorters.sorterForShard(shardRouting);
             index.assertMatch(shardRouting);
 
@@ -861,8 +936,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             assert sourceNode != null && sourceNode.containsShard(index, shardRouting);
             RoutingNode routingNode = sourceNode.getRoutingNode();
             Decision canRemain = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-            if (canRemain.type() != Decision.Type.NO) {
+            if (canRemain.type() != Decision.Type.NO && canRemain.type() != Type.NOT_PREFERRED) {
                 return MoveDecision.remain(canRemain);
+            }
+
+            // Investigate whether it's potentially a better move to make than the one we've discovered already
+            if (canRemain.type() == Type.NOT_PREFERRED && bestNonPreferredShardsByNode.containsKey(shardRouting.currentNodeId())) {
+                int compare = comparatorCache.computeIfAbsent(
+                    shardRouting.currentNodeId(),
+                    nodeId -> new ShardMovementPriorityComparator(allocation, allocation.routingNodes().node(nodeId))
+                ).compare(shardRouting, bestNonPreferredShardsByNode.get(shardRouting.currentNodeId()));
+                if (compare <= 0) {
+                    // Ignore inferior non-preferred moves
+                    return MoveDecision.NOT_TAKEN;
+                }
             }
 
             sorter.reset(index);
@@ -872,8 +959,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
-            MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanAllocate);
-            if (moveDecision.canRemain() == false && moveDecision.forceMove() == false) {
+            BiFunction<ShardRouting, RoutingNode, Decision> decider = canRemain.type() == Type.NOT_PREFERRED
+                ? this::decideCanAllocatePreferredOnly
+                : this::decideCanAllocate;
+            MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, decider);
+            if (moveDecision.getCanRemainDecision().type() == Type.NO
+                && moveDecision.canRemain() == false
+                && moveDecision.forceMove() == false) {
                 final boolean shardsOnReplacedNode = allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId(), REPLACE);
                 if (shardsOnReplacedNode) {
                     return decideMove(sorter, shardRouting, sourceNode, canRemain, this::decideCanForceAllocateForVacate);
@@ -922,6 +1014,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 targetNode != null ? targetNode.node() : null,
                 nodeResults
             );
+        }
+
+        private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {
+            Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+            // not-preferred means no here
+            if (decision.type() == Type.NOT_PREFERRED) {
+                return Decision.NO;
+            }
+            return decision;
         }
 
         private Decision decideCanAllocate(ShardRouting shardRouting, RoutingNode target) {

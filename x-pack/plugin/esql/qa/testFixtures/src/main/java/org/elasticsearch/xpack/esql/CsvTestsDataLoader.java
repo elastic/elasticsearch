@@ -627,7 +627,8 @@ public class CsvTestsDataLoader {
             logger.info("View listing response: {}", response.getStatusLine());
         } catch (ResponseException e) {
             logger.info("View listing error: {}", e.getMessage());
-            if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 400 || code == 500) {
                 return false;
             }
             throw e;

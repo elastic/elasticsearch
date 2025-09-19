@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * TEXT_EMBEDDING function converts text to dense vector embeddings using an inference endpoint.
@@ -108,14 +108,15 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         }
 
         TypeResolution textResolution = isNotNull(inputText, sourceText(), FIRST).and(isFoldable(inputText, sourceText(), FIRST))
-            .and(isString(inputText, sourceText(), FIRST));
+            .and(isType(inputText, DataType.KEYWORD::equals, sourceText(), FIRST, "string"));
 
         if (textResolution.unresolved()) {
             return textResolution;
         }
 
-        TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND).and(isString(inferenceId, sourceText(), SECOND))
-            .and(isFoldable(inferenceId, sourceText(), SECOND));
+        TypeResolution inferenceIdResolution = isNotNull(inferenceId, sourceText(), SECOND).and(
+            isType(inferenceId, DataType.KEYWORD::equals, sourceText(), SECOND, "string")
+        ).and(isFoldable(inferenceId, sourceText(), SECOND));
 
         if (inferenceIdResolution.unresolved()) {
             return inferenceIdResolution;

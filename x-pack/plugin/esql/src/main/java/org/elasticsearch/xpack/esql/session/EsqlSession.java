@@ -398,10 +398,7 @@ public class EsqlSession {
 
         EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
-        SubscribableListener.<PreAnalysisResult>newForked(l -> {
-            inferenceService.inferenceResolver().resolveInferenceIds(parsed, l.map(result::withInferenceResolution));
-        }) //
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeMainIndices(preAnalysis, executionInfo, r, requestFilter, l))
+        SubscribableListener.<PreAnalysisResult>newForked(l -> preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l))
             .andThenApply(r -> {
                 if (r.indices.isValid()
                     && executionInfo.isCrossClusterSearch()
@@ -414,6 +411,9 @@ public class EsqlSession {
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l.map(r::withEnrichResolution));
+            })
+            .<PreAnalysisResult>andThen((l, r) -> {
+                inferenceService.inferenceResolver().resolveInferenceIds(parsed, l.map(r::withInferenceResolution));
             })
             .<LogicalPlan>andThen((l, r) -> analyzeWithRetry(parsed, requestFilter, preAnalysis, executionInfo, r, l))
             .addListener(logicalPlanListener);

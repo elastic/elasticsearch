@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -48,6 +49,7 @@ public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
         PostOptimizationVerificationAware,
+        PostAnalysisVerificationAware,
         TelemetryAware,
         SortAgnostic,
         ExecutesOn {
@@ -296,10 +298,17 @@ public class Enrich extends UnaryPlan
     }
 
     @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkMvExpandAfterLimit(failures);
+        }
+
+    }
+
+    @Override
     public void postOptimizationVerification(Failures failures) {
         if (this.mode == Mode.REMOTE) {
             checkForPlansForbiddenBeforeRemoteEnrich(failures);
-            checkMvExpandAfterLimit(failures);
         }
     }
 }

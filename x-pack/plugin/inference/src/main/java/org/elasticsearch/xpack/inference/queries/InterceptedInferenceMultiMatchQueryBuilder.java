@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -72,8 +73,6 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
         Map<String, Float> nonInferenceFields,
         QueryRewriteContext indexMetadataContext
     ) {
-        validateQueryTypeSupported(originalQuery.type());
-
         // No inference fields are present
         if (inferenceFields.isEmpty()) {
             return originalQuery;
@@ -101,6 +100,11 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected void coordinatorNodeValidate(ResolvedIndices resolvedIndices) {
+        validateQueryTypeSupported(originalQuery.type());
     }
 
     private QueryBuilder buildSemanticQuery(Map<String, Float> inferenceFields, String queryValue) {

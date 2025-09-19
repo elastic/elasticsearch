@@ -16,9 +16,9 @@ import java.io.IOException;
 /**
  * Thrown when a cluster state publication fails to commit the new cluster state. If publication fails then a new master is elected but the
  * update might or might not take effect, depending on whether the newly-elected master accepted the published state that failed to
- * be committed. This exception should only be used when there is *ambiguity* whether a state update took effect or not.
+ * be committed. This exception should only be used when there is <i>ambiguity</i> whether a state update took effect or not.
  *
- * This exception is retryable within {@code TransportNodeMasterAction}.
+ * This exception is retryable within {@link TransportNodeMasterAction}.
  *
  * See {@link ClusterStatePublisher} for more details.
  */

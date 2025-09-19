@@ -103,35 +103,35 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - match: {esql.features.dissect: $dissect_counter}
-  - match: {esql.features.eval: $eval_counter}
-  - match: {esql.features.grok: $grok_counter}
-  - gt: {esql.features.limit: $limit_counter}
-  - gt: {esql.features.sort: $sort_counter}
-  - gt: {esql.features.stats: $stats_counter}
-  - gt: {esql.features.where: $where_counter}
-  - match: {esql.features.lookup_join: $lookup_join_counter}
-  - match: {esql.features.lookup: $lookup_counter}
-  - match: {esql.features.change_point: $change_point_counter}
-  - match: {esql.features.inlinestats: $inlinestats_counter}
-  - match: {esql.features.rerank: $rerank_counter}
-  - match: {esql.features.insist: $insist_counter}
-  - match: {esql.features.fork: $fork_counter}
-  - match: {esql.features.fuse: $fuse_counter}
-  - match: {esql.features.completion: $completion_counter}
-  - match: {esql.features.sample: $sample_counter}
-  - gt: {esql.queries.rest.total: $rest_total_counter}
-  - match: {esql.queries.rest.failed: $rest_failed_counter}
-  - match: {esql.queries.kibana.total: $kibana_total_counter}
-  - match: {esql.queries.kibana.failed: $kibana_failed_counter}
-  - gt: {esql.queries._all.total: $all_total_counter}
-  - match: {esql.queries._all.failed: $all_failed_counter}
-  - gt: {esql.functions.max: $functions_max}
-  - match: {esql.functions.min: $functions_min}
-  - match: {esql.functions.cos: $functions_cos}
-  - gt: {esql.functions.to_long: $functions_to_long}
-  - match: {esql.functions.coalesce: $functions_coalesce}
-  - gt: {esql.functions.categorize: $functions_categorize}
+  - match: { esql.features.dissect: $dissect_counter }
+  - match: { esql.features.eval: $eval_counter }
+  - match: { esql.features.grok: $grok_counter }
+  - gt: { esql.features.limit: $limit_counter }
+  - gt: { esql.features.sort: $sort_counter }
+  - gt: { esql.features.stats: $stats_counter }
+  - gt: { esql.features.where: $where_counter }
+  - match: { esql.features.lookup_join: $lookup_join_counter }
+  - match: { esql.features.lookup: $lookup_counter }
+  - match: { esql.features.change_point: $change_point_counter }
+  - match: { esql.features.inline_stats: $inline_stats_counter }
+  - match: { esql.features.rerank: $rerank_counter }
+  - match: { esql.features.insist: $insist_counter }
+  - match: { esql.features.fork: $fork_counter }
+  - match: { esql.features.fuse: $fuse_counter }
+  - match: { esql.features.completion: $completion_counter }
+  - match: { esql.features.sample: $sample_counter }
+  - gt: { esql.queries.rest.total: $rest_total_counter }
+  - match: { esql.queries.rest.failed: $rest_failed_counter }
+  - match: { esql.queries.kibana.total: $kibana_total_counter }
+  - match: { esql.queries.kibana.failed: $kibana_failed_counter }
+  - gt: { esql.queries._all.total: $all_total_counter }
+  - match: { esql.queries._all.failed: $all_failed_counter }
+  - gt: { esql.functions.max: $functions_max }
+  - match: { esql.functions.min: $functions_min }
+  - match: { esql.functions.cos: $functions_cos }
+  - gt: { esql.functions.to_long: $functions_to_long }
+  - match: { esql.functions.coalesce: $functions_coalesce }
+  - gt: { esql.functions.categorize: $functions_categorize }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - exists: esql.functions.delay
@@ -206,34 +206,34 @@ setup:
   - do: { xpack.usage: { } }
   - match: { esql.available: true }
   - match: { esql.enabled: true }
-  - match: {esql.features.dissect: $dissect_counter}
-  - match: {esql.features.eval: $eval_counter}
-  - match: {esql.features.grok: $grok_counter}
-  - gt: {esql.features.limit: $limit_counter}
-  - gt: {esql.features.sort: $sort_counter}
-  - gt: {esql.features.stats: $stats_counter}
-  - gt: {esql.features.where: $where_counter}
-  - match: {esql.features.lookup_join: $lookup_join_counter}
-  - match: {esql.features.lookup: $lookup_counter}
-  - match: {esql.features.change_point: $change_point_counter}
-  - match: {esql.features.inlinestats: $inlinestats_counter}
-  - match: {esql.features.rerank: $rerank_counter}
-  - match: {esql.features.insist: $insist_counter}
-  - match: {esql.features.fork: $fork_counter}
-  - match: {esql.features.fuse: $fuse_counter}
-  - match: {esql.features.completion: $completion_counter}
-  - gt: {esql.queries.rest.total: $rest_total_counter}
-  - match: {esql.queries.rest.failed: $rest_failed_counter}
-  - match: {esql.queries.kibana.total: $kibana_total_counter}
-  - match: {esql.queries.kibana.failed: $kibana_failed_counter}
-  - gt: {esql.queries._all.total: $all_total_counter}
-  - match: {esql.queries._all.failed: $all_failed_counter}
-  - gt: {esql.functions.max: $functions_max}
-  - match: {esql.functions.min: $functions_min}
-  - match: {esql.functions.cos: $functions_cos}
-  - gt: {esql.functions.to_long: $functions_to_long}
-  - match: {esql.functions.coalesce: $functions_coalesce}
-  - gt: {esql.functions.categorize: $functions_categorize}
+  - match: { esql.features.dissect: $dissect_counter }
+  - match: { esql.features.eval: $eval_counter }
+  - match: { esql.features.grok: $grok_counter }
+  - gt: { esql.features.limit: $limit_counter }
+  - gt: { esql.features.sort: $sort_counter }
+  - gt: { esql.features.stats: $stats_counter }
+  - gt: { esql.features.where: $where_counter }
+  - match: { esql.features.lookup_join: $lookup_join_counter }
+  - match: { esql.features.lookup: $lookup_counter }
+  - match: { esql.features.change_point: $change_point_counter }
+  - match: { esql.features.inline_stats: $inline_stats_counter }
+  - match: { esql.features.rerank: $rerank_counter }
+  - match: { esql.features.insist: $insist_counter }
+  - match: { esql.features.fork: $fork_counter }
+  - match: { esql.features.fuse: $fuse_counter }
+  - match: { esql.features.completion: $completion_counter }
+  - gt: { esql.queries.rest.total: $rest_total_counter }
+  - match: { esql.queries.rest.failed: $rest_failed_counter }
+  - match: { esql.queries.kibana.total: $kibana_total_counter }
+  - match: { esql.queries.kibana.failed: $kibana_failed_counter }
+  - gt: { esql.queries._all.total: $all_total_counter }
+  - match: { esql.queries._all.failed: $all_failed_counter }
+  - gt: { esql.functions.max: $functions_max }
+  - match: { esql.functions.min: $functions_min }
+  - match: { esql.functions.cos: $functions_cos }
+  - gt: { esql.functions.to_long: $functions_to_long }
+  - match: { esql.functions.coalesce: $functions_coalesce }
+  - gt: { esql.functions.categorize: $functions_categorize }
 
   # There's one of these per function but that's a ton of things to check. So we just spot check that a few exist.
   - not_exists: esql.functions.delay

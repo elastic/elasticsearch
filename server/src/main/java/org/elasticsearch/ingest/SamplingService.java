@@ -394,7 +394,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     }
 
     public boolean atLeastOneSampleConfigured() {
-        return false; // TODO Return true if there is at least one sample in the cluster state
+        return true; // TODO Return true if there is at least one sample in the cluster state
     }
 
     @Override

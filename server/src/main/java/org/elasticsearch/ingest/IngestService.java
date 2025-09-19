@@ -1390,7 +1390,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
              * We need both the original document and the fully updated document for sampling, so we make a copy of the original
              * before overwriting it here. We can discard it after sampling.
              */
-            samplingService.maybeSample(projectMetadata, indexRequest.index(), () -> {
+            samplingService.maybeSample(projectMetadata, originalDocumentMetadata.getIndex(), () -> {
                 IndexRequest original = copyIndexRequestForSampling(indexRequest);
                 updateIndexRequestMetadata(original, originalDocumentMetadata);
                 return original;

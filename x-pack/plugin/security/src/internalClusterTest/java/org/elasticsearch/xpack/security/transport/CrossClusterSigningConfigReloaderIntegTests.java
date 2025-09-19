@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 
 import javax.net.ssl.KeyManagerFactory;
 
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerIntegTests.getCrossClusterApiKeySignerInstance;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_CERT_PATH;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_ALGORITHM;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_KEYSTORE_ALIAS;
@@ -100,10 +101,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
 
     public void testDependentKeyConfigFilesUpdated() throws Exception {
         assumeFalse("Test credentials uses key encryption not supported in Fips JVM", inFipsJvm());
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance(internalCluster());
 
         String testClusterAlias = "test_cluster";
 
@@ -159,10 +157,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
 
     public void testRemoveFileWithConfig() throws Exception {
         try {
-            final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-                CrossClusterApiKeySigner.class,
-                internalCluster().getRandomNodeName()
-            );
+            final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance(internalCluster());
 
             assertNull(signer.sign("test_cluster", "a_header"));
             Path tempDir = createTempDir();
@@ -217,10 +212,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         Consumer<String> clusterCreator,
         Consumer<String> clusterRemover
     ) throws Exception {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance(internalCluster());
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         try {
@@ -302,4 +294,5 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         // Needs to be enabled to allow updates to secure settings
         return true;
     }
+
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SIGNING_CERT_PATH;
@@ -26,10 +27,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     private static final String STATIC_TEST_CLUSTER_ALIAS = "static_test_cluster";
 
     public void testSignWithPemKeyConfig() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         X509CertificateSignature signature = signer.sign(STATIC_TEST_CLUSTER_ALIAS, testHeaders);
@@ -47,10 +45,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     }
 
     public void testSignUnknownClusterAlias() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance();
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
 
         X509CertificateSignature signature = signer.sign("unknowncluster", testHeaders);
@@ -58,10 +53,7 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
     }
 
     public void testSeveralKeyStoreAliases() {
-        final CrossClusterApiKeySigner signer = internalCluster().getInstance(
-            CrossClusterApiKeySigner.class,
-            internalCluster().getRandomNodeName()
-        );
+        final CrossClusterApiKeySigner signer = getCrossClusterApiKeySignerInstance();
 
         try {
             // Create a new config without an alias. Since there are several aliases in the keystore, no signature should be generated
@@ -131,4 +123,21 @@ public class CrossClusterApiKeySignerIntegTests extends SecurityIntegTestCase {
         );
         return builder.build();
     }
+
+    static CrossClusterApiKeySigner getCrossClusterApiKeySignerInstance(InternalTestCluster cluster) {
+        RemoteClusterTransportInterceptor interceptor = cluster.getInstance(
+            RemoteClusterTransportInterceptor.class,
+            internalCluster().getRandomNodeName()
+        );
+        if (interceptor instanceof CrossClusterAccessTransportInterceptor ccaInterceptor) {
+            return ccaInterceptor.getCrossClusterApiKeySigner();
+        } else {
+            throw new AssertionError("expected " + CrossClusterAccessTransportInterceptor.class + " but got " + interceptor.getClass());
+        }
+    }
+
+    private static CrossClusterApiKeySigner getCrossClusterApiKeySignerInstance() {
+        return getCrossClusterApiKeySignerInstance(internalCluster());
+    }
+
 }

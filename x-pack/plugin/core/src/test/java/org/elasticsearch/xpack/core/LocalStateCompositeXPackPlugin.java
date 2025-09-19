@@ -66,6 +66,7 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -209,6 +210,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         ArrayList<Setting<?>> settings = new ArrayList<>(super.getSettings());
         filterPlugins(Plugin.class).forEach(p -> settings.addAll(p.getSettings()));
         return settings;
+    }
+
+    @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        super.loadExtensions(loader);
+        filterPlugins(ExtensiblePlugin.class).forEach(p -> p.loadExtensions(loader));
     }
 
     @Override

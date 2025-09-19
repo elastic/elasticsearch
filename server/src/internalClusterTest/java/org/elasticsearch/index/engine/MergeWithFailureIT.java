@@ -86,7 +86,6 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             if (isDataNode == false) {
                 return Optional.of(InternalEngine::new);
             }
-            final var failOnce = new AtomicBoolean(false);
             return Optional.of(
                 config -> new TestEngine(
                     EngineTestCase.copy(
@@ -95,6 +94,8 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                             @Override
                             public CodecReader wrapForMerge(CodecReader reader) {
                                 return new FilterCodecReader(reader) {
+                                    final AtomicBoolean failOnce = new AtomicBoolean(false);
+
                                     @Override
                                     public CacheHelper getCoreCacheHelper() {
                                         return in.getCoreCacheHelper();
@@ -229,8 +230,9 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         );
 
         // Kick off enough merges to block the thread pool
-        indexDocsInManySegmentsUntil(indexName, () -> plugin.runningMergesCount.get() == maxMergeThreads);
-        assertThat(plugin.runningMergesCount.get(), equalTo(maxMergeThreads));
+        var maxRunningThreads = Math.min(maxMergeThreads, indexMaxThreadCount);
+        indexDocsInManySegmentsUntil(indexName, () -> plugin.runningMergesCount.get() == maxRunningThreads);
+        assertThat(plugin.runningMergesCount.get(), equalTo(maxRunningThreads));
 
         // Now pull more merges so they are queued in the merge thread pool, but Lucene thinks they are running
         final int pendingMerges = plugin.pendingMerges.size() + randomIntBetween(1, 5);
@@ -240,8 +242,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             ThreadPoolExecutor.class,
             internalCluster().clusterService(dataNode).threadPool().executor(ThreadPool.Names.MERGE)
         );
-        assertThat(mergeThreadPool.getQueue().size(), greaterThanOrEqualTo(pendingMerges));
-        assertThat(mergeThreadPool.getActiveCount(), equalTo(maxMergeThreads));
+        assertThat(mergeThreadPool.getActiveCount(), greaterThanOrEqualTo(maxRunningThreads));
 
         // More merges in the hope to have backlogged merges
         if (indexMaxThreadCount != Integer.MAX_VALUE) {

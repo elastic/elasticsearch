@@ -109,7 +109,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        var fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
             blContext,
             NumberType.DOUBLE,
             BlockLoader.BlockFactory::doubles,

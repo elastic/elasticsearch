@@ -144,9 +144,9 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         void addInferenceResponse(InferenceAction.Response inferenceResponse);
 
         /**
-         * Builds the final output page from accumulated inference responses.
+         * Builds the final output from accumulated inference responses.
          *
-         * @return The constructed output page.
+         * @return The constructed output block.
          */
         Page buildOutput();
 

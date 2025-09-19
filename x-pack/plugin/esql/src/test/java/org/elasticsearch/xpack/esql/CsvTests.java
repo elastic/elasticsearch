@@ -304,6 +304,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "can't use TEXT_EMBEDDING function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "can't use KNN function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KNN_FUNCTION_V5.capabilityName())
             );
@@ -584,7 +588,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
-            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
+            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx, null)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,

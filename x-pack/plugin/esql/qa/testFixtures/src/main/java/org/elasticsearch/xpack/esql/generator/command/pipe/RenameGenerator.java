@@ -5,10 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,21 +31,19 @@ public class RenameGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         int n = randomIntBetween(1, Math.min(3, previousOutput.size()));
         List<String> proj = new ArrayList<>();
 
         Map<String, String> nameToType = new HashMap<>();
-        for (EsqlQueryGenerator.Column column : previousOutput) {
+        for (Column column : previousOutput) {
             nameToType.put(column.name(), column.type());
         }
         List<String> names = new ArrayList<>(
-            previousOutput.stream()
-                .filter(EsqlQueryGenerator::fieldCanBeUsed)
-                .map(EsqlQueryGenerator.Column::name)
-                .collect(Collectors.toList())
+            previousOutput.stream().filter(EsqlQueryGenerator::fieldCanBeUsed).map(Column::name).collect(Collectors.toList())
         );
         if (names.isEmpty()) {
             return EMPTY_DESCRIPTION;
@@ -86,9 +86,9 @@ public class RenameGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         if (commandDescription == EMPTY_DESCRIPTION) {

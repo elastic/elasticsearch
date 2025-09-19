@@ -5,10 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -16,7 +18,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.randomDateField;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomDateField;
 
 public class TimeSeriesStatsGenerator implements CommandGenerator {
 
@@ -26,8 +28,9 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         // generates stats in the form of:
         // `STATS some_aggregation(some_field) by optional_grouping_field, non_optional = bucket(time_field, 5minute)`
@@ -35,7 +38,7 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
         // or a regular aggregation.
         // There is a variable number of aggregations per pipe
 
-        List<EsqlQueryGenerator.Column> nonNull = previousOutput.stream()
+        List<Column> nonNull = previousOutput.stream()
             .filter(EsqlQueryGenerator::fieldCanBeUsed)
             .filter(x -> x.type().equals("null") == false)
             .collect(Collectors.toList());
@@ -50,7 +53,7 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
 
         // TODO: Switch back to using nonNull as possible arguments for aggregations. Using the timestamp field in both the bucket as well
         // as as an argument in an aggregation causes all sorts of bizarre errors with confusing messages.
-        List<EsqlQueryGenerator.Column> acceptableFields = nonNull.stream()
+        List<Column> acceptableFields = nonNull.stream()
             .filter(c -> c.type().equals("datetime") == false && c.type().equals("date_nanos") == false)
             .filter(c -> c.name().equals("@timestamp") == false)
             .toList();
@@ -100,9 +103,9 @@ public class TimeSeriesStatsGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         // TODO validate columns

@@ -22,7 +22,7 @@ import java.util.List;
  */
 public class PreAnalyzer {
 
-    public record PreAnalysis(IndexMode indexMode, IndexPattern index, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
+    public record PreAnalysis(IndexMode indexMode, IndexPattern indexPattern, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
         public static final PreAnalysis EMPTY = new PreAnalysis(null, null, List.of(), List.of());
     }
 

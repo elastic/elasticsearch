@@ -16,6 +16,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
@@ -30,7 +35,7 @@ import java.util.function.Consumer;
 public class InferenceResolver {
 
     private final Client client;
-
+    private final EsqlFunctionRegistry functionRegistry;
     private final ThreadPool threadPool;
 
     /**
@@ -38,8 +43,9 @@ public class InferenceResolver {
      *
      * @param client The Elasticsearch client for executing inference deployment lookups
      */
-    public InferenceResolver(Client client, ThreadPool threadPool) {
+    public InferenceResolver(Client client, EsqlFunctionRegistry functionRegistry, ThreadPool threadPool) {
         this.client = client;
+        this.functionRegistry = functionRegistry;
         this.threadPool = threadPool;
     }
 
@@ -56,9 +62,8 @@ public class InferenceResolver {
      * @param listener Callback to receive the resolution results
      */
     public void resolveInferenceIds(LogicalPlan plan, ActionListener<InferenceResolution> listener) {
-        List<String> inferenceIds = new ArrayList<>();
-        collectInferenceIds(plan, inferenceIds::add);
-        resolveInferenceIds(inferenceIds, listener);
+
+        resolveInferenceIds(collectInferenceIds(plan), listener);
     }
 
     /**
@@ -68,13 +73,17 @@ public class InferenceResolver {
      * extracting their deployment IDs for subsequent validation. Currently, supports:
      * <ul>
      *   <li>{@link InferencePlan} objects (Completion, etc.)</li>
+     *   <li>{@link InferenceFunction} objects (TextEmbedding, etc.)</li>
      * </ul>
      *
      * @param plan The logical plan to scan for inference operations
-     * @param c    Consumer function to receive each discovered inference ID
      */
-    void collectInferenceIds(LogicalPlan plan, Consumer<String> c) {
-        collectInferenceIdsFromInferencePlans(plan, c);
+    List<String> collectInferenceIds(LogicalPlan plan) {
+        List<String> inferenceIds = new ArrayList<>();
+        collectInferenceIdsFromInferencePlans(plan, inferenceIds::add);
+        collectInferenceIdsFromInferenceFunctions(plan, inferenceIds::add);
+
+        return inferenceIds;
     }
 
     /**
@@ -135,6 +144,28 @@ public class InferenceResolver {
     }
 
     /**
+     * Collects inference IDs from function expressions within the logical plan.
+     *
+     * @param plan The logical plan to scan for function expressions
+     * @param c    Consumer function to receive each discovered inference ID
+     */
+    private void collectInferenceIdsFromInferenceFunctions(LogicalPlan plan, Consumer<String> c) {
+        EsqlFunctionRegistry snapshotRegistry = functionRegistry.snapshotRegistry();
+        plan.forEachExpressionUp(UnresolvedFunction.class, f -> {
+            String functionName = snapshotRegistry.resolveAlias(f.name());
+            if (snapshotRegistry.functionExists(functionName)) {
+                FunctionDefinition def = snapshotRegistry.resolveFunction(functionName);
+                if (InferenceFunction.class.isAssignableFrom(def.clazz())) {
+                    String inferenceId = inferenceId(f, def);
+                    if (inferenceId != null) {
+                        c.accept(inferenceId);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
      * Extracts the inference ID from an InferencePlan object.
      *
      * @param plan The InferencePlan object to extract the ID from
@@ -146,6 +177,23 @@ public class InferenceResolver {
 
     private static String inferenceId(Expression e) {
         return BytesRefs.toString(e.fold(FoldContext.small()));
+    }
+
+    public String inferenceId(UnresolvedFunction f, FunctionDefinition def) {
+        EsqlFunctionRegistry.FunctionDescription functionDescription = EsqlFunctionRegistry.description(def);
+
+        for (int i = 0; i < functionDescription.args().size(); i++) {
+            EsqlFunctionRegistry.ArgSignature arg = functionDescription.args().get(i);
+
+            if (arg.name().equals(InferenceFunction.INFERENCE_ID_PARAMETER_NAME)) {
+                Expression argValue = f.arguments().get(i);
+                if (argValue != null && argValue.foldable() && DataType.isString(argValue.dataType())) {
+                    return inferenceId(argValue);
+                }
+            }
+        }
+
+        return null;
     }
 
     public static Factory factory(Client client) {
@@ -161,8 +209,8 @@ public class InferenceResolver {
             this.threadPool = threadPool;
         }
 
-        public InferenceResolver create() {
-            return new InferenceResolver(client, threadPool);
+        public InferenceResolver create(EsqlFunctionRegistry functionRegistry) {
+            return new InferenceResolver(client, functionRegistry, threadPool);
         }
     }
 }

@@ -431,14 +431,17 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    abstract class BaseSortedDocValues extends SortedDocValues implements BlockLoader.OptionalColumnAtATimeReader {
+    abstract class BaseSortedDocValues extends SortedDocValues
+        implements
+            BlockLoader.OptionalColumnAtATimeReader,
+            BlockLoader.BulkOrdinalLookup {
 
         final SortedEntry entry;
-        final TermsEnum termsEnum;
+        final TermsDict termsEnum;
 
         BaseSortedDocValues(SortedEntry entry) throws IOException {
             this.entry = entry;
-            this.termsEnum = termsEnum();
+            this.termsEnum = (TermsDict) termsEnum();
         }
 
         @Override
@@ -480,6 +483,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         BlockLoader.Block tryReadAHead(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset) throws IOException {
             return null;
+        }
+
+        @Override
+        public void lookupOrds(int[] sortedOrds, int uniqueCount, TermConsumer consumer) throws IOException {
+            termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
         }
     }
 
@@ -703,6 +711,52 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             // Scan to the looked up ord
             while (this.ord < ord) {
                 next();
+            }
+        }
+
+        void lookupOrds(int[] sortedOrds, int uniqueCount, BlockLoader.BulkOrdinalLookup.TermConsumer consumer) throws IOException {
+            for (int offset = 0; offset < uniqueCount; offset++) {
+                int targetOrd = sortedOrds[offset];
+                // Signed shift since ord is -1 when the terms enum is not positioned
+                final long currentBlockIndex = this.ord >> TERMS_DICT_BLOCK_LZ4_SHIFT;
+                final long blockIndex = targetOrd >> TERMS_DICT_BLOCK_LZ4_SHIFT;
+                if (blockIndex != currentBlockIndex) {
+                    // The looked up ord belongs to a different block, seek again
+                    final long blockAddress = blockAddresses.get(blockIndex);
+                    bytes.seek(blockAddress);
+                    this.ord = (blockIndex << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
+                }
+
+                // Scan to the looked up ord
+                while (this.ord < targetOrd) {
+                    next();
+                }
+
+                // Scan to the looked up ord
+//                for (this.ord++; this.ord < targetOrd; this.ord++) {
+//                    if (++this.ord >= entry.termsDictSize) {
+//                        return null;
+//                    }
+
+//                    if ((this.ord & blockMask) == 0L) {
+//                        decompressBlock();
+//                    } else {
+//                        DataInput input = blockInput;
+//                        final int token = Byte.toUnsignedInt(input.readByte());
+//                        int prefixLength = token & 0x0F;
+//                        int suffixLength = 1 + (token >>> 4);
+//                        if (prefixLength == 15) {
+//                            prefixLength += input.readVInt();
+//                        }
+//                        if (suffixLength == 16) {
+//                            suffixLength += input.readVInt();
+//                        }
+//                        term.length = prefixLength + suffixLength;
+//                        input.readBytes(term.bytes, prefixLength, suffixLength);
+//                    }
+//                }
+
+                consumer.onTerm(offset, term);
             }
         }
 

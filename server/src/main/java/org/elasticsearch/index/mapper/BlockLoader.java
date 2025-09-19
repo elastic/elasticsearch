@@ -82,6 +82,16 @@ public interface BlockLoader {
         ) throws IOException;
     }
 
+    interface BulkOrdinalLookup {
+
+        void lookupOrds(int[] sortedOrds, int uniqueCount, TermConsumer consumer) throws IOException;
+
+        @FunctionalInterface
+        interface TermConsumer {
+            void onTerm(int offset, BytesRef term) throws IOException;
+        }
+    }
+
     interface RowStrideReader extends Reader {
         /**
          * Reads the values of the given document into the builder.

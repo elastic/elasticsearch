@@ -1373,10 +1373,15 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         // Test boundary values for each vint length category
         int[] boundaryValues = {
-            0, 127, 128,           // 1-2 byte boundary
-            16383, 16384,          // 2-3 byte boundary
-            2097151, 2097152,      // 3-4 byte boundary
-            268435455, 268435456,  // 4-5 byte boundary
+            0,
+            127,
+            128,           // 1-2 byte boundary
+            16383,
+            16384,          // 2-3 byte boundary
+            2097151,
+            2097152,      // 3-4 byte boundary
+            268435455,
+            268435456,  // 4-5 byte boundary
             Integer.MAX_VALUE      // Maximum value
         };
 
@@ -1410,9 +1415,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
 
         // Test seeking beyond the 2GB limit
         long beyondLimit = (long) Integer.MAX_VALUE + 1;
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            out.seek(beyondLimit);
-        });
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> { out.seek(beyondLimit); });
         assertTrue(ex.getMessage().contains("cannot hold more than 2GB"));
 
         out.close();

@@ -10,9 +10,7 @@
 package org.elasticsearch.action;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -41,10 +39,10 @@ import java.util.Set;
  * }
  * }</pre>
  */
-public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expressions) {
+public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions) {
 
     public List<String> getLocalIndicesList() {
-        return expressions.values().stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
+        return expressions.stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
     }
 
     public static Builder builder() {
@@ -52,17 +50,14 @@ public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expr
     }
 
     public static final class Builder {
-        private final Map<String, ResolvedIndexExpression> expressions = new LinkedHashMap<>();
+        private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
         public void putLocalExpression(
             String original,
             Set<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
         ) {
-            // TODO is it always safe to overwrite an existing entry? exclusions can cause multiple calls for the same original
-            // expression but with different local expressions
-            expressions.put(
-                original,
+            expressions.add(
                 new ResolvedIndexExpression(
                     original,
                     new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(localExpressions), resolutionResult, null),
@@ -73,14 +68,14 @@ public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expr
 
         public void excludeAll(Set<String> expressionsToExclude) {
             if (expressionsToExclude.isEmpty() == false) {
-                for (ResolvedIndexExpression prior : expressions.values()) {
+                for (ResolvedIndexExpression prior : expressions) {
                     prior.localExpressions().expressions().removeAll(expressionsToExclude);
                 }
             }
         }
 
         public ResolvedIndexExpressions build() {
-            return new ResolvedIndexExpressions(Map.copyOf(expressions));
+            return new ResolvedIndexExpressions(expressions);
         }
     }
 }

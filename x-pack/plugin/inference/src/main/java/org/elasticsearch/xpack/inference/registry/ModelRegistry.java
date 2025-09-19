@@ -249,6 +249,12 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        // TODO add a SubscribableListener here
+        // 1. Do search
+        // 2. If we don't find it, check in defaultConfigIds
+        // 3. If we don't find it, make a call to EIS? maybe only if it has -elastic in the name?
+        // 4. If we still don't find it, return not found
+
         ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
@@ -289,6 +295,12 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
+        // TODO add a SubscribableListener here
+        // 1. Do search
+        // 2. If we don't find it, check in defaultConfigIds
+        // 3. If we don't find it, make a call to EIS? maybe only if it has -elastic in the name?
+        // 4. If we still don't find it, return not found
+
         ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
@@ -325,6 +337,7 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private ResourceNotFoundException inferenceNotFoundException(String inferenceEntityId) {
+        // TODO add some logic here to check if it is EIS related and return a message indicating that the endpoint may not be authorized
         return new ResourceNotFoundException("Inference endpoint not found [{}]", inferenceEntityId);
     }
 
@@ -335,6 +348,12 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Models listener
      */
     public void getModelsByTaskType(TaskType taskType, ActionListener<List<UnparsedModel>> listener) {
+        // TODO add a SubscribableListener here
+        // 1. Do search
+        // 2. If we don't find it, check in defaultConfigIds
+        // 3. If we don't find it, make a call to EIS? maybe only if it has -elastic in the name?
+        // 4. If we still don't find it, return not found
+
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
             var defaultConfigsForTaskType = taskTypeMatchedDefaults(taskType, defaultConfigIds.values());
@@ -366,6 +385,13 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Models listener
      */
     public void getAllModels(boolean persistDefaultEndpoints, ActionListener<List<UnparsedModel>> listener) {
+        // TODO add a SubscribableListener here
+        // 1. Do search
+        // 2. If we don't find it, check in defaultConfigIds
+        // 3. If we don't find it, make a call to EIS? maybe only if it has -elastic in the name?
+        // 4. If we still don't find it, return not found
+
+
         ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
             var foundConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
             addAllDefaultConfigsIfMissing(persistDefaultEndpoints, foundConfigs, defaultConfigIds.values(), delegate);

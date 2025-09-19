@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * This class allows capturing context about index expression replacements performed on an {@link IndicesRequest.Replaceable} during
@@ -56,7 +57,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
      */
     public record LocalExpressions(
-        List<String> expressions,
+        Set<String> expressions,
         LocalIndexResolutionResult localIndexResolutionResult,
         @Nullable ElasticsearchException exception
     ) {

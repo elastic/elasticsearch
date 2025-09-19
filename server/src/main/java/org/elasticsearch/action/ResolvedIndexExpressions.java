@@ -52,7 +52,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     public static final class Builder {
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
-        public void putLocalExpression(
+        public void putLocalExpressions(
             String original,
             Set<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
@@ -60,7 +60,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             expressions.add(
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(localExpressions), resolutionResult, null),
+                    new ResolvedIndexExpression.LocalExpressions(localExpressions, resolutionResult, null),
                     new ArrayList<>()
                 )
             );

@@ -196,12 +196,7 @@ public class OtlpUtils {
     public static ExportMetricsServiceRequest createMetricsRequest(List<KeyValue> resourceAttributes, List<Metric> metrics) {
         List<ResourceMetrics> resourceMetrics = new ArrayList<>();
         for (Metric metric : metrics) {
-            resourceMetrics.add(
-                createResourceMetrics(
-                    resourceAttributes,
-                    List.of(createScopeMetrics("test", "1.0.0", List.of(metric)))
-                )
-            );
+            resourceMetrics.add(createResourceMetrics(resourceAttributes, List.of(createScopeMetrics("test", "1.0.0", List.of(metric)))));
         }
 
         return ExportMetricsServiceRequest.newBuilder().addAllResourceMetrics(resourceMetrics).build();

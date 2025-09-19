@@ -5,11 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command;
+package org.elasticsearch.xpack.esql.generator.command;
 
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.LookupIdx;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
 import java.util.List;
 import java.util.Map;
@@ -30,11 +32,7 @@ public interface CommandGenerator {
      */
     record CommandDescription(String commandName, CommandGenerator generator, String commandString, Map<String, Object> context) {}
 
-    record QuerySchema(
-        List<String> baseIndices,
-        List<GenerativeRestTest.LookupIdx> lookupIndices,
-        List<CsvTestsDataLoader.EnrichConfig> enrichPolicies
-    ) {}
+    record QuerySchema(List<String> baseIndices, List<LookupIdx> lookupIndices, List<CsvTestsDataLoader.EnrichConfig> enrichPolicies) {}
 
     record ValidationResult(boolean success, String errorMessage) {}
 
@@ -42,8 +40,9 @@ public interface CommandGenerator {
         @Override
         public CommandDescription generate(
             List<CommandDescription> previousCommands,
-            List<EsqlQueryGenerator.Column> previousOutput,
-            QuerySchema schema
+            List<Column> previousOutput,
+            QuerySchema schema,
+            QueryExecutor executor
         ) {
             return EMPTY_DESCRIPTION;
         }
@@ -52,9 +51,9 @@ public interface CommandGenerator {
         public ValidationResult validateOutput(
             List<CommandDescription> previousCommands,
             CommandDescription command,
-            List<EsqlQueryGenerator.Column> previousColumns,
+            List<Column> previousColumns,
             List<List<Object>> previousOutput,
-            List<EsqlQueryGenerator.Column> columns,
+            List<Column> columns,
             List<List<Object>> output
         ) {
             return VALIDATION_OK;
@@ -70,13 +69,15 @@ public interface CommandGenerator {
      * @param previousCommands the list of the previous commands in the query
      * @param previousOutput   the output returned by the query so far.
      * @param schema           The columns returned by the query so far. It contains name and type information for each column.
+     * @param executor
      * @return All the details about the generated command. See {@link CommandDescription}.
      * If something goes wrong and for some reason you can't generate a command, you should return {@link CommandGenerator#EMPTY_DESCRIPTION}
      */
     CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     );
 
     /**
@@ -87,7 +88,7 @@ public interface CommandGenerator {
      * @param command          The description of the command you just generated.
      *                         It also contains the context information you stored during command generation.
      * @param previousColumns  The output schema of the original query (without last generated command).
-     *                         It contains name and type information for each column, see {@link EsqlQueryGenerator.Column}
+     *                         It contains name and type information for each column, see {@link Column}
      * @param previousOutput   The output of the original query (without last generated command), as a list (rows) of lists (columns) of values
      * @param columns          The output schema of the full query (WITH last generated command).
      * @param output           The output of the full query (WITH last generated command), as a list (rows) of lists (columns) of values
@@ -98,9 +99,9 @@ public interface CommandGenerator {
     ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription command,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     );
 
@@ -118,7 +119,7 @@ public interface CommandGenerator {
         return VALIDATION_OK;
     }
 
-    static ValidationResult expectSameColumns(List<EsqlQueryGenerator.Column> previousColumns, List<EsqlQueryGenerator.Column> columns) {
+    static ValidationResult expectSameColumns(List<Column> previousColumns, List<Column> columns) {
 
         if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {
             return VALIDATION_OK; // known bug
@@ -128,8 +129,8 @@ public interface CommandGenerator {
             return new ValidationResult(false, "Expecting [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }
 
-        List<String> prevColNames = previousColumns.stream().map(EsqlQueryGenerator.Column::name).toList();
-        List<String> newColNames = columns.stream().map(EsqlQueryGenerator.Column::name).toList();
+        List<String> prevColNames = previousColumns.stream().map(Column::name).toList();
+        List<String> newColNames = columns.stream().map(Column::name).toList();
         if (prevColNames.equals(newColNames) == false) {
             return new ValidationResult(
                 false,
@@ -143,10 +144,7 @@ public interface CommandGenerator {
     /**
      * The command doesn't have to produce LESS columns than the previous query
      */
-    static ValidationResult expectAtLeastSameNumberOfColumns(
-        List<EsqlQueryGenerator.Column> previousColumns,
-        List<EsqlQueryGenerator.Column> columns
-    ) {
+    static ValidationResult expectAtLeastSameNumberOfColumns(List<Column> previousColumns, List<Column> columns) {
         if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {
             return VALIDATION_OK; // known bug
         }

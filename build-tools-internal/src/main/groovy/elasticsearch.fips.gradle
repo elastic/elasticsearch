@@ -103,7 +103,6 @@ if (buildParams.inFipsJvm) {
         task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", fipsPolicy))
         task.systemProperty('javax.net.ssl.trustStore', fipsTrustStore)
         task.systemProperty('org.bouncycastle.fips.approved_only', 'true')
-        task.systemProperty('jdk.includeInExceptions', 'hostInfo')
       }
     }
   }

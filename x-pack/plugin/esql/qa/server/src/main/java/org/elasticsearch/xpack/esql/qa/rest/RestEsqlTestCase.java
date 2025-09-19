@@ -1411,6 +1411,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             profileLogger.extractProfile(json, profileEnabled);
         }
 
+        var supportsAsyncHeadersFix = hasCapabilities(adminClient(), List.of("async_query_status_headers_fix"));
+        if (supportsAsyncHeadersFix) {
+            assertNoAsyncHeaders(response);
+        }
         assertWarnings(response, assertWarnings);
 
         return json;
@@ -1448,7 +1452,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
-        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers"));
+        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers_fix"));
         var supportsSuggestedCast = hasCapabilities(adminClient(), List.of("suggested_cast"));
 
         // Check headers on initial query call
@@ -2009,6 +2013,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static void assertAsyncHeaders(Response response, @Nullable String asyncId, boolean isRunning) {
         assertThat(response.getHeader("X-Elasticsearch-Async-Id"), asyncId == null ? nullValue() : equalTo(asyncId));
         assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), isRunning ? is("?1") : is("?0"));
+    }
+
+    private static void assertNoAsyncHeaders(Response response) {
+        assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
+        assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), nullValue());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

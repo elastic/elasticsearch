@@ -289,6 +289,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 var response = toResponse(task, request, configuration, result);
+                assert response.isAsync() == request.async() : "The response must be async if the request was async";
 
                 if (response.isAsync()) {
                     if (response.asyncExecutionId().isPresent()) {

@@ -97,12 +97,14 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatter
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -399,58 +401,141 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        var query = "inlinestats b = min(a) by c, d.e";
-        if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
-                () -> processingCommand(query)
-            );
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
-        assertEquals(
-            new InlineStats(
-                EMPTY,
-                new Aggregate(
-                    EMPTY,
-                    PROCESSING_CMD_INPUT,
-                    List.of(attribute("c"), attribute("d.e")),
-                    List.of(
-                        new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                        attribute("c"),
-                        attribute("d.e")
+        for (var cmd : List.of("INLINE STATS", "INLINESTATS")) {
+            var query = cmd + " b = MIN(a) BY c, d.e";
+            assertThat(
+                processingCommand(query),
+                is(
+                    new InlineStats(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            PROCESSING_CMD_INPUT,
+                            List.of(attribute("c"), attribute("d.e")),
+                            List.of(
+                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                attribute("c"),
+                                attribute("d.e")
+                            )
+                        )
                     )
                 )
-            ),
-            processingCommand(query)
-        );
+            );
+        }
     }
 
     public void testInlineStatsWithoutGroups() {
-        var query = "inlinestats min(a), c = 1";
-        if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
-                () -> processingCommand(query)
-            );
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
-        assertEquals(
-            new InlineStats(
-                EMPTY,
-                new Aggregate(
-                    EMPTY,
-                    PROCESSING_CMD_INPUT,
-                    List.of(),
-                    List.of(
-                        new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                        new Alias(EMPTY, "c", integer(1))
+        for (var cmd : List.of("INLINE STATS", "INLINESTATS")) {
+            var query = cmd + " MIN(a), c = 1";
+            assertThat(
+                processingCommand(query),
+                is(
+                    new InlineStats(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            PROCESSING_CMD_INPUT,
+                            List.of(),
+                            List.of(
+                                new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                new Alias(EMPTY, "c", integer(1))
+                            )
+                        )
                     )
                 )
-            ),
-            processingCommand(query)
+            );
+        }
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withInlinestatsWarning(super.filteredWarnings());
+    }
+
+    public void testInlineStatsParsing() {
+        if (releaseBuildForInlineStats(null)) {
+            return;
+        }
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:19: token recognition error at: 'I'"),
+            () -> statement("FROM foo | INLINE INLINE STATS COUNT(*)")
         );
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:19: token recognition error at: 'F'"),
+            () -> statement("FROM foo | INLINE FOO COUNT(*)")
+        );
+    }
+
+    /*
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     * | \_Limit[11[INTEGER],false]
+     * |   \_Filter[:(?a,baz[KEYWORD])]
+     * |     \_UnresolvedRelation[foo*]
+     * |_Eval[[fork2[KEYWORD] AS _fork#3]]
+     * | \_Aggregate[[],[?COUNT[*] AS COUNT(*)#4]]
+     * |   \_UnresolvedRelation[foo*]
+     * \_Eval[[fork3[KEYWORD] AS _fork#3]]
+     *   \_InlineStats[]
+     *     \_Aggregate[[],[?COUNT[*] AS COUNT(*)#5]]
+     *       \_UnresolvedRelation[foo*]
+     */
+    public void testInlineStatsWithinFork() {
+        if (releaseBuildForInlineStats(null)) {
+            return;
+        }
+        var query = """
+            FROM foo*
+            | FORK ( WHERE a:"baz" | LIMIT 11 )
+                   ( STATS COUNT(*) )
+                   ( INLINE STATS COUNT(*) )
+            """;
+        var plan = statement(query);
+        var fork = as(plan, Fork.class);
+        var subPlans = fork.children();
+
+        // first subplan
+        var eval = as(subPlans.get(0), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        var filter = as(limit.child(), Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("a"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+
+        // second subplan
+        eval = as(subPlans.get(1), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+        var aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        var alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("COUNT(*)"));
+        var countFn = as(alias.child(), UnresolvedFunction.class);
+        assertThat(countFn.children().get(0), instanceOf(Literal.class));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+
+        // third subplan
+        eval = as(subPlans.get(2), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+        var inlineStats = as(eval.child(), InlineStats.class);
+        aggregate = as(inlineStats.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("COUNT(*)"));
+        countFn = as(alias.child(), UnresolvedFunction.class);
+        assertThat(countFn.children().get(0), instanceOf(Literal.class));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1084,7 +1169,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'eval'"),
-                    containsString("'stats'"),
+                    containsString("'limit'"),
                     containsString("'where'")
                 ),
                 () -> statement(queryWithUnexpectedCmd.v1())
@@ -3763,7 +3848,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query = """
             FROM foo*
             | FORK
-               ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
+               ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a

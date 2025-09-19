@@ -268,7 +268,11 @@ public class RolloverConfigurationTests extends AbstractWireSerializingTestCase<
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(91)), equalTo(TimeValue.timeValueDays(30)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(90)), equalTo(TimeValue.timeValueDays(7)));
         assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(14)), equalTo(TimeValue.timeValueDays(1)));
-        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueDays(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueDays(1)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(23)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(12)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(1)), equalTo(TimeValue.timeValueHours(1)));
+        assertThat(RolloverConfiguration.evaluateMaxAgeCondition(TimeValue.timeValueHours(0)), equalTo(TimeValue.timeValueHours(1)));
     }
 
     public void testToXContent() throws IOException {

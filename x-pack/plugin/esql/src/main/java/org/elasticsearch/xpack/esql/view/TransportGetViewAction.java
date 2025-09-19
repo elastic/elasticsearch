@@ -7,60 +7,32 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 
-public class TransportGetViewAction extends AcknowledgedTransportMasterNodeAction<GetViewAction.Request> {
+public class TransportGetViewAction extends HandledTransportAction<GetViewAction.Request, GetViewAction.Response> {
+    public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(GetViewAction.NAME);
     private final ViewService viewService;
 
     @Inject
-    public TransportGetViewAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        ViewService viewService
-    ) {
-        super(
-            GetViewAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            GetViewAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+    public TransportGetViewAction(TransportService transportService, ActionFilters actionFilters, ViewService viewService) {
+        super(GetViewAction.NAME, transportService, actionFilters, GetViewAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.viewService = viewService;
     }
 
     @Override
-    protected void masterOperation(
-        Task task,
-        GetViewAction.Request request,
-        ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    protected void doExecute(Task task, GetViewAction.Request request, ActionListener<GetViewAction.Response> listener) {
         View view = viewService.get(request.name());
         if (view == null) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
+            listener.onFailure(new IllegalArgumentException("View [" + request.name() + "] does not exist"));
         } else {
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            listener.onResponse(new GetViewAction.Response(view));
         }
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(GetViewAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

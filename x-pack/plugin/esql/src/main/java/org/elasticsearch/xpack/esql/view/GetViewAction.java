@@ -6,18 +6,20 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetViewAction extends ActionType<AcknowledgedResponse> {
+public class GetViewAction extends ActionType<GetViewAction.Response> {
 
     public static final GetViewAction INSTANCE = new GetViewAction();
     public static final String NAME = "cluster:admin/xpack/esql/view/get";
@@ -26,17 +28,15 @@ public class GetViewAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends MasterNodeRequest<GetViewAction.Request> {
-        private final String name;
+    public static class Request extends ActionRequest {
+        private String name;
 
-        public Request(TimeValue masterNodeTimeout, String name) {
-            super(masterNodeTimeout);
+        public Request(String name) {
             this.name = Objects.requireNonNull(name, "name cannot be null");
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            name = in.readString();
         }
 
         @Override
@@ -65,6 +65,51 @@ public class GetViewAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return name.hashCode();
+        }
+    }
+
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final View view;
+
+        public Response(final View view) {
+            this.view = view;
+        }
+
+        public View getView() {
+            return view;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            view.toXContent(builder, params);
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            return view.equals(((Response) o).view);
+        }
+
+        @Override
+        public int hashCode() {
+            return view.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "GetViewAction.Response{view=" + view.toString() + '}';
         }
     }
 }

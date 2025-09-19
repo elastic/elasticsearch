@@ -618,6 +618,25 @@ public class CsvTestsDataLoader {
         request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", " ") + "\"}");
         Response response = client.performRequest(request);
         logger.info("View creation response: {}", response.getStatusLine());
+        getView(client, viewName, logger);
+    }
+
+    private static boolean getView(RestClient client, String viewName, Logger logger) throws IOException {
+        Request request = new Request("GET", "/_query/view/" + viewName);
+        try {
+            Response response = client.performRequest(request);
+            logger.info("View response status: {}", response.getStatusLine());
+            logger.info("View response body info: {}", response.getEntity());
+            logger.info("View response body: {}", response.getEntity().getContent());
+        } catch (ResponseException e) {
+            logger.info("View error: {}", e.getMessage());
+            int code = e.getResponse().getStatusLine().getStatusCode();
+            if (code == 400 || code == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
     }
 
     private static boolean clusterHasViewSupport(RestClient client, Logger logger) throws IOException {

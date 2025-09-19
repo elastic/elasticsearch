@@ -64,7 +64,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), assertAnswerUsingThreadPool(listener));
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(responses))));
     }
@@ -76,7 +77,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
-        inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig()).executeBulk(requestIterator, assertAnswerUsingThreadPool(listener));
+        inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator, assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), empty())));
     }
@@ -95,7 +97,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), assertAnswerUsingThreadPool(listener));
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -122,7 +125,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         AtomicReference<Exception> exception = new AtomicReference<>();
         ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), assertAnswerUsingThreadPool(listener));
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+            .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -152,14 +156,15 @@ public class BulkInferenceRunnerTests extends ESTestCase {
                     latch.countDown();
                 }, ESTestCase::fail);
 
-                inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), assertAnswerUsingThreadPool(listener));
+                inferenceRunnerFactory(client).create(randomBulkExecutionConfig())
+                    .executeBulk(requestIterator(requests), assertAnswerUsingSearchThreadPool(listener));
             });
         }
 
         latch.await(10, TimeUnit.SECONDS);
     }
 
-    private <T> ActionListener<T> assertAnswerUsingThreadPool(ActionListener<T> actionListener) {
+    private <T> ActionListener<T> assertAnswerUsingSearchThreadPool(ActionListener<T> actionListener) {
         return ActionListener.runBefore(actionListener, () -> ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH));
     }
 

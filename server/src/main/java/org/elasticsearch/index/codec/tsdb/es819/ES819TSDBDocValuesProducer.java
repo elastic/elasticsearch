@@ -733,28 +733,28 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 // Scan to the looked up ord
-//                for (this.ord++; this.ord < targetOrd; this.ord++) {
-//                    if (++this.ord >= entry.termsDictSize) {
-//                        return null;
-//                    }
+                // for (this.ord++; this.ord < targetOrd; this.ord++) {
+                // if (++this.ord >= entry.termsDictSize) {
+                // return null;
+                // }
 
-//                    if ((this.ord & blockMask) == 0L) {
-//                        decompressBlock();
-//                    } else {
-//                        DataInput input = blockInput;
-//                        final int token = Byte.toUnsignedInt(input.readByte());
-//                        int prefixLength = token & 0x0F;
-//                        int suffixLength = 1 + (token >>> 4);
-//                        if (prefixLength == 15) {
-//                            prefixLength += input.readVInt();
-//                        }
-//                        if (suffixLength == 16) {
-//                            suffixLength += input.readVInt();
-//                        }
-//                        term.length = prefixLength + suffixLength;
-//                        input.readBytes(term.bytes, prefixLength, suffixLength);
-//                    }
-//                }
+                // if ((this.ord & blockMask) == 0L) {
+                // decompressBlock();
+                // } else {
+                // DataInput input = blockInput;
+                // final int token = Byte.toUnsignedInt(input.readByte());
+                // int prefixLength = token & 0x0F;
+                // int suffixLength = 1 + (token >>> 4);
+                // if (prefixLength == 15) {
+                // prefixLength += input.readVInt();
+                // }
+                // if (suffixLength == 16) {
+                // suffixLength += input.readVInt();
+                // }
+                // term.length = prefixLength + suffixLength;
+                // input.readBytes(term.bytes, prefixLength, suffixLength);
+                // }
+                // }
 
                 consumer.onTerm(offset, term);
             }

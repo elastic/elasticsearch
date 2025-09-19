@@ -90,7 +90,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -385,7 +384,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     public void testSyntheticSourceSearchLookup() throws IOException {
         // Build a mapping using synthetic source
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false, false, false).setSynthetic().build();
-        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc").add(
             new KeywordFieldMapper.Builder("cat", IndexVersion.current()).ignoreAbove(100)
         ).build(MapperBuilderContext.root(true, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());

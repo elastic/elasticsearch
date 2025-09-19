@@ -178,6 +178,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(SUPPORTED_TASK_TYPES)
                         .setConfigurations(configurationMap)
                         .build();

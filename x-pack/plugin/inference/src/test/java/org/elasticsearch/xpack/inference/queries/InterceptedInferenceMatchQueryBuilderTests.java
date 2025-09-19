@@ -124,7 +124,8 @@ public class InterceptedInferenceMatchQueryBuilderTests extends AbstractIntercep
             field,
             queryText,
             null,
-            coordinatorIntercepted.inferenceResultsMap
+            coordinatorIntercepted.inferenceResultsMap,
+            false
         ).boost(matchQuery.boost()).queryName(matchQuery.queryName());
 
         // Perform data node rewrite on test index 1

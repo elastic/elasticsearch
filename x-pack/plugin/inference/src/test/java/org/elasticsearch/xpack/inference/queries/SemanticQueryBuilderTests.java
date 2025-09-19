@@ -92,9 +92,11 @@ import java.util.function.Supplier;
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 import static org.elasticsearch.TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.TransportVersions.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -393,7 +395,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             randomAlphaOfLength(5),
             randomAlphaOfLength(5),
             null,
-            inferenceResultsMap
+            inferenceResultsMap,
+            false
         );
 
         QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
@@ -421,13 +424,15 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 fieldName,
                 query,
                 null,
-                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults)
+                Map.of(new FullyQualifiedInferenceId(LOCAL_CLUSTER_GROUP_KEY, randomAlphaOfLength(5)), inferenceResults),
+                false
             );
             SemanticQueryBuilder bwcQuery = new SemanticQueryBuilder(
                 fieldName,
                 query,
                 null,
-                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults)
+                SemanticQueryBuilder.buildSingleResultInferenceResultsMap(inferenceResults),
+                false
             );
 
             QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, version);
@@ -460,7 +465,8 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
                 null,
-                inferenceResultsMap
+                inferenceResultsMap,
+                false
             );
 
             String expectedErrorMessage;
@@ -494,6 +500,28 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             );
             assertMultipleInferenceResults.accept(List.of(inferenceResults1, inferenceResults2), transportVersion);
         }
+    }
+
+    public void testSerializationCcs() throws Exception {
+        SemanticQueryBuilder originalQuery = new SemanticQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5), null, Map.of(), true);
+
+        // Deserialize using the current transport version. This simulates sending the query to a remote cluster that supports semantic
+        // search CCS.
+        QueryBuilder deserializedQuery = copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class);
+        assertThat(deserializedQuery, equalTo(originalQuery));
+
+        // Deserialize using a transport version prior to semantic search CCS support. This simulates sending the query to a remote cluster
+        // that does *not* support semantic search CCS.
+        TransportVersion ccsUnsupportedVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            originalQuery.getMinimalSupportedVersion(),
+            TransportVersionUtils.getPreviousVersion(SEMANTIC_SEARCH_CCS_SUPPORT)
+        );
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, ccsUnsupportedVersion)
+        );
+        assertThat(e.getMessage(), containsString("One or more nodes does not support [semantic] query cross-cluster search"));
     }
 
     public void testToXContent() throws IOException {

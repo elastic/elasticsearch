@@ -99,14 +99,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     public SemanticQueryBuilder(String fieldName, String query, Boolean lenient) {
-        this(fieldName, query, lenient, null);
+        this(fieldName, query, lenient, null, false);
     }
 
     protected SemanticQueryBuilder(
         String fieldName,
         String query,
         Boolean lenient,
-        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
@@ -118,7 +119,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = query;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
         this.lenient = lenient;
-        this.ccsRequest = false;
+        this.ccsRequest = ccsRequest;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {

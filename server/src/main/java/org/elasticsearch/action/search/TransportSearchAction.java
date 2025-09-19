@@ -1943,7 +1943,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     // be thrown when a search phase attempts to access it.
                     try {
                         final ShardIterator shards = OperationRouting.getShards(projectState.routingTable(), shardId);
-
                         // Prefer executing shard requests on nodes that are part of PIT first.
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());

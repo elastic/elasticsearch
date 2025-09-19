@@ -633,19 +633,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             ShardId shardId = searchShardTarget.getShardId();
             SearchContextIdForNode originalShard = shardMapCopy.get(shardId);
             if (originalShard != null
-                    && Objects.equals(originalShard.getClusterAlias(), searchShardTarget.getClusterAlias())
-                    && Objects.equals(originalShard.getSearchContextId(), result.getContextId())) {
+                && Objects.equals(originalShard.getClusterAlias(), searchShardTarget.getClusterAlias())
+                && Objects.equals(originalShard.getSearchContextId(), result.getContextId())) {
                 // result shard and context id match the originalShard one, check if the node is different and replace if so
                 String originalNode = originalShard.getNode();
                 if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
                     // the target node for this shard entry in the PIT has changed, we need to update it
                     shardMapCopy.put(
-                            shardId,
-                            new SearchContextIdForNode(
-                                    originalShard.getClusterAlias(),
-                                    searchShardTarget.getNodeId(),
-                                    originalShard.getSearchContextId()
-                            )
+                        shardId,
+                        new SearchContextIdForNode(
+                            originalShard.getClusterAlias(),
+                            searchShardTarget.getNodeId(),
+                            originalShard.getSearchContextId()
+                        )
                     );
                     idChanges = true;
                 }

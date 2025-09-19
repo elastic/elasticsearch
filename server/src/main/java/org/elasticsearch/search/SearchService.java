@@ -870,7 +870,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private IndexShard getShard(ShardSearchRequest request) {
         final ShardSearchContextId contextId = request.readerId();
         if (contextId != null && sessionId.equals(contextId.getSessionId())) {
-            final ReaderContext readerContext = activeReaders.get(contextId.getId());
+            final ReaderContext readerContext = activeReaders.get(contextId);
             if (readerContext != null) {
                 return readerContext.indexShard();
             }
@@ -1263,6 +1263,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request) {
         ShardSearchContextId contextId = request.readerId();
+        final long keepAliveInMillis = getKeepAlive(request);
         if (contextId != null) {
             try {
                 return findReaderContext(contextId, request);
@@ -1289,13 +1290,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     shard,
                     searcherSupplier,
                     false,
-                    defaultKeepAlive
+                    keepAliveInMillis
                 );
                 logger.debug("Recreating reader context [{}]", readerContext.id());
                 return readerContext;
             }
         }
-        final long keepAliveInMillis = getKeepAlive(request);
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
         return createAndPutReaderContext(request, indexService, shard, shard.acquireSearcherSupplier(), keepAliveInMillis);

@@ -201,6 +201,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_4 = def(8_841_0_68);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_5 = def(8_841_0_69);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -323,6 +324,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ELASTIC_DENSE_TEXT_EMBEDDINGS_ADDED = def(9_109_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_5 = def(9_112_0_08);
     public static final TransportVersion INDEX_SOURCE = def(9_158_0_00);
     public static final TransportVersion MAX_HEAP_SIZE_PER_NODE_IN_CLUSTER_INFO = def(9_159_0_00);
     public static final TransportVersion TIMESERIES_DEFAULT_LIMIT = def(9_160_0_00);
@@ -331,7 +333,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = def(9_163_0_00);
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = def(9_164_0_00);
     public static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = def(9_165_0_00);
-    public static final TransportVersion INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST = def(9_166_0_00);
+    public static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = def(9_166_0_00);
+    public static final TransportVersion INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST = def(9_167_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

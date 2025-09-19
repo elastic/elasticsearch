@@ -1126,21 +1126,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int indexOf(final byte[] bytes, final int offset, final int length, final byte marker) {
         final ByteVector markerVector = ByteVector.broadcast(ByteVector.SPECIES_PREFERRED, marker);
-        final int upperBound = offset + ByteVector.SPECIES_PREFERRED.loopBound(length);
-
-        int i = offset;
-        for (; i < upperBound; i += ByteVector.SPECIES_PREFERRED.length()) {
-            ByteVector chunk = ByteVector.fromArray(ByteVector.SPECIES_PREFERRED, bytes, i);
+        final int loopBound = ByteVector.SPECIES_PREFERRED.loopBound(length);
+        for (int i = 0; i < loopBound; i += ByteVector.SPECIES_PREFERRED.length()) {
+            ByteVector chunk = ByteVector.fromArray(ByteVector.SPECIES_PREFERRED, bytes, offset + i);
             VectorMask<Byte> mask = chunk.eq(markerVector);
             if (mask.anyTrue()) {
-                return (i - offset) + mask.firstTrue();
+                return i + mask.firstTrue();
             }
         }
         // tail
-        final int end = offset + length;
-        for (; i < end; i++) {
-            if (bytes[i] == marker) {
-                return i - offset;
+        if (loopBound < length) {
+            int remaining = length - loopBound;
+            int tail = ByteArrayUtils.indexOf(bytes, offset + loopBound, remaining, marker);
+            if (tail >= 0) {
+                return loopBound + tail;
             }
         }
         return -1;

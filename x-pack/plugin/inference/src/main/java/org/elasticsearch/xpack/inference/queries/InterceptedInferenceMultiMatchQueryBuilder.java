@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -169,7 +170,7 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
                     || queryType == MultiMatchQueryBuilder.Type.PHRASE_PREFIX) ? "[best_fields]" : "[best_fields] or [most_fields]";
                 throw new IllegalArgumentException(
                     "multi_match query with type ["
-                        + queryType.toString().toLowerCase()
+                        + queryType.toString().toLowerCase(Locale.ROOT)
                         + "] is not supported for semantic_text fields. "
                         + "Use "
                         + supportedTypes

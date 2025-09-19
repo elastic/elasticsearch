@@ -211,7 +211,7 @@ public class SnapshotsServiceUtils {
                 if (value.equals(SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository()))
                         : "Found shard snapshot waiting to be assigned in [" + entry + "] but it is not blocked by any running delete";
-                } else if (value.isActive()) {
+                } else if (value.isActiveOrAssignedQueued()) {
                     assert reposWithRunningDelete.contains(new ProjectRepo(entry.projectId(), entry.repository())) == false
                         : "Found shard snapshot actively executing in ["
                             + entry
@@ -268,13 +268,13 @@ public class SnapshotsServiceUtils {
      * @param entry snapshot entry
      * @return true if entry is currently writing to the repository
      */
-    public static boolean isWritingToRepository(SnapshotsInProgress.Entry entry) {
+    public static boolean isWritingToRepositoryOrAssignedQueued(SnapshotsInProgress.Entry entry) {
         if (entry.state().completed()) {
             // Entry is writing to the repo because it's finalizing on master
             return true;
         }
         for (SnapshotsInProgress.ShardSnapshotStatus value : entry.shardSnapshotStatusByRepoShardId().values()) {
-            if (value.isActive()) {
+            if (value.isActiveOrAssignedQueued()) {
                 // Entry is writing to the repo because it's writing to a shard on a data node or waiting to do so for a concrete shard
                 return true;
             }
@@ -283,7 +283,7 @@ public class SnapshotsServiceUtils {
     }
 
     public static boolean isQueued(@Nullable SnapshotsInProgress.ShardSnapshotStatus status) {
-        return status != null && status.state() == SnapshotsInProgress.ShardState.QUEUED;
+        return status != null && status.isUnassignedQueued();
     }
 
     public static FinalizeSnapshotContext.UpdatedShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
@@ -393,6 +393,7 @@ public class SnapshotsServiceUtils {
      * failed shard snapshots on the same shard IDs.
      *
      * @param nodeIdRemovalPredicate identify any nodes that are marked for removal / in shutdown mode
+     * @param perNodeShardSnapshotCounter The counter to keep track the number of shard snapshots running per node
      * @param knownFailures already known failed shard snapshots, but more may be found in this method
      * @return an updated map of shard statuses
      */
@@ -401,6 +402,7 @@ public class SnapshotsServiceUtils {
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         Predicate<String> nodeIdRemovalPredicate,
+        PerNodeShardSnapshotCounter perNodeShardSnapshotCounter,
         Map<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> knownFailures
     ) {
         assert snapshotEntry.isClone() == false : "clones take a different path";
@@ -411,7 +413,7 @@ public class SnapshotsServiceUtils {
             .entrySet()) {
             SnapshotsInProgress.ShardSnapshotStatus shardStatus = shardSnapshotEntry.getValue();
             ShardId shardId = snapshotEntry.shardId(shardSnapshotEntry.getKey());
-            if (shardStatus.equals(SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)) {
+            if (shardStatus.isUnassignedQueued() || shardStatus.isAssignedQueued()) {
                 // this shard snapshot is waiting for a previous snapshot to finish execution for this shard
                 final SnapshotsInProgress.ShardSnapshotStatus knownFailure = knownFailures.get(shardSnapshotEntry.getKey());
                 if (knownFailure == null) {
@@ -420,14 +422,30 @@ public class SnapshotsServiceUtils {
                         // shard became unassigned while queued after a delete or clone operation so we can fail as missing here
                         assert snapshotEntry.partial();
                         snapshotChanged = true;
-                        logger.debug("failing snapshot of shard [{}] because index got deleted", shardId);
-                        shards.put(shardId, SnapshotsInProgress.ShardSnapshotStatus.MISSING);
-                        knownFailures.put(shardSnapshotEntry.getKey(), SnapshotsInProgress.ShardSnapshotStatus.MISSING);
+                        logger.debug("failing snapshot of shard [{}] with status [{}] because index got deleted", shardId, shardStatus);
+                        final SnapshotsInProgress.ShardSnapshotStatus newShardStatus = shardStatus.isAssignedQueued()
+                            ? new SnapshotsInProgress.ShardSnapshotStatus(
+                                shardStatus.nodeId(),
+                                SnapshotsInProgress.ShardState.FAILED,
+                                shardStatus.generation(),
+                                "shard is deleted"
+                            )
+                            : SnapshotsInProgress.ShardSnapshotStatus.MISSING;
+                        shards.put(shardId, newShardStatus);
+                        knownFailures.put(shardSnapshotEntry.getKey(), newShardStatus);
                     } else {
                         // if no failure is known for the shard we keep waiting
                         shards.put(shardId, shardStatus);
                     }
                 } else {
+                    assert shardStatus.isAssignedQueued() == false
+                        : shardId
+                            + " with status "
+                            + shardStatus
+                            + " has unexpected known failure "
+                            + knownFailure
+                            + " in snapshot entry "
+                            + snapshotEntry;
                     // If a failure is known for an execution we waited on for this shard then we fail with the same exception here
                     // as well
                     snapshotChanged = true;
@@ -465,7 +483,17 @@ public class SnapshotsServiceUtils {
                                     Starting shard [{}] with shard generation [{}] that we were waiting to start on node [{}]. Previous \
                                     shard state [{}]
                                     """, shardId, shardStatus.generation(), shardStatus.nodeId(), shardStatus.state());
-                                shards.put(shardId, new SnapshotsInProgress.ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
+                                if (perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(primaryNodeId)) {
+                                    shards.put(
+                                        shardId,
+                                        new SnapshotsInProgress.ShardSnapshotStatus(primaryNodeId, shardStatus.generation())
+                                    );
+                                } else {
+                                    shards.put(
+                                        shardId,
+                                        SnapshotsInProgress.ShardSnapshotStatus.assignedQueued(primaryNodeId, shardStatus.generation())
+                                    );
+                                }
                                 continue;
                             } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {
                                 // Shard that we were waiting for hasn't started yet or still relocating - will continue to wait
@@ -492,6 +520,9 @@ public class SnapshotsServiceUtils {
                         // TODO: Restart snapshot on another node?
                         snapshotChanged = true;
                         logger.warn("failing snapshot of shard [{}] on departed node [{}]", shardId, shardStatus.nodeId());
+                        // This can move an INIT shard directly to FAILED (completed) but does not release capacity since the node is gone.
+                        // Hence there is no need to kick off assigned-queued shards. In fact, all assigned-queued or unassigned-queued
+                        // shards on the same node should all be moved to FAILED state in this update.
                         final SnapshotsInProgress.ShardSnapshotStatus failedState = new SnapshotsInProgress.ShardSnapshotStatus(
                             shardStatus.nodeId(),
                             SnapshotsInProgress.ShardState.FAILED,
@@ -522,7 +553,7 @@ public class SnapshotsServiceUtils {
                         .entrySet()) {
                         final SnapshotsInProgress.ShardState state = shardStatus.getValue().state();
                         if (state != SnapshotsInProgress.ShardState.WAITING
-                            && state != SnapshotsInProgress.ShardState.QUEUED
+                            && shardStatus.getValue().isUnassignedQueued() == false
                             && state != SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
                             continue;
                         }
@@ -628,7 +659,9 @@ public class SnapshotsServiceUtils {
             final var projectRepo = new ProjectRepo(entry.projectId(), entry.repository());
             if (repositoriesSeen.add(projectRepo)
                 && entry.state() == SnapshotDeletionsInProgress.State.WAITING
-                && snapshotsInProgress.forRepo(projectRepo).stream().noneMatch(SnapshotsServiceUtils::isWritingToRepository)) {
+                && snapshotsInProgress.forRepo(projectRepo)
+                    .stream()
+                    .noneMatch(SnapshotsServiceUtils::isWritingToRepositoryOrAssignedQueued)) {
                 changed = true;
                 final SnapshotDeletionsInProgress.Entry newEntry = entry.started();
                 readyDeletions.add(newEntry);
@@ -957,6 +990,7 @@ public class SnapshotsServiceUtils {
      *
      * @param indices             Indices to snapshot
      * @param useShardGenerations whether to write {@link ShardGenerations} during the snapshot
+     * @param perNodeShardSnapshotCounter Tracker to decide whether a shard snapshot can start on a node based on configured limit
      * @return map of shard-id to snapshot-status of all shards included into current snapshot
      */
     public static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards(
@@ -966,7 +1000,8 @@ public class SnapshotsServiceUtils {
         Collection<IndexId> indices,
         boolean useShardGenerations,
         RepositoryData repositoryData,
-        String repoName
+        String repoName,
+        PerNodeShardSnapshotCounter perNodeShardSnapshotCounter
     ) {
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
@@ -1010,7 +1045,8 @@ public class SnapshotsServiceUtils {
                         shardSnapshotStatus = initShardSnapshotStatus(
                             shardRepoGeneration,
                             indexRoutingTable.shard(i).primaryShard(),
-                            snapshotsInProgress::isNodeIdForRemoval
+                            snapshotsInProgress::isNodeIdForRemoval,
+                            perNodeShardSnapshotCounter
                         );
                     }
                     builder.put(shardId, shardSnapshotStatus);
@@ -1032,7 +1068,8 @@ public class SnapshotsServiceUtils {
     public static SnapshotsInProgress.ShardSnapshotStatus initShardSnapshotStatus(
         ShardGeneration shardRepoGeneration,
         ShardRouting primary,
-        Predicate<String> nodeIdRemovalPredicate
+        Predicate<String> nodeIdRemovalPredicate,
+        PerNodeShardSnapshotCounter perNodeShardSnapshotCounter
     ) {
         SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus;
         if (primary == null || primary.assignedToNode() == false) {
@@ -1062,7 +1099,11 @@ public class SnapshotsServiceUtils {
                 "primary shard hasn't been started yet"
             );
         } else {
-            shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+            if (perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(primary.currentNodeId())) {
+                shardSnapshotStatus = new SnapshotsInProgress.ShardSnapshotStatus(primary.currentNodeId(), shardRepoGeneration);
+            } else {
+                shardSnapshotStatus = SnapshotsInProgress.ShardSnapshotStatus.assignedQueued(primary.currentNodeId(), shardRepoGeneration);
+            }
         }
         return shardSnapshotStatus;
     }

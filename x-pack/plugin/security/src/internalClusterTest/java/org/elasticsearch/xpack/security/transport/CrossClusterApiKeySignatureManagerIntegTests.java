@@ -7,10 +7,14 @@
 
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.test.SecurityIntegTestCase;
+
+import javax.net.ssl.KeyManagerFactory;
+import java.security.cert.X509Certificate;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_CERT_PATH;
@@ -20,6 +24,7 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigni
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEYSTORE_TYPE;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SIGNING_KEY_PATH;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
+import static org.mockito.Mockito.mock;
 
 public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegTestCase {
 
@@ -56,9 +61,16 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
         X509CertificateSignature signature = manager.signerForClusterAlias("unknowncluster").sign(testHeaders);
         assertNull(signature);
+
+        var signatureMock = new X509CertificateSignature(
+            new X509Certificate[] { mock(X509Certificate.class) },
+            KeyManagerFactory.getDefaultAlgorithm(),
+            new BytesArray("test")
+        );
+
         var exception = assertThrows(
             IllegalStateException.class,
-            () -> manager.verifierForClusterAlias("unknowncluster").verify(signature, testHeaders)
+            () -> manager.verifierForClusterAlias("unknowncluster").verify(signatureMock, testHeaders)
         );
         assertThat(exception.getMessage(), equalToIgnoringCase("No trust manager found for [unknowncluster]"));
     }

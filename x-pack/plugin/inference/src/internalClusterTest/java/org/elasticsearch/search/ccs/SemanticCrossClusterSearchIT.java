@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -50,6 +51,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -144,6 +146,40 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2")
             )
         );
+    }
+
+    public void testSemanticQueryWithCcMinimizeRoundTripsFalse() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder("foo", "bar");
+        final Consumer<SearchRequest> assertCcsMinimizeRoundTripsFalseFailure = s -> {
+            IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> client().search(s).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("[semantic] query does not support cross-cluster search when [ccs_minimize_roundtrips] is false")
+            );
+        };
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(localIndexName, Map.of(), Map.of(), Map.of());
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(remoteIndexName, Map.of(), Map.of(), Map.of());
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Explicitly set ccs_minimize_roundtrips=false in the search request
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+        SearchRequest searchRequestWithCcMinimizeRoundTripsFalse = new SearchRequest(queryIndices, searchSourceBuilder);
+        searchRequestWithCcMinimizeRoundTripsFalse.setCcsMinimizeRoundtrips(false);
+        assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithCcMinimizeRoundTripsFalse);
+
+        // Using a point in time implicitly sets ccs_minimize_roundtrips=false
+        BytesReference pitId = openPointInTime(queryIndices, TimeValue.timeValueMinutes(2));
+        SearchSourceBuilder searchSourceBuilderWithPit = new SearchSourceBuilder().query(queryBuilder)
+            .pointInTimeBuilder(new PointInTimeBuilder(pitId));
+        SearchRequest searchRequestWithPit = new SearchRequest().source(searchSourceBuilderWithPit);
+        assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithPit);
     }
 
     private void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {

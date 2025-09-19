@@ -82,50 +82,24 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
     }
 
     public void testInterceptAndRewrite() throws Exception {
-        final String field1 = "field1";
-        final String field2 = "field2";
-        final String field3 = "field3";
-        final String queryText = "test query";
+        TestData data = TestData.random();
+        TestIndices indices = TestIndices.create(data, "mixed");
 
-        final float queryBoost = randomFloatBetween(1.1f, 3.0f, true);
-        final float field1Boost = randomFloatBetween(1.1f, 2.0f, true);
-        final float field2Boost = randomFloatBetween(1.1f, 2.0f, true);
-        final float field3Boost = randomFloatBetween(1.1f, 2.0f, true);
-        final String queryName = randomAlphanumericOfLength(6);
-
-        final TestIndex testIndex1 = new TestIndex(
-            "mixed-index-1",
-            Map.of(),
-            Map.of(field1, Map.of("type", "text"), field2, Map.of("type", "text"), field3, Map.of("type", "text"))
-        );
-
-        final TestIndex testIndex2 = new TestIndex(
-            "mixed-index-2",
-            Map.of(field2, SPARSE_INFERENCE_ID, field3, SPARSE_INFERENCE_ID),
-            Map.of(field1, Map.of("type", "text"))
-        );
-
-        final TestIndex testIndex3 = new TestIndex(
-            "mixed-index-3",
-            Map.of(field2, SPARSE_INFERENCE_ID, field3, DENSE_INFERENCE_ID),
-            Map.of(field1, Map.of("type", "text"))
-        );
-
-        final MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
-            .field(field2, field2Boost)
-            .field(field3, field3Boost)
-            .boost(queryBoost)
-            .queryName(queryName);
+        final MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(data.queryText).field(data.field1, data.field1Boost)
+            .field(data.field2, data.field2Boost)
+            .field(data.field3, data.field3Boost)
+            .boost(data.queryBoost)
+            .queryName(data.queryName);
 
         // Perform coordinator node rewrite
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(
-                testIndex1.name(),
-                testIndex1.semanticTextFields(),
-                testIndex2.name(),
-                testIndex2.semanticTextFields(),
-                testIndex3.name(),
-                testIndex3.semanticTextFields()
+                indices.index1.name(),
+                indices.index1.semanticTextFields(),
+                indices.index2.name(),
+                indices.index2.semanticTextFields(),
+                indices.index3.name(),
+                indices.index3.semanticTextFields()
             ),
             Map.of(),
             TransportVersion.current()
@@ -153,9 +127,9 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextIndex1 = createIndexMetadataContext(
-            testIndex1.name(),
-            testIndex1.semanticTextFields(),
-            testIndex1.nonInferenceFields()
+            indices.index1.name(),
+            indices.index1.semanticTextFields(),
+            indices.index1.nonInferenceFields()
         );
         QueryBuilder dataRewrittenIndex1 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextIndex1);
         // Should return original multi_match since no semantic fields
@@ -163,106 +137,102 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
 
         // Perform data node rewrite on test index 2
         final QueryRewriteContext indexMetadataContextIndex2 = createIndexMetadataContext(
-            testIndex2.name(),
-            testIndex2.semanticTextFields(),
-            testIndex2.nonInferenceFields()
+            indices.index2.name(),
+            indices.index2.semanticTextFields(),
+            indices.index2.nonInferenceFields()
         );
         QueryBuilder dataRewrittenIndex2 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextIndex2);
 
         // Create expected DisMax query for index2
         DisMaxQueryBuilder expectedIndex2 = QueryBuilders.disMaxQuery()
-            .add(new SemanticQueryBuilder(field3, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field3Boost))
-            .add(new SemanticQueryBuilder(field2, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field2Boost))
             .add(
-                new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
+                new SemanticQueryBuilder(data.field3, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field3Boost
+                )
+            )
+            .add(
+                new SemanticQueryBuilder(data.field2, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field2Boost
+                )
+            )
+            .add(
+                new MultiMatchQueryBuilder(data.queryText).field(data.field1, data.field1Boost)
                     .type(multiMatchQuery.type())
                     .lenient(multiMatchQuery.lenient())
             )
             .tieBreaker(multiMatchQuery.type().tieBreaker())
-            .boost(queryBoost)
-            .queryName(queryName);
+            .boost(data.queryBoost)
+            .queryName(data.queryName);
 
         assertThat(dataRewrittenIndex2, equalTo(expectedIndex2));
 
         // Perform data node rewrite on test index 3
         final QueryRewriteContext indexMetadataContextIndex3 = createIndexMetadataContext(
-            testIndex3.name(),
-            testIndex3.semanticTextFields(),
-            testIndex3.nonInferenceFields()
+            indices.index3.name(),
+            indices.index3.semanticTextFields(),
+            indices.index3.nonInferenceFields()
         );
         QueryBuilder dataRewrittenIndex3 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextIndex3);
 
         // Create expected DisMax query for index3
         DisMaxQueryBuilder expectedIndex3 = QueryBuilders.disMaxQuery()
-            .add(new SemanticQueryBuilder(field3, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field3Boost))
-            .add(new SemanticQueryBuilder(field2, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field2Boost))
             .add(
-                new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
+                new SemanticQueryBuilder(data.field3, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field3Boost
+                )
+            )
+            .add(
+                new SemanticQueryBuilder(data.field2, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field2Boost
+                )
+            )
+            .add(
+                new MultiMatchQueryBuilder(data.queryText).field(data.field1, data.field1Boost)
                     .type(multiMatchQuery.type())
                     .lenient(multiMatchQuery.lenient())
             )
             .tieBreaker(multiMatchQuery.type().tieBreaker())
-            .boost(queryBoost)
-            .queryName(queryName);
+            .boost(data.queryBoost)
+            .queryName(data.queryName);
 
         assertThat(dataRewrittenIndex3, equalTo(expectedIndex3));
     }
 
     public void testInterceptAndRewriteWithDefaultFields() throws Exception {
-        final String field1 = "field1";
-        final String field2 = "field2";
-        final String field3 = "field3";
-        final String queryText = "test query";
+        TestData data = TestData.random();
+        TestIndices indices = TestIndices.create(data, "default-mixed");
 
-        final float queryBoost = randomFloatBetween(1.1f, 3.0f, true);
-        final float field1Boost = randomFloatBetween(1.1f, 2.0f, true);
-        final float field2Boost = randomFloatBetween(1.1f, 2.0f, true);
-        final float field3Boost = randomFloatBetween(1.1f, 2.0f, true);
-        final String queryName = randomAlphanumericOfLength(6);
-
-        final TestIndex testIndex1 = new TestIndex(
-            "default-mixed-index-1",
-            Map.of(),
-            Map.of(field1, Map.of("type", "text"), field2, Map.of("type", "text"), field3, Map.of("type", "text"))
-        );
-
-        final TestIndex testIndex2 = new TestIndex(
-            "default-mixed-index-2",
-            Map.of(field2, SPARSE_INFERENCE_ID, field3, SPARSE_INFERENCE_ID),
-            Map.of(field1, Map.of("type", "text"))
-        );
-
-        final TestIndex testIndex3 = new TestIndex(
-            "default-mixed-index-3",
-            Map.of(field2, SPARSE_INFERENCE_ID, field3, DENSE_INFERENCE_ID),
-            Map.of(field1, Map.of("type", "text"))
-        );
-
-        final MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(queryText).boost(queryBoost).queryName(queryName);
+        final MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(data.queryText).boost(data.queryBoost)
+            .queryName(data.queryName);
 
         // Create default field settings with boosts
         Settings defaultFieldSettings = Settings.builder()
-            .putList("index.query.default_field", field1 + "^" + field1Boost, field2 + "^" + field2Boost, field3 + "^" + field3Boost)
+            .putList(
+                "index.query.default_field",
+                data.field1 + "^" + data.field1Boost,
+                data.field2 + "^" + data.field2Boost,
+                data.field3 + "^" + data.field3Boost
+            )
             .build();
 
         // Perform coordinator node rewrite with default field settings
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(
-                testIndex1.name(),
-                testIndex1.semanticTextFields(),
-                testIndex2.name(),
-                testIndex2.semanticTextFields(),
-                testIndex3.name(),
-                testIndex3.semanticTextFields()
+                indices.index1.name(),
+                indices.index1.semanticTextFields(),
+                indices.index2.name(),
+                indices.index2.semanticTextFields(),
+                indices.index3.name(),
+                indices.index3.semanticTextFields()
             ),
             Map.of(),
             TransportVersion.current(),
             Map.of(
-                testIndex1.name(),
+                indices.index1.name(),
                 defaultFieldSettings,
-                testIndex2.name(),
+                indices.index2.name(),
                 defaultFieldSettings,
-                testIndex3.name(),
+                indices.index3.name(),
                 defaultFieldSettings
             )
         );
@@ -289,9 +259,9 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextIndex1 = createIndexMetadataContext(
-            testIndex1.name(),
-            testIndex1.semanticTextFields(),
-            testIndex1.nonInferenceFields(),
+            indices.index1.name(),
+            indices.index1.semanticTextFields(),
+            indices.index1.nonInferenceFields(),
             defaultFieldSettings
         );
         QueryBuilder dataRewrittenIndex1 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextIndex1);
@@ -299,48 +269,112 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
 
         // Perform data node rewrite on test index 2
         final QueryRewriteContext indexMetadataContextIndex2 = createIndexMetadataContext(
-            testIndex2.name(),
-            testIndex2.semanticTextFields(),
-            testIndex2.nonInferenceFields(),
+            indices.index2.name(),
+            indices.index2.semanticTextFields(),
+            indices.index2.nonInferenceFields(),
             defaultFieldSettings
         );
         QueryBuilder dataRewrittenIndex2 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextIndex2);
 
         // Create expected DisMax query for index2 using default fields
         DisMaxQueryBuilder expectedIndex2 = QueryBuilders.disMaxQuery()
-            .add(new SemanticQueryBuilder(field3, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field3Boost))
-            .add(new SemanticQueryBuilder(field2, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field2Boost))
             .add(
-                new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
+                new SemanticQueryBuilder(data.field3, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field3Boost
+                )
+            )
+            .add(
+                new SemanticQueryBuilder(data.field2, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field2Boost
+                )
+            )
+            .add(
+                new MultiMatchQueryBuilder(data.queryText).field(data.field1, data.field1Boost)
                     .type(multiMatchQuery.type())
                     .lenient(multiMatchQuery.lenient())
             )
             .tieBreaker(multiMatchQuery.type().tieBreaker())
-            .boost(queryBoost)
-            .queryName(queryName);
+            .boost(data.queryBoost)
+            .queryName(data.queryName);
         assertThat(dataRewrittenIndex2, equalTo(expectedIndex2));
 
         // Perform data node rewrite on test index 3
         final QueryRewriteContext indexMetadataContextIndex3 = createIndexMetadataContext(
-            testIndex3.name(),
-            testIndex3.semanticTextFields(),
-            testIndex3.nonInferenceFields(),
+            indices.index3.name(),
+            indices.index3.semanticTextFields(),
+            indices.index3.nonInferenceFields(),
             defaultFieldSettings
         );
         QueryBuilder dataRewrittenIndex3 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextIndex3);
 
         // Create expected DisMax query for index3 using default fields
         DisMaxQueryBuilder expectedIndex3 = QueryBuilders.disMaxQuery()
-            .add(new SemanticQueryBuilder(field3, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field3Boost))
-            .add(new SemanticQueryBuilder(field2, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field2Boost))
             .add(
-                new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
+                new SemanticQueryBuilder(data.field3, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field3Boost
+                )
+            )
+            .add(
+                new SemanticQueryBuilder(data.field2, data.queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(
+                    data.field2Boost
+                )
+            )
+            .add(
+                new MultiMatchQueryBuilder(data.queryText).field(data.field1, data.field1Boost)
                     .type(multiMatchQuery.type())
                     .lenient(multiMatchQuery.lenient())
             )
             .tieBreaker(multiMatchQuery.type().tieBreaker())
-            .boost(queryBoost)
-            .queryName(queryName);
+            .boost(data.queryBoost)
+            .queryName(data.queryName);
         assertThat(dataRewrittenIndex3, equalTo(expectedIndex3));
+    }
+
+    private record TestData(
+        String field1,
+        String field2,
+        String field3,
+        String queryText,
+        float queryBoost,
+        float field1Boost,
+        float field2Boost,
+        float field3Boost,
+        String queryName
+    ) {
+        static TestData random() {
+            return new TestData(
+                "field1",
+                "field2",
+                "field3",
+                "test query",
+                randomFloatBetween(1.1f, 3.0f, true),
+                randomFloatBetween(1.1f, 2.0f, true),
+                randomFloatBetween(1.1f, 2.0f, true),
+                randomFloatBetween(1.1f, 2.0f, true),
+                randomAlphanumericOfLength(6)
+            );
+        }
+    }
+
+    private record TestIndices(TestIndex index1, TestIndex index2, TestIndex index3) {
+        static TestIndices create(TestData data, String prefix) {
+            return new TestIndices(
+                new TestIndex(
+                    prefix + "-index-1",
+                    Map.of(),
+                    Map.of(data.field1, Map.of("type", "text"), data.field2, Map.of("type", "text"), data.field3, Map.of("type", "text"))
+                ),
+                new TestIndex(
+                    prefix + "-index-2",
+                    Map.of(data.field2, SPARSE_INFERENCE_ID, data.field3, SPARSE_INFERENCE_ID),
+                    Map.of(data.field1, Map.of("type", "text"))
+                ),
+                new TestIndex(
+                    prefix + "-index-3",
+                    Map.of(data.field2, SPARSE_INFERENCE_ID, data.field3, DENSE_INFERENCE_ID),
+                    Map.of(data.field1, Map.of("type", "text"))
+                )
+            );
+        }
     }
 }

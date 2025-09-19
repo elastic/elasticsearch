@@ -1453,7 +1453,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         // Check headers on initial query call
         if (supportsAsyncHeaders) {
-            assertAsyncHeaders(response, json);
+            assertAsyncHeaders(response, id, (boolean) json.get("is_running"));
         }
 
         if (id == null) {
@@ -1497,7 +1497,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         // Check headers on get call
         if (supportsAsyncHeaders) {
-            assertAsyncHeaders(response, result);
+            assertAsyncHeaders(response, id, (boolean) result.get("is_running"));
         }
 
         // assert initial contents, if any, are the same as async get contents
@@ -2006,9 +2006,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
-    private static void assertAsyncHeaders(Response response, Map<String, Object> json) {
-        var asyncId = (String) json.get("id");
-        var isRunning = (Boolean) json.get("is_running");
+    private static void assertAsyncHeaders(Response response, @Nullable String asyncId, boolean isRunning) {
         assertThat(response.getHeader("X-Elasticsearch-Async-Id"), asyncId == null ? nullValue() : equalTo(asyncId));
         assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), isRunning ? is("?1") : is("?0"));
     }

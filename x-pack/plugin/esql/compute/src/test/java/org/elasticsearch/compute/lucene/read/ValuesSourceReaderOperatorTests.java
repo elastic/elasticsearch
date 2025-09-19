@@ -1590,7 +1590,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false,
             true,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-            true, // TODO randomize - if the field is stored we should load from the stored field even if there is source
+            true, // TODO randomize - if the field is stored we should load from the stored field even if there is source]
+            false,
             null,
             Map.of(),
             false,
@@ -1605,6 +1606,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             randomBoolean(),
+            false,
             delegate,
             Map.of(),
             false,

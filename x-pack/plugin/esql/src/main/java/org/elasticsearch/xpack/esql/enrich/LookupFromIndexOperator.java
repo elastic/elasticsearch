@@ -145,9 +145,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
-        Block[] inputBlockArray = new Block[matchFields.size()];
         List<MatchConfig> newMatchFields = new ArrayList<>();
         List<MatchConfig> uniqueMatchFields = uniqueMatchFieldsByName(matchFields);
+        Block[] inputBlockArray = new Block[uniqueMatchFields.size()];
         for (int i = 0; i < uniqueMatchFields.size(); i++) {
             MatchConfig matchField = uniqueMatchFields.get(i);
             int inputChannel = matchField.channel();

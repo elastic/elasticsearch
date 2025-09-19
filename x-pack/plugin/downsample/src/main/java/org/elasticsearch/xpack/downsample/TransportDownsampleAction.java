@@ -774,6 +774,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                                 @SuppressWarnings("unchecked")
                                 Map<String, ?> sourceMultiFieldMapping = (Map<String, ?>) v2;
                                 Map<String, Object> destMultiFieldMapping = new HashMap<>(sourceMultiFieldMapping.size());
+                                destFields.put(multiFieldName, destMultiFieldMapping);
                                 fieldProcessor.apply(multiFieldName, sourceMultiFieldMapping, destMultiFieldMapping);
                             }
                         }

@@ -701,8 +701,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             highIdx = relevantNodes - 1;
 
                             shardBalanced = true;
-                            if (completeEarlyOnShardAssignmentChange) {
-                                assert routingNodes.getRelocatingShardCount() > 0 : "expect the first relocation to happen on the cluster";
+                            if (completeEarlyOnShardAssignmentChange && routingNodes.getRelocatingShardCount() > 0) {
+                                // Check routingNodes.getRelocatingShardCount() > 0 to ensure the first relocation is not a THROTTLE.
+                                // It should be true in production, i.e, throttling should not happen unless there is a prior shard
+                                // that is already relocating. But in tests, we have decider like RandomAllocationDecider that
+                                // can randomly return THROTTLE when there is no existing relocation.
                                 return true;
                             }
                             continue;

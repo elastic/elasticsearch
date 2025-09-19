@@ -326,6 +326,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();

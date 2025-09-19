@@ -29,7 +29,7 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
 
     @Override
     protected QueryRewriteInterceptor createQueryRewriteInterceptor() {
-        return new SemanticMultiMatchRewriteInterceptor();
+        return new SemanticMultiMatchQueryRewriteInterceptor();
     }
 
     @Override

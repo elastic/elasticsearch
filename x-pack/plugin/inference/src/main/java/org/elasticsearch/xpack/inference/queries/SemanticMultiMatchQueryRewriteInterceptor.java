@@ -12,7 +12,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
-public class SemanticMultiMatchRewriteInterceptor implements QueryRewriteInterceptor {
+public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteInterceptor {
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
         if (queryBuilder instanceof MultiMatchQueryBuilder multiMatchQueryBuilder) {

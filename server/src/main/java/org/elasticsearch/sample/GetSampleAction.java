@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -26,6 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -64,7 +65,7 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
             this.maxSize = maxSize;
         }
 
-        public List<IndexRequest> getSamples() {
+        public List<SamplingService.Sample> getSamples() {
             return getNodes().stream().map(n -> n.samples).filter(Objects::nonNull).flatMap(Collection::stream).limit(maxSize).toList();
         }
 
@@ -83,8 +84,14 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
             return Iterators.concat(
                 chunk((builder, p) -> builder.startObject().startArray("samples")),
                 Iterators.flatMap(getSamples().iterator(), sample -> single((builder, params1) -> {
-                    Map<String, Object> source = sample.sourceAsMap();
-                    builder.value(source);
+                    Map<String, Object> sourceAsMap = XContentHelper.convertToMap(
+                        sample.contentType().xContent(),
+                        sample.source(),
+                        0,
+                        sample.source().length,
+                        false
+                    );
+                    builder.value(sourceAsMap);
                     return builder;
                 })),
                 chunk((builder, p) -> builder.endArray().endObject())
@@ -107,19 +114,19 @@ public class GetSampleAction extends ActionType<GetSampleAction.Response> {
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-        private final List<IndexRequest> samples;
+        private final List<SamplingService.Sample> samples;
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
-            samples = in.readCollectionAsList(IndexRequest::new);
+            samples = in.readCollectionAsList(SamplingService.Sample::new);
         }
 
-        protected NodeResponse(DiscoveryNode node, List<IndexRequest> samples) {
+        protected NodeResponse(DiscoveryNode node, List<SamplingService.Sample> samples) {
             super(node);
             this.samples = samples;
         }
 
-        public List<IndexRequest> getSamples() {
+        public List<SamplingService.Sample> getSamples() {
             return samples;
         }
 

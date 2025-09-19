@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -190,7 +189,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
      * @param indexRequest The raw request to potentially sample
      */
     public void maybeSample(ProjectMetadata projectMetadata, IndexRequest indexRequest) {
-        maybeSample(projectMetadata, indexRequest.index(), () -> indexRequest, () -> {
+        maybeSample(projectMetadata, indexRequest.index(), indexRequest, () -> {
             Map<String, Object> sourceAsMap;
             try {
                 sourceAsMap = indexRequest.sourceAsMap();
@@ -212,7 +211,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     private void maybeSample(
         ProjectMetadata projectMetadata,
         String indexName,
-        Supplier<IndexRequest> indexRequestSupplier,
+        IndexRequest indexRequest,
         Supplier<IngestDocument> ingestDocumentSupplier
     ) {
         long startTime = relativeNanoTimeSupplier.getAsLong();
@@ -272,12 +271,8 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
                                         sampleInfo.stats
                                     )) {
                                     stats.timeEvaluatingCondition.add((relativeNanoTimeSupplier.getAsLong() - conditionStartTime));
-                                    IndexRequest indexRequest = indexRequestSupplier.get();
-                                    indexRequest.incRef();
-                                    if (indexRequest.source() instanceof ReleasableBytesReference releaseableSource) {
-                                        releaseableSource.incRef();
-                                    }
-                                    sampleInfo.getSamples().add(indexRequest);
+                                    Sample sample = getSampleForIndexRequest(projectId, indexName, indexRequest);
+                                    sampleInfo.getSamples().add(sample);
                                     stats.samples.increment();
                                     logger.info("Sampling " + indexRequest);
                                 } else {
@@ -303,7 +298,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
         // checkTTLs(); // TODO make this happen less often?
     }
 
-    public List<IndexRequest> getSamples(ProjectId projectId, String index) {
+    public List<Sample> getSamples(ProjectId projectId, String index) {
         SoftReference<SampleInfo> sampleInfoReference = samples.get(new ProjectIndex(projectId, index));
         SampleInfo sampleInfo = sampleInfoReference.get();
         return sampleInfo == null ? List.of() : sampleInfo.getSamples();
@@ -381,16 +376,11 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     /**
      *
      * @param projectMetadata Used to get the sampling configuration
-     * @param indexRequestSupplier A supplier for the raw request to potentially sample
+     * @param indexRequest The raw request to potentially sample
      * @param ingestDocument The IngestDocument used for evaluating any conditionals that are part of the sample configuration
      */
-    public void maybeSample(
-        ProjectMetadata projectMetadata,
-        String indexName,
-        Supplier<IndexRequest> indexRequestSupplier,
-        IngestDocument ingestDocument
-    ) {
-        maybeSample(projectMetadata, indexName, indexRequestSupplier, () -> ingestDocument);
+    public void maybeSample(ProjectMetadata projectMetadata, String indexName, IndexRequest indexRequest, IngestDocument ingestDocument) {
+        maybeSample(projectMetadata, indexName, indexRequest, () -> ingestDocument);
     }
 
     public boolean atLeastOneSampleConfigured() {
@@ -456,7 +446,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
     }
 
     private static final class SampleInfo {
-        private final List<IndexRequest> samples;
+        private final List<Sample> samples;
         private final SampleStats stats;
         private final long expiration;
         private volatile Script script;
@@ -469,7 +459,7 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
             this.expiration = (timeToLive == null ? TimeValue.timeValueDays(5).nanos() : timeToLive.nanos()) + relativeNowNanos;
         }
 
-        public List<IndexRequest> getSamples() {
+        public List<Sample> getSamples() {
             return samples;
         }
 
@@ -636,4 +626,31 @@ public class SamplingService implements ClusterStateListener, SchedulerEngine.Li
 
     record ProjectIndex(ProjectId projectId, String indexName) {};
 
+    public record Sample(ProjectId projectId, String indexName, byte[] source, XContentType contentType) implements Writeable {
+
+        public Sample(StreamInput in) throws IOException {
+            this(ProjectId.readFrom(in), in.readString(), in.readByteArray(), in.readEnum(XContentType.class));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            projectId.writeTo(out);
+            out.writeString(indexName);
+            out.writeBytes(source);
+            out.writeEnum(contentType);
+        }
+    }
+
+    private Sample getSampleForIndexRequest(ProjectId projectId, String indexName, IndexRequest indexRequest) {
+        BytesReference sourceReference = indexRequest.source();
+        final byte[] sourceCopy;
+        if (sourceReference == null) {
+            sourceCopy = null;
+        } else {
+            byte[] source = sourceReference.array();
+            sourceCopy = new byte[sourceReference.length()];
+            System.arraycopy(source, sourceReference.arrayOffset(), sourceCopy, 0, sourceReference.length());
+        }
+        return new Sample(projectId, indexName, sourceCopy, indexRequest.getContentType());
+    }
 }

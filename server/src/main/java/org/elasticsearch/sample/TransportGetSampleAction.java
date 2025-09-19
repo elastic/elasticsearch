@@ -10,7 +10,6 @@
 package org.elasticsearch.sample;
 
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -78,7 +77,7 @@ public class TransportGetSampleAction extends TransportNodesAction<Request, Resp
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
         ProjectId projectId = request.getProjectId();
         String index = request.getIndex();
-        List<IndexRequest> samples = samplingService.getSamples(projectId, index);
+        List<SamplingService.Sample> samples = samplingService.getSamples(projectId, index);
         return new NodeResponse(transportService.getLocalNode(), samples == null ? List.of() : samples);
     }
 }

@@ -97,7 +97,7 @@ public class IndexAbstractionResolver {
                     if (minus) {
                         resolvedIndexExpressions.excludeAll(resolvedIndices);
                     } else {
-                        resolvedIndexExpressions.putSuccessfulLocalExpression(index, resolvedIndices);
+                        resolvedIndexExpressions.putLocalExpression(index, resolvedIndices, SUCCESS);
                     }
                 }
             } else {
@@ -114,7 +114,7 @@ public class IndexAbstractionResolver {
                         ? (visible ? SUCCESS : CONCRETE_RESOURCE_MISSING)
                         : CONCRETE_RESOURCE_UNAUTHORIZED;
 
-                    boolean includeIndices = authorized || (indicesOptions.ignoreUnavailable() == false);
+                    boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
                     Set<String> finalIndices = includeIndices ? resolvedIndices : Set.of();
                     resolvedIndexExpressions.putLocalExpression(index, finalIndices, result);
                 }

@@ -54,10 +54,6 @@ public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expr
     public static final class Builder {
         private final Map<String, ResolvedIndexExpression> expressions = new LinkedHashMap<>();
 
-        public void putSuccessfulLocalExpression(String original, Set<String> localExpression) {
-            putLocalExpression(original, localExpression, ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS);
-        }
-
         public void putLocalExpression(
             String original,
             Set<String> localExpression,

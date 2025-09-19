@@ -37,7 +37,27 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
+import static org.apache.lucene.store.MMapDirectory.SHARED_ARENA_MAX_PERMITS_SYSPROP;
+
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+
+    private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
+    private static final int sharedArenaMaxPermits;
+    static {
+        String prop = System.getProperty(SHARED_ARENA_MAX_PERMITS_SYSPROP);
+        int value = 1;
+        if (prop != null) {
+            try {
+                value = Integer.parseInt(prop); // ensure it's a valid integer
+            } catch (NumberFormatException e) {
+                Log.warn(
+                    () -> "unable to parse system property [" + SHARED_ARENA_MAX_PERMITS_SYSPROP + "] with value [" + prop + "]",
+                    e
+                );
+            }
+        }
+        sharedArenaMaxPermits = value; // default to 1
+    }
 
     private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
@@ -72,6 +92,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
+                    mMapDirectory = adjustSharedArenaGrouping(mMapDirectory);
                     Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
                     if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
                         dir = disableRandomAdvice(dir);
@@ -81,7 +102,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                Directory dir = setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+                MMapDirectory mMapDirectory = adjustSharedArenaGrouping(new MMapDirectory(location, lockFactory));
+                Directory dir = setPreload(mMapDirectory, preLoadExtensions);
                 if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
                     dir = disableRandomAdvice(dir);
                 }
@@ -98,6 +120,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     // visibility and extensibility for testing
     public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
         mMapDirectory.setPreload(getPreloadFunc(preLoadExtensions));
+        return mMapDirectory;
+    }
+
+    public MMapDirectory adjustSharedArenaGrouping(MMapDirectory mMapDirectory) {
+        if (sharedArenaMaxPermits <= 1) {
+            mMapDirectory.setGroupingFunction(MMapDirectory.NO_GROUPING);
+        }
         return mMapDirectory;
     }
 

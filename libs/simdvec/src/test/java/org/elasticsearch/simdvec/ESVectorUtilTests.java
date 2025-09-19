@@ -445,7 +445,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
-    @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 1000)
     public void testIndexOfBounds() {
         int iterations = atLeast(50);
         for (int i = 0; i < iterations; i++) {

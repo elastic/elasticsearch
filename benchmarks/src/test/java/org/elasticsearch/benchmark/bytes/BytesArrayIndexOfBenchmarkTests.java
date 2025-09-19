@@ -30,8 +30,8 @@ public class BytesArrayIndexOfBenchmarkTests extends ESTestCase {
         bench.setup();
         assertEquals(size - 1, bench.indexOf());
         assertEquals(size - 1, bench.indexOfPanama());
-        assertEquals(size - 2, bench.indexOfWithOffset());
-        assertEquals(size - 2, bench.indexOfWithOffsetPanama());
+        assertEquals(size - 1, bench.withOffsetIndexOf());
+        assertEquals(size - 1, bench.withOffsetIndexPanama());
     }
 
     @ParametersFactory

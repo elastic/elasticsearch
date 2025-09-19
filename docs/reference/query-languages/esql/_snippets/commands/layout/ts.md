@@ -5,7 +5,7 @@ stack: preview 9.2.0
 
 **Brief description**
 
-The `TS` command is similar to the `FROM` source command,
+The `TS` source command is similar to the `FROM` source command,
 with the following key differences:
 
  - Targets only [time-series indices](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md)
@@ -28,9 +28,8 @@ TS index_pattern [METADATA fields]
 
 **Description**
 
-The `TS` command is intended to be used in conjunction with the `STATS` command
-to perform time-series analysis. `STATS` evaluation is adjusted to fit this context,
-enabling the use of time-series aggregation functions such as `last_over_time()`,
+The `TS` source command enables time series semantics and enables the usage of
+time series aggregation functions in the `STATS` command, such as `last_over_time()`,
 or `rate`. These functions are implicitly evaluated per per time-series, with
 their results then aggregated per grouping bucket using a secondary aggregation
 function. More concretely, consider the following query:
@@ -63,9 +62,7 @@ include:
 - `ABSENT_OVER_TIME()`: gauges only
 
 These functions are supported for downsampled data too, with the same semantics
-as for raw data. For instance, `RATE()` applies to downsampled counters only,
-not gauges. No change in the syntax is required to query a time-series data
-stream containing mixed raw and downsampled data.
+as for raw data.
 
 ::::{note}
 If a query is missing an inner (time-series) aggregation function,
@@ -89,7 +86,12 @@ TS metrics | STATS AVG(AVG_OVER_TIME(memory_usage))
 
 Standard (non-time-series) aggregation functions, such as `SUM()`, `AVG()`,
 can be used as outer aggregation functions. Using a time-series aggregation as
-the outer function leads to an error.
+the outer function, in combination with an inner function, leads to an error. For
+instance, the following query is invalid:
+
+```esql
+TS metrics | STATS AVG_OVER_TIME(RATE(memory_usage))
+```
 
 ::::{note}
 It's currently required to wrap a time-series aggregation function inside a

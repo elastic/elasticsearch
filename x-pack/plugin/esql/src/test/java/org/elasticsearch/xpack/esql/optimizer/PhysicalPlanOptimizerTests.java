@@ -7043,7 +7043,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
-                | LIMIT 10""");
+                | LIMIT 10""", testData, false);
             var finalLimit = as(plan, LimitExec.class);
             var exchange = as(finalLimit.child(), ExchangeExec.class);
             var fragment = as(exchange.child(), FragmentExec.class);

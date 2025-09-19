@@ -46,7 +46,14 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
 
             // This check applies only for general physical plans (isLocal == false)
             if (isLocal == false && p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
-                failures.add(fail(p, "Physical plan contains remote executing operation [{}] in local part", p.nodeName()));
+                failures.add(
+                    fail(
+                        p,
+                        "Physical plan contains remote executing operation [{}] in local part. "
+                            + "This usually means this command is incompatible with some of the preceding commands.",
+                        p.nodeName()
+                    )
+                );
             }
 
             PlanConsistencyChecker.checkPlan(p, depFailures);

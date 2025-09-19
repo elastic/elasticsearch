@@ -627,7 +627,7 @@ public class CsvTestsDataLoader {
             Response response = client.performRequest(request);
             logger.info("View response status: {}", response.getStatusLine());
             logger.info("View response body info: {}", response.getEntity());
-            logger.info("View response body: {}", response.getEntity().getContent());
+            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
         } catch (ResponseException e) {
             logger.info("View error: {}", e.getMessage());
             int code = e.getResponse().getStatusLine().getStatusCode();

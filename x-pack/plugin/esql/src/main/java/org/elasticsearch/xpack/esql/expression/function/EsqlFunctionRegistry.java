@@ -543,7 +543,7 @@ public class EsqlFunctionRegistry {
                 def(Hamming.class, Hamming::new, "v_hamming"),
                 def(UrlEncode.class, UrlEncode::new, "url_encode"),
                 def(UrlDecode.class, UrlDecode::new, "url_decode"),
-                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding")}};
+                def(TextEmbedding.class, bi(TextEmbedding::new), "text_embedding") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

@@ -1,28 +1,32 @@
 {
-  "security.activate_user_profile":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-activate-user-profile.html",
-      "description":"Activate a user profile"
+  "security.activate_user_profile": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/security-api-activate-user-profile.html",
+      "description": "Activate a user profile"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/profile/_activate",
-          "methods":[
+          "path": "/_security/profile/_activate",
+          "methods": [
             "POST"
           ]
         }
       ]
     },
-    "body":{
-      "description":"The grant type and user's credential",
-      "required":true
+    "body": {
+      "description": "The grant type and user's credential",
+      "required": true
     }
   }
 }

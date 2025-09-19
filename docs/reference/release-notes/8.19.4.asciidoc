@@ -1,0 +1,77 @@
+[[release-notes-8.19.4]]
+== {es} version 8.19.4
+
+coming[8.19.4]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.4]]
+[float]
+=== Bug fixes
+
+Authorization::
+* Remove `DocumentSubsetBitsetCache` locking {es-pull}133681[#133681] (issue: {es-issue}132842[#132842])
+
+ES|QL::
+* Reserve memory for Lucene's TopN {es-pull}134235[#134235]
+* Track memory in evaluators {es-pull}133392[#133392]
+
+Infra/Core::
+* Remove `java.xml` from system modules {es-pull}133671[#133671]
+
+Infra/Scripting::
+* Update `DefBootstrap` to handle Error from `ClassValue` {es-pull}133604[#133604]
+
+Infra/Settings::
+* Use latest setting value when initializing setting watch {es-pull}134091[#134091] (issue: {es-issue}133701[#133701])
+
+Ingest Node::
+* Fix `allow_duplicates` edge case bug in append processor {es-pull}134319[#134319]
+* Fix enrich caches outdated value after policy run {es-pull}133680[#133680]
+
+Machine Learning::
+* Ensuring only a single request executor object is created {es-pull}133424[#133424]
+* Fix double-counting of inference memory in the assignment rebalancer {es-pull}133919[#133919]
+* Update EIS sparse and dense embedding max batch size to 16 {es-pull}132646[#132646]
+
+Mapping::
+* Allow trailing empty string field names in paths of flattened field {es-pull}133611[#133611] (issue: {es-issue}130139[#130139])
+* Fixed a bug where text fields in LogsDB indices did not use their keyword multi fields for block loading {es-pull}134253[#134253]
+
+Relevance::
+* Disallow creating `semantic_text` fields in indices created prior to 8.11.0 {es-pull}133080[#133080]
+
+Search::
+* Prevent field caps from failing due to can match failure {es-pull}134134[#134134] (issue: {es-issue}116106[#116106])
+* Use inner query for equals/hashCode() in `SourceConfirmedTextQuery` {es-pull}134451[#134451] (issue: {es-issue}134432[#134432])
+
+Snapshot/Restore::
+* Delay S3 repo warning if default region absent {es-pull}133848[#133848]
+
+[[enhancement-8.19.4]]
+[float]
+=== Enhancements
+
+Authorization::
+* [Sentinel One] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}133793[#133793] (issue: {es-issue}133703[#133703])
+
+Infra/Core::
+* Return unique deprecation for old indices with incompatible date formats {es-pull}124597[#124597]
+
+Network::
+* Add human-readable HTTP client stats {es-pull}134296[#134296]
+
+[[upgrade-8.19.4]]
+[float]
+=== Upgrades
+
+FIPS::
+* Bump bc-fips to 1.0.2.6 {es-pull}133198[#133198]
+
+Network::
+* Upgrade Netty to 4.1.126.Final {es-pull}134182[#134182]
+
+Security::
+* Bump bcpkix version {es-pull}132853[#132853]
+
+

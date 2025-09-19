@@ -107,6 +107,12 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return readDefinitions(transportResourcesDir.resolve(REFERABLE_DIR));
     }
 
+    /** Return a single referable definition by name */
+    TransportVersionDefinition getReferableDefinition(String name) throws IOException {
+        Path resourcePath = transportResourcesDir.resolve(getReferableDefinitionRelativePath(name));
+        return TransportVersionDefinition.fromString(resourcePath, Files.readString(resourcePath, StandardCharsets.UTF_8));
+    }
+
     /** Get a referable definition from upstream if it exists there, or null otherwise */
     TransportVersionDefinition getReferableDefinitionFromUpstream(String name) {
         Path resourcePath = getReferableDefinitionRelativePath(name);
@@ -116,7 +122,8 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     /** Get the definition names which have local changes relative to upstream */
     List<String> getChangedReferableDefinitionNames() {
         List<String> changedDefinitions = new ArrayList<>();
-        String referablePrefix = REFERABLE_DIR.toString();
+        // make sure the prefix is git style paths, always forward slashes
+        String referablePrefix = REFERABLE_DIR.toString().replace('\\', '/');
         for (String changedPath : getChangedResources()) {
             if (changedPath.contains(referablePrefix) == false) {
                 continue;
@@ -174,6 +181,16 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return rootDir.relativize(transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name())));
     }
 
+    void writeUnreferableDefinition(TransportVersionDefinition definition) throws IOException {
+        Path path = transportResourcesDir.resolve(getUnreferableDefinitionRelativePath(definition.name()));
+        logger.debug("Writing unreferable definition [" + definition + "] to [" + path + "]");
+        Files.writeString(
+            path,
+            definition.ids().stream().map(Object::toString).collect(Collectors.joining(",")) + "\n",
+            StandardCharsets.UTF_8
+        );
+    }
+
     /** Read all upper bound files and return them mapped by their release name */
     Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
         Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
@@ -208,10 +225,14 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Write the given upper bound to a file in the transport resources */
-    void writeUpperBound(TransportVersionUpperBound upperBound) throws IOException {
+    void writeUpperBound(TransportVersionUpperBound upperBound, boolean stageInGit) throws IOException {
         Path path = transportResourcesDir.resolve(getUpperBoundRelativePath(upperBound.name()));
         logger.debug("Writing upper bound [" + upperBound + "] to [" + path + "]");
         Files.writeString(path, upperBound.definitionName() + "," + upperBound.definitionId().complete() + "\n", StandardCharsets.UTF_8);
+
+        if (stageInGit) {
+            gitCommand("add", path.toString());
+        }
     }
 
     /** Return the path within the repository of the given latest */
@@ -284,7 +305,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
             synchronized (changedResources) {
                 HashSet<String> resources = new HashSet<>();
 
-                String diffOutput = gitCommand("diff", "--name-only", getUpstreamRefName(), ".");
+                String diffOutput = gitCommand("diff", "--name-only", "--relative", getUpstreamRefName(), ".");
                 if (diffOutput.strip().isEmpty() == false) {
                     Collections.addAll(resources, diffOutput.split("\n")); // git always outputs LF
                 }

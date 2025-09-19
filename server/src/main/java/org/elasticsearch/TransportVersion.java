@@ -9,9 +9,11 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -225,12 +227,29 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * This will only return the latest known referable transport version for a given name and not its
      * patch versions. Patch versions are constructed as a linked list internally and may be found by
      * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
-     *
      */
     public static TransportVersion fromName(String name) {
         TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
         if (known == null) {
-            throw new IllegalStateException("unknown transport version [" + name + "]");
+            LevenshteinDistance ld = new LevenshteinDistance();
+            List<Tuple<Float, String>> scoredNames = new ArrayList<>();
+            for (String key : VersionsHolder.ALL_VERSIONS_BY_NAME.keySet()) {
+                float distance = ld.getDistance(name, key);
+                if (distance > 0.7f) {
+                    scoredNames.add(new Tuple<>(distance, key));
+                }
+            }
+            StringBuilder message = new StringBuilder("Unknown transport version [");
+            message.append(name);
+            message.append("].");
+            if (scoredNames.isEmpty() == false) {
+                List<String> names = scoredNames.stream().map(Tuple::v2).toList();
+                message.append(" Did you mean ");
+                message.append(names);
+                message.append("?");
+            }
+            message.append(" If this is a new transport version, run './gradle generateTransportVersion'.");
+            throw new IllegalStateException(message.toString());
         }
         return known;
     }

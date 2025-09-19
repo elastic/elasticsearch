@@ -1,26 +1,30 @@
 {
-  "indices.cancel_migrate_reindex":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/8.19/migrate-data-stream.html",
-      "description":"Cancel a migration reindex operation"
+  "indices.cancel_migrate_reindex": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/8.19/migrate-data-stream.html",
+      "description": "Cancel a migration reindex operation"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_migration/reindex/{index}/_cancel",
-          "methods":[
+          "path": "/_migration/reindex/{index}/_cancel",
+          "methods": [
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"The index or data stream name"
+          "parts": {
+            "index": {
+              "type": "string",
+              "description": "The index or data stream name"
             }
           }
         }

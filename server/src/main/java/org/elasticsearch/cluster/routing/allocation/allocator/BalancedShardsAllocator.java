@@ -837,6 +837,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     executeMove(entry.getValue(), index, moveDecision);
                     // We only ever move a single non-preferred shard at a time
                     return true;
+                } else {
+                    logger.trace("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());
                 }
             }
 

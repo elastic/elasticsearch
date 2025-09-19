@@ -375,7 +375,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    private void abortMergeTask(MergeTask mergeTask) {
+    void abortMergeTask(MergeTask mergeTask) {
         assert mergeTask.hasStartedRunning() == false;
         assert runningMergeTasks.contains(mergeTask) == false;
         try {
@@ -710,6 +710,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         c.add(item);
                         removed++;
                     }
+                }
+                if (removed > 0) {
+                    elementAvailable.signalAll();
                 }
                 return removed;
             } finally {

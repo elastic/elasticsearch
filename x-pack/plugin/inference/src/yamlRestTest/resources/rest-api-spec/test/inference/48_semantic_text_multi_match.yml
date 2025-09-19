@@ -305,3 +305,173 @@ setup:
               fields: [ "title", "content" ]
               type: "phrase_prefix"
 
+---
+"Multi-match query with default fields - single index":
+  - do:
+      indices.create:
+        index: test-default-semantic-index
+        body:
+          settings:
+            index.query.default_field: ["title", "content"]
+          mappings:
+            properties:
+              title:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              content:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              summary:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-default-semantic-index
+        id: doc_1
+        body:
+          title: "Artificial intelligence advances"
+          content: "Machine learning and neural networks"
+          summary: "AI technology overview"
+        refresh: true
+
+  - do:
+      search:
+        index: test-default-semantic-index
+        body:
+          query:
+            multi_match:
+              query: "artificial intelligence neural"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Multi-match query with custom default fields and boosts - multi-index":
+  - do:
+      indices.create:
+        index: test-default-mixed-index1
+        body:
+          settings:
+            index.query.default_field: ["title^2", "content"]
+          mappings:
+            properties:
+              title:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              content:
+                type: text
+              summary:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test-default-mixed-index2
+        body:
+          settings:
+            index.query.default_field: ["title", "summary^3"]
+          mappings:
+            properties:
+              title:
+                type: text
+              content:
+                type: semantic_text
+                inference_id: dense-inference-id
+              summary:
+                type: text
+
+  - do:
+      index:
+        index: test-default-mixed-index1
+        id: doc_1
+        body:
+          title: "Quantum computing breakthrough"
+          content: "Revolutionary quantum algorithms for cryptography"
+          summary: "quantum-tech"
+        refresh: true
+
+  - do:
+      index:
+        index: test-default-mixed-index2
+        id: doc_2
+        body:
+          title: "Classical computing methods"
+          content: "Traditional computational approaches"
+          summary: "Quantum computing and classical methods comparison"
+        refresh: true
+
+  - do:
+      search:
+        index: "test-default-mixed-index1,test-default-mixed-index2"
+        body:
+          query:
+            multi_match:
+              query: "quantum computing"
+
+  - match: { hits.total.value: 2 }
+
+---
+"Multi-match query with mixed field types across indices using default fields":
+  - do:
+      indices.create:
+        index: test-default-semantic-only
+        body:
+          settings:
+            index.query.default_field: ["title", "content", "summary"]
+          mappings:
+            properties:
+              title:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              content:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              summary:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      indices.create:
+        index: test-default-text-only
+        body:
+          settings:
+            index.query.default_field: ["title^1.5", "content", "summary^0.5"]
+          mappings:
+            properties:
+              title:
+                type: text
+              content:
+                type: text
+              summary:
+                type: text
+
+  - do:
+      index:
+        index: test-default-semantic-only
+        id: doc_1
+        body:
+          title: "Deep learning frameworks"
+          content: "TensorFlow and PyTorch for neural networks"
+          summary: "Machine learning framework comparison"
+        refresh: true
+
+  - do:
+      index:
+        index: test-default-text-only
+        id: doc_2
+        body:
+          title: "Deep learning applications"
+          content: "Computer vision and natural language processing"
+          summary: "Deep learning in various domains"
+        refresh: true
+
+  - do:
+      search:
+        index: "test-default-semantic-only,test-default-text-only"
+        body:
+          query:
+            multi_match:
+              query: "deep learning neural"
+
+  - match: { hits.total.value: 2 }
+

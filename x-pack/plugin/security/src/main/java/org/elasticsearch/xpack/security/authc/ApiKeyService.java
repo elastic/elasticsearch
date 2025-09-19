@@ -640,7 +640,7 @@ public class ApiKeyService implements Closeable {
                 );
                 throw new ElasticsearchException(
                     "API key creation failed. The cluster is in a mixed-version state and does not yet "
-                        + "support the certificate_identity field. Please retry after the upgrade is complete."
+                        + "support the [certificate_identity] field. Please retry after the upgrade is complete."
                 );
             }
         }

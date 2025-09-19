@@ -1695,7 +1695,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         updateRequest.setJsonEntity("{}");
         final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(updateRequest));
         assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e2.getMessage(), containsString("must update either [access] or [metadata] for cross-cluster API keys"));
+        assertThat(
+            e2.getMessage(),
+            containsString("must update [access] or [metadata] or [certificate_identity] for cross-cluster API keys")
+        );
 
         // Access cannot be empty
         updateRequest.setJsonEntity("{\"access\":{}}");

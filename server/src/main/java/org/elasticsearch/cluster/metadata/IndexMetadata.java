@@ -1152,8 +1152,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     /**
      * This method is used in the context of the resharding feature.
-     * Given a shardId and minimum target shard state required for an operation to be routed to target
-     * shards, this method returns the "effective" shard count as seen by this IndexMetadata.
+     * Given a {@code shardId} and {@code minShardState} i.e. the minimum target shard state required for
+     * an operation to be routed to target shards,
+     * this method returns the "effective" shard count as seen by this IndexMetadata.
      *
      * The reshardSplitShardCount tells us whether the coordinator routed requests to the source shard or
      * to both source and target shards. Requests are routed to both source and target shards
@@ -1170,7 +1171,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @param minShardState Minimum target shard state required for the target to be considered ready
      * @return Effective shard count as seen by an operation using this IndexMetadata
      */
-    public int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
+    private int getReshardSplitShardCount(int shardId, IndexReshardingState.Split.TargetShardState minShardState) {
         assert shardId >= 0 && shardId < getNumberOfShards() : "shardId is out of bounds";
         int shardCount = getNumberOfShards();
         if (reshardingMetadata != null) {
@@ -1188,6 +1189,30 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
         }
         return shardCount;
+    }
+
+    /**
+     * This method is used in the context of the resharding feature.
+     * Given a {@code shardId}, this method returns the "effective" shard count
+     * as seen by this IndexMetadata, for indexing operations.
+     *
+     * See {@code getReshardSplitShardCount} for more details.
+     * @param shardId  Input shardId for which we want to calculate the effective shard count
+     */
+    public int getReshardSplitShardCountForIndexing(int shardId) {
+        return (getReshardSplitShardCount(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF));
+    }
+
+    /**
+     * This method is used in the context of the resharding feature.
+     * Given a {@code shardId}, this method returns the "effective" shard count
+     * as seen by this IndexMetadata, for search operations.
+     *
+     * See {@code getReshardSplitShardCount} for more details.
+     * @param shardId  Input shardId for which we want to calculate the effective shard count
+     */
+    public int getReshardSplitShardCountForSearch(int shardId) {
+        return (getReshardSplitShardCount(shardId, IndexReshardingState.Split.TargetShardState.SPLIT));
     }
 
     public int getNumberOfReplicas() {

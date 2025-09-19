@@ -472,9 +472,8 @@ public abstract class TransportReplicationAction<
 
                 int reshardSplitShardCount = primaryRequest.getRequest().reshardSplitShardCount();
                 assert (reshardSplitShardCount == 0
-                    || reshardSplitShardCount == indexMetadata.getReshardSplitShardCount(
-                        primaryRequest.getRequest().shardId().getId(),
-                        IndexReshardingState.Split.TargetShardState.HANDOFF
+                    || reshardSplitShardCount == indexMetadata.getReshardSplitShardCountForIndexing(
+                        primaryRequest.getRequest().shardId().getId()
                     ));
                 if (primaryShardReference.isRelocated()) {
                     primaryShardReference.close(); // release shard operation lock as soon as possible

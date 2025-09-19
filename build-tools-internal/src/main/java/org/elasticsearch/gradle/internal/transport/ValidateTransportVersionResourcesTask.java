@@ -295,13 +295,13 @@ public abstract class ValidateTransportVersionResourcesTask extends DefaultTask 
     ) {
         // first id is always the highest within a definition, and validated earlier
         // note the first element is actually the highest because the id comparator is in descending order
-        var sortedDefinitions = allDefinitions.values().stream().sorted(Comparator.comparing(d -> d.ids().getFirst())).toList();
-        TransportVersionDefinition highestDefinition = sortedDefinitions.getFirst();
-        TransportVersionId highestId = highestDefinition.ids().getFirst();
+        var sortedDefinitions = allDefinitions.values().stream().sorted(Comparator.comparing(d -> d.ids().get(0))).toList();
+        TransportVersionDefinition highestDefinition = sortedDefinitions.get(0);
+        TransportVersionId highestId = highestDefinition.ids().get(0);
 
         if (sortedDefinitions.size() > 1 && getShouldValidateDensity().get()) {
             TransportVersionDefinition secondHighestDefinition = sortedDefinitions.get(1);
-            TransportVersionId secondHighestId = secondHighestDefinition.ids().getFirst();
+            TransportVersionId secondHighestId = secondHighestDefinition.ids().get(0);
             if (highestId.complete() > secondHighestId.complete() + 1000) {
                 throwDefinitionFailure(
                     highestDefinition,

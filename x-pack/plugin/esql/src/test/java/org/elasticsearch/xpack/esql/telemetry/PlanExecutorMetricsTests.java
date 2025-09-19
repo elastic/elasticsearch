@@ -16,6 +16,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -37,11 +38,13 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.view.ViewService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -149,8 +152,17 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             listener.onResponse(new FieldCapabilitiesResponse(indexFieldCapabilities(indices), List.of()));
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
+        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
+        ViewService viewService = new ViewService(mock(ClusterService.class), registry);
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), mockQueryLog(), List.of());
+        var planExecutor = new PlanExecutor(
+            indexResolver,
+            registry,
+            MeterRegistry.NOOP,
+            new XPackLicenseState(() -> 0L),
+            mockQueryLog(),
+            List.of()
+        );
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();
@@ -168,6 +180,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
             enrichResolver,
+            viewService,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,
@@ -199,6 +212,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             EsqlTestUtils.TEST_CFG,
             FoldContext.small(),
             enrichResolver,
+            viewService,
             new EsqlExecutionInfo(randomBoolean()),
             groupIndicesByCluster,
             runPhase,

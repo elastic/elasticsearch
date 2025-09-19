@@ -332,6 +332,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V9.capabilityName())
             );
             assumeFalse(
+                "CSV tests cannot currently handle VIEWS",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_V1.capabilityName())
+            );
+            assumeFalse(
                 "CSV tests cannot currently handle multi_match function that depends on Lucene",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.capabilityName())
             );
@@ -581,6 +585,7 @@ public class CsvTests extends ESTestCase {
         EsqlSession session = new EsqlSession(
             getTestName(),
             configuration,
+            null,
             null,
             null,
             null,

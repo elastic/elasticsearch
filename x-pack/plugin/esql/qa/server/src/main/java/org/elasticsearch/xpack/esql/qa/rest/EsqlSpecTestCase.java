@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -70,7 +71,9 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoints;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteViews;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewsIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
@@ -96,6 +99,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     protected final String instructions;
     protected final Mode mode;
     protected static Boolean supportsTook;
+    protected static Boolean supportsViews;
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -121,27 +125,66 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.mode = randomFrom(Mode.values());
     }
 
-    private static boolean dataLoaded = false;
+    private static class Protected {
+        private final Object lock = new Object();
+        private volatile boolean completed = false;
+        private volatile boolean started = false;
+        private volatile Throwable failure = null;
+
+        private void protectedBlock(Callable<Void> callable) {
+            if (completed) {
+                return;
+            }
+            // In case tests get run in parallel, we ensure only one setup is run, and other tests wait for this
+            synchronized (lock) {
+                if (completed) {
+                    return;
+                }
+                if (started) {
+                    // Should only happen if a previous test setup failed, possibly with partial setup, let's fail fast the current test
+                    if (failure != null) {
+                        fail(failure, "Previous test setup failed: " + failure.getMessage());
+                    }
+                    fail("Previous test setup failed with unknown error");
+                }
+                started = true;
+                try {
+                    callable.call();
+                    completed = true;
+                } catch (Throwable t) {
+                    failure = t;
+                    fail(failure, "Current test setup failed: " + failure.getMessage());
+                }
+            }
+        }
+    }
+
+    private static final Protected INGEST = new Protected();
+    private static final Protected VIEWS = new Protected();
 
     @Before
-    public void setup() throws IOException {
-        boolean supportsLookup = supportsIndexModeLookup();
-        boolean supportsSourceMapping = supportsSourceFieldMapping();
-        boolean supportsInferenceTestService = supportsInferenceTestService();
-        if (dataLoaded == false) {
-            if (supportsInferenceTestService) {
+    public void setup() {
+        INGEST.protectedBlock(() -> {
+            // Inference endpoints must be created before ingesting any datasets that rely on them (mapping of inference_id)
+            if (supportsInferenceTestService()) {
                 createInferenceEndpoints(adminClient());
             }
-
-            loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping, supportsInferenceTestService);
-            dataLoaded = true;
-        }
+            loadDataSetIntoEs(client(), supportsIndexModeLookup(), supportsSourceFieldMapping(), supportsInferenceTestService());
+            return null;
+        });
+        // Views can be created before or after ingest, since index resolution is currently only done on the combined query
+        VIEWS.protectedBlock(() -> {
+            if (supportsViews()) {
+                loadViewsIntoEs(adminClient());
+            }
+            return null;
+        });
     }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
         try {
-            dataLoaded = false;
+            INGEST.completed = false;
             adminClient().performRequest(new Request("DELETE", "/*"));
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
@@ -149,7 +192,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-
+        deleteViews(adminClient());
         deleteInferenceEndpoints(adminClient());
     }
 
@@ -456,6 +499,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }
         return supportsTook;
+    }
+
+    protected boolean supportsViews() {
+        if (supportsViews == null) {
+            supportsViews = hasCapabilities(adminClient(), List.of("views_v1"));
+        }
+        return supportsViews;
     }
 
     private String tookKey(long took) {

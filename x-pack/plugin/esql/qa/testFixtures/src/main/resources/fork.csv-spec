@@ -688,15 +688,16 @@ emp_no:integer | job_positions:keyword | _fork:keyword
 10087          | Junior Developer      | fork2
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
+// INLINE STATS is under development, we enable this once it will be available
 forkBeforeInlineStats-Ignore
 required_capability: fork_v9
+required_capability: inline_stats
 
 FROM employees
 | KEEP emp_no, languages, gender
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
        (WHERE emp_no == 10081 OR emp_no == 10087)
-| INLINESTATS max_lang = MAX(languages) BY gender 
+| INLINE STATS max_lang = MAX(languages) BY gender 
 | SORT emp_no, gender, _fork
 | LIMIT 5
 ;
@@ -705,16 +706,17 @@ emp_no:integer | languages:integer | _fork:keyword | max_lang:integer | gender:k
 1 | 2 | 3 | 4 | 5
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
+// INLINE STATS is under development, we enable this once it will be available
 forkBranchWithInlineStats-Ignore
 required_capability: fork_v9
+required_capability: inline_stats
 
 FROM employees
 | KEEP emp_no, languages, gender
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081
-        | INLINESTATS x = MAX(languages) BY gender)
+        | INLINE STATS x = MAX(languages) BY gender)
        (WHERE emp_no == 10081 OR emp_no == 10087
-        | INLINESTATS x = MIN(languages))
+        | INLINE STATS x = MIN(languages))
         (WHERE emp_no == 10012 OR emp_no == 10012)
 | SORT emp_no, gender, _fork
 ;
@@ -727,13 +729,14 @@ emp_no:integer | languages:integer | x:integer | gender:keyword | _fork:keyword
 10087          | 5                 | 2         | F              | fork2
 ;
 
-// INLINESTATS is under development, we enable this once it will be available
+// INLINE STATS is under development, we enable this once it will be available
 forkAfterInlineStats-Ignore
 required_capability: fork_v9
+required_capability: inline_stats
 
 FROM employees
 | KEEP emp_no, languages, gender
-| INLINESTATS max_lang = MAX(languages) BY gender 
+| INLINE STATS max_lang = MAX(languages) BY gender 
 | FORK (WHERE emp_no == 10048 OR emp_no == 10081)
        (WHERE emp_no == 10081 OR emp_no == 10087)
 | SORT emp_no, gender, _fork

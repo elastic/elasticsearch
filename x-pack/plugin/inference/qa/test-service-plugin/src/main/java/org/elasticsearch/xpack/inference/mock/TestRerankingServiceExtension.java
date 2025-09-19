@@ -228,6 +228,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(supportedTaskTypes)
                         .setConfigurations(configurationMap)
                         .build();

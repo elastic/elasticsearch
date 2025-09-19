@@ -576,6 +576,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/135055
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:stats.StdDevFilter}
+  issue: https://github.com/elastic/elasticsearch/issues/135100
 
 # Examples:
 #

@@ -82,6 +82,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCount" 4.
      * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
      * are bundled together with and sent to their source shards.
+     *
+     * A value of 0 indicates an INVALID reshardSplitShardCount. Hence, a request with INVALID reshardSplitShardCount
+     * will be treated as a checksum mismatch on the source shard node.
      */
     protected final int reshardSplitShardCount;
 
@@ -120,10 +123,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
-            this.reshardSplitShardCount = in.readInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
+            if (thinRead) {
+                this.reshardSplitShardCount = reshardSplitShardCount;
+            } else {
+                this.reshardSplitShardCount = in.readInt();
+            }
         } else {
-            this.reshardSplitShardCount = reshardSplitShardCount;
+            this.reshardSplitShardCount = 0;
         }
     }
 

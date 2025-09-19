@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Period;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
@@ -318,7 +319,30 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 // nanosecond interval not supported in DATE_TRUNC
                 || formatterAsString.contains("Fraction(" + ChronoField.NANO_OF_SECOND) // S
                 || formatterAsString.contains("Value(" + ChronoField.NANO_OF_SECOND) // n
-                || formatterAsString.contains("Value(" + ChronoField.NANO_OF_DAY)) { // N
+                || formatterAsString.contains("Value(" + ChronoField.NANO_OF_DAY) // N
+                // others
+                || formatterAsString.contains("ZoneText(FULL)") // zzzz/vvvv
+                || formatterAsString.contains("ZoneText(SHORT)") // z/v
+                || formatterAsString.contains("ZoneId()") // VV
+                || formatterAsString.contains("Offset(+HHMM,'+0000')") // Z/xx
+                || formatterAsString.contains("LocalizedOffset(FULL)") // ZZZZ/OOOO
+                || formatterAsString.contains("Offset(+HH:MM:ss,'Z')") // ZZZZZ/XXXXX
+                || formatterAsString.contains("LocalizedOffset(SHORT)") // O
+                || formatterAsString.contains("Offset(+HHmm,'Z')") // X
+                || formatterAsString.contains("Offset(+HHMM,'Z')") // XX
+                || formatterAsString.contains("Offset(+HH:MM,'Z')") // XXX
+                || formatterAsString.contains("Offset(+HHMMss,'Z')") // XXXX
+                || formatterAsString.contains("Offset(+HHmm,'+00')") // x
+                || formatterAsString.contains("Offset(+HH:MM,'+00:00')") // xxx
+                || formatterAsString.contains("Offset(+HHMMss,'+0000')") // xxxx
+                || formatterAsString.contains("Offset(+HH:MM:ss,'+00:00')") // xxxxx
+                || formatterAsString.contains("Localized(WeekOfMonth,1)") // W
+                || formatterAsString.contains("Localized(WeekOfWeekBasedYear,1)") // w
+                || formatterAsString.contains("Localized(WeekOfWeekBasedYear,2)") // ww
+                || formatterAsString.contains("Localized(WeekBasedYear") // Y
+                || formatterAsString.contains("DayPeriod(SHORT)") // B
+                || formatterAsString.contains("DayPeriod(FULL)") // BBBB
+                || formatterAsString.contains("DayPeriod(NARROW)")) {// BBBBB
                 return null;
             }
 
@@ -380,8 +404,12 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             // Check for continuity
             int lastLevel = -1;
             for (int i = 0; i < levels.length; i++) {
-                if (levels[i] && lastLevel == i - 1) {
-                    lastLevel = i;
+                if (levels[i]) {
+                    if (lastLevel == i - 1) {
+                        lastLevel = i;
+                    } else {
+                        return null; // Not continuous, return null
+                    }
                 }
             }
 

@@ -73,18 +73,29 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
         Map<String, Float> nonInferenceFields,
         QueryRewriteContext indexMetadataContext
     ) {
-        // No inference fields are present
+        // No inference fields - return original query
         if (inferenceFields.isEmpty()) {
             return originalQuery;
         }
 
-        // Only semantic field(s)
-        if (nonInferenceFields.isEmpty()) {
-            return buildSemanticQuery(inferenceFields, getQuery());
+        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
+
+        // Add semantic queries for inference fields
+        for (Map.Entry<String, Float> field : inferenceFields.entrySet()) {
+            disMaxQuery.add(createSemanticQuery(field.getKey(), getQuery(), field.getValue()));
         }
 
-        // Both semantic and non-semantic fields
-        return buildCombinedQuery(inferenceFields, nonInferenceFields, getQuery());
+        // Add lexical multi_match query for non-inference fields
+        if (nonInferenceFields.isEmpty() == false) {
+            disMaxQuery.add(createNonInferenceQuery(nonInferenceFields, getQuery()));
+        }
+
+        // Apply tie_breaker - use explicit value or fall back to type's default
+        Float tieBreaker = originalQuery.tieBreaker();
+        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
+
+        // Apply query-level boost and name
+        return disMaxQuery.boost(originalQuery.boost()).queryName(originalQuery.queryName());
     }
 
     @Override
@@ -107,28 +118,6 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
         validateQueryTypeSupported(originalQuery.type());
     }
 
-    private QueryBuilder buildSemanticQuery(Map<String, Float> inferenceFields, String queryValue) {
-        // Single field
-        if (inferenceFields.size() == 1) {
-            Map.Entry<String, Float> field = inferenceFields.entrySet().iterator().next();
-            SemanticQueryBuilder semanticQuery = createSemanticQuery(field.getKey(), queryValue, field.getValue());
-            return semanticQuery.boost(semanticQuery.boost() * originalQuery.boost()).queryName(originalQuery.queryName());
-        }
-
-        // Multiple fields
-        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
-        for (Map.Entry<String, Float> field : inferenceFields.entrySet()) {
-            disMaxQuery.add(createSemanticQuery(field.getKey(), queryValue, field.getValue()));
-        }
-
-        // Apply tie_breaker - use explicit value or fall back to type's default
-        Float tieBreaker = originalQuery.tieBreaker();
-        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
-
-        // Apply query-level boost and name
-        return disMaxQuery.boost(originalQuery.boost()).queryName(originalQuery.queryName());
-    }
-
     private SemanticQueryBuilder createSemanticQuery(String fieldName, String queryValue, Float fieldBoost) {
         SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, null, inferenceResultsMap);
 
@@ -138,28 +127,6 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
         }
 
         return semanticQuery;
-    }
-
-    private QueryBuilder buildCombinedQuery(Map<String, Float> inferenceFields, Map<String, Float> nonInferenceFields, String queryValue) {
-        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
-
-        // Add semantic queries for inference fields
-        for (Map.Entry<String, Float> field : inferenceFields.entrySet()) {
-            disMaxQuery.add(createSemanticQuery(field.getKey(), queryValue, field.getValue()));
-        }
-
-        // Add traditional multi_match query for non-inference fields
-        if (nonInferenceFields.isEmpty() == false) {
-            MultiMatchQueryBuilder nonInferenceQuery = createNonInferenceQuery(nonInferenceFields, queryValue);
-            disMaxQuery.add(nonInferenceQuery);
-        }
-
-        // Apply tie_breaker - use explicit value or fall back to type's default
-        Float tieBreaker = originalQuery.tieBreaker();
-        disMaxQuery.tieBreaker(Objects.requireNonNullElseGet(tieBreaker, () -> originalQuery.type().tieBreaker()));
-
-        // Apply query-level boost and name
-        return disMaxQuery.boost(originalQuery.boost()).queryName(originalQuery.queryName());
     }
 
     private MultiMatchQueryBuilder createNonInferenceQuery(Map<String, Float> nonInferenceFields, String queryValue) {

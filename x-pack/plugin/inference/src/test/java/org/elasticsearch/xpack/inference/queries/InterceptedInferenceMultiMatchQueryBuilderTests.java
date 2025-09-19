@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
@@ -34,7 +37,7 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
 
     @Override
     protected TransportVersion getMinimalSupportedVersion() {
-        return new MultiMatchQueryBuilder("foo", "bar").getMinimalSupportedVersion();
+        return TransportVersions.NEW_SEMANTIC_QUERY_INTERCEPTORS;
     }
 
     @Override
@@ -45,13 +48,17 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
         QueryRewriteContext queryRewriteContext
     ) {
         assertThat(original, instanceOf(MultiMatchQueryBuilder.class));
-        // Multi_match support was added after the interceptor revamp, so always use new interceptors
-        assertThat(rewritten, instanceOf(InterceptedInferenceMultiMatchQueryBuilder.class));
+        if (transportVersion.onOrAfter(TransportVersions.MULTI_MATCH_WITH_NEW_SEMANTIC_QUERY_INTERCEPTORS)) {
+            assertThat(rewritten, instanceOf(InterceptedInferenceMultiMatchQueryBuilder.class));
 
-        InterceptedInferenceMultiMatchQueryBuilder intercepted = (InterceptedInferenceMultiMatchQueryBuilder) rewritten;
-        assertThat(intercepted.originalQuery, equalTo(original));
-        assertThat(intercepted.inferenceResultsMap, notNullValue());
-        assertFalse(intercepted.inferenceResultsMap.isEmpty());
+            InterceptedInferenceMultiMatchQueryBuilder intercepted = (InterceptedInferenceMultiMatchQueryBuilder) rewritten;
+            assertThat(intercepted.originalQuery, equalTo(original));
+            assertThat(intercepted.inferenceResultsMap, notNullValue());
+            assertFalse(intercepted.inferenceResultsMap.isEmpty());
+        } else {
+            // For older versions, multi_match should rewrite to the original query
+            assertThat(rewritten, equalTo(original));
+        }
     }
 
     @Override
@@ -94,12 +101,11 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
         assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(DENSE_INFERENCE_ID));
         assertTrue(coordinatorIntercepted.inferenceResultsMap.containsKey(SPARSE_INFERENCE_ID));
 
-        final SemanticQueryBuilder expectedSemanticQuery = new SemanticQueryBuilder(
-            field,
-            queryText,
-            null,
-            coordinatorIntercepted.inferenceResultsMap
-        ).boost(multiMatchQuery.boost()).queryName(multiMatchQuery.queryName());
+        final DisMaxQueryBuilder expectedQuery = QueryBuilders.disMaxQuery()
+            .add(new SemanticQueryBuilder(field, queryText, null, coordinatorIntercepted.inferenceResultsMap))
+            .tieBreaker(multiMatchQuery.type().tieBreaker())
+            .boost(multiMatchQuery.boost())
+            .queryName(multiMatchQuery.queryName());
 
         // Perform data node rewrite on test index 1
         final QueryRewriteContext indexMetadataContextTestIndex1 = createIndexMetadataContext(
@@ -108,7 +114,7 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
             testIndex1.nonInferenceFields()
         );
         QueryBuilder dataRewrittenTestIndex1 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex1);
-        assertThat(dataRewrittenTestIndex1, equalTo(expectedSemanticQuery));
+        assertThat(dataRewrittenTestIndex1, equalTo(expectedQuery));
 
         // Perform data node rewrite on test index 2
         final QueryRewriteContext indexMetadataContextTestIndex2 = createIndexMetadataContext(
@@ -117,7 +123,7 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
             testIndex2.nonInferenceFields()
         );
         QueryBuilder dataRewrittenTestIndex2 = rewriteAndFetch(coordinatorIntercepted, indexMetadataContextTestIndex2);
-        assertThat(dataRewrittenTestIndex2, equalTo(expectedSemanticQuery));
+        assertThat(dataRewrittenTestIndex2, equalTo(expectedQuery));
 
         // Perform data node rewrite on test index 3
         final QueryRewriteContext indexMetadataContextTestIndex3 = createIndexMetadataContext(

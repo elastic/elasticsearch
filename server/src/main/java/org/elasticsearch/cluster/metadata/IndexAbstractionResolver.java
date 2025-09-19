@@ -73,7 +73,6 @@ public class IndexAbstractionResolver {
             // we always need to check for date math expressions
             indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
-            Set<String> resolvedForThisExpression = new HashSet<>();
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
@@ -100,8 +99,7 @@ public class IndexAbstractionResolver {
                     if (minus) {
                         exclude(resolvedIndices, resolvedIndexExpressions);
                     } else {
-                        resolvedForThisExpression.addAll(resolvedIndices);
-                        resolvedIndexExpressions.put(index, new ResolvedIndexExpression(index, new ArrayList<>(resolvedForThisExpression)));
+                        resolvedIndexExpressions.put(index, new ResolvedIndexExpression(index, new ArrayList<>(resolvedIndices)));
                     }
                 }
             } else {
@@ -118,25 +116,21 @@ public class IndexAbstractionResolver {
                         : (authorized
                             ? ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING
                             : ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED);
+                    List<String> finalIndices = new ArrayList<>();
                     if (indicesOptions.ignoreUnavailable() == false || authorized) {
-                        resolvedForThisExpression.addAll(resolvedIndices);
+                        finalIndices.addAll(resolvedIndices);
                     }
                     resolvedIndexExpressions.put(
                         index,
                         new ResolvedIndexExpression(
                             index,
-                            new ResolvedIndexExpression.LocalExpressions(
-                                new ArrayList<>(resolvedForThisExpression),
-                                resolutionResult,
-                                null
-                            ),
+                            new ResolvedIndexExpression.LocalExpressions(finalIndices, resolutionResult, null),
                             List.of()
                         )
                     );
                 }
             }
         }
-
         return new ResolvedIndexExpressions(resolvedIndexExpressions);
     }
 

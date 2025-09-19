@@ -143,14 +143,25 @@ public class SecureStringTests extends ESTestCase {
             if (string.charAt(string.length() - 1) != (char) -1) {
                 verifyEquals(secureString, string.substring(0, string.length() - 1) + (char) -1, false);
             }
+
+            assertThat(secureString.equals(""), is(false));
+            final Object obj = null;
+            // noinspection ConstantValue
+            assertThat(secureString.equals(obj), is(false));
+
+            final CharSequence cs = null;
+            assertThat(secureString.equals(cs), is(false));
         }
+
     }
 
+    @SuppressWarnings("EqualsBetweenInconvertibleTypes")
     private void verifyEquals(SecureString secure, String string, boolean expected) {
         // Verify that we get the same result for different types of CharSequence
         assertThat(secure + " == " + string, secure.equals(string), is(expected));
         assertThat(secure.equals(new SecureString(string.toCharArray())), is(expected));
         assertThat(secure.equals(new StringBuilder(string)), is(expected));
+        assertThat(secure.equals((Object) string), is(expected));
     }
 
     public void testStartsWith() {

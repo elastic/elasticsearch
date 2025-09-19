@@ -59,7 +59,7 @@ public final class SecureString implements CharSequence, Releasable {
     public synchronized boolean equals(CharSequence that) {
         ensureNotClosed();
         // This is intentional to make sure the check is constant time relative to the length of the comparison string
-        return compareChars(0, that, 0, that.length()) && this.length() == that.length();
+        return that != null && compareChars(0, that, 0, that.length()) && this.length() == that.length();
     }
 
     public boolean startsWith(CharSequence other) {

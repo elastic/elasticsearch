@@ -10,6 +10,11 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
+
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexReshardingMetadataTests extends ESTestCase {
     // test that we can drive a split through all valid state transitions in random order and terminate
@@ -75,6 +80,125 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         for (int i = numShards; i < numShards * multiple; i++) {
             assertSame(IndexReshardingState.Split.TargetShardState.DONE, split.getTargetShardState(i));
             assertTrue(split.isTargetShard(i));
+        }
+    }
+
+    // Test that the ReshardSplitShardCount is calculated correctly w.r.t the current state of resharding-split operation
+    public void testReshardShardCountCalculation() {
+        final var numShards = 1;
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
+        IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+
+        assertNull(reshardingMetadata);
+
+        // Create IndexMetadata with 2 shards. This is to build the right value for numRoutingShards for an index with 2 shards.
+        // There is no resharding yet.
+        final var numSourceShards = 2;
+        indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(numSourceShards).build();
+
+        assertNull(reshardingMetadata);
+
+        // When there is no resharding going on, the ReshardSplitShardCount is same as number of shards in the index
+        for (int i = 0; i < numSourceShards; i++) {
+            assertThat(
+                indexMetadata.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.CLONE),
+                equalTo(numSourceShards)
+            );
+            assertThat(
+                indexMetadata.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.HANDOFF),
+                equalTo(numSourceShards)
+            );
+            assertThat(
+                indexMetadata.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.SPLIT),
+                equalTo(numSourceShards)
+            );
+        }
+
+        // Now reshard-split from 2 shards to 4 shards
+        final int multiple = 2;
+        var IndexMetadataAfterReshard = IndexMetadata.builder(indexMetadata)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(numSourceShards, multiple))
+            .reshardAddShards(numSourceShards * multiple)
+            .build();
+
+        reshardingMetadata = IndexMetadataAfterReshard.getReshardingMetadata();
+
+        // starting state is as expected
+        assertEquals(numSourceShards, reshardingMetadata.shardCountBefore());
+        assertEquals(numSourceShards * multiple, reshardingMetadata.shardCountAfter());
+        final int numTargetShards = reshardingMetadata.shardCountAfter();
+
+        // All target shards in CLONE state
+        for (int i = 0; i < numSourceShards; i++) {
+            assertTrue(reshardingMetadata.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.CLONE));
+            assertThat(
+                IndexMetadataAfterReshard.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.CLONE),
+                equalTo(numTargetShards)
+            );
+            assertThat(
+                IndexMetadataAfterReshard.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.HANDOFF),
+                equalTo(numSourceShards)
+            );
+            assertThat(
+                IndexMetadataAfterReshard.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.SPLIT),
+                equalTo(numSourceShards)
+            );
+        }
+
+        IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder(reshardingMetadata.getSplit());
+        for (int i = numSourceShards; i < numTargetShards; i++) {
+            builder.setTargetShardState(i, IndexReshardingState.Split.TargetShardState.HANDOFF);
+        }
+        var indexReshardingMetadataHandoff = new IndexReshardingMetadata(builder.build());
+        var indexMetadataHandoff = IndexMetadata.builder(IndexMetadataAfterReshard)
+            .reshardingMetadata(indexReshardingMetadataHandoff)
+            .build();
+
+        // All target shards in HANDOFF state
+        for (int i = 0; i < numSourceShards; i++) {
+            assertTrue(
+                indexReshardingMetadataHandoff.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.HANDOFF)
+            );
+            assertThat(
+                indexMetadataHandoff.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.CLONE),
+                equalTo(numTargetShards)
+            );
+            assertThat(
+                indexMetadataHandoff.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.HANDOFF),
+                equalTo(numTargetShards)
+            );
+            assertThat(
+                indexMetadataHandoff.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.SPLIT),
+                equalTo(numSourceShards)
+            );
+        }
+
+        builder = new IndexReshardingState.Split.Builder(indexReshardingMetadataHandoff.getSplit());
+        for (int i = numSourceShards; i < numTargetShards; i++) {
+            builder.setTargetShardState(i, IndexReshardingState.Split.TargetShardState.SPLIT);
+        }
+        var indexReshardingMetadataSplit = new IndexReshardingMetadata(builder.build());
+        var indexMetadataSplit = IndexMetadata.builder(IndexMetadataAfterReshard).reshardingMetadata(indexReshardingMetadataSplit).build();
+
+        // All target shards in SPLIT state
+        for (int i = 0; i < numSourceShards; i++) {
+            assertTrue(
+                indexReshardingMetadataSplit.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.SPLIT)
+            );
+            assertThat(
+                indexMetadataSplit.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.CLONE),
+                equalTo(numTargetShards)
+            );
+            assertThat(
+                indexMetadataSplit.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.HANDOFF),
+                equalTo(numTargetShards)
+            );
+            assertThat(
+                indexMetadataSplit.getReshardSplitShardCount(i, IndexReshardingState.Split.TargetShardState.SPLIT),
+                equalTo(numTargetShards)
+            );
         }
     }
 }

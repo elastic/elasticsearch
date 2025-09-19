@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -50,6 +51,41 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected String index;
 
     /**
+     * The reshardSplitShardCount has been added to accommodate the Resharding feature.
+     * This is populated when the coordinator is deciding which shards a request applies to.
+     * For example, {@link org.elasticsearch.action.bulk.BulkOperation} splits
+     * an incoming bulk request into shard level {@link org.elasticsearch.action.bulk.BulkShardRequest}
+     * based on its cluster state view of the number of shards that are ready for indexing.
+     * The purpose of this metadata is to reconcile the cluster state visible at the coordinating
+     * node with that visible at the source shard node. (w.r.t resharding).
+     * When an index is being split, there is a point in time when the newly created shard (target shard)
+     * takes over its portion of the document space from the original shard (source shard).
+     * Although the handoff is atomic at the original (source shard) and new shards (target shard),
+     * there is a window of time between the coordinating node creating a shard request and the shard receiving and processing it.
+     * This field is used by the original shard (source shard) when it processes the request to detect whether
+     * the coordinator's view of the new shard's state when it created the request matches the shard's current state,
+     * or whether the request must be reprocessed taking into account the current shard states.
+     *
+     * Note that we are able to get away with a single number, instead of an array of target shard states,
+     * because we only allow splits in increments of 2x.
+     *
+     * Example 1:
+     * Suppose we are resharding an index from 2 -> 4 shards. While splitting a bulk request, the coordinator observes
+     * that target shards are not ready for indexing. So requests that are meant for shard 0 and 2 are bundled together,
+     * sent to shard 0 with “reshardSplitShardCount” 2 in the request.
+     * Requests that are meant for shard 1 and 3 are bundled together, sent to shard 1 with “reshardSplitShardCount” 2 in the request.
+     *
+     * Example 2:
+     * Suppose we are resharding an index from 4 -> 8 shards. While splitting a bulk request, the coordinator observes
+     * that source shard 0 has completed HANDOFF but source shards 1, 2, 3 have not completed handoff.
+     * So, the shard-bulk-request it sends to shard 0 and 4 has the "reshardSplitShardCount" 8,
+     * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCount" 4.
+     * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
+     * are bundled together with and sent to their source shards.
+     */
+    protected final int reshardSplitShardCount;
+
+    /**
      * The number of shard copies that must be active before proceeding with the replication action.
      */
     protected ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -61,6 +97,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        this(shardId, 0, in);
+    }
+
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount, StreamInput in) throws IOException {
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
@@ -80,15 +120,28 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST) && (thinRead == false)) {
+            this.reshardSplitShardCount = in.readInt();
+        } else {
+            this.reshardSplitShardCount = reshardSplitShardCount;
+        }
     }
 
     /**
      * Creates a new request with resolved shard id
      */
     public ReplicationRequest(@Nullable ShardId shardId) {
+        this(shardId, 0);
+    }
+
+    /**
+     * Creates a new request with resolved shard id and reshardSplitShardCount
+     */
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
         this.timeout = DEFAULT_TIMEOUT;
+        this.reshardSplitShardCount = reshardSplitShardCount;
     }
 
     /**
@@ -135,6 +188,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     @Nullable
     public ShardId shardId() {
         return shardId;
+    }
+
+    /**
+     * @return The effective shard count as seen by the coordinator when creating this request.
+     * can be 0 if this has not yet been resolved.
+     */
+    public int reshardSplitShardCount() {
+        return reshardSplitShardCount;
     }
 
     /**
@@ -191,11 +252,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
+            out.writeInt(reshardSplitShardCount);
+        }
     }
 
     /**
      * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
-     * {@link #shardId}.
+     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #reshardSplitShardCount}.
      */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);

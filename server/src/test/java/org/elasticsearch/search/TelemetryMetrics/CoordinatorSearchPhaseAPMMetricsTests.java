@@ -18,6 +18,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
@@ -32,6 +33,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
@@ -105,6 +107,11 @@ public class CoordinatorSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase 
         var coordinatorMetrics = filterForCoordinatorMetrics(getTestTelemetryPlugin().getRegisteredMetrics(InstrumentType.LONG_HISTOGRAM));
         assertThat(coordinatorMetrics, hasSize(5));
         assertThat(coordinatorMetrics, equalTo(expectedMetricsWithDfs));
+        for (var metricName : coordinatorMetrics) {
+            List<Measurement> measurements = getTestTelemetryPlugin().getLongHistogramMeasurement(metricName);
+            assertThat(measurements, hasSize(1));
+            assertThat(measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
+        }
     }
 
     public void testSearchTransportMetricsQueryThenFetch() throws InterruptedException {

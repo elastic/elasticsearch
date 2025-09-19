@@ -36,7 +36,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -96,6 +95,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
     private final int skippedCount;
     private final CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseMetrics;
+    private long phaseStartTimeNanos;
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -118,7 +118,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
-        TelemetryProvider telemetryProvider
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -159,7 +159,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // at the end of the search
         addReleasable(resultConsumer);
         this.clusters = clusters;
-        this.coordinatorSearchPhaseMetrics = new CoordinatorSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry(), timeProvider);
+        this.coordinatorSearchPhaseMetrics = coordinatorSearchPhaseAPMMetrics;
     }
 
     protected void notifyListShards(
@@ -379,8 +379,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void executePhase(SearchPhase phase) {
         try {
-            coordinatorSearchPhaseMetrics.onCoordinatorPhaseStart(phase.getName());
+            phaseStartTimeNanos = timeProvider.relativeCurrentNanosProvider().getAsLong();
             phase.run();
+
         } catch (RuntimeException e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while moving to [%s] phase", request, phase.getName()), e);
@@ -627,7 +628,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param cause the cause of the phase failure
      */
     public void onPhaseFailure(String phase, String msg, Throwable cause) {
-        coordinatorSearchPhaseMetrics.onCoordinatorPhaseDone(phase);
+        recordPhaseTookTime(phase);
         raisePhaseFailure(new SearchPhaseExecutionException(phase, msg, cause, buildShardFailures()));
     }
 
@@ -673,8 +674,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult)
      */
     private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        coordinatorSearchPhaseMetrics.onCoordinatorPhaseDone(getName());
+        recordPhaseTookTime(getName());
         executeNextPhase(getName(), this::getNextPhase);
+    }
+
+    protected void recordPhaseTookTime(String phaseName) {
+        coordinatorSearchPhaseMetrics.onCoordinatorPhaseDone(
+            phaseName,
+            timeProvider.relativeCurrentNanosProvider().getAsLong() - phaseStartTimeNanos);
     }
 
     /**

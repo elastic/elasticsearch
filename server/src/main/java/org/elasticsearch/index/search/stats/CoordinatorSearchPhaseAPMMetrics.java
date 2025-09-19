@@ -15,29 +15,29 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.util.Map;
 
-import static org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
-
 /**
- * Coordinator level APM metrics for search phases.
- * Records phase execution times as histograms.
+ * Coordinator level APM metrics for search phases. Records phase execution times as histograms.
+ * Assumes that this is a singleton shared by all searches running on the coordinating node.
  */
 public class CoordinatorSearchPhaseAPMMetrics extends SearchPhaseAPMMetrics {
 
     private static final String metricNameFormat = "es.search.coordinator.phases.%s.duration.histogram";
+    public static final CoordinatorSearchPhaseAPMMetrics NOOP = new CoordinatorSearchPhaseAPMMetrics(MeterRegistry.NOOP);
+
     private final Map<String, LongHistogram> histogramsCache = ConcurrentCollections.newConcurrentMap();
     private final MeterRegistry meterRegistry;
-    private final SearchTimeProvider timeProvider;
 
-    private long phaseStartTimeNanos;
-
-    public CoordinatorSearchPhaseAPMMetrics(MeterRegistry meterRegistry, SearchTimeProvider timeProvider) {
+    public CoordinatorSearchPhaseAPMMetrics(MeterRegistry meterRegistry) {
         this.meterRegistry = meterRegistry;
-        this.timeProvider = timeProvider;
     }
 
-    public void onCoordinatorPhaseStart(String phaseName) {
-        this.phaseStartTimeNanos = timeProvider.relativeCurrentNanosProvider().getAsLong();
-        histogramsCache.computeIfAbsent(phaseName, this::createHistogram);
+    public void onCoordinatorPhaseDone(String phaseName, long tookInNanos) {
+        LongHistogram histogram = histogramsCache.computeIfAbsent(phaseName, this::createHistogram);
+        if (histogram != null) {
+            recordPhaseLatency(histogram, tookInNanos);
+        } else {
+            throw new IllegalStateException("phase [" + phaseName + "] not found");
+        }
     }
 
     private LongHistogram createHistogram(String phaseName) {
@@ -46,15 +46,5 @@ public class CoordinatorSearchPhaseAPMMetrics extends SearchPhaseAPMMetrics {
             String.format("%s phase execution times at the coordinator level, expressed as a histogram", phaseName.toUpperCase()),
             "ms"
         );
-    }
-
-    public void onCoordinatorPhaseDone(String phaseName) {
-        long tookInNanos = timeProvider.relativeCurrentNanosProvider().getAsLong() - phaseStartTimeNanos;
-        LongHistogram histogram = histogramsCache.get(phaseName);
-        if (histogram != null) {
-            recordPhaseLatency(histogram, tookInNanos);
-        } else {
-            throw new IllegalStateException("phase [" + phaseName + "] not found");
-        }
     }
 }

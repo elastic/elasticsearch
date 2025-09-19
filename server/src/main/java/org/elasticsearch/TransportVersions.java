@@ -333,6 +333,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = def(9_163_0_00);
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = def(9_164_0_00);
     public static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = def(9_165_0_00);
+    public static final TransportVersion INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS = def(9_166_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

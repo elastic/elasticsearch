@@ -1,4 +1,5 @@
 placeholder 
+required_capability: text_embedding_function
 required_capability: not_existing_capability
 
 // tag::embedding-eval[]

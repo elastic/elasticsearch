@@ -19,7 +19,7 @@ import java.util.List;
  * index resolution, in particular the results of local resolution, and the remote (unresolved) expressions if any.
  * <p>
  * The replacements are separated into local and remote expressions.
- * For local expressions, the class allows recording local index resolution results and exceptions if any.
+ * For local expressions, the class allows recording local index resolution results along with failure info.
  * For remote expressions, only the expressions are recorded.
  *
  * <p>An example structure is:</p>
@@ -37,7 +37,7 @@ import java.util.List;
  *
  * @param original the original index expression, as provided by the user
  * @param localExpressions the local expressions that replace the original along with their resolution result
- *                         and resolution exception if any
+ *                         and failure info
  * @param remoteExpressions the remote expressions that replace the original
  */
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
@@ -53,11 +53,16 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
     }
 
     /**
-     * Represents local (non-remote) resolution results, including expanded indices, the resolution result, and if any, an exception.
+     * Represents local (non-remote) resolution results, including expanded indices, and the resolution result.
      */
     public record LocalExpressions(
         List<String> expressions,
         LocalIndexResolutionResult localIndexResolutionResult,
         @Nullable ElasticsearchException exception
-    ) {}
+    ) {
+        public LocalExpressions {
+            assert localIndexResolutionResult != LocalIndexResolutionResult.SUCCESS || exception == null
+                : "If the local resolution result is SUCCESS, exception must be null";
+        }
+    }
 }

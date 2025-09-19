@@ -19,14 +19,20 @@ import java.util.Map;
  * <pre>{@code
  * {
  *   "my-index-*": {
- *      {
- *          "original": "my-index-*",
- *          "localExpressions": {
- *              "expressions": ["my-index-000001", "my-index-000002"],
- *              "localIndexResolutionResult": "SUCCESS"
- *          },
- *          "remoteExpressions": ["remote1:my-index-*", "remote2:my-index-*"]
- *      }
+ *      "original": "my-index-*",
+ *      "localExpressions": {
+ *          "expressions": ["my-index-000001", "my-index-000002"],
+ *          "localIndexResolutionResult": "SUCCESS"
+ *      },
+ *      "remoteExpressions": ["remote1:my-index-*", "remote2:my-index-*"]
+ *   },
+ *   "my-index-000001": {
+ *      "original": "my-index-000001",
+ *      "localExpressions": {
+ *          "expressions": ["my-index-000001"],
+ *          "localIndexResolutionResult": "SUCCESS"
+ *      },
+ *      "remoteExpressions": ["remote1:my-index-000001", "remote2:my-index-000001"]
  *   }
  * }
  * }</pre>

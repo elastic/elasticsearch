@@ -71,6 +71,11 @@ public class AmazonBedrockMockRequestSender implements Sender {
     }
 
     @Override
+    public void startAsynchronously(ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    @Override
     public void send(
         RequestManager requestCreator,
         InferenceInputs inferenceInputs,

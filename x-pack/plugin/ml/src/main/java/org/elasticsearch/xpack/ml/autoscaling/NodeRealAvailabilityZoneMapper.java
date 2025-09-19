@@ -108,7 +108,7 @@ public class NodeRealAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
      * This is different to {@link #getMlNodesByAvailabilityZone()} in that the latter returns the ML nodes by availability zone
      * of the latest cluster state, while this method does the same for a specific cluster state.
      *
-     * @param nodes The cluster state whose nodes will be used to detect ML nodes by availability zone.
+     * @param nodes The nodes which will be used to detect ML nodes by availability zone.
      * @return A map whose keys are lists of awareness attribute values in the same order as the configured awareness attribute
      *         names, and whose values are collections of nodes that have that combination of attributes. If availability zones
      *         are not configured then the map will contain one entry mapping an empty list to a collection of all nodes. If

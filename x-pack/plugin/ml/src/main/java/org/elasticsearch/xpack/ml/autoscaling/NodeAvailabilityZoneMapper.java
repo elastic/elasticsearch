@@ -16,7 +16,7 @@ import java.util.OptionalInt;
 
 public interface NodeAvailabilityZoneMapper {
     /**
-     * @param mlNodes The nodes will be used to detect ML nodes by availability zone.
+     * @param mlNodes The nodes which will be used to detect ML nodes by availability zone.
      * @return A map whose keys are conceptually lists of availability zone attributes, and whose values are collections
      *         of nodes corresponding to the availability zone attributes.
      *         An empty map will be returned if there are no ML nodes in the cluster.

@@ -21,7 +21,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -74,7 +74,8 @@ public class IndexAbstractionResolver {
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
-                Set<String> resolvedIndices = new HashSet<>();
+                Set<String> resolvedIndices = new LinkedHashSet<>();
+                ;
                 for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
@@ -102,7 +103,7 @@ public class IndexAbstractionResolver {
                     }
                 }
             } else {
-                Set<String> resolvedIndices = new HashSet<>();
+                Set<String> resolvedIndices = new LinkedHashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     resolvedExpressionsBuilder.excludeAll(resolvedIndices);

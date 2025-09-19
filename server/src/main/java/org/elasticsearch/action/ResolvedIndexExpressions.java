@@ -56,14 +56,16 @@ public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expr
 
         public void putLocalExpression(
             String original,
-            Set<String> localExpression,
+            Set<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
         ) {
+            // TODO is it always safe to overwrite an existing entry? exclusions can cause multiple calls for the same original
+            // expression but with different local expressions
             expressions.put(
                 original,
                 new ResolvedIndexExpression(
                     original,
-                    new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(localExpression), resolutionResult, null),
+                    new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(localExpressions), resolutionResult, null),
                     new ArrayList<>()
                 )
             );

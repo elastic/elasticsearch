@@ -17,8 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.autoscaling.memory;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -45,6 +43,9 @@ import java.util.function.Supplier;
  */
 public class MergeMemoryEstimateCollector implements MergeEventListener, ClusterStateListener {
     private static final double DEFAULT_PUBLICATION_MIN_CHANGE_RATIO = 0.1;
+    static final TransportVersion AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION = TransportVersion.fromName(
+        "autoscaling_merge_memory_estimate_serverless_version"
+    );
 
     public static final Setting<Double> MERGE_MEMORY_ESTIMATE_PUBLICATION_MIN_CHANGE_RATIO = Setting.doubleSetting(
         "serverless.autoscaling.memory_metrics.merge_memory_estimate.publication_min_change_ratio",
@@ -125,7 +126,7 @@ public class MergeMemoryEstimateCollector implements MergeEventListener, Cluster
 
     private void submitNewEstimateToPublisher(ShardMergeMemoryEstimate estimate) {
         assert Thread.holdsLock(mutex);
-        if (minTransportVersionSupplier.get().before(ServerlessTransportVersions.AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION)) {
+        if (minTransportVersionSupplier.get().supports(AUTOSCALING_MERGE_MEMORY_ESTIMATE_SERVERLESS_VERSION) == false) {
             return;
         }
         final long seqNo = seqNoGenerator.getAndIncrement();

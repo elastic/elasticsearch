@@ -17,13 +17,13 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
-import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -428,14 +428,12 @@ public class StatelessPersistedStateTests extends ESTestCase {
                     new StatelessLease(StatelessLease.LEGACY_FORMAT_VERSION, term, 0L, 0L).asBytes(),
                     false
                 );
-            // Cluster state with remote node on a version before STATELESS_LEASE_BLOB_V1_FORMAT, and local node
-            // as the current master and on STATELESS_LEASE_BLOB_V1_FORMAT
-            final var localNodeCompatibilityVersions = new CompatibilityVersions(
-                ServerlessTransportVersions.STATELESS_LEASE_BLOB_V1_FORMAT,
-                Map.of()
-            );
+            // Cluster state with remote node on a version before stateless_lease_blob_v1_format, and local node
+            // as the current master and on stateless_lease_blob_v1_format
+            var statelessLeaseBlobV1FormatTV = TransportVersion.fromName("stateless_lease_blob_v1_format");
+            final var localNodeCompatibilityVersions = new CompatibilityVersions(statelessLeaseBlobV1FormatTV, Map.of());
             final var remoteNodeCompatibilityVersions = new CompatibilityVersions(
-                TransportVersionUtils.getPreviousVersion(ServerlessTransportVersions.STATELESS_LEASE_BLOB_V1_FORMAT),
+                TransportVersionUtils.getPreviousVersion(statelessLeaseBlobV1FormatTV),
                 Map.of()
             );
             final var state1 = ClusterState.builder(ClusterName.DEFAULT)

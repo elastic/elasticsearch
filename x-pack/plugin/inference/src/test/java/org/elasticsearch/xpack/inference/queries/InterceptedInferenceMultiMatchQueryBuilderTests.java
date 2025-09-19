@@ -82,33 +82,22 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
         final TestIndex testIndex1 = new TestIndex(
             "mixed-index-1",
             Map.of(),
-            Map.of(
-                field1, Map.of("type", "text"),
-                field2, Map.of("type", "text"),
-                field3, Map.of("type", "text")
-            )
+            Map.of(field1, Map.of("type", "text"), field2, Map.of("type", "text"), field3, Map.of("type", "text"))
         );
 
         final TestIndex testIndex2 = new TestIndex(
             "mixed-index-2",
-            Map.of(
-                field2, SPARSE_INFERENCE_ID,
-                field3, SPARSE_INFERENCE_ID
-            ),
+            Map.of(field2, SPARSE_INFERENCE_ID, field3, SPARSE_INFERENCE_ID),
             Map.of(field1, Map.of("type", "text"))
         );
 
         final TestIndex testIndex3 = new TestIndex(
             "mixed-index-3",
-            Map.of(
-                field2, SPARSE_INFERENCE_ID,
-                field3, DENSE_INFERENCE_ID
-            ),
+            Map.of(field2, SPARSE_INFERENCE_ID, field3, DENSE_INFERENCE_ID),
             Map.of(field1, Map.of("type", "text"))
         );
 
-        final MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(queryText)
-            .field(field1, field1Boost)
+        final MultiMatchQueryBuilder multiMatchQuery = new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
             .field(field2, field2Boost)
             .field(field3, field3Boost)
             .boost(queryBoost)
@@ -117,9 +106,12 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
         // Perform coordinator node rewrite
         final QueryRewriteContext queryRewriteContext = createQueryRewriteContext(
             Map.of(
-                testIndex1.name(), testIndex1.semanticTextFields(),
-                testIndex2.name(), testIndex2.semanticTextFields(),
-                testIndex3.name(), testIndex3.semanticTextFields()
+                testIndex1.name(),
+                testIndex1.semanticTextFields(),
+                testIndex2.name(),
+                testIndex2.semanticTextFields(),
+                testIndex3.name(),
+                testIndex3.semanticTextFields()
             ),
             Map.of(),
             TransportVersion.current()
@@ -159,7 +151,11 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
         DisMaxQueryBuilder expectedIndex2 = QueryBuilders.disMaxQuery()
             .add(new SemanticQueryBuilder(field3, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field3Boost))
             .add(new SemanticQueryBuilder(field2, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field2Boost))
-            .add(new MultiMatchQueryBuilder(queryText).field(field1, field1Boost).type(multiMatchQuery.type()).lenient(multiMatchQuery.lenient()))
+            .add(
+                new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
+                    .type(multiMatchQuery.type())
+                    .lenient(multiMatchQuery.lenient())
+            )
             .tieBreaker(multiMatchQuery.type().tieBreaker())
             .boost(queryBoost)
             .queryName(queryName);
@@ -178,7 +174,11 @@ public class InterceptedInferenceMultiMatchQueryBuilderTests extends AbstractInt
         DisMaxQueryBuilder expectedIndex3 = QueryBuilders.disMaxQuery()
             .add(new SemanticQueryBuilder(field3, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field3Boost))
             .add(new SemanticQueryBuilder(field2, queryText, null, coordinatorIntercepted.inferenceResultsMap).boost(field2Boost))
-            .add(new MultiMatchQueryBuilder(queryText).field(field1, field1Boost).type(multiMatchQuery.type()).lenient(multiMatchQuery.lenient()))
+            .add(
+                new MultiMatchQueryBuilder(queryText).field(field1, field1Boost)
+                    .type(multiMatchQuery.type())
+                    .lenient(multiMatchQuery.lenient())
+            )
             .tieBreaker(multiMatchQuery.type().tieBreaker())
             .boost(queryBoost)
             .queryName(queryName);

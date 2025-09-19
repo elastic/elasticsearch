@@ -311,7 +311,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         ensureRed(indexName);
 
         // verify that the shard store is effectively closed
-        safeGet(plugin.shardStoreClosedListener);
+        assertTrue(plugin.shardStoreClosedListener.isDone());
 
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         var nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, dataNode);

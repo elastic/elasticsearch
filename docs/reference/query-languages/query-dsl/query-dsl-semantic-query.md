@@ -13,8 +13,16 @@ applies_to:
 We don't recommend this legacy query type for _new_ projects. Use the match query (with [QueryDSL](/reference/query-languages/query-dsl/query-dsl-match-query.md) or [ESQL](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match)) instead. The semantic query remains available to support existing implementations.
 ::::
 
-The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field.
+The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. This query accepts natural-language text and uses the field’s configured inference endpoint to generate a query embedding and score documents.
 
+## Inference endpoint selection
+
+The target field of `semantic` query must be mapped as `semantic_text` and associated with an inference endpoint. At query time, the inference endpoint is chosen as follows:
+- If `search_inference_id` is defined, the semantic query uses that endpoint to embed the query.
+- If no `search_inference_id` is defined, `inference_id` is used for both indexing and search.
+- If no endpoint is specified at mapping, `inference_id` defaults to `.elser-2-elasticsearch`.￼
+
+The underlying vector mode (dense or sparse) follows the field’s endpoint automatically. No extra query parameters are required.
 
 ## Example request [semantic-query-example]
 

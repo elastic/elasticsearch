@@ -154,6 +154,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
                 // Pause to ensure we do not transition to post recovery until after the recovery is complete
                 LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(30));
+                assertThat(indexShard.recoveryState().getStage(), equalTo(RecoveryState.Stage.DONE));
                 assertThat(indexShard.state(), equalTo(IndexShardState.RECOVERING));
                 recoveryTriggered.onResponse(null);
                 listener.onResponse(null);

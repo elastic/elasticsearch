@@ -1910,6 +1910,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 engineResetLock.writeLock().unlock();
             }
+            synchronized (mutex) {
+                if (state == IndexShardState.CLOSED) {
+                    throw new IndexShardClosedException(shardId);
+                }
+                if (state == IndexShardState.STARTED) {
+                    throw new IndexShardStartedException(shardId);
+                }
+                recoveryState.setStage(RecoveryState.Stage.DONE);
+            }
+
             indexEventListener.afterIndexShardRecovery(this, intermediateListener.delegateFailureAndWrap((finalListener, unused) -> {
                 synchronized (mutex) {
                     if (state == IndexShardState.CLOSED) {
@@ -1918,7 +1928,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (state == IndexShardState.STARTED) {
                         throw new IndexShardStartedException(shardId);
                     }
-                    recoveryState.setStage(RecoveryState.Stage.DONE);
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
                 finalListener.onResponse(null);

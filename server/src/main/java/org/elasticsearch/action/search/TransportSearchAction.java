@@ -87,7 +87,6 @@ import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -170,7 +169,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final SearchResponseMetrics searchResponseMetrics;
     private final Client client;
     private final UsageService usageService;
-    private final TelemetryProvider telemetryProvider;
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics;
@@ -194,7 +192,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
         UsageService usageService,
-        TelemetryProvider telemetryProvider,
         CanMatchPhaseAPMMetrics canMatchPhaseAPMMetrics,
         CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
@@ -226,7 +223,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
-        this.telemetryProvider = telemetryProvider;
         this.canMatchPhaseAPMMetrics = canMatchPhaseAPMMetrics;
         this.coordinatorSearchPhaseAPMMetrics = coordinatorSearchPhaseAPMMetrics;
         forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);

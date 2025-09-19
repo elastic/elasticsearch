@@ -2774,7 +2774,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService,
-                        TelemetryProvider.NOOP,
                         CanMatchPhaseAPMMetrics.NOOP,
                         CoordinatorSearchPhaseAPMMetrics.NOOP
                     )

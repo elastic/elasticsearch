@@ -1818,7 +1818,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService(),
-                TelemetryProvider.NOOP,
                 CanMatchPhaseAPMMetrics.NOOP,
                 CoordinatorSearchPhaseAPMMetrics.NOOP
             );

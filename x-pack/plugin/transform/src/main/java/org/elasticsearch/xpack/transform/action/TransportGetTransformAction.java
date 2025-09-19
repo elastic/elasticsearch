@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -34,6 +33,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.common.time.RemainingTime;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
@@ -83,19 +84,28 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(clusterState);
 
+        RemainingTime remainingTime = RemainingTime.from(Instant::now, request.timeout());
+
         // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = listener.delegateFailureAndWrap((l, r) -> {
-            getAllTransformIds(request, r, TimeValue.THIRTY_SECONDS, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
-                var errors = TransformTask.findTransformTasks(request.getId(), clusterState)
-                    .stream()
-                    .map(PersistentTasksCustomMetadata.PersistentTask::getId)
-                    .filter(not(transformConfigIds::contains))
-                    .map(
-                        transformId -> new Response.Error("dangling_task", Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId))
-                    )
-                    .toList();
-                ll.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
-            }));
+            if (request.checkForDanglingTasks()) {
+                getAllTransformIds(request, r, remainingTime, l.delegateFailureAndWrap((ll, transformConfigIds) -> {
+                    var errors = TransformTask.findTransformTasks(request.getId(), clusterState)
+                        .stream()
+                        .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                        .filter(not(transformConfigIds::contains))
+                        .map(
+                            transformId -> new Response.Error(
+                                "dangling_task",
+                                Strings.format(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId)
+                            )
+                        )
+                        .toList();
+                    ll.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
+                }));
+            } else {
+                l.onResponse(new Response(r.results(), r.count(), null));
+            }
         });
 
         // Step 1: Search for all the transform configs matching the request.
@@ -147,12 +157,14 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     private void getAllTransformIds(
         Request request,
         QueryPage<TransformConfig> initialResults,
-        TimeValue timeout,
+        RemainingTime remainingTime,
         ActionListener<Set<String>> listener
     ) {
         ActionListener<Stream<String>> transformIdListener = listener.map(stream -> stream.collect(toSet()));
+        var requestedPage = initialResults.results().stream().map(TransformConfig::getId);
+
         if (initialResults.count() == initialResults.results().size()) {
-            transformIdListener.onResponse(initialResults.results().stream().map(TransformConfig::getId));
+            transformIdListener.onResponse(requestedPage);
         } else {
             // if we do not have all of our transform ids already, we have to go get them
             // we'll read everything after our current page, then we'll reverse and read everything before our current page
@@ -160,13 +172,9 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
             var size = request.getPageParams().getSize();
             var idTokens = ExpandedIdsMatcher.tokenizeExpression(request.getResourceId());
 
-            getAllTransformIds(idTokens, false, from, size, timeout, transformIdListener.delegateFailureAndWrap((l, nextPages) -> {
-                var currentPages = Stream.concat(initialResults.results().stream().map(TransformConfig::getId), nextPages);
-                if (from > 0) {
-                    getAllTransformIds(idTokens, true, from, size, timeout, l.map(firstPages -> Stream.concat(firstPages, currentPages)));
-                } else {
-                    l.onResponse(currentPages);
-                }
+            getAllTransformIds(idTokens, false, from, size, remainingTime, transformIdListener.delegateFailureAndWrap((l, nextPages) -> {
+                var currentPages = Stream.concat(requestedPage, nextPages);
+                getAllTransformIds(idTokens, true, from, size, remainingTime, l.map(firstPages -> Stream.concat(firstPages, currentPages)));
             }));
         }
     }
@@ -176,18 +184,27 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         boolean reverse,
         int from,
         int size,
-        TimeValue timeout,
+        RemainingTime remainingTime,
         ActionListener<Stream<String>> listener
     ) {
+        if (reverse && from <= 0) {
+            listener.onResponse(Stream.empty());
+            return;
+        }
+
+        var thisPage = reverse ? from - size : from + size;
+        var thisPageFrom = Math.max(0, thisPage);
+        var thisPageSize = thisPage < 0 ? from : size;
+
         SearchRequest request = client.prepareSearch(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
         )
             .addSort(TransformField.ID.getPreferredName(), SortOrder.ASC)
             .addSort("_index", SortOrder.DESC)
-            .setFrom(from)
-            .setSize(size)
-            .setTimeout(timeout)
+            .setFrom(thisPageFrom)
+            .setSize(thisPageSize)
+            .setTimeout(remainingTime.get())
             .setFetchSource(false)
             .setTrackTotalHits(true)
             .addDocValueField(TransformField.ID.getPreferredName())
@@ -206,31 +223,14 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                     .stream();
 
                 if (searchResponse.getHits().getHits().length == size) {
-                    if (reverse == false) {
-                        getAllTransformIds(
-                            idTokens,
-                            false,
-                            from + size,
-                            size,
-                            timeout,
-                            l.map(nextTransformIds -> Stream.concat(transformIds, nextTransformIds))
-                        );
-                    } else if (from > 0) {
-                        var nextPage = from - size;
-                        var nextFrom = Math.max(0, nextPage);
-                        var nextSize = nextPage < 0 ? from : size;
-                        getAllTransformIds(
-                            idTokens,
-                            true,
-                            nextFrom,
-                            nextSize,
-                            timeout,
-                            l.map(nextTransformIds -> Stream.concat(transformIds, nextTransformIds))
-                        );
-                    } else {
-                        // else this is the first page
-                        l.onResponse(transformIds);
-                    }
+                    getAllTransformIds(
+                        idTokens,
+                        reverse,
+                        thisPageFrom,
+                        thisPageSize,
+                        remainingTime,
+                        l.map(nextTransformIds -> Stream.concat(transformIds, nextTransformIds))
+                    );
                 } else {
                     l.onResponse(transformIds);
                 }

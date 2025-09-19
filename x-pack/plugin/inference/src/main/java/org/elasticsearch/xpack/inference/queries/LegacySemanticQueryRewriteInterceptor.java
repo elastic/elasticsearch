@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -46,15 +47,25 @@ public abstract class LegacySemanticQueryRewriteInterceptor implements QueryRewr
         if (indexInformation.getInferenceIndices().isEmpty()) {
             // No inference fields were identified, so return the original query.
             return queryBuilder;
-        } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-            // Combined case where the field name requested by this query contains both
-            // semantic_text and non-inference fields, so we have to combine queries per index
-            // containing each field type.
-            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+        } else if (resolvedIndices.getRemoteClusterIndices().isEmpty()) {
+            if (indexInformation.nonInferenceIndices().isEmpty() == false) {
+                // Combined case where the field name requested by this query contains both
+                // semantic_text and non-inference fields, so we have to combine queries per index
+                // containing each field type.
+                return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+            } else {
+                // The only fields we've identified are inference fields (e.g. semantic_text),
+                // so rewrite the entire query to work on a semantic_text field.
+                return buildInferenceQuery(queryBuilder, indexInformation);
+            }
         } else {
-            // The only fields we've identified are inference fields (e.g. semantic_text),
-            // so rewrite the entire query to work on a semantic_text field.
-            return buildInferenceQuery(queryBuilder, indexInformation);
+            throw new IllegalArgumentException(
+                "["
+                    + getQueryName()
+                    + "] query does not support cross-cluster search when querying a ["
+                    + SemanticTextFieldMapper.CONTENT_TYPE
+                    + "] field in a mixed-version cluster"
+            );
         }
     }
 

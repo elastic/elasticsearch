@@ -129,7 +129,7 @@ public class OrderBy extends UnaryPlan
                         orderBy -> failures.add(
                             fail(
                                 inlineJoin,
-                                "INLINESTATS [{}] cannot yet have an unbounded SORT [{}] before it : either move the SORT after it,"
+                                "INLINE STATS [{}] cannot yet have an unbounded SORT [{}] before it : either move the SORT after it,"
                                     + " or add a LIMIT before the SORT",
                                 inlineJoin.sourceText(),
                                 orderBy.sourceText()

@@ -59,10 +59,10 @@ setup:
             properties:
               title:
                 type: text
-              semantic_content:
+              content:
                 type: semantic_text
                 inference_id: sparse-inference-id
-              tags:
+              summary:
                 type: keyword
 
   - do:
@@ -74,6 +74,8 @@ setup:
               title:
                 type: text
               content:
+                type: text
+              summary:
                 type: text
 
 ---
@@ -108,7 +110,7 @@ setup:
         id: doc_1
         body:
           title: "Quantum computing breakthrough"
-          semantic_content: "Revolutionary quantum algorithms for cryptography"
+          content: "Revolutionary quantum algorithms for cryptography"
           tags: ["quantum", "computing"]
         refresh: true
 
@@ -118,7 +120,7 @@ setup:
         id: doc_2
         body:
           title: "AI research advances"
-          semantic_content: "Neural network architectures and deep learning"
+          content: "Neural network architectures and deep learning"
           tags: ["ai", "research"]
         refresh: true
 
@@ -129,7 +131,7 @@ setup:
           query:
             multi_match:
               query: "quantum algorithms"
-              fields: ["title", "semantic_content"]
+              fields: ["title", "content"]
 
   - match: { hits.total.value: 2 }
 

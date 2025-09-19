@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
@@ -84,6 +85,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -125,6 +127,7 @@ public class EsqlSession {
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
+    private final BlockFactory blockFactory;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -161,6 +164,7 @@ public class EsqlSession {
         this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
+        this.blockFactory = services.blockFactoryProvider().blockFactory();
     }
 
     public String sessionId() {
@@ -281,10 +285,13 @@ public class EsqlSession {
         executionInfo.startSubPlans();
 
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
+            AtomicReference<Block[]> localRelationBlocks = new AtomicReference<>();
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
                 LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                localRelationBlocks.set(resultWrapper.supplier().get());
+                var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationBlocks));
 
                 // replace the original logical plan with the backing result
                 LogicalPlan newLogicalPlan = optimizedPlan.transformUp(
@@ -303,27 +310,38 @@ public class EsqlSession {
                     executionInfo.finishSubPlans();
                     LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
-                    runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
+                    runner.run(newPhysicalPlan, releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                         completionInfoAccumulator.accumulate(finalResult.completionInfo());
                         finalListener.onResponse(
                             new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
                         );
                     }));
                 } else {// continue executing the subplans
-                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, listener);
+                    executeSubPlan(completionInfoAccumulator, newLogicalPlan, newSubPlan, executionInfo, runner, request, releasingNext);
                 }
+            } catch (Exception e) {
+                // safely release the blocks in case an exception occurs either before, but also after the "final" runner.run() forks off
+                // the current thread, but with the blocks still referenced
+                releaseLocalRelationBlocks(localRelationBlocks);
+                throw e;
             } finally {
                 Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(result.pages().iterator(), p -> p::releaseBlocks)));
             }
         }));
     }
 
-    private static LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
         List<Page> pages = result.pages();
         List<Attribute> schema = result.schema();
-        // if (pages.size() > 1) {
-        Block[] blocks = SessionUtils.fromPages(schema, pages);
+        Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
         return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
+    }
+
+    private static void releaseLocalRelationBlocks(AtomicReference<Block[]> localRelationBlocks) {
+        Block[] relationBlocks = localRelationBlocks.getAndSet(null);
+        if (relationBlocks != null) {
+            Releasables.closeExpectNoException(relationBlocks);
+        }
     }
 
     private EsqlStatement parse(String query, QueryParams params) {

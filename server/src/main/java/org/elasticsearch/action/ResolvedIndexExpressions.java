@@ -9,8 +9,11 @@
 
 package org.elasticsearch.action;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A collection of {@link ResolvedIndexExpression}, keyed by the original expression.
@@ -39,7 +42,47 @@ import java.util.Map;
  * }</pre>
  */
 public record ResolvedIndexExpressions(Map<String, ResolvedIndexExpression> expressions) {
+
     public List<String> getLocalIndicesList() {
         return expressions.values().stream().flatMap(e -> e.localExpressions().expressions().stream()).toList();
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+        private final Map<String, ResolvedIndexExpression> expressions = new LinkedHashMap<>();
+
+        public void putSuccessfulLocalExpression(String original, Set<String> localExpression) {
+            putLocalExpression(original, localExpression, ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS);
+        }
+
+        public void putLocalExpression(
+            String original,
+            Set<String> localExpression,
+            ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult
+        ) {
+            expressions.put(
+                original,
+                new ResolvedIndexExpression(
+                    original,
+                    new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(localExpression), resolutionResult, null),
+                    new ArrayList<>()
+                )
+            );
+        }
+
+        public void excludeAll(Set<String> expressionsToExclude) {
+            if (expressionsToExclude.isEmpty() == false) {
+                for (ResolvedIndexExpression prior : expressions.values()) {
+                    prior.localExpressions().expressions().removeAll(expressionsToExclude);
+                }
+            }
+        }
+
+        public ResolvedIndexExpressions build() {
+            return new ResolvedIndexExpressions(Map.copyOf(expressions));
+        }
     }
 }

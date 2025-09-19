@@ -22,10 +22,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -51,7 +48,7 @@ public class IndexAbstractionResolver {
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        Map<String, ResolvedIndexExpression> resolvedIndexExpressions = new LinkedHashMap<>();
+        ResolvedIndexExpressions.Builder resolvedIndexExpressions = ResolvedIndexExpressions.builder();
 
         boolean wildcardSeen = false;
         for (String index : indices) {
@@ -100,16 +97,16 @@ public class IndexAbstractionResolver {
                     }
                 } else {
                     if (minus) {
-                        exclude(resolvedIndices, resolvedIndexExpressions);
+                        resolvedIndexExpressions.excludeAll(resolvedIndices);
                     } else {
-                        resolvedIndexExpressions.put(index, new ResolvedIndexExpression(index, new ArrayList<>(resolvedIndices)));
+                        resolvedIndexExpressions.putSuccessfulLocalExpression(index, resolvedIndices);
                     }
                 }
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
-                    exclude(resolvedIndices, resolvedIndexExpressions);
+                    resolvedIndexExpressions.excludeAll(resolvedIndices);
                 } else {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     boolean visible = authorized
@@ -120,20 +117,12 @@ public class IndexAbstractionResolver {
                         : CONCRETE_RESOURCE_UNAUTHORIZED;
 
                     boolean includeIndices = authorized || (indicesOptions.ignoreUnavailable() == false);
-                    List<String> finalIndices = includeIndices ? new ArrayList<>(resolvedIndices) : new ArrayList<>();
-
-                    resolvedIndexExpressions.put(
-                        index,
-                        new ResolvedIndexExpression(
-                            index,
-                            new ResolvedIndexExpression.LocalExpressions(finalIndices, result, null),
-                            List.of()
-                        )
-                    );
+                    Set<String> finalIndices = includeIndices ? resolvedIndices : Set.of();
+                    resolvedIndexExpressions.putLocalExpression(index, finalIndices, result);
                 }
             }
         }
-        return new ResolvedIndexExpressions(resolvedIndexExpressions);
+        return resolvedIndexExpressions.build();
     }
 
     private static void resolveSelectorsAndCollect(

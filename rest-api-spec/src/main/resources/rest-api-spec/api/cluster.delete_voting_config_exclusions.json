@@ -29,8 +29,8 @@
       },
       "master_timeout": {
         "type": "time",
-        "description": "Timeout for submitting request to master",
-        "default": "30s"
+        "default": "30s",
+        "description": "Timeout for submitting request to master"
       }
     }
   }

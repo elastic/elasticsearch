@@ -356,10 +356,19 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlExecutionInfo createEsqlExecutionInfo(EsqlQueryRequest request) {
-        return new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true),
-            request.includeCCSMetadata()
-        );
+        if (request.includeCCSMetadata() != null && request.includeExecutionMetadata() != null) {
+            throw new VerificationException(
+                "Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. "
+                    + "Use only [include_execution_metadata]"
+            );
+        }
+
+        Boolean includeCcsMetadata = request.includeExecutionMetadata();
+        if (includeCcsMetadata == null) {
+            // include_ccs_metadata is considered only if include_execution_metadata is not set
+            includeCcsMetadata = Boolean.TRUE.equals(request.includeCCSMetadata());
+        }
+        return new EsqlExecutionInfo(clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias).orElse(true), includeCcsMetadata);
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {

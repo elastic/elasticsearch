@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ResolvedIndexExpression;
+import org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult;
 import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -30,6 +31,10 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+
 public class IndexAbstractionResolver {
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -49,11 +54,9 @@ public class IndexAbstractionResolver {
         Map<String, ResolvedIndexExpression> resolvedIndexExpressions = new LinkedHashMap<>();
 
         boolean wildcardSeen = false;
-
         for (String index : indices) {
             String indexAbstraction;
             boolean minus = false;
-
             if (index.charAt(0) == '-' && wildcardSeen) {
                 indexAbstraction = index.substring(1);
                 minus = true;
@@ -109,22 +112,21 @@ public class IndexAbstractionResolver {
                     exclude(resolvedIndices, resolvedIndexExpressions);
                 } else {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
-                    boolean existsAndVisible = authorized
+                    boolean visible = authorized
                         && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
-                    ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult = existsAndVisible
-                        ? ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
-                        : (authorized
-                            ? ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING
-                            : ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED);
-                    List<String> finalIndices = new ArrayList<>();
-                    if (indicesOptions.ignoreUnavailable() == false || authorized) {
-                        finalIndices.addAll(resolvedIndices);
-                    }
+
+                    LocalIndexResolutionResult result = authorized
+                        ? (visible ? SUCCESS : CONCRETE_RESOURCE_MISSING)
+                        : CONCRETE_RESOURCE_UNAUTHORIZED;
+
+                    boolean includeIndices = authorized || (indicesOptions.ignoreUnavailable() == false);
+                    List<String> finalIndices = includeIndices ? new ArrayList<>(resolvedIndices) : new ArrayList<>();
+
                     resolvedIndexExpressions.put(
                         index,
                         new ResolvedIndexExpression(
                             index,
-                            new ResolvedIndexExpression.LocalExpressions(finalIndices, resolutionResult, null),
+                            new ResolvedIndexExpression.LocalExpressions(finalIndices, result, null),
                             List.of()
                         )
                     );
@@ -304,9 +306,9 @@ public class IndexAbstractionResolver {
             );
     }
 
-    private static void exclude(Set<String> expressionsToExclude, Map<String, ResolvedIndexExpression> replaced) {
+    private static void exclude(Set<String> expressionsToExclude, Map<String, ResolvedIndexExpression> resolvedIndexExpressions) {
         if (expressionsToExclude.isEmpty() == false) {
-            for (ResolvedIndexExpression prior : replaced.values()) {
+            for (ResolvedIndexExpression prior : resolvedIndexExpressions.values()) {
                 prior.localExpressions().expressions().removeAll(expressionsToExclude);
             }
         }

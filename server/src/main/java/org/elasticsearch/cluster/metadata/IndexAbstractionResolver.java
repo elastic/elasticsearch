@@ -22,8 +22,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,38 +46,40 @@ public class IndexAbstractionResolver {
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        final Map<String, ResolvedIndexExpression> replaced = new LinkedHashMap<>();
+        Map<String, ResolvedIndexExpression> replaced = new LinkedHashMap<>();
 
         boolean wildcardSeen = false;
 
-        for (String originalIndexExpression : indices) {
+        for (String index : indices) {
             String indexAbstraction;
             boolean minus = false;
 
-            if (originalIndexExpression.charAt(0) == '-' && wildcardSeen) {
-                indexAbstraction = originalIndexExpression.substring(1);
+            if (index.charAt(0) == '-' && wildcardSeen) {
+                indexAbstraction = index.substring(1);
                 minus = true;
             } else {
-                indexAbstraction = originalIndexExpression;
+                indexAbstraction = index;
             }
 
-            final Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
-            final String selectorString = expressionAndSelector.v2();
+            // Always check to see if there's a selector on the index expression
+            Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexAbstraction);
+            String selectorString = expressionAndSelector.v2();
             if (indicesOptions.allowSelectors() == false && selectorString != null) {
                 throw new UnsupportedSelectorException(indexAbstraction);
             }
 
             indexAbstraction = expressionAndSelector.v1();
-            final IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
+            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
 
+            // we always need to check for date math expressions
             indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
-            final Set<String> resolvedForThisInput = new LinkedHashSet<>();
+            Set<String> resolvedForThisInput = new HashSet<>();
 
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
+                Set<String> resolvedIndices = new HashSet<>();
 
-                final Set<String> resolvedIndices = new LinkedHashSet<>();
                 for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
@@ -94,6 +96,7 @@ public class IndexAbstractionResolver {
                 }
 
                 if (resolvedIndices.isEmpty()) {
+                    // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
@@ -110,13 +113,10 @@ public class IndexAbstractionResolver {
                     }
                 } else {
                     resolvedForThisInput.addAll(resolvedIndices);
-                    replaced.put(
-                        originalIndexExpression,
-                        new ResolvedIndexExpression(originalIndexExpression, new ArrayList<>(resolvedForThisInput))
-                    );
+                    replaced.put(index, new ResolvedIndexExpression(index, new ArrayList<>(resolvedForThisInput)));
                 }
             } else {
-                final Set<String> resolvedIndices = new LinkedHashSet<>();
+                Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
 
                 if (minus) {
@@ -130,10 +130,10 @@ public class IndexAbstractionResolver {
                     }
                 } else {
                     // We should consider if this needs to be optimized to avoid checking authorization and existence here
-                    final boolean authorized = isAuthorized.test(indexAbstraction, selector);
-                    final boolean existsAndVisible = authorized
+                    boolean authorized = isAuthorized.test(indexAbstraction, selector);
+                    boolean existsAndVisible = authorized
                         && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
-                    final ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult = existsAndVisible
+                    ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult = existsAndVisible
                         ? ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS
                         : (authorized
                             ? ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING
@@ -142,9 +142,9 @@ public class IndexAbstractionResolver {
                         resolvedForThisInput.addAll(resolvedIndices);
                     }
                     replaced.put(
-                        originalIndexExpression,
+                        index,
                         new ResolvedIndexExpression(
-                            originalIndexExpression,
+                            index,
                             new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(resolvedForThisInput), resolutionResult, null),
                             List.of()
                         )

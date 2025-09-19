@@ -29,9 +29,11 @@ public class RestSecurityStatsAction extends SecurityBaseRestHandler {
 
     private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestSecurityStatsAction(final Settings settings,
-                                   final XPackLicenseState licenseState,
-                                   final Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSecurityStatsAction(
+        final Settings settings,
+        final XPackLicenseState licenseState,
+        final Predicate<NodeFeature> clusterSupportsFeature
+    ) {
         super(settings, licenseState);
         this.clusterSupportsFeature = clusterSupportsFeature;
     }

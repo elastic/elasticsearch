@@ -54,7 +54,7 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
     )
     public TextEmbedding(
         Source source,
-        @Param(name = "text", type = { "keyword", "text" }, description = "Text to embed") Expression inputText,
+        @Param(name = "text", type = { "keyword", "text" }, description = "Text to generate embeddings from") Expression inputText,
         @Param(
             name = InferenceFunction.INFERENCE_ID_PARAMETER_NAME,
             type = { "keyword", "text" },

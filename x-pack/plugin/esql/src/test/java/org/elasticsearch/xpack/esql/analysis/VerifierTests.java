@@ -2677,6 +2677,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidQuery() {
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(null, ?)", defaultAnalyzer, TEXT_EMBEDDING_INFERENCE_ID),
             equalTo("1:30: first argument of [TEXT_EMBEDDING(null, ?)] cannot be null, received [null]")
@@ -2694,6 +2695,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testTextEmbeddingFunctionInvalidInferenceId() {
+        assumeTrue("TEXT_EMBEDDING is not enabled", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
         assertThat(
             error("from test | EVAL embedding = TEXT_EMBEDDING(?, null)", defaultAnalyzer, "query text"),
             equalTo("1:30: second argument of [TEXT_EMBEDDING(?, null)] cannot be null, received [null]")
@@ -2710,18 +2712,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    // public void testTextEmbeddingFunctionInvalidInferenceId() {
-    // assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
-    //
-    // ParsingException ve = expectThrows(ParsingException.class, () -> analyze("""
-    // FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING("italian food recipe", CONCAT("machin", title))""",
-    // "mapping-books.json"));
-    //
-    // assertThat(
-    // ve.getMessage(),
-    // containsString(" error building [text_embedding]: function [text_embedding] expects exactly two arguments")
-    // );
-    // }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);

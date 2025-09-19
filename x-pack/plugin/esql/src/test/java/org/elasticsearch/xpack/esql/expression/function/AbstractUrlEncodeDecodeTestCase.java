@@ -11,6 +11,7 @@ import org.apache.commons.codec.EncoderException;
 import org.apache.commons.codec.net.PercentCodec;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.UrlCodecUtils;
 
@@ -23,11 +24,36 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunctionTestCase {
 
     private static final PercentCodec urlEncodeCodec;
     private static final PercentCodec urlEncodeComponentCodec;
+
+    public enum PercentCodecTestType {
+        ENCODE("UrlEncodeEvaluator[val=Attribute[channel=0]]"),
+        ENCODE_COMPONENT("UrlEncodeComponentEvaluator[val=Attribute[channel=0]]"),
+        DECODE("UrlDecodeEvaluator[val=Attribute[channel=0]]");
+
+        public final String evaluatorToString;
+
+        PercentCodecTestType(String evaluatorToString) {
+            this.evaluatorToString = evaluatorToString;
+        }
+
+        public PercentCodec getCodec() {
+            return switch (this) {
+                case ENCODE -> urlEncodeCodec;
+                case ENCODE_COMPONENT -> urlEncodeComponentCodec;
+
+                // Randomized decoder tests apply a random encoder to the input to make it decodable. Fixed bad cases for the decoder skip
+                // this by design, in order to assert undecodable input is handled gracefully.
+                case DECODE -> randomBoolean() ? urlEncodeCodec : urlEncodeComponentCodec;
+            };
+        }
+    }
 
     static {
         // Both codecs percent-encode all characters in the input except for alphanumerics, '-', '.', '_', and '~'. The space character is a
@@ -46,22 +72,12 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
 
     private record RandomUrl(String plain, String encoded) {}
 
-    public static Iterable<Object[]> createParameters(boolean isEncoderTest, String evaluatorToString) {
+    public static Iterable<Object[]> createParameters(PercentCodecTestType codecTestType) {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-
-        // Pick a random encoder during decoder tests, for more coverage.
-        boolean useUrlComponentEncoder = isEncoderTest
-            ? evaluatorToString.equals("UrlEncodeComponentEvaluator[val=Attribute[channel=0]]")
-            : randomBoolean();
 
         for (DataType dataType : DataType.stringTypes()) {
             // random URL tests
-            Supplier<TestCaseSupplier.TestCase> caseSupplier = () -> createTestCaseWithRandomUrl(
-                dataType,
-                evaluatorToString,
-                isEncoderTest,
-                useUrlComponentEncoder
-            );
+            Supplier<TestCaseSupplier.TestCase> caseSupplier = () -> createTestCaseWithRandomUrl(dataType, codecTestType);
             suppliers.add(new TestCaseSupplier(List.of(dataType), caseSupplier));
 
             // random strings tests
@@ -69,7 +85,7 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
                 TestCaseSupplier testCaseSupplier = new TestCaseSupplier(
                     supplier.name(),
                     List.of(supplier.type()),
-                    () -> createTestCaseWithRandomString(dataType, evaluatorToString, isEncoderTest, useUrlComponentEncoder, supplier)
+                    () -> createTestCaseWithRandomString(dataType, codecTestType, supplier)
                 );
                 suppliers.add(testCaseSupplier);
             }
@@ -89,7 +105,40 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
                 new String(allAsciiChars(), StandardCharsets.UTF_8) };
 
             for (String input : fixedInputs) {
-                suppliers.add(createFixedTestCase(dataType, input, evaluatorToString, isEncoderTest, useUrlComponentEncoder));
+                suppliers.add(createFixedTestCase(dataType, input, codecTestType));
+            }
+
+            if (codecTestType == PercentCodecTestType.DECODE) {
+                // bad inputs for decoder tests aren't encoded first (as they wouldn't be bad then), but are expected to be handled
+                // gracefully by the decoder.
+
+                List<Tuple<String, String>> tuples = List.of(
+                    // incomplete sequence
+                    Tuple.tuple("%1", "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern"),
+
+                    // missing sequence
+                    Tuple.tuple("%", "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Incomplete trailing escape (%) pattern"),
+
+                    // invalid hex digits
+                    Tuple.tuple(
+                        "%xy",
+                        "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Illegal hex characters in escape (%) pattern - "
+                            + "not a hexadecimal digit: \"x\" = 120"
+                    ),
+
+                    // valid and invalid sequences
+                    Tuple.tuple(
+                        "foo+bar%20qux%mn",
+                        "Line 1:1: java.lang.IllegalArgumentException: URLDecoder: Illegal hex characters in escape (%) pattern - "
+                            + "not a hexadecimal digit: \"m\" = 109"
+                    )
+                );
+
+                for (Tuple<String, String> t : tuples) {
+                    String undecodableInput = t.v1();
+                    String expectedErrorMessage = t.v2();
+                    suppliers.add(createBadDecoderTestCase(dataType, undecodableInput, expectedErrorMessage));
+                }
             }
         }
 
@@ -97,42 +146,37 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
 
     }
 
-    public static TestCaseSupplier.TestCase createTestCaseWithRandomUrl(
-        DataType dataType,
-        String evaluatorToString,
-        boolean isEncoderTest,
-        boolean useUrlComponentEncoder
-    ) {
-        RandomUrl url = generateRandomUrl(useUrlComponentEncoder);
+    public static TestCaseSupplier.TestCase createTestCaseWithRandomUrl(DataType dataType, PercentCodecTestType codecTestType) {
+        boolean isEncoderTest = (codecTestType != PercentCodecTestType.DECODE);
+        RandomUrl url = generateRandomUrl(codecTestType);
         BytesRef input = new BytesRef(isEncoderTest ? url.plain() : url.encoded());
         BytesRef output = new BytesRef(isEncoderTest ? url.encoded() : url.plain());
         TestCaseSupplier.TypedData fieldTypedData = new TestCaseSupplier.TypedData(input, dataType, "string");
 
-        return new TestCaseSupplier.TestCase(List.of(fieldTypedData), evaluatorToString, dataType, equalTo(output));
+        return new TestCaseSupplier.TestCase(List.of(fieldTypedData), codecTestType.evaluatorToString, dataType, equalTo(output));
     }
 
     public static TestCaseSupplier.TestCase createTestCaseWithRandomString(
         DataType dataType,
-        String evaluatorToString,
-        boolean isEncoderTest,
-        boolean useUrlComponentEncoder,
+        PercentCodecTestType codecTestType,
         TestCaseSupplier.TypedDataSupplier supplier
     ) {
+        boolean isEncoderTest = (codecTestType != PercentCodecTestType.DECODE);
         TestCaseSupplier.TypedData fieldTypedData = supplier.get();
         String plain = BytesRefs.toBytesRef(fieldTypedData.data()).utf8ToString();
-        String encoded = encode(plain, useUrlComponentEncoder);
+        String encoded = encode(plain, codecTestType);
         BytesRef input = new BytesRef(isEncoderTest ? plain : encoded);
         BytesRef output = new BytesRef(isEncoderTest ? encoded : plain);
 
         return new TestCaseSupplier.TestCase(
             List.of(new TestCaseSupplier.TypedData(input, dataType, "string")),
-            evaluatorToString,
+            codecTestType.evaluatorToString,
             dataType,
             equalTo(output)
         );
     }
 
-    private static RandomUrl generateRandomUrl(boolean useUrlComponentEncoder) {
+    private static RandomUrl generateRandomUrl(PercentCodecTestType codecTestType) {
         String protocol = randomFrom("http://", "https://", "");
         String domain = String.format(Locale.ROOT, "%s.com", randomAlphaOfLengthBetween(3, 10));
         String path = randomFrom("", "/" + randomAlphanumericOfLength(5) + "/");
@@ -140,17 +184,17 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
         String space = " "; // ensure the correct encoding for space (+ or %20)
 
         String plain = String.format(Locale.ROOT, "%s%s%s%s%s", protocol, domain, path, query, space);
-        String encoded = encode(plain, useUrlComponentEncoder);
+        String encoded = encode(plain, codecTestType);
 
         return new RandomUrl(plain, encoded);
     }
 
-    private static String encode(String plain, boolean useUrlComponentEncoder) {
+    private static String encode(String plain, PercentCodecTestType codecTestType) {
         byte[] plainBytes = plain.getBytes(StandardCharsets.UTF_8);
         byte[] encoded = null;
 
         try {
-            encoded = useUrlComponentEncoder ? urlEncodeComponentCodec.encode(plainBytes) : urlEncodeCodec.encode(plainBytes);
+            encoded = codecTestType.getCodec().encode(plainBytes);
         } catch (EncoderException ex) {
             // Checked exception isn't really thrown, but we must handle it given the signature of PercentCodec.encode().
             throw new RuntimeException(ex);
@@ -186,24 +230,33 @@ public abstract class AbstractUrlEncodeDecodeTestCase extends AbstractScalarFunc
         return bytes;
     }
 
-    private static TestCaseSupplier createFixedTestCase(
-        DataType dataType,
-        String plain,
-        String evaluatorToString,
-        boolean isEncoderTest,
-        boolean useUrlComponentEncoder
-    ) {
+    private static TestCaseSupplier createFixedTestCase(DataType dataType, String plain, PercentCodecTestType codecTestType) {
         return new TestCaseSupplier(List.of(dataType), () -> {
-            String encoded = encode(plain, useUrlComponentEncoder);
-            String input = isEncoderTest ? plain : encoded;
+            boolean isEncoderTest = (codecTestType != PercentCodecTestType.DECODE);
+            String encoded = encode(plain, codecTestType);
+            String input = (isEncoderTest) ? plain : encoded;
             String output = isEncoderTest ? encoded : plain;
+
             return new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(new BytesRef(input), dataType, "string")),
-                evaluatorToString,
+                codecTestType.evaluatorToString,
                 dataType,
                 equalTo(new BytesRef(output))
             );
         });
+    }
+
+    private static TestCaseSupplier createBadDecoderTestCase(DataType dataType, String undecodable, String exceptionMessage) {
+        return new TestCaseSupplier(
+            List.of(dataType),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(undecodable), dataType, "string")),
+                PercentCodecTestType.DECODE.evaluatorToString,
+                dataType,
+                is(nullValue())
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning(exceptionMessage)
+        );
     }
 
     private static byte[] allAsciiChars() {

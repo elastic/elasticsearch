@@ -2609,10 +2609,10 @@ Georgi    | georgi
 url_encode mixed input tests
 required_capability: url_encode
 
-ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]"] | EVAL u = URL_ENCODE(u);
+ROW u = ["hello elastic!", "a+b-c%d", "", ".-_~", "!#$&'()*+,/:;=?@[]", "🔥💧"] | EVAL u = URL_ENCODE(u);
 
 u:keyword
-["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D"]
+["hello+elastic%21", "a%2Bb-c%25d", "", ".-_~", "%21%23%24%26%27%28%29%2A%2B%2C%2F%3A%3B%3D%3F%40%5B%5D", "%F0%9F%94%A5%F0%9F%92%A7"]
 ;
 
 url_decode sample for docs

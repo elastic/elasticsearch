@@ -92,17 +92,12 @@ can be used as outer aggregation functions. Using a time-series aggregation as
 the outer function leads to an error.
 
 ::::{note}
-If the outer aggregation function is missing, results are grouped by time-series
-and implicitly expanded to include all dimensions. For instance, the output for
-the following query will include all dimension fields in `metrics` - as opposed
-to just `hourly` for an equivalent query using `FROM` source command:
+It's currently required to wrap a time-series aggregation function inside a
+standard aggregation function. For instance, the following query is invalid:
 
 ```esql
-TS metrics | STATS RATE(search_requests) BY hourly=TBUCKET(1 hour)
+TS metrics | STATS RATE(search_requests)
 ```
-
-Including fields except from time as grouping attributes is not allowed as it'd
-require an aggregation function to combine per-time-series values.
 ::::
 
 **Best practices**

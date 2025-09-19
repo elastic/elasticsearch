@@ -180,6 +180,9 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     }
 
     private List<MatchConfig> uniqueMatchFieldsByName(List<MatchConfig> matchFields) {
+        if (joinOnConditions == null) {
+            return matchFields;
+        }
         List<MatchConfig> uniqueFields = new ArrayList<>();
         Set<String> seenFieldNames = new HashSet<>();
         for (MatchConfig matchField : matchFields) {

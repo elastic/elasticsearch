@@ -65,8 +65,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     static final TransportVersion SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS_TV = TransportVersion.fromName(
         "semantic_query_multiple_inference_ids"
     );
-    static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS =
-        TransportVersion.fromName("inference_results_map_with_cluster_alias");
+    static final TransportVersion INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS = TransportVersion.fromName(
+        "inference_results_map_with_cluster_alias"
+    );
 
     // Use a placeholder inference ID that will never overlap with a real inference endpoint (user-created or internal)
     private static final String PLACEHOLDER_INFERENCE_ID = "$PLACEHOLDER";

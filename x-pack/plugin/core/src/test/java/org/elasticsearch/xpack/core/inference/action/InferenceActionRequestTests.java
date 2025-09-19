@@ -730,13 +730,6 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                                 mutated = instance;
                             }
 
-        // We always assume that a request has been rerouted, if it came from a node without adaptive rate limiting
-        if (version.before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
-            mutated.setHasBeenRerouted(true);
-        } else {
-            mutated.setHasBeenRerouted(instance.hasBeenRerouted());
-        }
-
         return mutated;
     }
 
@@ -788,7 +781,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(deserializedInstance.getInputType(), is(InputType.UNSPECIFIED));
     }
 
-    public void testWriteTo_WhenVersionIsBeforeAdaptiveRateLimiting_ShouldSetHasBeenReroutedToTrue() throws IOException {
+    public void testWriteTo_ForHasBeenReroutedChanges() throws IOException {
         var instance = new InferenceAction.Request(
             TaskType.TEXT_EMBEDDING,
             "model",
@@ -802,15 +795,39 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             false
         );
 
-        InferenceAction.Request deserializedInstance = copyWriteable(
-            instance,
-            getNamedWriteableRegistry(),
-            instanceReader(),
-            TransportVersions.V_8_13_0
-        );
+        {
+            // From a version before the rerouting logic was added
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.V_8_17_0
+            );
 
-        // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
-        assertTrue(deserializedInstance.hasBeenRerouted());
+            assertEquals(instance, deserializedInstance);
+        }
+        {
+            // From a version with rerouting
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING
+            );
+
+            assertEquals(instance, deserializedInstance);
+        }
+        {
+            // From a version with rerouting removed
+            InferenceAction.Request deserializedInstance = copyWriteable(
+                instance,
+                getNamedWriteableRegistry(),
+                instanceReader(),
+                TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
+            );
+
+            assertEquals(instance, deserializedInstance);
+        }
     }
 
     public void testWriteTo_WhenVersionIsBeforeInferenceContext_ShouldSetContextToEmptyContext() throws IOException {

@@ -41,11 +41,6 @@ import java.util.List;
  * @param remoteExpressions the remote expressions that replace the original
  */
 public record ResolvedIndexExpression(String original, LocalExpressions localExpressions, List<String> remoteExpressions) {
-
-    public ResolvedIndexExpression(String original, List<String> localExpressions) {
-        this(original, new LocalExpressions(localExpressions, LocalIndexResolutionResult.SUCCESS, null), List.of());
-    }
-
     /**
      * Indicates if a local index resolution attempt was successful or failed.
      * Failures can be due to missing concrete resources or unauthorized concrete resources.
@@ -58,7 +53,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
     }
 
     /**
-     * Represents local (non-remote) resolution results, including expanded indices, and the resolution result.
+     * Represents local (non-remote) resolution results, including expanded indices, and a {@link LocalIndexResolutionResult}.
      */
     public record LocalExpressions(
         List<String> expressions,

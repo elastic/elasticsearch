@@ -22,6 +22,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -39,14 +40,14 @@ public class IndexAbstractionResolver {
     }
 
     public ResolvedIndexExpressions resolveIndexAbstractions(
-        Iterable<String> indices,
+        List<String> indices,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         Function<IndexComponentSelector, Set<String>> allAuthorizedAndAvailableBySelector,
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        ResolvedIndexExpressions.Builder resolvedIndexExpressions = ResolvedIndexExpressions.builder();
+        ResolvedIndexExpressions.Builder resolvedExpressionsBuilder = ResolvedIndexExpressions.builder();
 
         boolean wildcardSeen = false;
         for (String index : indices) {
@@ -95,16 +96,16 @@ public class IndexAbstractionResolver {
                     }
                 } else {
                     if (minus) {
-                        resolvedIndexExpressions.excludeAll(resolvedIndices);
+                        resolvedExpressionsBuilder.excludeAll(resolvedIndices);
                     } else {
-                        resolvedIndexExpressions.putLocalExpression(index, resolvedIndices, SUCCESS);
+                        resolvedExpressionsBuilder.putLocalExpression(index, resolvedIndices, SUCCESS);
                     }
                 }
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
-                    resolvedIndexExpressions.excludeAll(resolvedIndices);
+                    resolvedExpressionsBuilder.excludeAll(resolvedIndices);
                 } else {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     boolean visible = authorized
@@ -119,11 +120,11 @@ public class IndexAbstractionResolver {
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
                     Set<String> finalIndices = includeIndices ? resolvedIndices : Set.of();
-                    resolvedIndexExpressions.putLocalExpression(index, finalIndices, result);
+                    resolvedExpressionsBuilder.putLocalExpression(index, finalIndices, result);
                 }
             }
         }
-        return resolvedIndexExpressions.build();
+        return resolvedExpressionsBuilder.build();
     }
 
     private static void resolveSelectorsAndCollect(

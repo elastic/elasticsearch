@@ -7,17 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.reflect;
+package org.elasticsearch.index;
 
-import org.apache.lucene.index.FieldInfo;
-
-import java.util.Map;
+import org.apache.lucene.store.IOContext;
 
 /**
- * Common interface to unify offHeapByteSize in ES' KnnVectorsReader implementations.
- * Remove once KnnVectorsReaders::getOffHeapByteSize is available.
+ * A hint that no special behavior should be set on open files
  */
-public interface OffHeapStats {
-
-    Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo);
+public enum StandardIOBehaviorHint implements IOContext.FileOpenHint {
+    INSTANCE
 }

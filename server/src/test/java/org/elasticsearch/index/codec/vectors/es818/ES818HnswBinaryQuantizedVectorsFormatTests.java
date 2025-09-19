@@ -37,6 +37,7 @@ import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.misc.store.DirectIODirectory;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -52,7 +53,6 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -126,7 +126,13 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                         VectorUtil.l2normalize(randomVector);
                     }
                     float trueScore = similarityFunction.compare(vector, randomVector);
-                    TopDocs td = r.searchNearestVectors("f", randomVector, 1, null, Integer.MAX_VALUE);
+                    TopDocs td = r.searchNearestVectors(
+                        "f",
+                        randomVector,
+                        1,
+                        AcceptDocs.fromLiveDocs(r.getLiveDocs(), r.maxDoc()),
+                        Integer.MAX_VALUE
+                    );
                     assertEquals(1, td.totalHits.value());
                     assertTrue(td.scoreDocs[0].score >= 0);
                     // When it's the only vector in a segment, the score should be very close to the true score
@@ -192,7 +198,7 @@ public class ES818HnswBinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(expectVecOffHeap ? 3 : 2, offHeap.size());
                     assertEquals(1L, (long) offHeap.get("vex"));
                     assertTrue(offHeap.get("veb") > 0L);

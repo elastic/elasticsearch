@@ -9,11 +9,11 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.codecs.KnnVectorsReader;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -92,7 +92,7 @@ public class DenseVectorStats implements Writeable, ToXContentFragment {
             } else {
                 this.offHeapStats = Stream.of(this.offHeapStats, other.offHeapStats)
                     .flatMap(map -> map.entrySet().stream())
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, OffHeapByteSizeUtils::mergeOffHeapByteSizeMaps));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, KnnVectorsReader::mergeOffHeapByteSizeMaps));
             }
         }
     }

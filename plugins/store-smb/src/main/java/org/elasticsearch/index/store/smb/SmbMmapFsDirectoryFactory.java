@@ -25,7 +25,7 @@ public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
     @Override
     protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         return new SmbDirectoryWrapper(
-            setPreload(
+            setMMapFunctions(
                 new MMapDirectory(location, lockFactory),
                 new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING))
             )

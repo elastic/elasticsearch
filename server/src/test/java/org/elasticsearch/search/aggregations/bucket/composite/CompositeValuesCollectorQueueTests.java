@@ -35,6 +35,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.KnnCollector;
@@ -490,12 +491,13 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         }
 
         @Override
-        public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, float[] target, KnnCollector knnCollector, AcceptDocs acceptDocs)
+            throws IOException {
 
         }
 
         @Override
-        public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        public void searchNearestVectors(String field, byte[] target, KnnCollector knnCollector, AcceptDocs acceptDocs) throws IOException {
 
         }
 

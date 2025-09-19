@@ -521,7 +521,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             IllegalArgumentException.class,
             () -> copyNamedWriteable(originalQuery, namedWriteableRegistry(), QueryBuilder.class, ccsUnsupportedVersion)
         );
-        assertThat(e.getMessage(), containsString("One or more nodes does not support [semantic] query cross-cluster search"));
+        assertThat(e.getMessage(), containsString("One or more nodes does not support semantic query cross-cluster search"));
     }
 
     public void testToXContent() throws IOException {

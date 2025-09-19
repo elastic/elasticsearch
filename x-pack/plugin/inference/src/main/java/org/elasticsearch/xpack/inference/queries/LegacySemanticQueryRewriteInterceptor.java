@@ -60,9 +60,8 @@ public abstract class LegacySemanticQueryRewriteInterceptor implements QueryRewr
             }
         } else {
             throw new IllegalArgumentException(
-                "["
-                    + getQueryName()
-                    + "] query does not support cross-cluster search when querying a ["
+                getQueryName()
+                    + " query does not support cross-cluster search when querying a ["
                     + SemanticTextFieldMapper.CONTENT_TYPE
                     + "] field in a mixed-version cluster"
             );

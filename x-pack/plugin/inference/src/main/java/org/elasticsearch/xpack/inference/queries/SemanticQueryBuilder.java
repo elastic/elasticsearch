@@ -187,9 +187,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             out.writeBoolean(ccsRequest);
         } else if (ccsRequest) {
             throw new IllegalArgumentException(
-                "One or more nodes does not support ["
+                "One or more nodes does not support "
                     + NAME
-                    + "] query cross-cluster search. Please update all nodes to at least Elasticsearch "
+                    + " query cross-cluster search. Please update all nodes to at least Elasticsearch "
                     + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
                     + "."
             );
@@ -432,7 +432,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
             throw new IllegalArgumentException(
-                "[" + NAME + "] query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"
+                NAME + " query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"
             );
         }
 

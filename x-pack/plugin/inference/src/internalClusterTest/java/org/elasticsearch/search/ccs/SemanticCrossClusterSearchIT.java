@@ -159,7 +159,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             );
             assertThat(
                 e.getMessage(),
-                equalTo("[semantic] query does not support cross-cluster search when [ccs_minimize_roundtrips] is false")
+                equalTo("semantic query does not support cross-cluster search when [ccs_minimize_roundtrips] is false")
             );
         };
 

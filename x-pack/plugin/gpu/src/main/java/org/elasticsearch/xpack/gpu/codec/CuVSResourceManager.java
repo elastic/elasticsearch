@@ -170,7 +170,7 @@ public interface CuVSResourceManager {
                         // Check resources availability
                         long freeDeviceMemoryInBytes = gpuInfoProvider.getCurrentInfo(res).freeDeviceMemoryInBytes();
                         enoughMemory = requiredMemoryInBytes <= freeDeviceMemoryInBytes;
-                        logger.debug("Free device memory [{} B], enoughMemory[{}]", freeDeviceMemoryInBytes);
+                        logger.debug("Free device memory [{} B], enoughMemory[{}]", freeDeviceMemoryInBytes, enoughMemory);
                     } else {
                         logger.debug("No resources available in pool");
                         enoughMemory = false;

@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -24,7 +23,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,7 +39,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -90,7 +87,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     // informations to track the best bottom top doc globally.
     private final int topDocsSize;
     private final int trackTotalHitsUpTo;
-    private final TransportVersion minTransportVersion;
     private volatile BottomSortValuesCollector bottomSortCollector;
     private final Client client;
     private final boolean batchQueryPhase;
@@ -142,7 +138,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request, shardsIts);
         }
-        this.minTransportVersion = clusterState.getMinTransportVersion();
     }
 
     @Override
@@ -157,55 +152,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             super.buildShardSearchRequest(shardIt, listener.requestIndex)
         );
         getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
-    }
-
-    protected BytesReference buildSearchContextId(ShardSearchFailure[] failures) {
-        SearchSourceBuilder source = request.source();
-        // only (re-)build a search context id if we have a point in time
-        if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
-            boolean idChanged = false;
-            BytesReference currentId = source.pointInTimeBuilder().getEncodedId();
-            // we want to change node ids in the PIT id if any shards and its PIT context have moved
-            SearchContextId originalSearchContextId = source.pointInTimeBuilder().getSearchContextId(getNamedWriteableRegistry());
-            Map<ShardId, SearchContextIdForNode> shardMapCopy = new HashMap<>(originalSearchContextId.shards());
-            for (SearchPhaseResult result : results.getAtomicArray().asList()) {
-                SearchShardTarget searchShardTarget = result.getSearchShardTarget();
-                ShardId shardId = searchShardTarget.getShardId();
-                SearchContextIdForNode original = shardMapCopy.get(shardId);
-                if (original != null
-                    && Objects.equals(original.getClusterAlias(), searchShardTarget.getClusterAlias())
-                    && Objects.equals(original.getSearchContextId(), result.getContextId())) {
-                    // result shard and context id match the original one, check if the node is different and replace if so
-                    String originalNode = original.getNode();
-                    if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
-                        shardMapCopy.put(
-                            shardId,
-                            new SearchContextIdForNode(
-                                original.getClusterAlias(),
-                                searchShardTarget.getNodeId(),
-                                original.getSearchContextId()
-                            )
-                        );
-                        idChanged = true;
-                    }
-                }
-            }
-            if (idChanged) {
-                BytesReference newId = SearchContextId.encode(
-                    shardMapCopy,
-                    originalSearchContextId.aliasFilter(),
-                    minTransportVersion,
-                    failures
-                );
-                logger.debug("Changing PIT id to [{}]", newId);
-                return newId;
-            } else {
-                logger.debug("Keeping original PIT id");
-                return currentId;
-            }
-        } else {
-            return super.buildSearchContextId(failures);
-        }
     }
 
     @Override

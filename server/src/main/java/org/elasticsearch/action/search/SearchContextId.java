@@ -112,6 +112,8 @@ public final class SearchContextId {
         }
     }
 
+
+
     public static SearchContextId decode(NamedWriteableRegistry namedWriteableRegistry, BytesReference id) {
         try (var in = new NamedWriteableAwareStreamInput(id.streamInput(), namedWriteableRegistry)) {
             final TransportVersion version = TransportVersion.readVersion(in);

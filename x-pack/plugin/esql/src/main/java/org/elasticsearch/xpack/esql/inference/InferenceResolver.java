@@ -106,7 +106,7 @@ public class InferenceResolver {
 
         final CountDownActionListener countdownListener = new CountDownActionListener(
             inferenceIds.size(),
-            ActionListener.wrap(_r -> listener.onResponse(inferenceResolutionBuilder.build()), listener::onFailure)
+            listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(inferenceResolutionBuilder.build()))
         );
 
         for (var inferenceId : inferenceIds) {

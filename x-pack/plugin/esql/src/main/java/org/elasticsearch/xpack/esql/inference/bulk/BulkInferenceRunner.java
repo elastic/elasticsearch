@@ -99,7 +99,7 @@ public class BulkInferenceRunner {
      */
     public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
         List<InferenceAction.Response> responses = new ArrayList<>();
-        executeBulk(requests, responses::add, ActionListener.wrap(ignored -> listener.onResponse(responses), listener::onFailure));
+        executeBulk(requests, responses::add, listener.delegateFailureIgnoreResponseAndWrap(l -> l.onResponse(responses)));
     }
 
     /**

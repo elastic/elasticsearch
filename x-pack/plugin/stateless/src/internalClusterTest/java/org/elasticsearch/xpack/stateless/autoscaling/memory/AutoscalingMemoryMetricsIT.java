@@ -49,7 +49,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
-import org.elasticsearch.index.shard.ShardFieldStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.logging.LogManager;
@@ -944,10 +943,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             var metrics = memoryMetricService.getShardMemoryMetrics();
             assertThat(metrics.size(), equalTo(totalShards));
             assertThat(metrics.values().stream().mapToInt(s -> s.getNumSegments()).sum(), equalTo(finalNumSegments));
-            if (ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled()) {
-                long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
-                assertThat(actualTotalLiveDocsBytes, equalTo(0L));
-            }
+            long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
+            assertThat(actualTotalLiveDocsBytes, equalTo(0L));
         });
         // We use a fixed estimate 1024 bytes per index mapping field
         final long mappingSizeInBytes = totalMappingFields * defaultNoOfShards * 1024L;
@@ -1018,14 +1015,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             var metrics = memoryMetricService.getShardMemoryMetrics();
             assertThat(metrics.size(), equalTo(totalShards));
             assertThat(metrics.values().stream().mapToInt(s -> s.getNumSegments()).sum(), equalTo(finalNumSegments2));
-            if (ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled()) {
-                long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
-                // Two segments have live docs. The initial segment for index-0 and
-                // then the new segment of that index that contains the delete operation.
-                // However, assertion live docs here is tricky given that there is no guarantee that there was one segment for index-0
-                // before performing the delete operation. So instead asserting the live docs has increased:
-                assertThat(actualTotalLiveDocsBytes, greaterThan(0L));
-            }
+            long actualTotalLiveDocsBytes = metrics.values().stream().mapToLong(s -> s.getLiveDocsBytes()).sum();
+            // Two segments have live docs. The initial segment for index-0 and
+            // then the new segment of that index that contains the delete operation.
+            // However, assertion live docs here is tricky given that there is no guarantee that there was one segment for index-0
+            // before performing the delete operation. So instead asserting the live docs has increased:
+            assertThat(actualTotalLiveDocsBytes, greaterThan(0L));
         });
     }
 

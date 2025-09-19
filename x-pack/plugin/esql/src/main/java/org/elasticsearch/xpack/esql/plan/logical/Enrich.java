@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -284,10 +285,22 @@ public class Enrich extends UnaryPlan
         fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
     }
 
+    private void checkMvExpandAfterLimit(Failures failures) {
+        this.forEachDown(MvExpand.class, u -> {
+            u.forEachDown(p -> {
+                if (p instanceof Limit || p instanceof TopN) {
+                    failures.add(fail(this, "MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
+                }
+            });
+        });
+
+    }
+
     @Override
     public void postOptimizationVerification(Failures failures) {
         if (this.mode == Mode.REMOTE) {
             checkForPlansForbiddenBeforeRemoteEnrich(failures);
+            checkMvExpandAfterLimit(failures);
         }
     }
 }

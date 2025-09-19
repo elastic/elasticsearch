@@ -176,6 +176,8 @@ public class Constants {
         "cluster:admin/xpack/enrich/reindex",
         "cluster:admin/xpack/esql/view/put",
         "cluster:admin/xpack/esql/view/delete",
+        "cluster:admin/xpack/esql/view/get",
+        "cluster:admin/xpack/esql/views",
         "cluster:internal/xpack/inference/clear_inference_endpoint_cache",
         "cluster:admin/xpack/inference/delete",
         "cluster:admin/xpack/inference/put",

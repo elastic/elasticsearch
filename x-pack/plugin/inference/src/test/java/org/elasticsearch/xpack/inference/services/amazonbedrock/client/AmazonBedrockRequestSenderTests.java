@@ -82,9 +82,9 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY, requestSender);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-            sender.start();
-            sender.start();
+            sender.startSynchronously();
+            sender.startSynchronously();
+            sender.startSynchronously();
         }
     }
 
@@ -93,7 +93,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         requestSender.enqueue(AmazonBedrockExecutorTests.getTestInvokeResult(TEST_AMAZON_TITAN_EMBEDDINGS_RESULT));
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY, requestSender);
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
                 "test_id",
@@ -124,7 +124,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
         requestSender.enqueue(AmazonBedrockExecutorTests.getTestConverseResult("test response text"));
         var senderFactory = createSenderFactory(threadPool, Settings.EMPTY, requestSender);
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             var model = AmazonBedrockChatCompletionModelTests.createModel(
                 "test_id",

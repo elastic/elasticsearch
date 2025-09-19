@@ -282,7 +282,7 @@ public class HuggingFaceServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startSynchronously();
         }
 
         verify(sender, times(1)).close();

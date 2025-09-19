@@ -101,15 +101,39 @@ public class HttpRequestSender implements Sender {
     }
 
     /**
-     * Start various internal services. This is required before sending requests.
+     * Star various internal services asynchronously. This is required before sending requests.
      */
-    public void start() {
+    @Override
+    public void startAsynchronously(ActionListener<Void> listener) {
         if (started.compareAndSet(false, true)) {
+            threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> startInternal(listener));
+        } else {
+            listener.onResponse(null);
+        }
+    }
+
+    private void startInternal(ActionListener<Void> listener) {
+        try {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
             waitForStartToComplete();
+            listener.onResponse(null);
+        } catch (Exception ex) {
+            listener.onFailure(ex);
+        }
+    }
+
+    /**
+     * Start various internal services. This is required before sending requests.
+     *
+     * NOTE: This method blocks until the startup is complete.
+     */
+    @Override
+    public void startSynchronously() {
+        if (started.compareAndSet(false, true)) {
+            startInternal(ActionListener.noop());
         }
     }
 

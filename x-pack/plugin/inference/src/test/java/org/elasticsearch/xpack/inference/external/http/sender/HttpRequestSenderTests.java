@@ -106,9 +106,9 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
-            sender.start();
-            sender.start();
+            sender.startSynchronously();
+            sender.startSynchronously();
+            sender.startSynchronously();
         }
     }
 
@@ -116,7 +116,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -168,7 +168,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         var senderFactory = createSenderFactory(clientManager, threadRef);
 
         try (var sender = createSender(senderFactory)) {
-            sender.start();
+            sender.startSynchronously();
 
             String responseJson = """
                 {
@@ -241,7 +241,7 @@ public class HttpRequestSenderTests extends ESTestCase {
 
         try (var sender = senderFactory.createSender()) {
             assertThat(sender, instanceOf(HttpRequestSender.class));
-            sender.start();
+            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
@@ -264,7 +264,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.send(RequestManagerTests.createMock(), new EmbeddingsInput(List.of(), null), TimeValue.timeValueNanos(1), listener);
@@ -287,7 +287,7 @@ public class HttpRequestSenderTests extends ESTestCase {
         );
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
+            sender.startSynchronously();
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             sender.sendWithoutQueuing(

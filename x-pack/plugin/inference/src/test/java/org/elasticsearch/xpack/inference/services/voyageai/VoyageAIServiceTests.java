@@ -742,7 +742,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startSynchronously();
         }
 
         verify(sender, times(1)).close();
@@ -789,7 +789,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startSynchronously();
         }
 
         verify(sender, times(1)).close();

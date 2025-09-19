@@ -75,7 +75,7 @@ public class AmazonBedrockRequestSender implements Sender {
 
         public Sender createSender() {
             // ensure this is started
-            bedrockRequestSender.start();
+            bedrockRequestSender.startSynchronously();
             return bedrockRequestSender;
         }
     }
@@ -97,8 +97,17 @@ public class AmazonBedrockRequestSender implements Sender {
         this.startCompleted = Objects.requireNonNull(startCompleted);
     }
 
+    /**
+     * TODO implement this functionality to ensure that we don't block node bootups
+     * See: https://github.com/elastic/ml-team/issues/1701
+     */
     @Override
-    public void start() {
+    public void startAsynchronously(ActionListener<Void> listener) {
+        throw new UnsupportedOperationException("not implemented");
+    }
+
+    @Override
+    public void startSynchronously() {
         if (started.compareAndSet(false, true)) {
             // The manager must be started before the executor service. That way we guarantee that the http client
             // is ready prior to the service attempting to use the http client to send a request

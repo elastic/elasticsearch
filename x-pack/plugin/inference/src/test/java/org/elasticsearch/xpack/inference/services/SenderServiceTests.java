@@ -75,7 +75,7 @@ public class SenderServiceTests extends ESTestCase {
             service.start(mock(Model.class), listener);
 
             listener.actionGet(TIMEOUT);
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startSynchronously();
             verify(factory, times(1)).createSender();
         }
 
@@ -99,7 +99,7 @@ public class SenderServiceTests extends ESTestCase {
             listener.actionGet(TIMEOUT);
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(2)).start();
+            verify(sender, times(2)).startSynchronously();
         }
 
         verify(sender, times(1)).close();

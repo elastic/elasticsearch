@@ -1203,7 +1203,7 @@ public class EsqlCapabilities {
         /**
          * Support for INCREASE timeseries aggregation.
          */
-        INCREASE(Build.current().isSnapshot()),
+        INCREASE,
 
         /**
          * Extra field types in the k8s.csv dataset

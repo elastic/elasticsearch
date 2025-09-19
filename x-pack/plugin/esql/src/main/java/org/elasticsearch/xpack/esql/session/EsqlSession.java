@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -83,8 +84,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toSet;
@@ -212,7 +211,7 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
+        if (explainMode) {// TODO: INLINE STATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();
             List<Attribute> fields = List.of(
@@ -247,7 +246,16 @@ public class EsqlSession {
         // TODO: merge into one method
         if (subPlan != null) {
             // code-path to execute subplans
-            executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
+            executeSubPlan(
+                new DriverCompletionInfo.Accumulator(),
+                optimizedPlan,
+                subPlan,
+                executionInfo,
+                runner,
+                request,
+                // Ensure we don't have subplan flag stuck in there on failure
+                ActionListener.runAfter(listener, executionInfo::finishSubPlans)
+            );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             // execute main plan
@@ -268,6 +276,8 @@ public class EsqlSession {
         // Create a physical plan out of the logical sub-plan
         var physicalSubPlan = logicalPlanToPhysicalPlan(subPlans.stubReplacedSubPlan(), request);
 
+        executionInfo.startSubPlans();
+
         runner.run(physicalSubPlan, listener.delegateFailureAndWrap((next, result) -> {
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
@@ -281,13 +291,14 @@ public class EsqlSession {
                     // and equals would have ignored name IDs anyway
                     ij -> ij.right() == subPlans.originalSubPlan() ? InlineJoin.inlineData(ij, resultWrapper) : ij
                 );
-                // TODO: INLINESTATS can we do better here and further optimize the plan AFTER one of the subplans executed?
+                // TODO: INLINE STATS can we do better here and further optimize the plan AFTER one of the subplans executed?
                 newLogicalPlan.setOptimized();
                 LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
                 // look for the next inlinejoin plan
                 var newSubPlan = firstSubPlan(newLogicalPlan);
 
                 if (newSubPlan == null) {// run the final "main" plan
+                    executionInfo.finishSubPlans();
                     LOGGER.debug("Executing final plan:\n{}", newLogicalPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newLogicalPlan, request);
                     runner.run(newPhysicalPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
@@ -319,6 +330,7 @@ public class EsqlSession {
             LOGGER.debug("Parsed logical plan:\n{}", parsed.plan());
             LOGGER.debug("Parsed settings:\n[{}]", parsed.settings().stream().map(QuerySetting::toString).collect(joining("; ")));
         }
+        QuerySettings.validate(parsed, remoteClusterService);
         return parsed;
     }
 
@@ -382,7 +394,7 @@ public class EsqlSession {
         }
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
         SubscribableListener. //
         <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
@@ -423,25 +435,9 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        Set<String> fieldNames = result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames;
-
-        String patternWithRemotes;
-
-        if (executionInfo.getClusters().isEmpty()) {
-            patternWithRemotes = localPattern;
-        } else {
-            // convert index -> cluster1:index,cluster2:index, etc.for each running cluster
-            patternWithRemotes = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING)
-                .map(c -> RemoteClusterAware.buildRemoteIndexName(c.getClusterAlias(), localPattern))
-                .collect(Collectors.joining(","));
-        }
-        if (patternWithRemotes.isEmpty()) {
-            return;
-        }
-        // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
         indexResolver.resolveAsMergedMapping(
-            patternWithRemotes,
-            fieldNames,
+            EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
+            result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
             null,
             false,
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
@@ -546,10 +542,8 @@ public class EsqlSession {
         });
 
         // These are clusters that are still in the running, we need to have the index on all of them
-        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
         // Verify that all active clusters have the lookup index resolved
-        clusters.forEach(cluster -> {
-            String clusterAlias = cluster.getClusterAlias();
+        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
             if (clustersWithResolvedIndices.containsKey(clusterAlias) == false) {
                 // Missing cluster resolution
                 skipClusterOrError(clusterAlias, executionInfo, findFailure(lookupIndexResolution.failures(), index, clusterAlias));
@@ -608,9 +602,7 @@ public class EsqlSession {
      * concrete indices aliased to the same index name.
      */
     private void validateRemoteVersions(EsqlExecutionInfo executionInfo) {
-        Stream<EsqlExecutionInfo.Cluster> clusters = executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING);
-        clusters.forEach(cluster -> {
-            String clusterAlias = cluster.getClusterAlias();
+        executionInfo.getRunningClusterAliases().forEach(clusterAlias -> {
             if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 // No need to check local, obviously
                 var connection = remoteClusterService.getConnection(clusterAlias);
@@ -641,31 +633,30 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (preAnalysis.index() != null) {
+        if (preAnalysis.indexPattern() != null) {
             String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
             if (indexExpressionToResolve.isEmpty()) {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
+                    result.withIndexResolution(
+                        IndexResolution.valid(new EsIndex(preAnalysis.indexPattern().indexPattern(), Map.of(), Map.of()))
+                    )
                 );
             } else {
-                boolean includeAllDimensions = false;
-                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
-                    includeAllDimensions = true;
-                    // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                    if (requestFilter != null) {
-                        requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
-                    } else {
-                        requestFilter = indexModeFilter;
-                    }
-                }
                 indexResolver.resolveAsMergedMapping(
                     indexExpressionToResolve,
                     result.fieldNames,
-                    requestFilter,
-                    includeAllDimensions,
+                    // Maybe if no indices are returned, retry without index mode and provide a clearer error message.
+                    switch (preAnalysis.indexMode()) {
+                        case IndexMode.TIME_SERIES -> {
+                            var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                            yield requestFilter != null
+                                ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                                : indexModeFilter;
+                        }
+                        default -> requestFilter;
+                    },
+                    preAnalysis.indexMode() == IndexMode.TIME_SERIES,
                     listener.delegateFailure((l, indexResolution) -> {
                         l.onResponse(result.withIndexResolution(indexResolution));
                     })

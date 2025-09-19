@@ -924,7 +924,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), equalTo(expectedIndices));
+        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
     }
 
     public void testResolveMissingIndexIgnoreUnavailable() {

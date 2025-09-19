@@ -31,7 +31,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -206,9 +205,6 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
             createInferenceEndpoint(client, minimalServiceSettings.taskType(), inferenceId, serviceSettings);
         }
-
-        InternalTestCluster cluster = cluster(clusterAlias);
-        cluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
 
         Settings indexSettings = indexSettings(randomIntBetween(2, 5), randomIntBetween(0, 1)).build();
         assertAcked(client.admin().indices().prepareCreate(indexName).setSettings(indexSettings).setMapping(indexInfo.mappings()));

@@ -132,7 +132,7 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnr
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultInferenceResolution;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceId;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.randomInferenceIdOtherThan;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexResolution;
 import static org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -3825,7 +3825,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testTextEmbeddingFunctionInvalidInferenceIdError() {
         assumeTrue("TEXT_EMBEDDING function required", EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION.isEnabled());
 
-        String inferenceId = randomInferenceId(TEXT_EMBEDDING_INFERENCE_ID);
+        String inferenceId = randomInferenceIdOtherThan(TEXT_EMBEDDING_INFERENCE_ID);
         VerificationException ve = expectThrows(
             VerificationException.class,
             () -> analyze(

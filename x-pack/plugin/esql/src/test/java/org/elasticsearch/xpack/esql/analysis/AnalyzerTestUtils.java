@@ -226,7 +226,7 @@ public final class AnalyzerTestUtils {
         return ESTestCase.randomFrom(VALID_INFERENCE_IDS);
     }
 
-    public static String randomInferenceId(String... excludes) {
+    public static String randomInferenceIdOtherThan(String... excludes) {
         return ESTestCase.randomValueOtherThanMany(Arrays.asList(excludes)::contains, AnalyzerTestUtils::randomInferenceId);
     }
 

@@ -36,9 +36,9 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
         super(in);
     }
 
-    private InterceptedInferenceMultiMatchQueryBuilder(
+    InterceptedInferenceMultiMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MultiMatchQueryBuilder> other,
-        Map<String, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
         super(other, inferenceResultsMap);
     }
@@ -63,7 +63,7 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
     }
 
     @Override
-    protected QueryBuilder copy(Map<String, InferenceResults> inferenceResultsMap) {
+    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
         return new InterceptedInferenceMultiMatchQueryBuilder(this, inferenceResultsMap);
     }
 

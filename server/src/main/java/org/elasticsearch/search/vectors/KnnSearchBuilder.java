@@ -10,6 +10,7 @@
 package org.elasticsearch.search.vectors;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -127,6 +128,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     public static KnnSearchBuilder.Builder fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
+
+    private static final TransportVersion VISIT_PERCENTAGE = TransportVersion.fromName("visit_percentage");
 
     final String field;
     final VectorData queryVector;
@@ -337,7 +340,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         this.field = in.readString();
         this.k = in.readVInt();
         this.numCands = in.readVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+        if (in.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             this.visitPercentage = in.readOptionalFloat();
         } else {
             this.visitPercentage = null;
@@ -610,7 +613,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         out.writeString(field);
         out.writeVInt(k);
         out.writeVInt(numCands);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.VISIT_PERCENTAGE)) {
+        if (out.getTransportVersion().supports(VISIT_PERCENTAGE)) {
             out.writeOptionalFloat(visitPercentage);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {

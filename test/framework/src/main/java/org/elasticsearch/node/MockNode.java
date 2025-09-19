@@ -50,6 +50,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -174,6 +175,7 @@ public class MockNode extends Node {
             TaskManager taskManager,
             Tracer tracer,
             String nodeId,
+            LinkedProjectConfigService linkedProjectConfigService,
             ProjectResolver projectResolver
         ) {
 
@@ -193,6 +195,7 @@ public class MockNode extends Node {
                     taskManager,
                     tracer,
                     nodeId,
+                    linkedProjectConfigService,
                     projectResolver
                 );
             } else {

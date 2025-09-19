@@ -92,11 +92,8 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
-import org.elasticsearch.xpack.esql.plan.physical.ParallelExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -177,6 +174,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     protected TestPlannerOptimizer plannerOptimizer;
     private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
     private Analyzer timeSeriesAnalyzer;
+    protected TestPlannerOptimizer plannerOptimizerTimeSeries;
     private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
@@ -243,6 +241,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             ),
             TEST_VERIFIER
         );
+        plannerOptimizerTimeSeries = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
     }
 
     private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
@@ -2236,24 +2235,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         // Top-level AND combining both ORs
         var expectedQuery = boolQuery().must(firstOr).must(secondOr);
         assertEquals(expectedQuery.toString(), queryExec.query().toString());
-    }
-
-    public void testParallelizeTimeSeriesPlan() {
-        assumeTrue("requires metrics command", EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled());
-        var query = "TS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
-        var optimizer = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
-        PhysicalPlan plan = optimizer.plan(query);
-        var limit = as(plan, LimitExec.class);
-        var finalAgg = as(limit.child(), AggregateExec.class);
-        var partialAgg = as(finalAgg.child(), AggregateExec.class);
-        var timeSeriesFinalAgg = as(partialAgg.child(), TimeSeriesAggregateExec.class);
-        var exchange = as(timeSeriesFinalAgg.child(), ExchangeExec.class);
-        var timeSeriesPartialAgg = as(exchange.child(), TimeSeriesAggregateExec.class);
-        var parallel1 = as(timeSeriesPartialAgg.child(), ParallelExec.class);
-        var eval = as(parallel1.child(), EvalExec.class);
-        var fieldExtract = as(eval.child(), FieldExtractExec.class);
-        var parallel2 = as(fieldExtract.child(), ParallelExec.class);
-        as(parallel2.child(), TimeSeriesSourceExec.class);
     }
 
     /**

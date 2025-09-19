@@ -120,6 +120,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     private SecurityContext securityContext;
     private ClusterService clusterService;
     private MockLicenseState mockLicenseState;
+    private DestructiveOperations destructiveOperations;
 
     @Override
     public void setUp() throws Exception {
@@ -131,6 +132,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext()));
         mockLicenseState = MockLicenseState.createMock();
         Mockito.when(mockLicenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(true);
+        destructiveOperations = new DestructiveOperations(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+        );
     }
 
     @After
@@ -149,16 +154,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -195,21 +202,23 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             .realmRef(new RealmRef("ldap", "foo", "node1"))
             .build(false);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -244,16 +253,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         ) {
             @Override
             void assertNoAuthentication(String action) {}
@@ -301,21 +312,23 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 .runAs(new User("joe", randomRoles()), null);
         }
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -369,21 +382,23 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 .runAs(new User("joe", randomRoles()), null);
         }
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
+        AuthorizationServiceField.ORIGINATING_ACTION_VALUE.set(threadContext, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
         ClusterServiceUtils.setState(clusterService, clusterService.state()); // force state update to trigger listener
 
@@ -440,16 +455,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -607,17 +624,19 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            unsupportedLicenseState,
-            mockRemoteClusterCredentialsResolver(remoteClusterAlias)
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                unsupportedLicenseState,
+                mockRemoteClusterCredentialsResolver(remoteClusterAlias)
+            )
         );
 
         final AsyncSender sender = interceptor.interceptSender(mock(AsyncSender.class, ignored -> {
@@ -744,17 +763,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            authzService,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                authzService,
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
+                ignored -> Optional.of(
+                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                )
+            )
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -882,21 +905,25 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            authzService,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> notRemoteConnection
-                ? Optional.empty()
-                : (finalNoCredential
-                    ? Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, null))
-                    : Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))))
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                authzService,
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
+                ignored -> notRemoteConnection
+                    ? Optional.empty()
+                    : (finalNoCredential
+                        ? Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, null))
+                        : Optional.of(
+                            new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                        ))
+            )
         );
 
         final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
@@ -941,17 +968,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
+                ignored -> Optional.of(
+                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                )
+            )
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -1040,17 +1071,21 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
             threadPool,
-            mock(AuthenticationService.class),
-            authzService,
             mockSslService(),
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState,
-            ignored -> Optional.of(new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray())))
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                settings,
+                threadPool,
+                mock(AuthenticationService.class),
+                authzService,
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState,
+                ignored -> Optional.of(
+                    new RemoteClusterAliasWithCredentials(remoteClusterAlias, new SecureString(encodedApiKey.toCharArray()))
+                )
+            )
         );
 
         final AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
@@ -1150,16 +1185,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             sslService,
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                builder.build(),
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();
@@ -1208,16 +1245,18 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final var securityServerTransportInterceptor = new SecurityServerTransportInterceptor(
             builder.build(),
             threadPool,
-            mock(AuthenticationService.class),
-            mock(AuthorizationService.class),
             sslService,
             securityContext,
-            new DestructiveOperations(
-                Settings.EMPTY,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
-            ),
-            mock(CrossClusterAccessAuthenticationService.class),
-            mockLicenseState
+            destructiveOperations,
+            new CrossClusterAccessTransportInterceptor(
+                builder.build(),
+                threadPool,
+                mock(AuthenticationService.class),
+                mock(AuthorizationService.class),
+                securityContext,
+                mock(CrossClusterAccessAuthenticationService.class),
+                mockLicenseState
+            )
         );
 
         final Map<String, ServerTransportFilter> profileFilters = securityServerTransportInterceptor.getProfileFilters();

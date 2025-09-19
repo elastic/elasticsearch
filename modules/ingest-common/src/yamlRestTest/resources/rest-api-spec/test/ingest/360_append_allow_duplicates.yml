@@ -1,0 +1,177 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "ingest.append.copy_from" ]
+      reason: "The copy_from option of the append processor is new"
+  - do:
+      ingest.put_pipeline:
+        id: "test-pipeline-1"
+        body: >
+          {
+            "processors": [
+              {
+                "append": {
+                  "if": "ctx?.templating != true",
+                  "field": "dest",
+                  "copy_from": "src",
+                  "allow_duplicates": false
+                }
+              },
+              {
+                "append": {
+                  "if": "ctx?.templating == true",
+                  "field": "dest",
+                  "value": ["{{three}}", "{{three}}", "{{three}}"],
+                  "allow_duplicates": false
+                }
+              },
+              {
+                "foreach": {
+                  "description": "templating results in strings, so convert them if necessary",
+                  "field": "dest",
+                  "processor": {
+                    "convert": {
+                      "field": "_ingest._value",
+                      "type": "long"
+                    }
+                  }
+                }
+              },
+              {
+                "remove": {
+                  "description": "we only care about the dest, so remove everything else",
+                  "keep": ["dest"]
+                }
+              }
+            ]
+          }
+  - do:
+      indices.create:
+        index: "test-some-index"
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: "test-some-index"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "test-pipeline-1"
+        ignore: 404
+
+---
+"allow_duplicates (false) removes duplicates with a present array and copy_from":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [3, 3, 3],
+            "dest": [3]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3] }
+
+---
+"allow_duplicates (false) removes duplicates with an empty array and copy_from":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [3, 3, 3],
+            "dest": []
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3] }
+
+---
+"allow_duplicates (false) removes duplicates with a missing array and copy_from":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "src": [3, 3, 3]
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3] }
+
+---
+"allow_duplicates (false) removes duplicates with a present array and templating":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": true,
+            "three": 3,
+            "dest": ["3"],
+            "note": "blargh, duplicate removal is based on strings, because of templating"
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3] }
+
+---
+"allow_duplicates (false) removes duplicates with an empty array and templating":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": true,
+            "three": 3,
+            "dest": []
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3] }
+
+---
+"allow_duplicates (false) removes duplicates with a missing array and templating":
+  - do:
+      index:
+        index: test-some-index
+        id: 1
+        pipeline: test-pipeline-1
+        body: >
+          {
+            "templating": true,
+            "three": 3
+          }
+
+  - do:
+      get:
+        index: test-some-index
+        id: "1"
+  - match: { _source.dest: [3] }

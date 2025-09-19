@@ -77,6 +77,10 @@ public class DotPrefixValidatorTests extends ESTestCase {
         nonOpV.validateIndices(Set.of(".slo-observability.summary-v2.3-2024-01-01"));
         nonOpV.validateIndices(Set.of("<.slo-observability.summary-v3.3.{2024-10-16||/M{yyyy-MM-dd|UTC}}>"));
         nonOpV.validateIndices(Set.of(".entities.v1.latest.builtin_services_from_ecs_data"));
+        nonOpV.validateIndices(Set.of(".entities.v1.history.2025-09-16.security_host_default"));
+        nonOpV.validateIndices(Set.of(".entities.v2.history.2025-09-16.security_user_custom"));
+        nonOpV.validateIndices(Set.of(".entities.v5.reset.security_user_custom"));
+        nonOpV.validateIndices(Set.of(".entities.v1.latest.noop"));
         nonOpV.validateIndices(Set.of(".entities.v92.latest.eggplant.potato"));
         nonOpV.validateIndices(Set.of("<.entities.v12.latest.eggplant-{M{yyyy-MM-dd|UTC}}>"));
         nonOpV.validateIndices(Set.of(".monitoring-es-8-thing"));

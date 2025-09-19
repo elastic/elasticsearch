@@ -614,6 +614,7 @@ public class ModelRegistry implements ClusterStateListener {
             } else {
                 // since updating the secrets was successful, we can remove the lock and respond to the final listener
                 preventDeletionLock.remove(inferenceEntityId);
+                refreshInferenceEndpointCache();
                 finalListener.onResponse(true);
             }
         }).<BulkResponse>andThen((subListener, configResponse) -> {
@@ -844,7 +845,10 @@ public class ModelRegistry implements ClusterStateListener {
         client.execute(
             DeleteByQueryAction.INSTANCE,
             request,
-            getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener)
+            ActionListener.runAfter(
+                getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener),
+                this::refreshInferenceEndpointCache
+            )
         );
     }
 
@@ -897,6 +901,17 @@ public class ModelRegistry implements ClusterStateListener {
                 listener.onFailure(exc);
             }
         };
+    }
+
+    private void refreshInferenceEndpointCache() {
+        client.execute(
+            ClearInferenceEndpointCacheAction.INSTANCE,
+            new ClearInferenceEndpointCacheAction.Request(),
+            ActionListener.wrap(
+                ignored -> logger.debug("Successfully refreshed inference endpoint cache."),
+                e -> logger.atDebug().withThrowable(e).log("Failed to refresh inference endpoint cache.")
+            )
+        );
     }
 
     private static DeleteByQueryRequest createDeleteRequest(Set<String> inferenceEntityIds) {

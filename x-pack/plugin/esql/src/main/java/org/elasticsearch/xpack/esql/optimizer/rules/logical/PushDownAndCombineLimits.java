@@ -43,10 +43,10 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down
                 // (we also have to preserve the LIMIT afterwards)
                 // To avoid repeating this infinitely, we have to set duplicated = true.
-                return duplicateLimitAsFirstGrandchild(limit, false);
+                return duplicateLimitAsFirstGrandchild(limit);
             } else if (unary instanceof Enrich enrich) {
                 if (enrich.mode() == Enrich.Mode.REMOTE) {
-                    return duplicateLimitAsFirstGrandchild(limit, true);
+                    return duplicateLimitAsFirstGrandchild(limit.withLocal(true));
                 } else {
                     // We can push past local enrich because it does not increase the number of rows
                     return enrich.replaceChild(limit.replaceChild(enrich.child()));
@@ -71,7 +71,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // The InlineJoin is currently excluded, as its right-hand side uses as data source a StubRelation that points to the entire
             // left-hand side, so adding a limit in there would lead to the right-hand side work on incomplete data.
             // To avoid repeating this infinitely, we have to set duplicated = true.
-            return duplicateLimitAsFirstGrandchild(limit, false);
+            return duplicateLimitAsFirstGrandchild(limit);
         }
         return limit;
     }
@@ -104,7 +104,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
      * Duplicate the limit past its child if it wasn't duplicated yet. The duplicate is placed on top of its leftmost grandchild.
      * Idempotent. (Sets {@link Limit#duplicated()} to {@code true} on the limit that remains at the top.)
      */
-    private static Limit duplicateLimitAsFirstGrandchild(Limit limit, boolean withLocal) {
+    private static Limit duplicateLimitAsFirstGrandchild(Limit limit) {
         if (limit.duplicated()) {
             return limit;
         }
@@ -112,7 +112,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         List<LogicalPlan> grandChildren = limit.child().children();
         LogicalPlan firstGrandChild = grandChildren.getFirst();
         // Use the local limit under the original node, so it won't break the pipeline
-        LogicalPlan newFirstGrandChild = limit.withLocal(withLocal).replaceChild(firstGrandChild);
+        LogicalPlan newFirstGrandChild = limit.replaceChild(firstGrandChild);
 
         List<LogicalPlan> newGrandChildren = new ArrayList<>();
         newGrandChildren.add(newFirstGrandChild);

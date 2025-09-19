@@ -69,7 +69,7 @@ public abstract class PostOptimizationPhasePlanVerifier<P extends QueryPlan<P>> 
                 .stream()
                 .anyMatch(x -> x.name().equals(ProjectAwayColumns.ALL_FIELDS_PROJECTED));
             // LookupJoinExec represents the lookup index with EsSourceExec and this is turned into EsQueryExec by
-            // ReplaceSourceAttributes. Because InsertFieldExtractions doesn't apply to lookup indices, the
+            // ReplaceSourceAttributes. Because InsertFieldExtraction doesn't apply to lookup indices, the
             // right hand side will only have the EsQueryExec providing the _doc attribute and nothing else.
             // We perform an optimizer run on every fragment. LookupJoinExec also contains such a fragment,
             // and currently it only contains an EsQueryExec after optimization.

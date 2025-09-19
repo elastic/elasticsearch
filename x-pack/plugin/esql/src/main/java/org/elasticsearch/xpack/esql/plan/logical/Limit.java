@@ -124,7 +124,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     public Limit withDuplicated(boolean duplicated) {
-        return new Limit(source(), limit, child(), duplicated);
+        return new Limit(source(), limit, child(), duplicated, local);
     }
 
     public Limit withLocal(boolean newLocal) {

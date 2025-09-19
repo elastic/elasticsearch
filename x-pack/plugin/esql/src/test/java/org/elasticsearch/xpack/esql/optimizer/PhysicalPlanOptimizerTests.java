@@ -7011,7 +7011,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FROM test
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _any:departments
-                | LIMIT 10""", testData, false);
+                | LIMIT 10""");
             var enrich = as(plan, EnrichExec.class);
             assertThat(enrich.mode(), equalTo(Enrich.Mode.ANY));
             assertThat(enrich.concreteIndices(), equalTo(Map.of("", ".enrich-departments-1", "cluster_1", ".enrich-departments-2")));

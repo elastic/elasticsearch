@@ -276,13 +276,13 @@ public class Enrich extends UnaryPlan
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
         Set<Source> fails = new HashSet<>();
 
-        this.forEachUp(LogicalPlan.class, u -> {
+        this.forEachDown(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
-
-        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
     }
 
     private void checkMvExpandAfterLimit(Failures failures) {

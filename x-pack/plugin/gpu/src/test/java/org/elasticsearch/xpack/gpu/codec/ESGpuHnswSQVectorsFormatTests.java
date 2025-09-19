@@ -24,12 +24,13 @@ public class ESGpuHnswSQVectorsFormatTests extends BaseKnnVectorsFormatTestCase 
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    static Codec codec;
+
     @BeforeClass
     public static void beforeClass() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
+        codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswSQVectorsFormat());
     }
-
-    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ESGpuHnswSQVectorsFormat());
 
     @Override
     protected Codec getCodec() {

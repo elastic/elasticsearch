@@ -17,6 +17,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.ES814ScalarQuantizedVectorsFormat;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 import static org.elasticsearch.xpack.gpu.codec.ESGpuHnswVectorsFormat.DEFAULT_BEAM_WIDTH;
@@ -35,7 +36,7 @@ public class ESGpuHnswSQVectorsFormat extends KnnVectorsFormat {
 
     /** The format for storing, reading, merging vectors on disk */
     private final FlatVectorsFormat flatVectorsFormat;
-    final CuVSResourceManager cuVSResourceManager;
+    private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
 
     public ESGpuHnswSQVectorsFormat() {
         this(DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, null, 7, false);
@@ -43,7 +44,7 @@ public class ESGpuHnswSQVectorsFormat extends KnnVectorsFormat {
 
     public ESGpuHnswSQVectorsFormat(int maxConn, int beamWidth, Float confidenceInterval, int bits, boolean compress) {
         super(NAME);
-        this.cuVSResourceManager = CuVSResourceManager.pooling();
+        this.cuVSResourceManagerSupplier = CuVSResourceManager::pooling;
         if (maxConn <= 0 || maxConn > MAXIMUM_MAX_CONN) {
             throw new IllegalArgumentException(
                 "maxConn must be positive and less than or equal to " + MAXIMUM_MAX_CONN + "; maxConn=" + maxConn
@@ -61,7 +62,13 @@ public class ESGpuHnswSQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESGpuHnswVectorsWriter(cuVSResourceManager, state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state));
+        return new ESGpuHnswVectorsWriter(
+            cuVSResourceManagerSupplier.get(),
+            state,
+            maxConn,
+            beamWidth,
+            flatVectorsFormat.fieldsWriter(state)
+        );
     }
 
     @Override

@@ -19,7 +19,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 
 public class TransportGetViewAction extends AcknowledgedTransportMasterNodeAction<GetViewAction.Request> {
     private final ViewService viewService;

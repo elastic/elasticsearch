@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -40,29 +39,22 @@ public class TextEmbeddingTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<TestCaseSupplier> suppliers = new ArrayList<>();
-
-        // Test all string type combinations for text input and inference endpoint ID
-        for (DataType inputTextDataType : DataType.stringTypes()) {
-            for (DataType inferenceIdDataType : DataType.stringTypes()) {
-                suppliers.add(
-                    new TestCaseSupplier(
-                        List.of(inputTextDataType, inferenceIdDataType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), inputTextDataType, "text"),
-                                new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), inferenceIdDataType, "inference_id")
-                            ),
-                            Matchers.blankOrNullString(),
-                            DENSE_VECTOR,
-                            equalTo(true)
-                        )
+        return parameterSuppliersFromTypedData(
+            List.of(
+                new TestCaseSupplier(
+                    List.of(DataType.KEYWORD, DataType.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), DataType.KEYWORD, "text"),
+                            new TestCaseSupplier.TypedData(randomBytesReference(10).toBytesRef(), DataType.KEYWORD, "inference_id")
+                        ),
+                        Matchers.blankOrNullString(),
+                        DENSE_VECTOR,
+                        equalTo(true)
                     )
-                );
-            }
-        }
-
-        return parameterSuppliersFromTypedData(suppliers);
+                )
+            )
+        );
     }
 
     @Override

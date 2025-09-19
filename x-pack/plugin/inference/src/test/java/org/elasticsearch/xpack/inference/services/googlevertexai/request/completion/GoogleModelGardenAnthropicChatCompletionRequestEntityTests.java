@@ -29,7 +29,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
         XContentBuilder builder = setUpXContentBuilder(0.2F, 0.2F, 100L, true, GoogleVertexAiChatCompletionTaskSettings.EMPTY_SETTINGS);
         String expectedJson = """
             {
-                "anthropic_version": "vertex-2024-10-22",
+                "anthropic_version": "vertex-2023-10-16",
                 "messages": [{
                         "content": "Hello, world!",
                         "role": "user"
@@ -59,7 +59,7 @@ public class GoogleModelGardenAnthropicChatCompletionRequestEntityTests extends 
         XContentBuilder builder = setUpXContentBuilder(null, null, null, false, GoogleVertexAiChatCompletionTaskSettings.EMPTY_SETTINGS);
         String expectedJson = """
             {
-                "anthropic_version": "vertex-2024-10-22",
+                "anthropic_version": "vertex-2023-10-16",
                 "messages": [{
                         "content": "Hello, world!",
                         "role": "user"

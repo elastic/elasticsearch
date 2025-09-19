@@ -1104,7 +1104,7 @@ public class EsqlCapabilities {
         /**
          * Support delta aggregation that gets evaluated per time-series
          */
-        DELTA_TS_AGG(Build.current().isSnapshot()),
+        DELTA_TS_AGG,
 
         /**
          * Support for FORK out of snapshot

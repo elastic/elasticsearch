@@ -65,8 +65,21 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             serviceSettings
         );
         try {
-            this.streamingURI = buildUriStreaming(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
-            this.nonStreamingUri = buildUriNonStreaming(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            var uri = serviceSettings.uri();
+            var streamingUri = serviceSettings.streamingUri();
+            // For Google Model Garden uri or streamingUri must be set. If not - location, projectId and modelId must be set
+            if (uri != null || streamingUri != null) {
+                // If both URIs are provided, use them as is. If only one is provided, use it for both streaming and non-streaming
+                this.nonStreamingUri = Objects.requireNonNullElse(uri, streamingUri);
+                this.streamingURI = Objects.requireNonNullElse(streamingUri, uri);
+            } else {
+                // If neither URI is provided, build them from location, projectId and modelId
+                var location = serviceSettings.location();
+                var projectId = serviceSettings.projectId();
+                var model = serviceSettings.modelId();
+                this.streamingURI = buildUriStreaming(location, projectId, model);
+                this.nonStreamingUri = buildUriNonStreaming(location, projectId, model);
+            }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -86,7 +99,10 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         var newServiceSettings = new GoogleVertexAiChatCompletionServiceSettings(
             originalModelServiceSettings.projectId(),
             originalModelServiceSettings.location(),
-            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            request.model() != null ? request.model() : originalModelServiceSettings.modelId(),
+            originalModelServiceSettings.uri(),
+            originalModelServiceSettings.streamingUri(),
+            originalModelServiceSettings.provider(),
             originalModelServiceSettings.rateLimitSettings()
         );
 

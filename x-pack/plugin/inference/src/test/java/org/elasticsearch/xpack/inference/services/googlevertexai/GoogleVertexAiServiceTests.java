@@ -47,6 +47,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -92,6 +94,9 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var serviceAccountJson = """
             {
                 "some json"
@@ -107,6 +112,11 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                 assertThat(vertexAIModel.getServiceSettings().modelId(), is(modelId));
                 assertThat(vertexAIModel.getServiceSettings().location(), is(location));
                 assertThat(vertexAIModel.getServiceSettings().projectId(), is(projectId));
+
+                assertThat(vertexAIModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+                assertThat(vertexAIModel.getServiceSettings().uri(), is(new URI(url)));
+                assertThat(vertexAIModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
+
                 assertThat(vertexAIModel.getSecretSettings().serviceAccountJson().toString(), is(serviceAccountJson));
                 assertThat(vertexAIModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
                 assertThat(vertexAIModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
@@ -125,7 +135,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                             GoogleVertexAiServiceFields.LOCATION,
                             location,
                             GoogleVertexAiServiceFields.PROJECT_ID,
-                            projectId
+                            projectId,
+                            GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                            provider,
+                            GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                            url,
+                            GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                            streamingUrl
                         )
                     ),
                     getTaskSettingsMapEmpty(),
@@ -485,10 +501,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException {
+    public void testParsePersistedConfigWithSecrets_CreatesGoogleVertexAiChatCompletionModel() throws IOException, URISyntaxException {
         var projectId = "project";
         var location = "location";
         var modelId = "model";
+        var provider = GoogleModelGardenProvider.ANTHROPIC.name();
+        var url = "https://non-streaming.url";
+        var streamingUrl = "https://streaming.url";
         var autoTruncate = true;
         var serviceAccountJson = """
             {
@@ -505,7 +524,13 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                         GoogleVertexAiServiceFields.LOCATION,
                         location,
                         GoogleVertexAiServiceFields.PROJECT_ID,
-                        projectId
+                        projectId,
+                        GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME,
+                        provider,
+                        GoogleVertexAiServiceFields.URL_SETTING_NAME,
+                        url,
+                        GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME,
+                        streamingUrl
                     )
                 ),
                 getTaskSettingsMap(autoTruncate, InputType.INGEST),
@@ -529,6 +554,10 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
             assertThat(chatCompletionModel.getConfigurations().getTaskType(), equalTo(CHAT_COMPLETION));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().requestsPerTimeUnit(), equalTo(1000L));
             assertThat(chatCompletionModel.getServiceSettings().rateLimitSettings().timeUnit(), equalTo(MINUTES));
+
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(GoogleModelGardenProvider.ANTHROPIC));
+            assertThat(chatCompletionModel.getServiceSettings().uri(), is(new URI(url)));
+            assertThat(chatCompletionModel.getServiceSettings().streamingUri(), is(new URI(streamingUrl)));
         }
     }
 
@@ -966,8 +995,6 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    // testInfer tested via end-to-end notebook tests in AppEx repo
-
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createGoogleVertexAiService()) {
@@ -990,7 +1017,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                "project_id": {
                                    "description": "The GCP Project ID which has Vertex AI API(s) enabled. For more information on the URL, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Project",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -999,7 +1026,7 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                "location": {
                                    "description": "Please provide the GCP region where the Vertex AI API(s) is enabled. For more information, refer to the {geminiVertexAIDocs}.",
                                    "label": "GCP Region",
-                                   "required": true,
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",
@@ -1017,7 +1044,34 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
                                "model_id": {
                                    "description": "ID of the LLM you're using.",
                                    "label": "Model ID",
-                                   "required": true,
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                               },
+                               "provider": {
+                                   "description": "The Google Model Garden Provider ID.",
+                                   "label": "Provider",
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                               },
+                               "streaming_url": {
+                                   "description": "The Streaming URL endpoint to use for the requests.",
+                                   "label": "Streaming URL",
+                                   "required": false,
+                                   "sensitive": false,
+                                   "updatable": false,
+                                   "type": "str",
+                                   "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
+                               },
+                               "url": {
+                                   "description": "The Non-Streaming URL endpoint to use for the requests.",
+                                   "label": "Non-Streaming URL",
+                                   "required": false,
                                    "sensitive": false,
                                    "updatable": false,
                                    "type": "str",

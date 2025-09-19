@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,26 +22,38 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
+
 public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "google_vertex_ai_chatcompletion_task_settings";
 
     private static final TransportVersion GEMINI_THINKING_BUDGET_ADDED = TransportVersion.fromName("gemini_thinking_budget_added");
+    public static final Integer DEFAULT_MAX_TOKENS = 1024;
 
     private final ThinkingConfig thinkingConfig;
+    private final Integer maxTokens;
 
     public static final GoogleVertexAiChatCompletionTaskSettings EMPTY_SETTINGS = new GoogleVertexAiChatCompletionTaskSettings();
     private static final ThinkingConfig EMPTY_THINKING_CONFIG = new ThinkingConfig();
 
     public GoogleVertexAiChatCompletionTaskSettings() {
-        thinkingConfig = EMPTY_THINKING_CONFIG;
+        this.thinkingConfig = EMPTY_THINKING_CONFIG;
+        this.maxTokens = DEFAULT_MAX_TOKENS;
     }
 
-    public GoogleVertexAiChatCompletionTaskSettings(ThinkingConfig thinkingConfig) {
+    public GoogleVertexAiChatCompletionTaskSettings(ThinkingConfig thinkingConfig, Integer maxTokens) {
         this.thinkingConfig = Objects.requireNonNullElse(thinkingConfig, EMPTY_THINKING_CONFIG);
+        this.maxTokens = Objects.requireNonNullElse(maxTokens, DEFAULT_MAX_TOKENS);
     }
 
     public GoogleVertexAiChatCompletionTaskSettings(StreamInput in) throws IOException {
         thinkingConfig = new ThinkingConfig(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
+            maxTokens = Objects.requireNonNullElse(in.readOptionalInt(), DEFAULT_MAX_TOKENS);
+        } else {
+            maxTokens = DEFAULT_MAX_TOKENS;
+        }
     }
 
     public static GoogleVertexAiChatCompletionTaskSettings fromMap(Map<String, Object> taskSettings) {
@@ -48,11 +62,19 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
         // Extract optional thinkingConfig settings
         ThinkingConfig thinkingConfig = ThinkingConfig.fromMap(taskSettings, validationException);
 
+        // Extract optional maxTokens setting
+        Integer maxTokens = extractOptionalPositiveInteger(
+            taskSettings,
+            MAX_TOKENS,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig);
+        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
     }
 
     public static GoogleVertexAiChatCompletionTaskSettings of(
@@ -62,11 +84,17 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
         ThinkingConfig thinkingConfig = newTaskSettings.thinkingConfig().isEmpty()
             ? originalTaskSettings.thinkingConfig()
             : newTaskSettings.thinkingConfig();
-        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig);
+
+        Integer maxTokens = Objects.requireNonNullElse(newTaskSettings.maxTokens(), originalTaskSettings.maxTokens());
+        return new GoogleVertexAiChatCompletionTaskSettings(thinkingConfig, maxTokens);
     }
 
     public ThinkingConfig thinkingConfig() {
         return thinkingConfig;
+    }
+
+    public Integer maxTokens() {
+        return maxTokens;
     }
 
     @Override
@@ -95,12 +123,14 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         thinkingConfig.writeTo(out);
+        out.writeOptionalInt(maxTokens);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         thinkingConfig.toXContent(builder, params);
+        builder.field(MAX_TOKENS, maxTokens);
         builder.endObject();
         return builder;
     }
@@ -109,12 +139,12 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         GoogleVertexAiChatCompletionTaskSettings that = (GoogleVertexAiChatCompletionTaskSettings) o;
-        return Objects.equals(thinkingConfig, that.thinkingConfig);
+        return Objects.equals(thinkingConfig, that.thinkingConfig) && Objects.equals(maxTokens, that.maxTokens);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(thinkingConfig);
+        return Objects.hash(thinkingConfig, maxTokens);
     }
 
     @Override

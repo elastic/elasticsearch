@@ -67,9 +67,10 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         }
 
         public IdLoader.Leaf leaf(LeafStoredFieldLoader loader, LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            IndexRouting.ExtractFromSource.Builder[] builders = null;
+            IndexRouting.ExtractFromSource.RoutingHashBuilder[] builders = null;
             if (indexRouting != null) {
-                builders = new IndexRouting.ExtractFromSource.Builder[docIdsInLeaf.length];
+                // this branch is for legacy indices before IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID
+                builders = new IndexRouting.ExtractFromSource.RoutingHashBuilder[docIdsInLeaf.length];
                 for (int i = 0; i < builders.length; i++) {
                     builders[i] = indexRouting.builder();
                 }

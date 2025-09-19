@@ -203,6 +203,14 @@ public abstract class StreamInput extends InputStream {
         return readBytesRef(length);
     }
 
+    public @Nullable BytesRef readBytesRefOrNullIfEmpty() throws IOException {
+        int length = readArraySize();
+        if (length == 0) {
+            return null;
+        }
+        return readBytesRef(length);
+    }
+
     public BytesRef readBytesRef(int length) throws IOException {
         if (length == 0) {
             return new BytesRef();

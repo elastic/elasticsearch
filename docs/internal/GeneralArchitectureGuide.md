@@ -129,10 +129,12 @@ The actions themselves sometimes dispatch downstream actions to other nodes in t
 > TransportActions' [ActionType] naming conventions encode semantic information about the role, scope, plugins, modules and behaviours.
 > [ActionType] instances are mapped to permission privileges via the [ClusterPrivilegeResolver]. Security interceptors enforce access
 > control by invoking RBACEngine.checkPrivileges().
->
 > Indices-level [ActionType] strings generally follows the pattern: `indices:[data|admin|monitor]/[read|write|get]/[index|bulk|update]`.
 > Cluster-level [ActionType] strings are prefixed by `cluster:` are often followed by a domain-specific such as `autoscaling`, `logstash`, `ingest`,
 > `xpack`.
+> - `internal:` is meant to executed by `_system` user.
+> - `cluster:internal/xpack/..` [ActionType] strings are plugin specific.
+> - `internal:transport/proxy/indices:` [ActionType] strings are automatically wrapped actions when requests for CCR/CCS in proxy mode.
 
 > [!NOTE]
 > The name [TransportAction] can be misleading, as it suggests they are all invoke-able and invoked via the TCP transport. In fact,

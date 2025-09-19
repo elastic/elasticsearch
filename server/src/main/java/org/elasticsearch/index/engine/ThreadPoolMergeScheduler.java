@@ -84,8 +84,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
+
     // Tragic event that causes the IndexWriter and ThreadPoolMergeScheduler to be closed
     private record TragicEvent(Throwable throwable, CountDownLatch latch) {}
+
     private volatile TragicEvent tragedy = null;
 
     /**
@@ -360,7 +362,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         assert tragedy instanceof MergePolicy.MergeAbortedException == false;
 
         TragicEvent tragicEvent;
-        boolean shouldAbort= false;
+        boolean shouldAbort = false;
         // Sets the tragic event if not already set
         synchronized (this) {
             tragicEvent = this.tragedy;

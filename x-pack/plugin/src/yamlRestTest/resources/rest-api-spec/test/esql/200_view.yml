@@ -2,7 +2,7 @@
 setup:
   - requires:
       capabilities:
-        - method: POST
+        - method: PUT
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
           capabilities: [ views_v1 ]

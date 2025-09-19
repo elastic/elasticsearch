@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -96,6 +95,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.FIELD_TYPE;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.MULTI_FIELDS;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.PROPERTIES;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.visitAndCopyMapping;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 
@@ -108,10 +111,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDownsampleAction.class);
-    private static final String MAPPING_PROPERTIES = "properties";
     private static final String MAPPING_DYNAMIC_TEMPLATES = "dynamic_templates";
-    private static final String FIELD_TYPE = "type";
-    private static final String MULTI_FIELDS = "fields";
     private final Client client;
     private final IndicesService indicesService;
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
@@ -694,94 +694,65 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 @SuppressWarnings("unchecked")
                 List<Object> downsampledDynamicTemplates = (List<Object>) downsampledMapping.get(MAPPING_DYNAMIC_TEMPLATES);
                 downsampledDynamicTemplates.addAll(sourceDynamicTemplates);
-            } else if (entry.getKey().equals(MAPPING_PROPERTIES) == false) {
+            } else if (entry.getKey().equals(MappingVisitor.PROPERTIES) == false) {
                 downsampledMapping.put(entry.getKey(), entry.getValue());
             }
         }
-        populateMappingProperties(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
+        visitAndCopyMapping(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
             if (timestampField.equals(fieldName)) {
-                final String timestampType = String.valueOf(sourceMapping.get(FIELD_TYPE));
-                updatedMapping.put(FIELD_TYPE, timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
-                if (sourceMapping.get("format") != null) {
-                    updatedMapping.put("format", sourceMapping.get("format"));
-                }
-                if (sourceMapping.get("ignore_malformed") != null) {
-                    updatedMapping.put("ignore_malformed", sourceMapping.get("ignore_malformed"));
-                }
-                updatedMapping.put("meta", Map.of(dateIntervalType, dateInterval, DownsampleConfig.TIME_ZONE, timezone));
+                updateTimestampField(sourceMapping, updatedMapping, dateIntervalType, dateInterval, timezone);
                 return;
-            }
-            if (helper.isTimeSeriesMetric(fieldName, sourceMapping)) {
-                final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
-                    sourceMapping.get(TIME_SERIES_METRIC_PARAM).toString()
-                );
-                if (metricType == TimeSeriesParams.MetricType.GAUGE
-                    && AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(sourceMapping.get(FIELD_TYPE)) == false) {
-                    var supportedMetrics = getSupportedMetrics(metricType, sourceMapping);
-
-                    updatedMapping.put(TIME_SERIES_METRIC_PARAM, metricType.toString());
-                    updatedMapping.put(FIELD_TYPE, AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
-                    updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetrics.supportedMetrics);
-                    updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supportedMetrics.defaultMetric);
-                    return;
-                }
-            }
-            for (String f : sourceMapping.keySet()) {
-                if (f.equals(MAPPING_PROPERTIES) || f.equals(MULTI_FIELDS)) {
-                    continue;
-                }
-                updatedMapping.put(f, sourceMapping.get(f));
+            } else if (helper.isTimeSeriesMetric(fieldName, sourceMapping)) {
+                processMetricField(sourceMapping, updatedMapping);
+            } else {
+                copyMapping(sourceMapping, updatedMapping);
             }
         });
 
         return new CompressedXContent(downsampledMapping).uncompressed().utf8ToString();
     }
 
-    private static void populateMappingProperties(
-        final Map<String, ?> sourceMapping,
-        final Map<String, Object> destMapping,
-        TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldProcessor
-    ) {
-        Object sourceProperties0 = sourceMapping.get(MAPPING_PROPERTIES);
-        if (sourceProperties0 instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, ?> sourceProperties = (Map<String, ?>) sourceProperties0;
-            var destProperties = new HashMap<>(sourceProperties.size());
-            destMapping.put(MAPPING_PROPERTIES, destProperties);
-            for (Map.Entry<String, ?> entry : sourceProperties.entrySet()) {
-                String fieldName = entry.getKey();
-                final Object v = entry.getValue();
-                if (v instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, ?> sourceFieldMapping = (Map<String, ?>) v;
-                    var destFieldMapping = new HashMap<String, Object>(sourceFieldMapping.size());
-                    destProperties.put(fieldName, destFieldMapping);
-                    // Process the field from properties and multi-fields.
-                    fieldProcessor.apply(entry.getKey(), sourceFieldMapping, destFieldMapping);
-                    populateMappingProperties(sourceFieldMapping, destFieldMapping, fieldProcessor);
+    private static void processMetricField(Map<String, ?> sourceMapping, Map<String, Object> updatedMapping) {
+        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
+            sourceMapping.get(TIME_SERIES_METRIC_PARAM).toString()
+        );
+        if (metricType == TimeSeriesParams.MetricType.GAUGE
+            && AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(sourceMapping.get(FIELD_TYPE)) == false) {
+            var supportedMetrics = getSupportedMetrics(metricType, sourceMapping);
 
-                    // Multi fields
-                    Object sourceFieldsO = sourceFieldMapping.get(MULTI_FIELDS);
-                    if (sourceFieldsO instanceof Map) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, ?> sourceFields = (Map<String, ?>) sourceFieldsO;
-                        var destFields = new HashMap<String, Object>(sourceFields.size());
-                        destFieldMapping.put(MULTI_FIELDS, destFields);
-                        for (Map.Entry<String, ?> multiFieldEntry : sourceFields.entrySet()) {
-                            Object v2 = multiFieldEntry.getValue();
-                            if (v2 instanceof Map) {
-                                String multiFieldName = multiFieldEntry.getKey();
-                                @SuppressWarnings("unchecked")
-                                Map<String, ?> sourceMultiFieldMapping = (Map<String, ?>) v2;
-                                Map<String, Object> destMultiFieldMapping = new HashMap<>(sourceMultiFieldMapping.size());
-                                destFields.put(multiFieldName, destMultiFieldMapping);
-                                fieldProcessor.apply(multiFieldName, sourceMultiFieldMapping, destMultiFieldMapping);
-                            }
-                        }
-                    }
-                }
+            updatedMapping.put(TIME_SERIES_METRIC_PARAM, metricType.toString());
+            updatedMapping.put(FIELD_TYPE, AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+            updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetrics.supportedMetrics);
+            updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supportedMetrics.defaultMetric);
+        } else {
+            copyMapping(sourceMapping, updatedMapping);
+        }
+    }
+
+    private static void copyMapping(Map<String, ?> sourceMapping, Map<String, Object> updatedMapping) {
+        for (String f : sourceMapping.keySet()) {
+            if (f.equals(PROPERTIES) == false && f.equals(MULTI_FIELDS) == false) {
+                updatedMapping.put(f, sourceMapping.get(f));
             }
         }
+    }
+
+    private static void updateTimestampField(
+        Map<String, ?> sourceMapping,
+        Map<String, Object> updatedMapping,
+        String dateIntervalType,
+        String dateInterval,
+        String timezone
+    ) {
+        final String timestampType = String.valueOf(sourceMapping.get(FIELD_TYPE));
+        updatedMapping.put(FIELD_TYPE, timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
+        if (sourceMapping.get("format") != null) {
+            updatedMapping.put("format", sourceMapping.get("format"));
+        }
+        if (sourceMapping.get("ignore_malformed") != null) {
+            updatedMapping.put("ignore_malformed", sourceMapping.get("ignore_malformed"));
+        }
+        updatedMapping.put("meta", Map.of(dateIntervalType, dateInterval, DownsampleConfig.TIME_ZONE, timezone));
     }
 
     // public for testing

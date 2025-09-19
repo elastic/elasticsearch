@@ -9,10 +9,16 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.common.TriConsumer;
+
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
 public final class MappingVisitor {
+    public static final String PROPERTIES = "properties";
+    public static final String FIELD_TYPE = "type";
+    public static final String MULTI_FIELDS = "fields";
 
     private MappingVisitor() {}
 
@@ -25,7 +31,7 @@ public final class MappingVisitor {
         final String path,
         final BiConsumer<String, Map<String, ?>> fieldMappingConsumer
     ) {
-        Object properties = mapping.get("properties");
+        Object properties = mapping.get(PROPERTIES);
         if (properties instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> propertiesAsMap = (Map<String, ?>) properties;
@@ -40,7 +46,7 @@ public final class MappingVisitor {
                     visitMapping(fieldMapping, prefix + ".", fieldMappingConsumer);
 
                     // Multi fields
-                    Object fieldsO = fieldMapping.get("fields");
+                    Object fieldsO = fieldMapping.get(MULTI_FIELDS);
                     if (fieldsO instanceof Map) {
                         @SuppressWarnings("unchecked")
                         Map<String, ?> fields = (Map<String, ?>) fieldsO;
@@ -74,5 +80,68 @@ public final class MappingVisitor {
             Map<String, ?> runtimeFieldMapping = (Map<String, ?>) runtimeFieldMappingObject;
             runtimeFieldMappingConsumer.accept(entry.getKey(), runtimeFieldMapping);
         }
+    }
+
+    /**
+     * This visitor traverses the source mapping and copies the structure to the destination mapping after applying
+     * the fieldMappingConsumer to the individual field mappings.
+     */
+    public static void visitAndCopyMapping(
+        final Map<String, ?> sourceMapping,
+        final Map<String, Object> destMapping,
+        final TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldMappingConsumer
+    ) {
+        Map<String, ?> sourceProperties = getMapOrNull(sourceMapping.get(PROPERTIES));
+        if (sourceProperties == null) {
+            return;
+        }
+        Map<String, Object> destProperties = new HashMap<>(sourceProperties.size());
+        destMapping.put(PROPERTIES, destProperties);
+
+        for (Map.Entry<String, ?> entry : sourceProperties.entrySet()) {
+            Map<String, ?> sourceFieldMapping = getMapOrNull(entry.getValue());
+            if (sourceFieldMapping == null) {
+                return;
+            }
+            var destFieldMapping = processAndCopy(entry.getKey(), sourceFieldMapping, destProperties, fieldMappingConsumer);
+            visitAndCopyMapping(sourceFieldMapping, destFieldMapping, fieldMappingConsumer);
+
+            // Multi fields
+            Map<String, ?> sourceMultiFields = getMapOrNull(sourceFieldMapping.get(MULTI_FIELDS));
+            if (sourceMultiFields == null) {
+                continue;
+            }
+            Map<String, Object> destFields = new HashMap<>(sourceMultiFields.size());
+            destFieldMapping.put(MULTI_FIELDS, destFields);
+            for (Map.Entry<String, ?> multiFieldEntry : sourceMultiFields.entrySet()) {
+                String multiFieldName = multiFieldEntry.getKey();
+                Map<String, ?> sourceMultiFieldMapping = getMapOrNull(multiFieldEntry.getValue());
+                if (sourceMultiFieldMapping == null) {
+                    continue;
+                }
+                processAndCopy(multiFieldName, sourceMultiFieldMapping, destFields, fieldMappingConsumer);
+            }
+        }
+    }
+
+    private static Map<String, ?> getMapOrNull(Object object) {
+        if (object instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> map = (Map<String, ?>) object;
+            return map;
+        }
+        return null;
+    }
+
+    private static Map<String, Object> processAndCopy(
+        String fieldName,
+        Map<String, ?> sourceFieldMapping,
+        Map<String, Object> destParentMap,
+        TriConsumer<String, Map<String, ?>, Map<String, Object>> fieldMappingConsumer
+    ) {
+        Map<String, Object> destFieldMapping = new HashMap<>(sourceFieldMapping.size());
+        destParentMap.put(fieldName, destFieldMapping);
+        fieldMappingConsumer.apply(fieldName, sourceFieldMapping, destFieldMapping);
+        return destFieldMapping;
     }
 }

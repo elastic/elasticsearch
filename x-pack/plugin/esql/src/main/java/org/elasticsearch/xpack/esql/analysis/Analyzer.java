@@ -1031,8 +1031,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
                 .toList();
 
-            // some attributes were unresolved - we return Fuse here so that the Verifier can raise an error message
-            if (score instanceof UnresolvedAttribute || discriminator instanceof UnresolvedAttribute) {
+            // some attributes were unresolved or the wrong type
+            // we return Fuse here so that the Verifier can raise an error message
+            if (score instanceof UnresolvedAttribute
+                || (score.resolved() && score.dataType() != DOUBLE)
+                || discriminator instanceof UnresolvedAttribute
+                || (discriminator.resolved() && DataType.isString(discriminator.dataType()) == false)
+                || groupings.stream().allMatch(attr -> attr.resolved() && DataType.isString(attr.dataType())) == false) {
                 return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
             }
 

@@ -892,12 +892,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) {
         Source source = source(ctx);
         return input -> {
-            Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
-            Attribute discriminatorAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
+            Attribute scoreAttr = ctx.score == null
+                ? new UnresolvedAttribute(source, MetadataAttribute.SCORE)
+                : visitQualifiedName(ctx.score);
+            Attribute discriminatorAttr = ctx.group == null
+                ? new UnresolvedAttribute(source, Fork.FORK_FIELD)
+                : visitQualifiedName(ctx.group);
             Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
             Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
 
-            List<NamedExpression> groupings = List.of(idAttr, indexAttr);
+            List<NamedExpression> groupings = ctx.key == null ? List.of(idAttr, indexAttr) : visitGrouping(ctx.key);
 
             MapExpression options = ctx.fuseOptions == null ? null : visitCommandNamedParameters(ctx.fuseOptions);
             String fuseTypeName = ctx.fuseType == null ? Fuse.FuseType.RRF.name() : visitIdentifier(ctx.fuseType);

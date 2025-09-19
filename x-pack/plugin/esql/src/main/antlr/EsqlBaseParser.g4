@@ -338,7 +338,7 @@ insistCommand
     ;
 
 fuseCommand
-    : DEV_FUSE (fuseType=identifier)? fuseOptions=commandNamedParameters
+    : DEV_FUSE (fuseType=identifier)? (SCORE BY score=qualifiedName)? (KEY BY key=fields)? (GROUP BY group=qualifiedName)? fuseOptions=commandNamedParameters
     ;
 
 setCommand

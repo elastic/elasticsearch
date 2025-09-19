@@ -10,6 +10,7 @@ package org.elasticsearch.search.ccs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
@@ -17,12 +18,17 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,17 +38,21 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -72,6 +82,68 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         return List.of(LocalStateInferencePlugin.class, TestInferenceServicePlugin.class, FakeMlPlugin.class);
+    }
+
+    public void testSemanticQuery() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+
+        final String commonInferenceId = "common-inference-id";
+        final String localInferenceId = "local-inference-id";
+        final String remoteInferenceId = "remote-inference-id";
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String variableInferenceIdField = "variable-inference-id-field";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings(), localInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                variableInferenceIdField,
+                semanticTextMapping(localInferenceId)
+            ),
+            Map.of("local_doc_1", Map.of(commonInferenceIdField, "a"), "local_doc_2", Map.of(variableInferenceIdField, "b"))
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(
+                commonInferenceId,
+                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                remoteInferenceId,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                variableInferenceIdField,
+                semanticTextMapping(remoteInferenceId)
+            ),
+            Map.of("remote_doc_1", Map.of(commonInferenceIdField, "x"), "remote_doc_2", Map.of(variableInferenceIdField, "y"))
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new SemanticQueryBuilder(commonInferenceIdField, "a"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1")
+            )
+        );
+
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new SemanticQueryBuilder(variableInferenceIdField, "b"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2")
+            )
+        );
     }
 
     private void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
@@ -125,6 +197,12 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         assertThat(refreshResponse.getStatus(), is(RestStatus.OK));
     }
 
+    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        return response.getPointInTimeId();
+    }
+
     private static void createInferenceEndpoint(Client client, TaskType taskType, String inferenceId, Map<String, Object> serviceSettings)
         throws IOException {
         final String service = switch (taskType) {
@@ -154,10 +232,45 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
     }
 
-    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
-        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
-        return response.getPointInTimeId();
+    private void assertSearchResponse(QueryBuilder queryBuilder, String[] indices, List<SearchResult> expectedSearchResults)
+        throws Exception {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
+        SearchRequest searchRequest = new SearchRequest(indices, searchSourceBuilder);
+
+        assertResponse(client().search(searchRequest), response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits.length, equalTo(expectedSearchResults.size()));
+
+            Iterator<SearchResult> searchResultIterator = expectedSearchResults.iterator();
+            for (int i = 0; i < hits.length; i++) {
+                SearchResult expectedSearchResult = searchResultIterator.next();
+                SearchHit actualSearchResult = hits[i];
+
+                assertThat(actualSearchResult.getClusterAlias(), equalTo(expectedSearchResult.clusterAlias()));
+                assertThat(actualSearchResult.getIndex(), equalTo(expectedSearchResult.index()));
+                assertThat(actualSearchResult.getId(), equalTo(expectedSearchResult.id()));
+            }
+        });
+    }
+
+    private static MinimalServiceSettings sparseEmbeddingServiceSettings() {
+        return new MinimalServiceSettings(null, TaskType.SPARSE_EMBEDDING, null, null, null);
+    }
+
+    private static MinimalServiceSettings textEmbeddingServiceSettings(
+        int dimensions,
+        SimilarityMeasure similarity,
+        DenseVectorFieldMapper.ElementType elementType
+    ) {
+        return new MinimalServiceSettings(null, TaskType.TEXT_EMBEDDING, dimensions, similarity, elementType);
+    }
+
+    private static Map<String, Object> semanticTextMapping(String inferenceId) {
+        return Map.of("type", SemanticTextFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
+    }
+
+    private static String fullyQualifiedIndexName(String clusterAlias, String indexName) {
+        return clusterAlias + ":" + indexName;
     }
 
     public static class FakeMlPlugin extends Plugin implements SearchPlugin {
@@ -189,4 +302,6 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             return Map.of("properties", mappings);
         }
     }
+
+    private record SearchResult(String clusterAlias, String index, String id) {}
 }

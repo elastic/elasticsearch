@@ -226,14 +226,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         CodecUtil.checksumEntireFile(ivfClusters);
     }
 
-    private FlatVectorsReader getReaderForField(String field) {
-        FieldInfo fieldInfo = fieldInfos.fieldInfo(field);
-        if (fieldInfo.getVectorEncoding() != VectorEncoding.FLOAT32) {
-            // IVF only works on floats, so pass through any others straight
-            // to the first flat vectors format we can find
-            return rawVectorReaders.values().iterator().next();
+    private FieldEntry getFieldEntryOrThrow(String field) {
+        final FieldInfo info = fieldInfos.fieldInfo(field);
+        final FieldEntry entry;
+        if (info == null || (entry = fields.get(info.number)) == null) {
+            throw new IllegalArgumentException("field=\"" + field + "\" not found");
         }
-        var formatName = fields.get(fieldInfo.number).rawVectorFormatName;
+        return entry;
+    }
+
+    private FlatVectorsReader getReaderForField(String field) {
+        var formatName = getFieldEntryOrThrow(field).rawVectorFormatName;
         FlatVectorsReader reader = rawVectorReaders.get(formatName);
         if (reader == null) throw new IllegalArgumentException(
             "Could not find raw vector format [" + formatName + "] for field [" + field + "]"

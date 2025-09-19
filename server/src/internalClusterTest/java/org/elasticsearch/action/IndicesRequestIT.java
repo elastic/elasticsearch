@@ -740,7 +740,6 @@ public class IndicesRequestIT extends ESIntegTestCase {
         }
     }
 
-
     private static void assertSameIndices(IndicesRequest originalRequest, String... actions) {
         assertSameIndices(originalRequest, false, actions);
     }

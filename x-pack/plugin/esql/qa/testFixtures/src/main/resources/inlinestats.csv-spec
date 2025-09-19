@@ -1810,6 +1810,7 @@ from employees
 
 prunedInlinestatsFollowedByInlinestats_GroupByOneFieldOnSecondInlinestats
 required_capability: inline_stats
+required_capability: inline_stats_fix_pruning_null_filter
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false, 
@@ -1987,8 +1988,9 @@ null             |0              |[Gino, Heping]                                
 null             |[0, 0, 0, 0]   |[Berni, Chirstian, Amabile, Berni, Bojan, Chirstian, Anneke, Chirstian]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|10004          
 ;
 
-prunedInlinestatsFollowedByinlinestats
+prunedInlinestatsFollowedByInlinestats
 required_capability: inline_stats
+required_capability: inline_stats_fix_pruning_null_filter
 from employees
 | eval my_length = length(concat(first_name, null))
 | inline stats count = count(my_length) where false,

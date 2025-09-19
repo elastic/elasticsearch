@@ -1523,6 +1523,12 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
+        /**
+         * INLINE STATS fix incorrect prunning of null filtering
+         * https://github.com/elastic/elasticsearch/pull/135011
+         */
+        INLINE_STATS_FIX_PRUNING_NULL_FILTER(INLINESTATS_V11.enabled),
+
         ;
 
         private final boolean enabled;

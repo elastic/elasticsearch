@@ -130,10 +130,11 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     }
 
     /**
-     * Prefetches the given range of bytes. The range will be aligned to blockSize and
-     * at most a single buffer of size bufferSize will be prefetched.
+     * Prefetches the given range of bytes. The range will be aligned to blockSize and will
+     * be chopped up into chunks of buffer size.
      * @param pos the position to prefetch from, must be non-negative and within file length
-     * @param length the length to prefetch, must be non-negative. Note, its effectively ignored
+     * @param length the length to prefetch, must be non-negative. This length may cause multiple
+     *               prefetches to be issued, depending on the buffer size.
      */
     @Override
     public void prefetch(long pos, long length) throws IOException {
@@ -145,7 +146,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         final long alignedPos = absPos - (absPos % blockSize);
         // we only prefetch into a single buffer, even if length exceeds buffer size
         // maybe we should improve this...
-        prefetcher.prefetch(alignedPos);
+        prefetcher.prefetch(alignedPos, length);
     }
 
     @Override
@@ -169,7 +170,7 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     public void seek(long pos) throws IOException {
         if (pos != getFilePointer()) {
             final long absolutePos = pos + offset;
-            if (absolutePos >= filePos && absolutePos < filePos + buffer.capacity()) {
+            if (absolutePos >= filePos && absolutePos < filePos + buffer.limit()) {
                 // the new position is within the existing buffer
                 buffer.position(Math.toIntExact(absolutePos - filePos));
             } else {
@@ -197,7 +198,8 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         long nextFilePos = filePos + buffer.capacity();
         // BaseDirectoryTestCase#testSeekPastEOF test for consecutive read past EOF,
         // hence throwing EOFException early to maintain buffer state (position in particular)
-        if (filePos > offset + length || ((offset + length) - filePos < bytesToRead)) {
+        if (nextFilePos > offset + length || ((offset + length) - nextFilePos < bytesToRead)) {
+            filePos = nextFilePos;
             throw new EOFException("read past EOF: " + this);
         }
         buffer.clear();
@@ -342,7 +344,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
     @Override
     public AsyncDirectIOIndexInput clone() {
         try {
-            return new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
+            var clone = new AsyncDirectIOIndexInput("clone:" + this, this, offset, length);
+            clone.seekInternal(getFilePointer());
+            return clone;
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
         }
@@ -353,7 +357,9 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         if ((length | offset) < 0 || length > this.length - offset) {
             throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: " + this);
         }
-        return new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
+        var slice = new AsyncDirectIOIndexInput(sliceDescription, this, this.offset + offset, length);
+        slice.seekInternal(0L);
+        return slice;
     }
 
     /**
@@ -390,29 +396,35 @@ public class AsyncDirectIOIndexInput extends IndexInput {
         /**
          * Initiate prefetch of the given range. The range will be aligned to blockSize and
          * chopped up into chunks of prefetchBytesSize.
-         * @param pos
+         * @param pos the position to prefetch from, must be non-negative and within file length
+         * @param length the length to prefetch, must be non-negative.
          */
-        void prefetch(long pos) {
-            // we must iterate and chop up the pos and length if length exceeds maxPrefetchBytesSize
-            // we should just queue up the prefetch requests if we are at maxConcurrentPrefetches
-            final int slot;
-            Integer existingSlot = this.posToSlot.get(pos);
-            if (existingSlot != null && prefetchThreads[existingSlot] != null) {
-                // already being prefetched and hasn't been consumed.
-                // return early
-                return;
+        void prefetch(long pos, long length) {
+            // first determine how many slots we need given the length
+            int numSlots = (int) Math.min((length + prefetchBytesSize - 1) / prefetchBytesSize, Integer.MAX_VALUE - 1);
+            while (numSlots > 0 && (this.posToSlot.size() + this.pendingPrefetches.size()) < maxTotalPrefetches) {
+                final int slot;
+                Integer existingSlot = this.posToSlot.get(pos);
+                if (existingSlot != null && prefetchThreads[existingSlot] != null) {
+                    // already being prefetched and hasn't been consumed.
+                    // return early
+                    return;
+                }
+                if (this.posToSlot.size() < maxConcurrentPrefetches && slots.isEmpty() == false) {
+                    slot = slots.removeFirst();
+                    posToSlot.put(pos, slot);
+                    prefetchPos[slot] = pos;
+                } else {
+                    slot = -1;
+                    pendingPrefetches.addLast(pos);
+                }
+                if (slot != -1) {
+                    startPrefetch(pos, slot);
+                }
+                pos += prefetchBytesSize;
+                numSlots--;
             }
-            if (this.posToSlot.size() < maxConcurrentPrefetches && slots.size() > 0) {
-                slot = slots.removeFirst();
-                posToSlot.put(pos, slot);
-                prefetchPos[slot] = pos;
-            } else {
-                slot = -1;
-                pendingPrefetches.addLast(pos);
-            }
-            if (slot != -1) {
-                startPrefetch(pos, slot);
-            }
+
         }
 
         /**

@@ -20,7 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AsynchronousDirectIOTests extends ESTestCase {
+public class AsyncDirectIOIndexInputTests extends ESTestCase {
 
     public void testPrefetchEdgeCase() throws IOException {
         byte[] bytes = new byte[8192 * 32 + randomIntBetween(1, 8192)];
@@ -57,7 +57,38 @@ public class AsynchronousDirectIOTests extends ESTestCase {
         }
     }
 
-    public void testWriteThenReadBytes() throws IOException {
+    public void testLargePrefetch() throws IOException {
+        byte[] bytes = new byte[8192 * 10 + randomIntBetween(1, 8192)];
+        int offset = randomIntBetween(1, 8192);
+        int numBytes = randomIntBetween(8192 + 1, 8192 * 8);
+        random().nextBytes(bytes);
+        byte[] trueBytes = new byte[numBytes];
+        System.arraycopy(bytes, offset, trueBytes, 0, numBytes);
+        Path path = createTempDir("testDirectIODirectory");
+        int blockSize = Math.toIntExact(Files.getFileStore(path).getBlockSize());
+        try (Directory dir = new NIOFSDirectory(path)) {
+            try (var output = dir.createOutput("test", org.apache.lucene.store.IOContext.DEFAULT)) {
+                output.writeBytes(bytes, bytes.length);
+            }
+            try (
+                AsyncDirectIOIndexInput actualInput = new AsyncDirectIOIndexInput(
+                    path.resolve("test"),
+                    blockSize,
+                    blockSize,
+                    randomIntBetween(2, 16)
+                );
+            ) {
+                byte[] actualBytes = new byte[numBytes];
+                // prefetch everything at once
+                actualInput.prefetch(offset, numBytes);
+                actualInput.seek(offset);
+                actualInput.readBytes(actualBytes, 0, actualBytes.length);
+                assertArrayEquals(trueBytes, actualBytes);
+            }
+        }
+    }
+
+    public void testWriteThenReadBytesConsistency() throws IOException {
         byte[] bytes = new byte[8192 * 8 + randomIntBetween(1, 8192)];
         random().nextBytes(bytes);
         Path path = createTempDir("testDirectIODirectory");

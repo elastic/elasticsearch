@@ -80,7 +80,7 @@ public class CacheBuilder<K, V> {
     }
 
     public Cache<K, V> build() {
-        Cache<K, V> cache = new Cache<>();
+        LRUCache<K, V> cache = new LRUCache<>();
         if (maximumWeight != -1) {
             cache.setMaximumWeight(maximumWeight);
         }

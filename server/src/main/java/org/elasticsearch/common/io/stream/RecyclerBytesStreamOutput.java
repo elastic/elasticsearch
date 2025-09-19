@@ -308,9 +308,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public void close() {
         var pages = this.pages;
         if (pages != null) {
-            this.pages = null;
-
-            this.currentBytesRef = null;
+            closeFields();
             Releasables.close(pages);
         }
     }
@@ -324,10 +322,17 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     public ReleasableBytesReference moveToBytesReference() {
         var bytes = bytes();
         var pages = this.pages;
-        this.pages = null;
-        this.currentBytesRef = null;
+        closeFields();
 
         return new ReleasableBytesReference(bytes, () -> Releasables.close(pages));
+    }
+
+    private void closeFields() {
+        this.pages = null;
+        this.currentBytesRef = null;
+        this.pageIndex = -1;
+        this.currentPageOffset = pageSize;
+        this.currentCapacity = 0;
     }
 
     /**
@@ -383,6 +388,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         // than Integer.MAX_VALUE
         if (newPosition > Integer.MAX_VALUE - (Integer.MAX_VALUE % pageSize)) {
             throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+        } else if (pages == null) {
+            throw new IllegalStateException("Cannot use " + getClass().getSimpleName() + " after it has been closed");
         }
 
         long additionalCapacityNeeded = newPosition - currentCapacity;

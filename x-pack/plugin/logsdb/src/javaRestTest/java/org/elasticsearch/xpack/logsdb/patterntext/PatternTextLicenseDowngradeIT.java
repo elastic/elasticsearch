@@ -21,8 +21,8 @@ import static org.hamcrest.Matchers.not;
 public class PatternTextLicenseDowngradeIT extends DataStreamLicenseChangeTestCase {
     @Before
     public void checkClusterFeature() {
-        assumeTrue("[pattern_text] must be available", clusterHasFeature("mapper.pattern_text"));
-        assumeTrue("[pattern_text] is only available in snapshot builds", Build.current().isSnapshot());
+        assumeTrue("[patterned_text] must be available", clusterHasFeature("mapper.patterned_text"));
+        assumeTrue("[patterned_text] is only available in snapshot builds", Build.current().isSnapshot());
     }
 
     private static final String patternTextMapping = """

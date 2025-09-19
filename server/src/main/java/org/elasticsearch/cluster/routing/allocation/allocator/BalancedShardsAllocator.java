@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -868,6 +869,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             private final Map<ShardId, Double> shardWriteLoads;
             private final double lowThreshold;
             private final double highThreshold;
+            private final String nodeId;
 
             ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
                 shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
@@ -877,10 +879,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
                 lowThreshold = maxWriteLoadOnNode * 0.5;
                 highThreshold = maxWriteLoadOnNode * 0.8;
+                nodeId = routingNode.nodeId();
             }
 
             @Override
             public int compare(ShardRouting o1, ShardRouting o2) {
+                assert Objects.equals(nodeId, o1.currentNodeId()) && Objects.equals(nodeId, o2.currentNodeId())
+                    : "ShardMovementPriorityComparator is node-specific";
                 // If we have no shard write-load data, shortcut
                 if (highThreshold == 0) {
                     return 0;

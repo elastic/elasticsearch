@@ -5,10 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.pipe;
+package org.elasticsearch.xpack.esql.generator.command.pipe;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,8 +28,9 @@ public class EvalGenerator implements CommandGenerator {
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
         StringBuilder cmd = new StringBuilder(" | eval ");
         int nFields = randomIntBetween(1, 10);
@@ -63,13 +66,13 @@ public class EvalGenerator implements CommandGenerator {
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
         CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
-        List<String> resultColNames = columns.stream().map(EsqlQueryGenerator.Column::name).toList();
+        List<String> resultColNames = columns.stream().map(Column::name).toList();
         List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
         lastColumns = lastColumns.stream().map(EvalGenerator::unquote).toList();
         // expected column names are unquoted already

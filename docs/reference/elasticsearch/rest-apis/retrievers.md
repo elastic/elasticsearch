@@ -233,7 +233,7 @@ Note, however, that wildcard field patterns will only resolve to fields that eit
 
 ### Limitations
 
-- **Single index**: Multi-field queries currently work with single index searches only
+- **Single index**: Until 9.2, multi-field queries only work with single index searches.
 - **CCS (Cross Cluster Search)**: Multi-field queries do not support remote cluster searches
 
 ### Examples

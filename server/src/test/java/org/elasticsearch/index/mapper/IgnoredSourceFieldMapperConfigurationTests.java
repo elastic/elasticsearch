@@ -52,7 +52,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         var doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
-        assertTrue(doc.docs().get(0).getFields().stream().anyMatch(it -> it.name().startsWith(IgnoredSourceFieldMapper.NAME)));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
         String syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are not loaded.
@@ -64,7 +64,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
-        assertTrue(doc.docs().get(0).getFields().stream().anyMatch(it -> it.name().startsWith(IgnoredSourceFieldMapper.NAME)));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
         syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are loaded.
@@ -104,7 +104,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         var doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field is not written.
-        assertTrue(doc.docs().get(0).getFields().stream().noneMatch(it -> it.name().startsWith(IgnoredSourceFieldMapper.NAME)));
+        assertNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
         String syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are not loaded.
@@ -116,7 +116,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
 
         doc = mapperService.documentMapper().parse(source(inputDocument));
         // Field was written.
-        assertTrue(doc.docs().get(0).getFields().stream().anyMatch(it -> it.name().startsWith(IgnoredSourceFieldMapper.NAME)));
+        assertNotNull(doc.docs().get(0).getField(IgnoredSourceFieldMapper.NAME));
 
         syntheticSource = syntheticSource(mapperService.documentMapper(), inputDocument);
         // Values are loaded.

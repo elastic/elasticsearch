@@ -32,9 +32,18 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -124,7 +133,7 @@ class KnnIndexer {
 
         long start = System.nanoTime();
         AtomicInteger numDocsIndexed = new AtomicInteger();
-        try (FSDirectory dir = FSDirectory.open(indexPath); IndexWriter iw = new IndexWriter(dir, iwc);) {
+        try (Directory dir = getDirectory(indexPath); IndexWriter iw = new IndexWriter(dir, iwc)) {
             for (Path docsPath : this.docsPath) {
                 int dim = this.dim;
                 try (FileChannel in = FileChannel.open(docsPath)) {
@@ -212,13 +221,21 @@ class KnnIndexer {
         iwc.setCodec(codec);
         logger.debug("KnnIndexer: forceMerge in {}", indexPath);
         long startNS = System.nanoTime();
-        try (IndexWriter iw = new IndexWriter(FSDirectory.open(indexPath), iwc)) {
+        try (IndexWriter iw = new IndexWriter(getDirectory(indexPath), iwc)) {
             iw.forceMerge(1);
         }
         long endNS = System.nanoTime();
         long elapsedNSec = (endNS - startNS);
         logger.info("forceMerge took {} ms", TimeUnit.NANOSECONDS.toMillis(elapsedNSec));
         results.forceMergeTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsedNSec);
+    }
+
+    static Directory getDirectory(Path indexPath) throws IOException {
+        Directory dir = FSDirectory.open(indexPath);
+        if (dir instanceof MMapDirectory mmapDir) {
+            return new HybridDirectory(mmapDir);
+        }
+        return dir;
     }
 
     static class IndexerThread extends Thread {
@@ -356,6 +373,66 @@ class KnnIndexer {
         synchronized void next(byte[] dest) throws IOException {
             readNext();
             bytes.get(dest);
+        }
+    }
+
+    // Copy of Elastic's HybridDirectory which extends NIOFSDirectory and uses MMapDirectory for certain files.
+    static final class HybridDirectory extends NIOFSDirectory {
+        private final MMapDirectory delegate;
+
+        HybridDirectory(MMapDirectory delegate) throws IOException {
+            super(delegate.getDirectory(), NativeFSLockFactory.INSTANCE);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public IndexInput openInput(String name, IOContext context) throws IOException {
+            if (useDelegate(name, context)) {
+                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                ensureOpen();
+                ensureCanRead(name);
+                // we switch the context here since mmap checks for the READONCE context by identity
+                context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
+                // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+                // we might run into trouble with files that are pendingDelete in one directory but still
+                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                // and intersect for perf reasons.
+                return delegate.openInput(name, context);
+            } else {
+                return super.openInput(name, context);
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(super::close, delegate);
+        }
+
+        private static String getExtension(String name) {
+            // Unlike FileSwitchDirectory#getExtension, we treat `tmp` as a normal file extension, which can have its own rules for mmaping.
+            final int lastDotIndex = name.lastIndexOf('.');
+            if (lastDotIndex == -1) {
+                return "";
+            } else {
+                return name.substring(lastDotIndex + 1);
+            }
+        }
+
+        static boolean useDelegate(String name, IOContext ioContext) {
+            if (ioContext == Store.READONCE_CHECKSUM) {
+                // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
+                // if pre-loading is enabled on this file.
+                return false;
+            }
+
+            final LuceneFilesExtensions extension = LuceneFilesExtensions.fromExtension(getExtension(name));
+            if (extension == null || extension.shouldMmap() == false) {
+                // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
+                // or are large and have a random access pattern and mmap leads to page cache trashing
+                // (e.g. stored fields and term vectors).
+                return false;
+            }
+            return true;
         }
     }
 }

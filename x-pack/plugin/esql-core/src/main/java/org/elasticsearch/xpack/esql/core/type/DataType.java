@@ -14,6 +14,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -22,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -29,8 +32,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -456,41 +457,51 @@ public enum DataType {
     }
 
     public static DataType fromJava(Object value) {
-        if (value == null) {
-            return NULL;
-        }
-        if (value instanceof Integer) {
-            return INTEGER;
-        }
-        if (value instanceof Long) {
-            return LONG;
-        }
-        if (value instanceof BigInteger) {
-            return UNSIGNED_LONG;
-        }
-        if (value instanceof Boolean) {
-            return BOOLEAN;
-        }
-        if (value instanceof Double) {
-            return DOUBLE;
-        }
-        if (value instanceof Float) {
-            return FLOAT;
-        }
-        if (value instanceof Byte) {
-            return BYTE;
-        }
-        if (value instanceof Short) {
-            return SHORT;
-        }
-        if (value instanceof ZonedDateTime) {
-            return DATETIME;
-        }
-        if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
-            return KEYWORD;
+        switch (value) {
+            case null -> {
+                return NULL;
+            }
+            case Integer i -> {
+                return INTEGER;
+            }
+            case Long l -> {
+                return LONG;
+            }
+            case BigInteger bigInteger -> {
+                return UNSIGNED_LONG;
+            }
+            case Boolean b -> {
+                return BOOLEAN;
+            }
+            case Double v -> {
+                return DOUBLE;
+            }
+            case Float v -> {
+                return FLOAT;
+            }
+            case Byte b -> {
+                return BYTE;
+            }
+            case Short i -> {
+                return SHORT;
+            }
+            case ZonedDateTime zonedDateTime -> {
+                return DATETIME;
+            }
+            case List<?> list -> {
+                if (list.isEmpty()) {
+                    return null;
+                }
+                return fromJava(list.getFirst());
+            }
+            default -> {
+                if (value instanceof String || value instanceof Character || value instanceof BytesRef) {
+                    return KEYWORD;
+                }
+                return null;
+            }
         }
 
-        return null;
     }
 
     public static boolean isUnsupported(DataType from) {
@@ -519,6 +530,14 @@ public enum DataType {
 
     public static boolean isDateTime(DataType type) {
         return type == DATETIME;
+    }
+
+    public static boolean isTimeDuration(DataType t) {
+        return t == TIME_DURATION;
+    }
+
+    public static boolean isDateNanos(DataType t) {
+        return t == DATE_NANOS;
     }
 
     public static boolean isNullOrTimeDuration(DataType t) {
@@ -580,7 +599,15 @@ public enum DataType {
     }
 
     public static boolean isSpatialPoint(DataType t) {
-        return t == GEO_POINT || t == CARTESIAN_POINT;
+        return isGeoPoint(t) || isCartesianPoint(t);
+    }
+
+    public static boolean isGeoPoint(DataType t) {
+        return t == GEO_POINT;
+    }
+
+    public static boolean isCartesianPoint(DataType t) {
+        return t == CARTESIAN_POINT;
     }
 
     public static boolean isSpatialShape(DataType t) {
@@ -691,12 +718,11 @@ public enum DataType {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        writeCachedStringWithVersionCheck(out, typeName);
+        ((PlanStreamOutput) out).writeCachedString(typeName);
     }
 
     public static DataType readFrom(StreamInput in) throws IOException {
-        // TODO: Use our normal enum serialization pattern
-        return readFrom(readCachedStringWithVersionCheck(in));
+        return readFrom(((PlanStreamInput) in).readCachedString());
     }
 
     /**

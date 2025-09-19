@@ -13,4 +13,5 @@ public interface GoogleVertexAiRateLimitServiceSettings {
 
     RateLimitSettings rateLimitSettings();
 
+    String projectId();
 }

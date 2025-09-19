@@ -286,7 +286,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         builder.field(K_FIELD.getPreferredName(), k);
         builder.field(NUM_CANDS_FIELD.getPreferredName(), numCands);
 
-        if (visitPercentage != null) {
+        if (IVF_FORMAT.isEnabled() && visitPercentage != null) {
             builder.field(VISIT_PERCENTAGE_FIELD.getPreferredName(), visitPercentage);
         }
 

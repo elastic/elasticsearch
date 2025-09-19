@@ -15,6 +15,7 @@ import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -30,7 +31,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_RESPONSE_THREAD_POOL_NAME;
 
 /**
  * Provides a wrapper around a {@link CloseableHttpAsyncClient} to move the responses to a separate thread for processing.
@@ -71,6 +72,29 @@ public class HttpClient implements Closeable {
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();
+
+        /*
+          TODO When we implement multi-project we should ensure this is ok. A cluster will be authenticated to EIS because it is one mTLS
+          cert per cluster. So I think we're ok to not need to track the connection state per request. We will need to pass a header
+          that contains the project id and organization so EIS can determine if the project is authorized or not.
+
+          See https://stackoverflow.com/questions/13034998/httpclient-is-not-re-using-my-connections-keeps-creating-new-ones for a good
+            explanation of why we disable connection state.
+
+          The relevant part is copied below:
+          SSL connections established by your applications are likely stateful. That is, the server requested the client to
+          authenticate with a private certificate, making them security context specific. HttpClient detects that and prevents
+          those connections from being leased to a caller with a different security context. Effectively HttpClient is playing safe
+          by forcing a new connection for each request rather than risking leasing persistent SSL connection to the wrong user.
+
+          You can do two things here
+
+          - disable connection state tracking
+          - make sure all logically related requests share the same context (recommended)
+          For details see this section of the HttpClient tutorial:
+          https://hc.apache.org/httpcomponents-client-4.5.x/current/tutorial/html/advanced.html#stateful_conn
+         */
+        clientBuilder.disableConnectionState();
 
         /*
           By default, if a keep-alive header is not returned by the server then the connection will be kept alive
@@ -115,18 +139,18 @@ public class HttpClient implements Closeable {
         SocketAccess.doPrivileged(() -> client.execute(request.httpRequestBase(), context, new FutureCallback<>() {
             @Override
             public void completed(HttpResponse response) {
-                respondUsingUtilityThread(response, request, listener);
+                respondUsingResponseThread(response, request, listener);
             }
 
             @Override
             public void failed(Exception ex) {
                 throttlerManager.warn(logger, format("Request from inference entity id [%s] failed", request.inferenceEntityId()), ex);
-                failUsingUtilityThread(ex, listener);
+                failUsingResponseThread(ex, listener);
             }
 
             @Override
             public void cancelled() {
-                failUsingUtilityThread(
+                failUsingResponseThread(
                     new CancellationException(format("Request from inference entity id [%s] was cancelled", request.inferenceEntityId())),
                     listener
                 );
@@ -134,8 +158,8 @@ public class HttpClient implements Closeable {
         }));
     }
 
-    private void respondUsingUtilityThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+    private void respondUsingResponseThread(HttpResponse response, HttpRequest request, ActionListener<HttpResult> listener) {
+        threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> {
             try {
                 listener.onResponse(HttpResult.create(settings.getMaxResponseSize(), response));
             } catch (Exception e) {
@@ -145,12 +169,14 @@ public class HttpClient implements Closeable {
                     e
                 );
                 listener.onFailure(e);
+            } finally {
+                EntityUtils.consumeQuietly(response.getEntity());
             }
         });
     }
 
-    private void failUsingUtilityThread(Exception exception, ActionListener<?> listener) {
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
+    private void failUsingResponseThread(Exception exception, ActionListener<?> listener) {
+        threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
     }
 
     public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
@@ -167,12 +193,12 @@ public class HttpClient implements Closeable {
 
             @Override
             public void failed(Exception ex) {
-                threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(ex));
+                threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME).execute(() -> streamingProcessor.failed(ex));
             }
 
             @Override
             public void cancelled() {
-                threadPool.executor(UTILITY_THREAD_POOL_NAME)
+                threadPool.executor(INFERENCE_RESPONSE_THREAD_POOL_NAME)
                     .execute(
                         () -> streamingProcessor.failed(
                             new CancellationException(

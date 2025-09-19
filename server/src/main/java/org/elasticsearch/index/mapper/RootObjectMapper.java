@@ -78,7 +78,11 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
         protected RootObjectMapperNamespaceValidator namespaceValidator;
 
-        public Builder(String name, Optional<Subobjects> subobjects) {
+        public Builder(String name) {
+            this(name, ObjectMapper.Defaults.SUBOBJECTS);
+        }
+
+        public Builder(String name, Explicit<Subobjects> subobjects) {
             super(name, subobjects);
         }
 
@@ -142,7 +146,7 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
-        Optional<Subobjects> subobjects,
+        Explicit<Subobjects> subobjects,
         Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
@@ -461,7 +465,7 @@ public class RootObjectMapper extends ObjectMapper {
 
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
         throws MapperParsingException {
-        Optional<Subobjects> subobjects = parseSubobjects(node);
+        Explicit<Subobjects> subobjects = parseSubobjects(node);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         builder.addNamespaceValidator(parserContext.getNamespaceValidator());
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();

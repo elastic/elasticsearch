@@ -61,10 +61,10 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
     }
 
     /**
-     * Test that the geo_grid functions are disabled outside of SNAPSHOT.
+     * Test that the geo_grid functions are enabled outside of SNAPSHOT.
      */
-    public void testGeoGridDisabled() {
-        assertGeoGridDisabledWith("index_geo_point");
+    public void testGeoGridEnabled() {
+        assertGeoGridEnabled();
     }
 
     /**
@@ -120,16 +120,10 @@ public abstract class SpatialGridLicenseTestCase extends AbstractEsqlIntegTestCa
         assertThat(e.getMessage(), containsString(expectedError));
     }
 
-    protected void assertGeoGridDisabledWith(String index) {
-        assumeFalse("testing feature is disabled in non-snapshot builds", Build.current().isSnapshot());
-        var query = String.format(Locale.ROOT, """
-            FROM %s
-            | EVAL gridId = %s(location, %d)
-            | STATS count=COUNT() BY gridId
-            """, index, gridFunction(), precision());
-        var expectedError = String.format(Locale.ROOT, "Unknown function [%s]", gridFunction());
-        ElasticsearchException e = expectThrows(VerificationException.class, () -> run(query));
-        assertThat(e.getMessage(), containsString(expectedError));
+    protected void assertGeoGridEnabled() {
+        assumeFalse("testing feature is enabled in non-snapshot builds", Build.current().isSnapshot());
+        assertThat("Capability SPATIAL_GRID_TYPES should be enabled", EsqlCapabilities.Cap.SPATIAL_GRID_TYPES.isEnabled(), equalTo(true));
+        testGeoGridWithPoints();
     }
 
     public static Map<String, Long> getValuesMap(Iterator<Iterator<Object>> values) {

@@ -244,7 +244,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
         for (DocumentField field : metaFields.values()) {
             // TODO: can we avoid having an exception here?
-            if (field.getName().equals(IgnoredFieldMapper.NAME) || field.getName().startsWith(IgnoredSourceFieldMapper.NAME)) {
+            if (field.getName().equals(IgnoredFieldMapper.NAME) || field.getName().equals(IgnoredSourceFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());

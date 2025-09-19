@@ -177,6 +177,7 @@ import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClust
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.SecurityFeatures.CERTIFICATE_IDENTITY_FIELD_FEATURE;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -3261,7 +3262,12 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     public void testCreateCrossClusterApiKeyWithCertificateIdentity() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
-        final ApiKeyService service = createApiKeyService(settings);
+
+        FeatureService mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), eq(CERTIFICATE_IDENTITY_FIELD_FEATURE)))
+            .thenReturn(true);
+
+        final ApiKeyService service = createApiKeyService(settings, mockFeatureService);
 
         final String apiKeyId = randomAlphaOfLength(22);
 
@@ -3578,6 +3584,37 @@ public class ApiKeyServiceTests extends ESTestCase {
                 TransportVersion.current()
             );
         }
+    }
+
+    private ApiKeyService createApiKeyService(Settings baseSettings, FeatureService customFeatureService) {
+        final Settings settings = Settings.builder()
+            .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true)
+            .put(baseSettings)
+            .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Sets.union(
+                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+                Set.of(ApiKeyService.DELETE_RETENTION_PERIOD, ApiKeyService.DELETE_INTERVAL)
+            )
+        );
+        final ApiKeyService service = new ApiKeyService(
+            settings,
+            clock,
+            client,
+            securityIndex,
+            ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
+            cacheInvalidatorRegistry,
+            threadPool,
+            MeterRegistry.NOOP,
+            customFeatureService  // Use the provided FeatureService
+        );
+        if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
+            verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());
+        } else {
+            verify(cacheInvalidatorRegistry).registerCacheInvalidator(eq("api_key"), any());
+        }
+        return service;
     }
 
     private ApiKeyService createApiKeyService() {

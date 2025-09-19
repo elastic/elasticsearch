@@ -13,15 +13,15 @@ Empty string or `true`
 :   Refresh the relevant primary and replica shards (not the whole index) immediately after the operation occurs, so that the updated document appears in search results immediately. This should **ONLY** be done after careful thought and verification that it does not lead to poor performance, both from an indexing and a search standpoint.
 
 `wait_for`
-:   Wait for the changes made by the request to be made visible by a refresh before replying. This doesn’t force an immediate refresh, rather, it waits for a refresh to happen. Elasticsearch automatically refreshes shards that have changed every `index.refresh_interval`. The `index.refresh_interval` setting is [dynamic](/reference/elasticsearch/index-settings/index.md). 
+:   Wait for the changes made by the request to be made visible by a refresh before replying. This doesn’t force an immediate refresh, rather, it waits for a refresh to happen. Elasticsearch automatically refreshes shards that have changed every [`index.refresh_interval`](/reference/elasticsearch/index-settings/index-modules.md#index-refresh-interval-setting).
 
-Calling the [Refresh](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-refresh) API or setting `refresh` to `true` on any of the APIs that support it will also cause a refresh, in turn causing already running requests with `refresh=wait_for` to return.
+    Calling the [Refresh](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-refresh) API or setting `refresh` to `true` on any of the APIs that support it will also cause a refresh, in turn causing already running requests with `refresh=wait_for` to return.
 
-:::{note}
-In {{stack}}, the default value for `index.refresh_interval` is `1s`.
-
-In {{serverless-full}}, the default value for `index.refresh_interval` is `5s`.
-:::
+    :::{note}
+    In {{stack}}, the default value for `index.refresh_interval` is `1s`.<br><br>
+    In {{serverless-full}}, the default value for `index.refresh_interval` is `5s`.<br><br>
+    The `index.refresh_interval` setting is [dynamic](/reference/elasticsearch/index-settings/index.md). 
+    :::
 
 `false` (the default)
 :   Take no refresh related actions. The changes made by this request will be made visible at some point after the request returns.

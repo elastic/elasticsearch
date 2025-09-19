@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -33,8 +32,8 @@ public class RestGetViewAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        GetViewAction.Request req = new GetViewAction.Request(RestUtils.getMasterNodeTimeout(request), request.param("name"));
-        return channel -> client.execute(GetViewAction.INSTANCE, req, new RestToXContentListener<>(channel));
+    protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        GetViewAction.Request req = new GetViewAction.Request(request.param("name"));
+        return channel -> client.execute(TransportGetViewAction.TYPE, req, new RestToXContentListener<>(channel));
     }
 }

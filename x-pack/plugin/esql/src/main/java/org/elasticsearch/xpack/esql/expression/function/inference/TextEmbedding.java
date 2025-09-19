@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -50,7 +51,13 @@ public class TextEmbedding extends InferenceFunction<TextEmbedding> {
         returnType = "dense_vector",
         description = "Generates dense vector embeddings for text using a specified inference endpoint.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
-        preview = true
+        preview = true,
+        examples = {
+            @Example(
+                description = "Generate text embeddings using the 'test_dense_inference' inference endpoint.",
+                file = "text-embedding",
+                tag = "embedding-eval"
+            ) }
     )
     public TextEmbedding(
         Source source,

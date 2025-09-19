@@ -290,12 +290,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
                 var response = toResponse(task, request, configuration, result);
 
-                if (response.isAsync() && response.asyncExecutionId().isPresent()) {
-                    String asyncExecutionId = response.asyncExecutionId().get();
+                if (response.isAsync()) {
+                    if (response.asyncExecutionId().isPresent()) {
+                        String asyncExecutionId = response.asyncExecutionId().get();
+                        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                    }
                     boolean isRunning = response.isRunning();
                     threadPool.getThreadContext()
                         .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
-                    threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
                 }
 
                 listener.onResponse(response);

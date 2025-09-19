@@ -23,6 +23,7 @@ import org.apache.lucene.store.RateLimitedIndexOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -84,7 +85,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final CountDownLatch closedWithNoRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
     // Tragic event that causes the IndexWriter and ThreadPoolMergeScheduler to be closed
-    private volatile Throwable tragedy = null;
+    private record TragicEvent(Throwable throwable, CountDownLatch latch) {}
+    private volatile TragicEvent tragedy = null;
 
     /**
      * Creates a thread-pool-based merge scheduler that runs merges in a thread pool.
@@ -256,7 +258,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         } finally {
             if (queued && tragedy != null) {
                 // ensure that if `onTragicEvent` races with this, we still abort what we just submitted.
-                abortQueuedMergesOnTragedy();
+                abortQueuedMergesAfterTragedy(null);
             }
             checkMergeTaskThrottling();
         }
@@ -356,17 +358,34 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     public void onTragicEvent(Throwable tragedy) {
         assert tragedy != null;
         assert tragedy instanceof MergePolicy.MergeAbortedException == false;
+
+        TragicEvent tragicEvent;
+        boolean shouldAbort= false;
+        // Sets the tragic event if not already set
         synchronized (this) {
-            if (this.tragedy != null) {
-                return; // nothing to do, the merge scheduler is already failed
+            tragicEvent = this.tragedy;
+            if (tragicEvent == null) {
+                tragicEvent = new TragicEvent(tragedy, new CountDownLatch(1));
+                this.tragedy = tragicEvent;
+                shouldAbort = true;
             }
-            this.tragedy = tragedy;
         }
-        abortQueuedMergesOnTragedy();
+        if (shouldAbort) {
+            abortQueuedMergesAfterTragedy(tragedy);
+            tragicEvent.latch().countDown();
+            return;
+        }
+        try {
+            // the merge scheduler is being failed by another thread, wait for non-executed merges to be aborted
+            tragicEvent.latch().await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            tragedy.addSuppressed(e);
+        }
     }
 
-    private void abortQueuedMergesOnTragedy() {
-        assert tragedy != null;
+    private void abortQueuedMergesAfterTragedy(@Nullable Throwable throwable) {
+        assert this.tragedy != null;
         try {
             // Merges that have been pulled from Lucene using MergePolicy#getNextMerge before the tragic exception was set require special
             // handling, because Lucene considers them as "running" and will wait for those to complete in IndexWriter#abortMerges when
@@ -398,7 +417,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             }
         } catch (Exception e) {
             logger.warn("exception when aborting non-running merge tasks", e);
-            tragedy.addSuppressed(e);
+            if (throwable != null) {
+                throwable.addSuppressed(e);
+            }
         }
     }
 

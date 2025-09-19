@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 public class ViewService {
@@ -109,6 +110,20 @@ public class ViewService {
             updated.put(name, view);
             return updated;
         });
+    }
+
+    /**
+     * Gets the view by name.
+     */
+    public View get(String name) {
+        return clusterService.state().metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views().get(name);
+    }
+
+    /**
+     * List current view names.
+     */
+    public Set<String> list() {
+        return clusterService.state().metadata().custom(ViewMetadata.TYPE, ViewMetadata.EMPTY).views().keySet();
     }
 
     /**

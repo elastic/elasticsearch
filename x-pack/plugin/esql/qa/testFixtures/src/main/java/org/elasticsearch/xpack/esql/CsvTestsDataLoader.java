@@ -437,9 +437,29 @@ public class CsvTestsDataLoader {
         for (var policy : ENRICH_POLICIES) {
             loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
         }
-        logger.info("Loading views");
-        for (var view : VIEW_CONFIGS) {
-            loadView(client, view.viewName, view.viewFileName, logger);
+    }
+
+    public static void loadViewsIntoEs(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        if (clusterHasViewSupport(client, logger)) {
+            logger.info("Loading views");
+            for (var view : VIEW_CONFIGS) {
+                loadView(client, view.viewName, view.viewFileName, logger);
+            }
+        } else {
+            logger.info("Skipping loading views as the cluster does not support views");
+        }
+    }
+
+    public static void deleteViews(RestClient client) throws IOException {
+        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+        if (clusterHasViewSupport(client, logger)) {
+            logger.info("Deleting views");
+            for (var view : VIEW_CONFIGS) {
+                deleteView(client, view.viewName, logger);
+            }
+        } else {
+            logger.info("Skipping deleting views as the cluster does not support views");
         }
     }
 
@@ -598,6 +618,31 @@ public class CsvTestsDataLoader {
         request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", " ") + "\"}");
         Response response = client.performRequest(request);
         logger.info("View creation response: {}", response.getStatusLine());
+    }
+
+    private static boolean clusterHasViewSupport(RestClient client, Logger logger) throws IOException {
+        Request request = new Request("GET", "/_query/views");
+        try {
+            Response response = client.performRequest(request);
+            logger.info("View listing response: {}", response.getStatusLine());
+        } catch (ResponseException e) {
+            logger.info("View listing error: {}", e.getMessage());
+            if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
+    }
+
+    private static void deleteView(RestClient client, String viewName, Logger logger) throws IOException {
+        try {
+            client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     private static URL getResource(String name) {

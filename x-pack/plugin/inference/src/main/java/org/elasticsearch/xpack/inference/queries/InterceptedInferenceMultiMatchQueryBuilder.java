@@ -197,23 +197,13 @@ public class InterceptedInferenceMultiMatchQueryBuilder extends InterceptedInfer
 
     private void validateQueryTypeSupported(MultiMatchQueryBuilder.Type queryType) {
         switch (queryType) {
-            case CROSS_FIELDS:
+            case CROSS_FIELDS, PHRASE, PHRASE_PREFIX, BOOL_PREFIX:
+                String supportedTypes = (queryType == MultiMatchQueryBuilder.Type.PHRASE || queryType == MultiMatchQueryBuilder.Type.PHRASE_PREFIX)
+                    ? "[best_fields]"
+                    : "[best_fields] or [most_fields]";
                 throw new IllegalArgumentException(
-                    "multi_match query with type [cross_fields] is not supported for semantic_text fields. "
-                        + "Use [best_fields] or [most_fields] instead."
-                );
-            case PHRASE:
-                throw new IllegalArgumentException(
-                    "multi_match query with type [phrase] is not supported for semantic_text fields. " + "Use [best_fields] instead."
-                );
-            case PHRASE_PREFIX:
-                throw new IllegalArgumentException(
-                    "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " + "Use [best_fields] instead."
-                );
-            case BOOL_PREFIX:
-                throw new IllegalArgumentException(
-                    "multi_match query with type [bool_prefix] is not supported for semantic_text fields. "
-                        + "Use [best_fields] or [most_fields] instead."
+                    "multi_match query with type [" + queryType.toString().toLowerCase() + "] is not supported for semantic_text fields. "
+                        + "Use " + supportedTypes + " instead."
                 );
         }
     }

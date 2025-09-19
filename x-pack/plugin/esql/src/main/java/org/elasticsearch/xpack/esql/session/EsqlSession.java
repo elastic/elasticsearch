@@ -396,7 +396,7 @@ public class EsqlSession {
         }
 
         var preAnalysis = preAnalyzer.preAnalyze(parsed);
-        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.index(), executionInfo);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indexPattern(), executionInfo);
 
         SubscribableListener. //
         <EnrichResolution>newForked(l -> enrichPolicyResolver.resolvePolicies(preAnalysis.enriches(), executionInfo, l))
@@ -655,36 +655,33 @@ public class EsqlSession {
             ThreadPool.Names.SEARCH_COORDINATION,
             ThreadPool.Names.SYSTEM_READ
         );
-        if (preAnalysis.index() != null) {
-            String indexExpressionToResolve = EsqlCCSUtils.createIndexExpressionFromAvailableClusters(executionInfo);
-            if (indexExpressionToResolve.isEmpty()) {
-                // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
-                listener.onResponse(
-                    result.withIndexResolution(IndexResolution.valid(new EsIndex(preAnalysis.index().indexPattern(), Map.of(), Map.of())))
-                );
-            } else {
-                boolean includeAllDimensions = false;
-                // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                if (preAnalysis.indexMode() == IndexMode.TIME_SERIES) {
-                    includeAllDimensions = true;
-                    // TODO: Maybe if no indices are returned, retry without index mode and provide a clearer error message.
-                    var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
-                    if (requestFilter != null) {
-                        requestFilter = new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter);
-                    } else {
-                        requestFilter = indexModeFilter;
+        if (preAnalysis.indexPattern() != null) {
+            indexResolver.resolveAsMergedMapping(
+                preAnalysis.indexPattern().indexPattern(),
+                result.fieldNames,
+                switch (preAnalysis.indexMode()) {
+                    case TIME_SERIES -> {
+                        var indexModeFilter = new TermQueryBuilder(IndexModeFieldMapper.NAME, IndexMode.TIME_SERIES.getName());
+                        yield requestFilter != null
+                            ? new BoolQueryBuilder().filter(requestFilter).filter(indexModeFilter)
+                            : indexModeFilter;
                     }
-                }
-                indexResolver.resolveAsMergedMapping(
-                    indexExpressionToResolve,
-                    result.fieldNames,
-                    requestFilter,
-                    includeAllDimensions,
-                    listener.delegateFailure((l, indexResolution) -> {
-                        l.onResponse(result.withIndexResolution(indexResolution));
-                    })
-                );
-            }
+                    default -> requestFilter;
+                },
+                preAnalysis.indexMode() == IndexMode.TIME_SERIES,
+                listener.delegateFailure((l, mainIndexResolution) -> {
+                    // the order here is tricky - if the cluster has been filtered and later became unavailable,
+                    // do we want to declare it successful or skipped? For now, unavailability takes precedence.
+                    EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, mainIndexResolution.failures());
+                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                        executionInfo,
+                        mainIndexResolution,
+                        requestFilter != null
+                    );
+
+                    l.onResponse(result.withIndexResolution(mainIndexResolution));
+                })
+            );
         } else {
             // occurs when dealing with local relations (row a = 1)
             listener.onResponse(result.withIndexResolution(IndexResolution.invalid("[none specified]")));
@@ -699,29 +696,21 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<LogicalPlan> listener
     ) {
-        if (result.indices.isValid()) {
-            EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
-            if (executionInfo.isCrossClusterSearch()
-                && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
-                // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
-                // to let the LogicalPlanActionListener decide how to proceed
-                LOGGER.debug("No more clusters to search, ending analysis stage");
-                listener.onFailure(new NoClustersToSearchException());
-                return;
-            }
-        }
+        // if (result.indices.isValid()) {
+        // EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+        // if (executionInfo.isCrossClusterSearch()
+        // && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
+        // // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
+        // // to let the LogicalPlanActionListener decide how to proceed
+        // LOGGER.debug("No more clusters to search, ending analysis stage");
+        // listener.onFailure(new NoClustersToSearchException());
+        // return;
+        // }
+        // }
 
         var description = requestFilter == null ? "the only attempt without filter" : "first attempt with filter";
-        LOGGER.debug("Analyzing the plan ({})", description);
-
         try {
-            if (result.indices.isValid() || requestFilter != null) {
-                // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
-                // when the resolution result is not valid for a different reason.
-                if (executionInfo.clusterInfo.isEmpty() == false) {
-                    EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
-                }
-            }
+            LOGGER.debug("Analyzing the plan ({})", description);
             LogicalPlan plan = analyzedPlan(parsed, result, executionInfo);
             LOGGER.debug("Analyzed plan ({}):\n{}", description, plan);
             // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
@@ -734,12 +723,8 @@ public class EsqlSession {
             } else {
                 // retrying and make the index resolution work without any index filtering.
                 preAnalyzeMainIndices(preAnalysis, executionInfo, result, null, listener.delegateFailure((l, r) -> {
-                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
                     try {
-                        // the order here is tricky - if the cluster has been filtered and later became unavailable,
-                        // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, r.indices.failures());
-                        EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, r.indices, false);
+                        LOGGER.debug("Analyzing the plan (second attempt, without filter)");
                         LogicalPlan plan = analyzedPlan(parsed, r, executionInfo);
                         LOGGER.debug("Analyzed plan (second attempt without filter):\n{}", plan);
                         l.onResponse(plan);

@@ -695,6 +695,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release. See the breaking changes documentation for the next major version."
+        );
         return filtered;
     }
 
@@ -1420,6 +1424,18 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static TimeValue randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
+    }
+
+    /**
+     * Generate a random TimeValue that is greater than the provided timeValue.
+     * Chooses a random TimeUnit, adds between 1 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
+     */
+    public static TimeValue randomTimeValueGreaterThan(TimeValue lowerBound) {
+        final TimeUnit randomUnit = randomFrom(TimeUnit.values());
+        // This conversion might round down, but that's fine since we add at least 1 below, ensuring we still satisfy the "greater than".
+        final long lowerBoundDuration = randomUnit.convert(lowerBound.duration(), lowerBound.timeUnit());
+        final long duration = lowerBoundDuration + randomLongBetween(1, 1000);
+        return new TimeValue(duration, randomUnit);
     }
 
     /**

@@ -96,9 +96,11 @@ import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsM
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMultiMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SemanticMultiMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
@@ -457,6 +459,14 @@ public class InferencePlugin extends Plugin
                 InterceptedInferenceSparseVectorQueryBuilder::new
             )
         );
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                QueryBuilder.class,
+                InterceptedInferenceMultiMatchQueryBuilder.NAME,
+                InterceptedInferenceMultiMatchQueryBuilder::new
+            )
+        );
+
         return entries;
     }
 
@@ -629,6 +639,7 @@ public class InferencePlugin extends Plugin
         return List.of(
             new SemanticKnnVectorQueryRewriteInterceptor(),
             new SemanticMatchQueryRewriteInterceptor(),
+            new SemanticMultiMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor()
         );
     }

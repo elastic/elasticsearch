@@ -11,6 +11,7 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMultiMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
@@ -87,7 +88,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEMANTIC_TEXT_FIELDS_CHUNKS_FORMAT,
                 SemanticQueryBuilder.SEMANTIC_QUERY_MULTIPLE_INFERENCE_IDS,
                 SemanticQueryBuilder.SEMANTIC_QUERY_FILTER_FIELD_CAPS_FIX,
-                InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS
+                InterceptedInferenceQueryBuilder.NEW_SEMANTIC_QUERY_INTERCEPTORS,
+                InterceptedInferenceMultiMatchQueryBuilder.SEMANTIC_TEXT_SUPPORTS_MULTI_MATCH_QUERY
             )
         );
         if (RERANK_SNIPPETS.isEnabled()) {

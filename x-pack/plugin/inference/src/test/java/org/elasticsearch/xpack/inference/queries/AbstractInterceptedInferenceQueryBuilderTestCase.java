@@ -333,18 +333,32 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<String, String> remoteIndexNames,
         TransportVersion minTransportVersion
     ) {
+        return createQueryRewriteContext(localIndexInferenceFields, remoteIndexNames, minTransportVersion, Map.of());
+    }
+
+    protected QueryRewriteContext createQueryRewriteContext(
+        Map<String, Map<String, String>> localIndexInferenceFields,
+        Map<String, String> remoteIndexNames,
+        TransportVersion minTransportVersion,
+        Map<String, Settings> indexSettings
+    ) {
         Map<Index, IndexMetadata> indexMetadata = new HashMap<>();
         for (var indexEntry : localIndexInferenceFields.entrySet()) {
             String indexName = indexEntry.getKey();
             Map<String, String> inferenceFields = localIndexInferenceFields.get(indexName);
 
             Index index = new Index(indexName, randomAlphaOfLength(10));
+            Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+
+            // Add custom settings if provided
+            if (indexSettings.containsKey(indexName)) {
+                settingsBuilder.put(indexSettings.get(indexName));
+            }
+
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
-                .settings(
-                    Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                )
+                .settings(settingsBuilder)
                 .numberOfShards(1)
                 .numberOfReplicas(0);
 
@@ -393,15 +407,25 @@ public abstract class AbstractInterceptedInferenceQueryBuilderTestCase<T extends
         Map<String, String> semanticTextFields,
         Map<String, Map<String, Object>> nonInferenceFields
     ) throws IOException {
+        return createIndexMetadataContext(indexName, semanticTextFields, nonInferenceFields, Settings.EMPTY);
+    }
+
+    protected QueryRewriteContext createIndexMetadataContext(
+        String indexName,
+        Map<String, String> semanticTextFields,
+        Map<String, Map<String, Object>> nonInferenceFields,
+        Settings customSettings
+    ) throws IOException {
         Client client = new NoOpClient(threadPool);
 
         Index index = new Index(indexName, randomAlphaOfLength(10));
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            .put(customSettings);
+
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-            )
+            .settings(settingsBuilder)
             .numberOfShards(1)
             .numberOfReplicas(0);
 

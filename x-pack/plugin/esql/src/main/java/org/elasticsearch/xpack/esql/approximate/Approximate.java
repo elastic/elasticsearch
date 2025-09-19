@@ -172,9 +172,11 @@ public class Approximate {
                     encounteredStats.set(true);
                 } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false
                     && ROW_FILTERING_COMMANDS.contains(plan.getClass()) == false) {
-                        throw new VerificationException(
-                            List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] before [STATS] cannot be approximated"))
-                        );
+                    hasFilters.set(true);  // TODO: fix
+
+//                        throw new VerificationException(
+//                            List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] before [STATS] cannot be approximated"))
+//                        );
                     } else if (ROW_FILTERING_COMMANDS.contains(plan.getClass())) {
                         hasFilters.set(true);
                     }
@@ -348,8 +350,8 @@ public class Approximate {
                     for (int i = 0; i < aggregate.aggregates().size(); i++) {
                         NamedExpression aggr = aggregate.aggregates().get(i);
                         NamedExpression sampledAggr = aggregateWithSampledId.aggregates().get(i);
-                        if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                            // TODO: include 0s / nulls depending on agg
+                        if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
+                            // TODO: probably filter low non-empty bucket counts. They're inaccurate and for skew, you need >=3.
                             aggregates.add(
                                 alias.replaceChild(
                                     new ConfidenceInterval( // TODO: move confidence level to the end
@@ -365,7 +367,9 @@ public class Approximate {
                                             new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
                                             Literal.integer(Source.EMPTY, BUCKET_COUNT),
                                             Literal.keyword(Source.EMPTY, "ASC")
-                                        )
+                                        ),
+                                        Literal.integer(Source.EMPTY, BUCKET_COUNT),
+                                        Literal.fromDouble(Source.EMPTY, aggFn instanceof NeedsSampleCorrection ? 0.0 : Double.NaN)
                                     )
                                 )
                             );

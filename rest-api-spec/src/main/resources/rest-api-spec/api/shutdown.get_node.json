@@ -40,6 +40,7 @@
     "params": {
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Timeout for processing on master node"
       }
     }

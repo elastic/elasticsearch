@@ -152,7 +152,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
-public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
+public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOptimizerTests {
 
     public static final List<DataType> UNNECESSARY_CASTING_DATA_TYPES = List.of(
         DataType.BOOLEAN,
@@ -162,7 +162,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         DataType.KEYWORD,
         DataType.TEXT
     );
-    private static final String PARAM_FORMATTING = "%1$s";
 
     /**
      * Estimated size of a keyword field in bytes.
@@ -171,11 +170,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     public static final String MATCH_OPERATOR_QUERY = "from test | where %s:%s";
     public static final String MATCH_FUNCTION_QUERY = "from test | where match(%s, %s)";
 
-    protected TestPlannerOptimizer plannerOptimizer;
-    private TestPlannerOptimizer plannerOptimizerDateDateNanosUnionTypes;
-    private Analyzer timeSeriesAnalyzer;
-    protected TestPlannerOptimizer plannerOptimizerTimeSeries;
-    private final Configuration config;
     private final SearchStats IS_SV_STATS = new TestSearchStats() {
         @Override
         public boolean isSingleValue(FieldAttribute.FieldName field) {
@@ -195,82 +189,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }
     };
 
-    @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
-    public static List<Object[]> readScriptSpec() {
-        return settings().stream().map(t -> {
-            var settings = Settings.builder().loadFromMap(t.v2()).build();
-            return new Object[] { t.v1(), configuration(new QueryPragmas(settings)) };
-        }).toList();
-    }
-
-    private static List<Tuple<String, Map<String, Object>>> settings() {
-        return asList(new Tuple<>("default", Map.of()));
-    }
-
     public LocalPhysicalPlanOptimizerTests(String name, Configuration config) {
-        this.config = config;
-    }
-
-    @Before
-    public void init() {
-        EnrichResolution enrichResolution = new EnrichResolution();
-        enrichResolution.addResolvedPolicy(
-            "foo",
-            Enrich.Mode.ANY,
-            new ResolvedEnrichPolicy(
-                "fld",
-                EnrichPolicy.MATCH_TYPE,
-                List.of("a", "b"),
-                Map.of("", "idx"),
-                Map.ofEntries(
-                    Map.entry("a", new EsField("a", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)),
-                    Map.entry("b", new EsField("b", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE))
-                )
-            )
-        );
-        plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
-        var timeSeriesMapping = loadMapping("k8s-mappings.json");
-        var timeSeriesIndex = IndexResolution.valid(new EsIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
-        timeSeriesAnalyzer = new Analyzer(
-            new AnalyzerContext(
-                EsqlTestUtils.TEST_CFG,
-                new EsqlFunctionRegistry(),
-                timeSeriesIndex,
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            TEST_VERIFIER
-        );
-        plannerOptimizerTimeSeries = new TestPlannerOptimizer(config, timeSeriesAnalyzer);
-    }
-
-    private Analyzer makeAnalyzer(String mappingFileName, EnrichResolution enrichResolution) {
-        var mapping = loadMapping(mappingFileName);
-        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
-        IndexResolution getIndexResult = IndexResolution.valid(test);
-
-        return new Analyzer(
-            new AnalyzerContext(
-                config,
-                new EsqlFunctionRegistry(),
-                getIndexResult,
-                defaultLookupResolution(),
-                enrichResolution,
-                emptyInferenceResolution()
-            ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
-        );
-    }
-
-    protected Analyzer makeAnalyzer(String mappingFileName) {
-        return makeAnalyzer(mappingFileName, new EnrichResolution());
-    }
-
-    private Analyzer makeAnalyzer(IndexResolution indexResolution) {
-        return new Analyzer(
-            new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, new EnrichResolution(), emptyInferenceResolution()),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
-        );
+        super(name, config);
     }
 
     /**
@@ -2585,10 +2505,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;
     }
 
-    protected static QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {
-        return FilterTests.singleValueQuery(query, inner, fieldName, source);
-    }
-
     private Stat queryStatsFor(PhysicalPlan plan) {
         var limit = as(plan, LimitExec.class);
         var agg = as(limit.child(), AggregateExec.class);
@@ -2598,11 +2514,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
         return stat;
-    }
-
-    @Override
-    protected List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
     }
 
     private static KqlQueryBuilder kqlQueryBuilder(String query) {

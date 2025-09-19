@@ -2,3 +2,9 @@
 
 ### TEXT EMBEDDING
 Generates dense vector embeddings for text using a specified inference endpoint.
+
+```esql
+ROW input="Who is Victor Hugo?"
+| EVAL embedding = TEXT_EMBEDDING("Who is Victor Hugo?", "test_dense_inference")
+;
+```

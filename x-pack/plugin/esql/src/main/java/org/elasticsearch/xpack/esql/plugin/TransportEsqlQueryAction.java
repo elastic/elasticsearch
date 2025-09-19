@@ -288,7 +288,17 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 planExecutor.metrics().recordTook(executionInfo.overallTook().millis());
-                listener.onResponse(toResponse(task, request, configuration, result));
+                var response = toResponse(task, request, configuration, result);
+
+                if (response.isAsync() && response.asyncExecutionId().isPresent()) {
+                    String asyncExecutionId = response.asyncExecutionId().get();
+                    boolean isRunning = response.isRunning();
+                    threadPool.getThreadContext()
+                        .addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, isRunning ? "?1" : "?0");
+                    threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
+                }
+
+                listener.onResponse(response);
             }, ex -> {
                 recordCCSTelemetry(task, executionInfo, request, ex);
                 listener.onFailure(ex);
@@ -386,10 +396,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         EsqlQueryResponse.Profile profile = configuration.profile()
             ? new EsqlQueryResponse.Profile(result.completionInfo().driverProfiles(), result.completionInfo().planProfiles())
             : null;
-        threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {
             String asyncExecutionId = asyncTask.getExecutionId().getEncoded();
-            threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, asyncExecutionId);
             return new EsqlQueryResponse(
                 columns,
                 result.pages(),

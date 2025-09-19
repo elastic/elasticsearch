@@ -86,7 +86,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomHnswIndexOptions() {
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomGpuSupportedIndexOptions() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 3199)),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(

@@ -123,7 +123,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), IndexSettings.GpuMode.TRUE).build()
         );
         final var settings = new IndexSettings(metadata, Settings.EMPTY);
-        final var indexOptions = DenseVectorFieldTypeTests.randomHnswIndexOptions();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
         var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
         assertNotNull(format);
@@ -159,7 +159,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), IndexSettings.GpuMode.TRUE).build()
         );
         final var settings = new IndexSettings(metadata, Settings.EMPTY);
-        final var indexOptions = DenseVectorFieldTypeTests.randomHnswIndexOptions();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
         var ex = expectThrows(IllegalArgumentException.class, () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions));
         assertThat(
@@ -181,7 +181,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), IndexSettings.GpuMode.TRUE).build()
         );
         final var settings = new IndexSettings(metadata, Settings.EMPTY);
-        final var indexOptions = DenseVectorFieldTypeTests.randomHnswIndexOptions();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
         var ex = expectThrows(IllegalArgumentException.class, () -> vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions));
         assertThat(
@@ -202,7 +202,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), IndexSettings.GpuMode.AUTO).build()
         );
         final var settings = new IndexSettings(metadata, Settings.EMPTY);
-        final var indexOptions = DenseVectorFieldTypeTests.randomHnswIndexOptions();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
         var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
         assertNotNull(format);
@@ -220,7 +220,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), IndexSettings.GpuMode.AUTO).build()
         );
         final var settings = new IndexSettings(metadata, Settings.EMPTY);
-        final var indexOptions = DenseVectorFieldTypeTests.randomHnswIndexOptions();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
         var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
         assertNull(format);
@@ -256,7 +256,7 @@ public class GPUPluginInitializationIT extends ESIntegTestCase {
             Settings.builder().put(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING.getKey(), IndexSettings.GpuMode.FALSE).build()
         );
         final var settings = new IndexSettings(metadata, Settings.EMPTY);
-        final var indexOptions = DenseVectorFieldTypeTests.randomHnswIndexOptions();
+        final var indexOptions = DenseVectorFieldTypeTests.randomGpuSupportedIndexOptions();
 
         var format = vectorsFormatProvider.getKnnVectorsFormat(settings, indexOptions);
         assertNull(format);

@@ -582,6 +582,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:inlinestats.StdDevFilter}
   issue: https://github.com/elastic/elasticsearch/issues/135101
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:stats.StdDeviationWithLongs}
+  issue: https://github.com/elastic/elasticsearch/issues/135102
 
 # Examples:
 #

@@ -102,10 +102,10 @@ public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatV
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatArrayBlock b) {
+        } else if (this instanceof FloatArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof FloatBigArrayBlock b) {
+        } else if (this instanceof FloatBigArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_BIG_ARRAY);
             b.writeArrayBlock(out);
         } else {

@@ -52,6 +52,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -77,6 +78,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -98,6 +100,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -151,6 +154,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private volatile ClusterState state;
     private final ProjectResolver projectResolver;
     private final FeatureService featureService;
+    private final SamplingService samplingService;
     private final Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener;
 
     private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
@@ -252,6 +256,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
         FeatureService featureService,
+        SamplingService samplingService,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) {
         this.clusterService = clusterService;
@@ -276,6 +281,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = failureStoreMetrics;
         this.projectResolver = projectResolver;
         this.featureService = featureService;
+        this.samplingService = samplingService;
         this.nodeInfoListener = nodeInfoListener;
     }
 
@@ -290,7 +296,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         MatcherWatchdog matcherWatchdog,
         FailureStoreMetrics failureStoreMetrics,
         ProjectResolver projectResolver,
-        FeatureService featureService
+        FeatureService featureService,
+        SamplingService samplingService
     ) {
         this(
             clusterService,
@@ -304,6 +311,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             failureStoreMetrics,
             projectResolver,
             featureService,
+            samplingService,
             createNodeInfoListener(client)
         );
     }
@@ -324,6 +332,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         this.failureStoreMetrics = ingestService.failureStoreMetrics;
         this.projectResolver = ingestService.projectResolver;
         this.featureService = ingestService.featureService;
+        this.samplingService = ingestService.samplingService;
         this.nodeInfoListener = ingestService.nodeInfoListener;
     }
 
@@ -971,6 +980,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
+                            samplingService.maybeSample(state.metadata().projects().get(pipelines.projectId()), indexRequest);
                             continue;
                         }
 
@@ -983,7 +993,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         final int slot = i;
                         final Releasable ref = refs.acquire();
                         final IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
+                        final Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
                         final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(
@@ -1030,7 +1040,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             }
                         );
 
-                        executePipelines(pipelines, indexRequest, ingestDocument, adaptedResolveFailureStore, documentListener);
+                        executePipelines(
+                            pipelines,
+                            indexRequest,
+                            ingestDocument,
+                            adaptedResolveFailureStore,
+                            documentListener,
+                            originalDocumentMetadata
+                        );
                         assert actionRequest.index() != null;
 
                         i++;
@@ -1149,7 +1166,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
         final Function<String, Boolean> resolveFailureStore,
-        final ActionListener<IngestPipelinesExecutionResult> listener
+        final ActionListener<IngestPipelinesExecutionResult> listener,
+        final Metadata originalDocumentMetadata
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -1180,12 +1198,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 listener.onFailure(e);
             }
         };
-
+        AtomicBoolean haveAttemptedSampling = new AtomicBoolean(false);
+        final var project = state.metadata().projects().get(pipelines.projectId());
         try {
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-            final var project = state.metadata().projects().get(pipelines.projectId());
             if (project == null) {
                 throw new IllegalArgumentException("project with id [" + pipelines.projectId() + "] does not exist");
             }
@@ -1335,21 +1353,80 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, resolveFailureStore, listener, originalDocumentMetadata);
                 } else {
-                    // update the index request's source and (potentially) cache the timestamp for TSDB
+                    /*
+                     * At this point, all pipelines have been executed, and we are about to overwrite ingestDocument with the results.
+                     * This is our chance to sample with both the original document and all changes.
+                     */
+                    haveAttemptedSampling.set(true);
+                    attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
                     listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
             });
         } catch (Exception e) {
+            if (haveAttemptedSampling.get() == false) {
+                // It is possible that an exception happened after we sampled. We do not want to sample the same document twice.
+                attemptToSampleData(project, indexRequest, ingestDocument, originalDocumentMetadata);
+            }
             logger.debug(
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
             exceptionHandler.accept(e); // document failed
         }
+    }
+
+    private void attemptToSampleData(
+        ProjectMetadata projectMetadata,
+        IndexRequest indexRequest,
+        IngestDocument ingestDocument,
+        Metadata originalDocumentMetadata
+    ) {
+        if (samplingService != null && samplingService.atLeastOneSampleConfigured()) {
+            /*
+             * We need both the original document and the fully updated document for sampling, so we make a copy of the original
+             * before overwriting it here. We can discard it after sampling.
+             */
+            samplingService.maybeSample(projectMetadata, indexRequest.index(), () -> {
+                IndexRequest original = copyIndexRequestForSampling(indexRequest);
+                updateIndexRequestMetadata(original, originalDocumentMetadata);
+                return original;
+            }, ingestDocument);
+
+        }
+    }
+
+    /**
+     * Creates a copy of an IndexRequest to be used by random sampling.
+     * @param original The IndexRequest to be copied
+     * @return A copy of the IndexRequest
+     */
+    private IndexRequest copyIndexRequestForSampling(IndexRequest original) {
+        IndexRequest clonedRequest = new IndexRequest(original.index());
+        clonedRequest.id(original.id());
+        clonedRequest.routing(original.routing());
+        clonedRequest.version(original.version());
+        clonedRequest.versionType(original.versionType());
+        clonedRequest.setPipeline(original.getPipeline());
+        clonedRequest.setFinalPipeline(original.getFinalPipeline());
+        clonedRequest.setIfSeqNo(original.ifSeqNo());
+        clonedRequest.setIfPrimaryTerm(original.ifPrimaryTerm());
+        clonedRequest.setRefreshPolicy(original.getRefreshPolicy());
+        clonedRequest.waitForActiveShards(original.waitForActiveShards());
+        clonedRequest.timeout(original.timeout());
+        clonedRequest.opType(original.opType());
+        clonedRequest.setParentTask(original.getParentTask());
+        clonedRequest.setRequireDataStream(original.isRequireDataStream());
+        clonedRequest.setRequireAlias(original.isRequireAlias());
+        clonedRequest.setIncludeSourceOnError(original.getIncludeSourceOnError());
+        BytesReference source = original.source();
+        if (source != null) {
+            clonedRequest.source(source, original.getContentType());
+        }
+        return clonedRequest;
     }
 
     private static void executePipeline(

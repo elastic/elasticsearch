@@ -405,15 +405,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         }
     }
 
-    // Package-access for testing.
-    @FixForMultiProject(description = "Refactor to supply the project ID associated with the alias and settings, or eliminate this method.")
-    void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<RemoteClusterConnectionStatus> listener) {
-        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
-        updateRemoteCluster(config, false, listener);
-    }
-
     /**
      * Adds, rebuilds, or closes and removes the connection for the specified remote cluster.
      *
@@ -421,7 +412,8 @@ public final class RemoteClusterService extends RemoteClusterAware
      * @param forceRebuild Forces an existing connection to be closed and reconnected even if the connection strategy does not require it.
      * @param listener The listener invoked once the configured cluster has been connected.
      */
-    private synchronized void updateRemoteCluster(
+    // Package-access for testing.
+    synchronized void updateRemoteCluster(
         LinkedProjectConfig config,
         boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener

@@ -74,7 +74,6 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COMPLETION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.KNN_FUNCTION_V5;
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
@@ -176,16 +175,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (supportsSourceFieldMapping() == false) {
             assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
         }
-        if (testCase.requiredCapabilities.contains(METRICS_COMMAND.capabilityName())) {
-            assumeTrue("Skip time-series tests in mixed clusters until the development stabilizes", supportTimeSeriesCommand());
-        }
-    }
-
-    /**
-     * Skip time-series tests in mixed clusters until the development stabilizes
-     */
-    protected boolean supportTimeSeriesCommand() {
-        return true;
     }
 
     protected static void checkCapabilities(

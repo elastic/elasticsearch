@@ -366,8 +366,6 @@ public final class DocumentParser {
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
-        int countArray = 0;
-        long arrayObjectsLimit = context.indexSettings().getMappingArrayObjectsLimit();
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == null) {
                 throwEOF(context.parent(), context);
@@ -383,7 +381,7 @@ public final class DocumentParser {
                     }
                     break;
                 case START_OBJECT:
-                    countArray = parseObject(context, currentFieldName, arrayObjectsLimit, countArray);
+                    parseObject(context, currentFieldName, 0, 0);
                     break;
                 case START_ARRAY:
                     parseArray(context, currentFieldName);

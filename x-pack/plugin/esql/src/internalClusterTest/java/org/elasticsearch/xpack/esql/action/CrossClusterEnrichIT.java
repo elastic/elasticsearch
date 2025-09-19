@@ -495,6 +495,19 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
         assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [ENRICH  _COORDINATOR"));
     }
 
+    public void testEnrichAfterMvExpandLimit() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | SORT timestamp
+            | LIMIT 2
+            | eval ip= TO_STR(host)
+            | MV_EXPAND host
+            | %s
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
+        assertThat(error.getMessage(), containsString("MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
+    }
+
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {
         assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
         assertTrue(executionInfo.isCrossClusterSearch());

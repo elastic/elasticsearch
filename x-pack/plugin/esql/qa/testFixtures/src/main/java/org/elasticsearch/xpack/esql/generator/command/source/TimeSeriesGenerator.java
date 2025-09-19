@@ -5,28 +5,30 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.rest.generative.command.source;
+package org.elasticsearch.xpack.esql.generator.command.source;
 
-import org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.xpack.esql.qa.rest.generative.EsqlQueryGenerator.indexPattern;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.indexPattern;
 
-public class FromGenerator implements CommandGenerator {
+public class TimeSeriesGenerator implements CommandGenerator {
 
-    public static final FromGenerator INSTANCE = new FromGenerator();
+    public static final TimeSeriesGenerator INSTANCE = new TimeSeriesGenerator();
 
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
-        List<EsqlQueryGenerator.Column> previousOutput,
-        QuerySchema schema
+        List<Column> previousOutput,
+        QuerySchema schema,
+        QueryExecutor executor
     ) {
-        StringBuilder result = new StringBuilder("from ");
+        StringBuilder result = new StringBuilder("ts ");
         int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         for (int i = 0; i < items; i++) {
@@ -37,16 +39,16 @@ public class FromGenerator implements CommandGenerator {
             result.append(pattern);
         }
         String query = result.toString();
-        return new CommandDescription("from", this, query, Map.of());
+        return new CommandDescription("ts", this, query, Map.of());
     }
 
     @Override
     public ValidationResult validateOutput(
         List<CommandDescription> previousCommands,
-        CommandDescription commandDescription,
-        List<EsqlQueryGenerator.Column> previousColumns,
+        CommandDescription command,
+        List<Column> previousColumns,
         List<List<Object>> previousOutput,
-        List<EsqlQueryGenerator.Column> columns,
+        List<Column> columns,
         List<List<Object>> output
     ) {
         return VALIDATION_OK;

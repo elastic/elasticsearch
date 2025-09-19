@@ -46,7 +46,7 @@ public class IndexAbstractionResolver {
         BiPredicate<String, IndexComponentSelector> isAuthorized,
         boolean includeDataStreams
     ) {
-        Map<String, ResolvedIndexExpression> replaced = new LinkedHashMap<>();
+        Map<String, ResolvedIndexExpression> resolvedIndexExpressions = new LinkedHashMap<>();
 
         boolean wildcardSeen = false;
 
@@ -67,19 +67,16 @@ public class IndexAbstractionResolver {
             if (indicesOptions.allowSelectors() == false && selectorString != null) {
                 throw new UnsupportedSelectorException(indexAbstraction);
             }
-
             indexAbstraction = expressionAndSelector.v1();
             IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
 
             // we always need to check for date math expressions
             indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
 
-            Set<String> resolvedForThisInput = new HashSet<>();
-
+            Set<String> resolvedForThisExpression = new HashSet<>();
             if (indicesOptions.expandWildcardExpressions() && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-
                 for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
@@ -94,42 +91,25 @@ public class IndexAbstractionResolver {
                         resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
                 }
-
                 if (resolvedIndices.isEmpty()) {
                     // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
-                }
-
-                if (minus) {
-                    if (resolvedIndices.isEmpty() == false) {
-                        for (ResolvedIndexExpression prior : replaced.values()) {
-                            if (prior.localExpressions().expressions().isEmpty()) {
-                                continue;
-                            }
-                            prior.localExpressions().expressions().removeAll(resolvedIndices);
-                        }
-                    }
                 } else {
-                    resolvedForThisInput.addAll(resolvedIndices);
-                    replaced.put(index, new ResolvedIndexExpression(index, new ArrayList<>(resolvedForThisInput)));
+                    if (minus) {
+                        exclude(resolvedIndices, resolvedIndexExpressions);
+                    } else {
+                        resolvedForThisExpression.addAll(resolvedIndices);
+                        resolvedIndexExpressions.put(index, new ResolvedIndexExpression(index, new ArrayList<>(resolvedForThisExpression)));
+                    }
                 }
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
                 resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
-
                 if (minus) {
-                    if (resolvedIndices.isEmpty() == false) {
-                        for (ResolvedIndexExpression prior : replaced.values()) {
-                            if (prior.localExpressions().expressions().isEmpty()) {
-                                continue;
-                            }
-                            prior.localExpressions().expressions().removeAll(resolvedIndices);
-                        }
-                    }
+                    exclude(resolvedIndices, resolvedIndexExpressions);
                 } else {
-                    // We should consider if this needs to be optimized to avoid checking authorization and existence here
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     boolean existsAndVisible = authorized
                         && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
@@ -139,13 +119,17 @@ public class IndexAbstractionResolver {
                             ? ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING
                             : ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED);
                     if (indicesOptions.ignoreUnavailable() == false || authorized) {
-                        resolvedForThisInput.addAll(resolvedIndices);
+                        resolvedForThisExpression.addAll(resolvedIndices);
                     }
-                    replaced.put(
+                    resolvedIndexExpressions.put(
                         index,
                         new ResolvedIndexExpression(
                             index,
-                            new ResolvedIndexExpression.LocalExpressions(new ArrayList<>(resolvedForThisInput), resolutionResult, null),
+                            new ResolvedIndexExpression.LocalExpressions(
+                                new ArrayList<>(resolvedForThisExpression),
+                                resolutionResult,
+                                null
+                            ),
                             List.of()
                         )
                     );
@@ -153,7 +137,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        return new ResolvedIndexExpressions(replaced);
+        return new ResolvedIndexExpressions(resolvedIndexExpressions);
     }
 
     private static void resolveSelectorsAndCollect(
@@ -313,7 +297,7 @@ public class IndexAbstractionResolver {
         String indexAbstraction,
         String selectorString
     ) {
-        var abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
+        final IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
         return abstraction != null
             && isIndexVisible(
                 indexAbstraction,
@@ -324,5 +308,13 @@ public class IndexAbstractionResolver {
                 indexNameExpressionResolver,
                 includeDataStreams
             );
+    }
+
+    private static void exclude(Set<String> expressionsToExclude, Map<String, ResolvedIndexExpression> replaced) {
+        if (expressionsToExclude.isEmpty() == false) {
+            for (ResolvedIndexExpression prior : replaced.values()) {
+                prior.localExpressions().expressions().removeAll(expressionsToExclude);
+            }
+        }
     }
 }

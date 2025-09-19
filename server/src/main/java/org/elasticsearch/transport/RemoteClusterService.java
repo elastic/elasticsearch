@@ -82,7 +82,7 @@ public final class RemoteClusterService extends RemoteClusterAware
     private final Map<ProjectId, Map<String, RemoteClusterConnection>> remoteClusters;
     private final RemoteClusterCredentialsManager remoteClusterCredentialsManager;
     private final ProjectResolver projectResolver;
-    private final boolean canUseSkipUnavailable;
+    private final boolean crossProjectEnabled;
 
     RemoteClusterService(Settings settings, TransportService transportService, ProjectResolver projectResolver) {
         super(settings);
@@ -103,7 +103,7 @@ public final class RemoteClusterService extends RemoteClusterAware
          * TODO: This is not the right way to check if we're in CPS context and is more of a temporary measure since
          *  the functionality to do it the right way is not yet ready -- replace this code when it's ready.
          */
-        this.canUseSkipUnavailable = settings.getAsBoolean("serverless.cross_project.enabled", false) == false;
+        this.crossProjectEnabled = settings.getAsBoolean("serverless.cross_project.enabled", false);
     }
 
     /**
@@ -220,11 +220,15 @@ public final class RemoteClusterService extends RemoteClusterAware
      * it returns an empty value where we default/fall back to true.
      */
     public Optional<Boolean> isSkipUnavailable(String clusterAlias) {
-        if (canUseSkipUnavailable == false) {
+        if (crossProjectEnabled) {
             return Optional.empty();
         } else {
             return Optional.of(getRemoteClusterConnection(clusterAlias).isSkipUnavailable());
         }
+    }
+
+    public boolean crossProjectEnabled() {
+        return crossProjectEnabled;
     }
 
     /**
@@ -405,15 +409,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         }
     }
 
-    // Package-access for testing.
-    @FixForMultiProject(description = "Refactor to supply the project ID associated with the alias and settings, or eliminate this method.")
-    void updateRemoteCluster(String clusterAlias, Settings newSettings, ActionListener<RemoteClusterConnectionStatus> listener) {
-        final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
-        updateRemoteCluster(config, false, listener);
-    }
-
     /**
      * Adds, rebuilds, or closes and removes the connection for the specified remote cluster.
      *
@@ -421,7 +416,8 @@ public final class RemoteClusterService extends RemoteClusterAware
      * @param forceRebuild Forces an existing connection to be closed and reconnected even if the connection strategy does not require it.
      * @param listener The listener invoked once the configured cluster has been connected.
      */
-    private synchronized void updateRemoteCluster(
+    // Package-access for testing.
+    synchronized void updateRemoteCluster(
         LinkedProjectConfig config,
         boolean forceRebuild,
         ActionListener<RemoteClusterConnectionStatus> listener

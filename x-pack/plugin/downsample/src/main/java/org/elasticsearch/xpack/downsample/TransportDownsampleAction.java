@@ -212,7 +212,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         String sourceIndexName = request.getSourceIndex();
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
         IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(request.getTargetIndex());
-        final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        final IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(threadContext);
         if (indicesAccessControl != null) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);
             if (indexPermissions != null) {
@@ -961,7 +961,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             projectId,
             downsampleIndexName,
             downsampleIndexName
-        ).settings(builder.build()).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
+        ).settings(builder.build()).settingsSystemProvided(true).mappings(mapping).waitForActiveShards(ActiveShardCount.ONE);
         var delegate = new AllocationActionListener<>(listener, threadPool.getThreadContext());
         taskQueue.submitTask("create-downsample-index [" + downsampleIndexName + "]", new DownsampleClusterStateUpdateTask(listener) {
             @Override

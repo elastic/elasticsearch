@@ -372,6 +372,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
         if (shouldAbort) {
             abortQueuedMergesAfterTragedy(tragedy);
+            closedWithNoRunningMerges.countDown();
             tragicEvent.latch().countDown();
             return;
         }
@@ -746,20 +747,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void close() throws IOException {
-        boolean waitForRunningMerges = true;
         synchronized (this) {
             closed = true;
             // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
             enqueueBackloggedTasks();
             // signal if there aren't any currently running merges
             maybeSignalAllMergesDoneAfterClose();
-            // Do not wait for running merges if we are closing due to a tragic event
-            waitForRunningMerges = tragedy == null;
         }
         try {
-            if (waitForRunningMerges) {
-                closedWithNoRunningMerges.await();
-            }
+            closedWithNoRunningMerges.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {

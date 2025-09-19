@@ -114,6 +114,9 @@ public class IndexAbstractionResolver {
                         ? (visible ? SUCCESS : CONCRETE_RESOURCE_MISSING)
                         : CONCRETE_RESOURCE_UNAUTHORIZED;
 
+                    // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
+                    // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
+                    // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
                     Set<String> finalIndices = includeIndices ? resolvedIndices : Set.of();
                     resolvedIndexExpressions.putLocalExpression(index, finalIndices, result);

@@ -148,6 +148,23 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
                 ) },
             new Object[] {
                 new Test(
+                    """
+                        FROM idx
+                        | EVAL y = to_str(host)
+                        | RENAME host as host_left
+                        | LOOKUP JOIN lookup_idx ON host_left == host
+                        """,
+                    Map.ofEntries(
+                        Map.entry("RENAME", 1),
+                        Map.entry("FROM", 1),
+                        Map.entry("EVAL", 1),
+                        Map.entry("LOOKUP JOIN ON EXPRESSION", 1)
+                    ),
+                    Map.ofEntries(Map.entry("TO_STRING", 1)),
+                    true
+                ) },
+            new Object[] {
+                new Test(
                     "TS time_series_idx | LIMIT 10",
                     Map.ofEntries(Map.entry("TS", 1), Map.entry("LIMIT", 1)),
                     Map.ofEntries(),
@@ -184,6 +201,12 @@ public class TelemetryIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testMetrics() throws Exception {
+        if (testCase.query().contains("LOOKUP JOIN lookup_idx ON host_left == host")) {
+            assumeTrue(
+                "requires LOOKUP JOIN ON boolean expression capability",
+                EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled()
+            );
+        }
         DiscoveryNode dataNode = randomDataNode();
         testQuery(dataNode, testCase);
     }

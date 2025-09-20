@@ -606,6 +606,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.CsvTests
   method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
   issue: https://github.com/elastic/elasticsearch/issues/135120
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
+  issue: https://github.com/elastic/elasticsearch/issues/135121
 
 # Examples:
 #

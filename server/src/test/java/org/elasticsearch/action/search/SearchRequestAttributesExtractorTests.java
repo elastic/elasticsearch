@@ -188,6 +188,18 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
                 searchRequest,
                 searchRequest.indices()
             );
+            assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, false, false, null);
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest(randomAlphaOfLengthBetween(3, 10));
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchRequest.source(searchSourceBuilder);
+            searchSourceBuilder.sort("@timestamp");
+            searchSourceBuilder.query(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
+            Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
+                searchRequest,
+                searchRequest.indices()
+            );
             assertAttributes(stringObjectMap, "user", "@timestamp", "hits_only", false, true, false, null);
         }
         {
@@ -202,10 +214,10 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
                 boolQueryBuilder.must(boolQueryBuilderNew);
                 boolQueryBuilder = boolQueryBuilderNew;
             }
-            boolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
+            boolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
             searchSourceBuilder.query(boolQueryBuilder);
             if (randomBoolean()) {
-                boolQueryBuilder.should(new RangeQueryBuilder("event.ingested"));
+                boolQueryBuilder.should(new RangeQueryBuilder("event.ingested").from("2021-11-11"));
             }
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
@@ -229,7 +241,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
                 boolQueryBuilder.should(new RangeQueryBuilder("event.ingested"));
             }
 
-            boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp"));
+            boolQueryBuilder.filter(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
@@ -243,8 +255,8 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.sort("@timestamp");
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            boolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
-            boolQueryBuilder.must(new RangeQueryBuilder("event.ingested"));
+            boolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
+            boolQueryBuilder.must(new RangeQueryBuilder("event.ingested").from("2021-11-11"));
             boolQueryBuilder.must(new RangeQueryBuilder(randomAlphaOfLengthBetween(3, 10)));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
@@ -259,7 +271,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.sort("@timestamp");
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            boolQueryBuilder.should(new RangeQueryBuilder("@timestamp"));
+            boolQueryBuilder.should(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
@@ -273,7 +285,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.sort("@timestamp");
             BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-            boolQueryBuilder.should(new RangeQueryBuilder(randomAlphaOfLengthBetween(3, 10)));
+            boolQueryBuilder.should(new RangeQueryBuilder(randomAlphaOfLengthBetween(3, 10)).from("2021-11-11"));
             searchSourceBuilder.query(boolQueryBuilder);
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
@@ -286,7 +298,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.sort("@timestamp");
-            searchSourceBuilder.query(new ConstantScoreQueryBuilder(new RangeQueryBuilder("@timestamp")));
+            searchSourceBuilder.query(new ConstantScoreQueryBuilder(new RangeQueryBuilder("@timestamp").from("2021-11-11")));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
                 searchRequest.indices()
@@ -298,7 +310,9 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
             searchRequest.source(searchSourceBuilder);
             searchSourceBuilder.sort("@timestamp");
-            searchSourceBuilder.query(new BoostingQueryBuilder(new RangeQueryBuilder("@timestamp"), new MatchAllQueryBuilder()));
+            searchSourceBuilder.query(
+                new BoostingQueryBuilder(new RangeQueryBuilder("@timestamp").from("2021-11-11"), new MatchAllQueryBuilder())
+            );
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
                 searchRequest.indices()
@@ -320,7 +334,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
                 newBoolQueryBuilder.must(innerBoolQueryBuilder);
                 newBoolQueryBuilder = innerBoolQueryBuilder;
             }
-            newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
+            newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
                 searchRequest.indices()
@@ -339,7 +353,7 @@ public class SearchRequestAttributesExtractorTests extends ESTestCase {
                 newBoolQueryBuilder.must(innerBoolQueryBuilder);
                 newBoolQueryBuilder = innerBoolQueryBuilder;
             }
-            newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp"));
+            newBoolQueryBuilder.must(new RangeQueryBuilder("@timestamp").from("2021-11-11"));
             Map<String, Object> stringObjectMap = SearchRequestAttributesExtractor.extractAttributes(
                 searchRequest,
                 searchRequest.indices()

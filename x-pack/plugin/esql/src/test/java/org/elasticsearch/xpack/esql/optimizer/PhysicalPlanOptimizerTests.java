@@ -7876,7 +7876,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), plan, TEST_SEARCH_STATS);
+        var physicalSettings = new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000);
+        var flags = new EsqlFlags(true);
+        plan = PlannerUtils.localPlan(physicalSettings, flags, config, FoldContext.small(), plan, TEST_SEARCH_STATS);
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7895,7 +7897,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FoldContext.small(),
                 List.of(),
                 null,
-                new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+                new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000)
             ),
             List.of()
         );
@@ -8253,7 +8255,9 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(new EsqlFlags(true), config, FoldContext.small(), fragment, searchStats);
+            var physicalSettings = new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000);
+            var flags = new EsqlFlags(true);
+            var localPlan = PlannerUtils.localPlan(physicalSettings, flags, config, FoldContext.small(), fragment, searchStats);
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 

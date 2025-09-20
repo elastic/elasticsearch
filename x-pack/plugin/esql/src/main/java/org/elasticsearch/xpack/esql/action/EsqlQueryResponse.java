@@ -111,7 +111,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     static EsqlQueryResponse deserialize(BlockStreamInput in) throws IOException {
-        String asyncExecutionId = asyncExecutionId = in.readOptionalString();
+        String asyncExecutionId = in.readOptionalString();
         boolean isRunning = in.readBoolean();
         boolean isAsync = in.readBoolean();
         List<ColumnInfoImpl> columns = in.readCollectionAsList(ColumnInfoImpl::new);
@@ -208,7 +208,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
     }
 
     public boolean isAsync() {
-        return isRunning;
+        return isAsync;
     }
 
     public boolean isPartial() {

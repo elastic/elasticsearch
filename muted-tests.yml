@@ -651,6 +651,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/135144
+- class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/135145
 
 # Examples:
 #

@@ -40,6 +40,7 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.InFlightShardSnapshotStates;
+import org.elasticsearch.snapshots.PerNodeShardSnapshotCounter;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -227,6 +229,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             count += byRepo.entries.size();
         }
         return count;
+    }
+
+    public Set<ProjectRepo> repos() {
+        return entries.keySet();
     }
 
     public Iterable<List<Entry>> entriesByRepo() {
@@ -784,6 +790,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, shardSnapshotResult.getGeneration(), null, shardSnapshotResult);
         }
 
+        public boolean isUnassignedQueued() {
+            return this == UNASSIGNED_QUEUED || (state == ShardState.QUEUED && generation == null && nodeId == null);
+        }
+
         public ShardSnapshotStatus(
             @Nullable String nodeId,
             ShardState state,
@@ -1231,7 +1241,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
          * @return aborted snapshot entry or {@code null} if entry can be removed from the cluster state directly
          */
         @Nullable
-        public Entry abort() {
+        public Entry abort(PerNodeShardSnapshotCounter perNodeShardSnapshotCounter, Consumer<ShardId> onLimitedShardAbort) {
             final Map<ShardId, ShardSnapshotStatus> shardsBuilder = new HashMap<>();
             boolean completed = true;
             boolean allQueued = true;
@@ -1249,6 +1259,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 }
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.getKey(), status);
+                if (perNodeShardSnapshotCounter.removeLimitedShardForSnapshot(snapshot, shardEntry.getKey())) {
+                    onLimitedShardAbort.accept(shardEntry.getKey());
+                }
             }
             if (allQueued) {
                 return null;

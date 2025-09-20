@@ -218,8 +218,9 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByVersion();
+                    this.createClientsByCertificateIdentityCapability();
 
+                    // Test against old node - should get parsing error
                     Exception oldNodeException = expectThrows(
                         Exception.class,
                         () -> createCrossClusterApiKeyWithCertIdentity(oldVersionClient, "CN=test-.*")
@@ -236,16 +237,12 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                     );
                     assertThat(
                         newNodeException.getMessage(),
-                        containsString(
-                            "API key creation failed. The cluster is in a mixed-version state and does not yet "
-                                + "support the [certificate_identity] field. Please retry after the upgrade is complete."
-                        )
+                        containsString("cluster is in a mixed-version state and does not yet support the [certificate_identity] field")
                     );
                 } finally {
                     this.closeClientsByVersion();
                 }
             }
-
             case UPGRADED -> {
                 // Fully upgraded cluster should support certificate identity
                 final Tuple<String, String> apiKey = createCrossClusterApiKeyWithCertIdentity("CN=test-.*");
@@ -484,6 +481,53 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         apiKeysVerifier.accept(apiKeys);
     }
 
+    private boolean nodeSupportsCertificateIdentity(Map<String, Object> nodeDetails) {
+        String nodeVersionString = (String) nodeDetails.get("version");
+        Version nodeVersion = Version.fromString(nodeVersionString);
+        // Certificate identity was introduced in 9.2.0
+        return nodeVersion.onOrAfter(Version.V_9_2_0);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Boolean, RestClient> getRestClientByCertificateIdentityCapability() throws IOException {
+        Response response = client().performRequest(new Request("GET", "_nodes"));
+        assertOK(response);
+        ObjectPath objectPath = ObjectPath.createFromResponse(response);
+        Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+        Map<Boolean, List<HttpHost>> hostsByCapability = new HashMap<>();
+
+        for (Map.Entry<String, Object> entry : nodesAsMap.entrySet()) {
+            Map<String, Object> nodeDetails = (Map<String, Object>) entry.getValue();
+            var capabilitySupported = nodeSupportsCertificateIdentity(nodeDetails);
+            Map<String, Object> httpInfo = (Map<String, Object>) nodeDetails.get("http");
+            hostsByCapability.computeIfAbsent(capabilitySupported, k -> new ArrayList<>())
+                .add(HttpHost.create((String) httpInfo.get("publish_address")));
+        }
+
+        Map<Boolean, RestClient> clientsByCapability = new HashMap<>();
+        for (var entry : hostsByCapability.entrySet()) {
+            clientsByCapability.put(entry.getKey(), buildClient(restClientSettings(), entry.getValue().toArray(new HttpHost[0])));
+        }
+        return clientsByCapability;
+    }
+
+    private void createClientsByCertificateIdentityCapability() throws IOException {
+        var clientsByCapability = getRestClientByCertificateIdentityCapability();
+        if (clientsByCapability.size() == 2) {
+            for (Map.Entry<Boolean, RestClient> client : clientsByCapability.entrySet()) {
+                if (client.getKey() == false) {
+                    oldVersionClient = client.getValue();
+                } else {
+                    newVersionClient = client.getValue();
+                }
+            }
+            assertThat(oldVersionClient, notNullValue());
+            assertThat(newVersionClient, notNullValue());
+        } else {
+            fail("expected 2 versions during rolling upgrade but got: " + clientsByCapability.size());
+        }
+    }
+
     private Tuple<String, String> createCrossClusterApiKeyWithCertIdentity(String certificateIdentity) throws IOException {
         return createCrossClusterApiKeyWithCertIdentity(client(), certificateIdentity);
     }
@@ -514,4 +558,5 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertThat(key, notNullValue());
         return Tuple.tuple(id, key);
     }
+
 }

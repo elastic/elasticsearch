@@ -563,7 +563,14 @@ public class ApiKeyService implements Closeable {
             : "Invalid API key (name=[" + request.getName() + "], type=[" + request.getType() + "], length=[" + apiKey.length() + "])";
 
         computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
-            String certificateIdentity = getCertificateIdentityFromRequest(request);
+            final String certificateIdentity;
+            try {
+                certificateIdentity = getCertificateIdentityFromRequest(request);
+            } catch (ElasticsearchException e) {
+                listener.onFailure(e);
+                return;
+            }
+
             try (
                 XContentBuilder builder = newDocument(
                     apiKeyHashChars,

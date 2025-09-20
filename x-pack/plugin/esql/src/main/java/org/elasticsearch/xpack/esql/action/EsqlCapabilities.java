@@ -1102,6 +1102,11 @@ public class EsqlCapabilities {
         MAX_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support delta aggregation that gets evaluated per time-series
+         */
+        DELTA_TS_AGG,
+
+        /**
          * Support for FORK out of snapshot
          */
         FORK_V9,

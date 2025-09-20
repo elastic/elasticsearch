@@ -15,9 +15,10 @@ import java.util.Set;
 import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer.QUERYABLE_BUILT_IN_ROLES_FEATURE;
 
 public class SecurityFeatures implements FeatureSpecification {
+    public static final NodeFeature CERTIFICATE_IDENTITY_FIELD_FEATURE = new NodeFeature("certificate_identity_field");
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE);
+        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE, CERTIFICATE_IDENTITY_FIELD_FEATURE);
     }
 }

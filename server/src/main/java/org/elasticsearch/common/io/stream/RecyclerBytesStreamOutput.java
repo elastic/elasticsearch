@@ -130,13 +130,28 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public void writeVInt(int i) throws IOException {
+        final int currentPageOffset = this.currentPageOffset;
+        final int remainingBytesInPage = pageSize - currentPageOffset;
+
+        // Single byte values (most common)
+        if ((i & 0xFFFFFF80) == 0) {
+            if (1 > remainingBytesInPage) {
+                super.writeVInt(i);
+            } else {
+                BytesRef currentPage = currentBytesRef;
+                currentPage.bytes[currentPage.offset + currentPageOffset] = (byte) i;
+                this.currentPageOffset = currentPageOffset + 1;
+            }
+            return;
+        }
+
         int bytesNeeded = vIntLength(i);
-        if (bytesNeeded > pageSize - currentPageOffset) {
+        if (bytesNeeded > remainingBytesInPage) {
             super.writeVInt(i);
         } else {
             BytesRef currentPage = currentBytesRef;
             putVInt(i, bytesNeeded, currentPage.bytes, currentPage.offset + currentPageOffset);
-            currentPageOffset += bytesNeeded;
+            this.currentPageOffset = currentPageOffset + bytesNeeded;
         }
     }
 

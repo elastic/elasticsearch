@@ -46,6 +46,7 @@ public class RecyclerBytesStreamBenchmark {
     private byte[] bytes2;
     private byte[] bytes3;
     private byte[] bytes4;
+    private int[] vints;
 
     @Setup
     public void initResults() throws IOException {
@@ -71,6 +72,26 @@ public class RecyclerBytesStreamBenchmark {
         random.nextBytes(bytes2);
         random.nextBytes(bytes3);
         random.nextBytes(bytes4);
+
+        // Create a mix of vint values for benchmarking
+        vints = new int[1000];
+        for (int i = 0; i < vints.length; i++) {
+            if (random.nextBoolean()) {
+                // 1-byte 50% of the time
+                vints[i] = random.nextInt(128);
+            } else if (random.nextBoolean()) {
+                // 2-byte 25% of the time
+                vints[i] = random.nextInt(128, 16384);
+            } else {
+                if (random.nextBoolean()) {
+                    // 3-byte vints
+                    vints[i] = random.nextInt(16384, 2097152);
+                } else {
+                    // All vint variants
+                    vints[i] = random.nextInt();
+                }
+            }
+        }
     }
 
     @Benchmark
@@ -116,6 +137,14 @@ public class RecyclerBytesStreamBenchmark {
         streamOutput.writeString(longString);
         streamOutput.writeString(nonAsciiString);
         streamOutput.writeString(veryLongString);
+    }
+
+    @Benchmark
+    public void writeVInt() throws IOException {
+        streamOutput.seek(1);
+        for (int vint : vints) {
+            streamOutput.writeVInt(vint);
+        }
     }
 
     private record BenchmarkRecycler(AtomicReference<BytesRef> bytesRef) implements Recycler<BytesRef> {

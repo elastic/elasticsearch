@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
@@ -110,6 +109,7 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.extension.SslProfileExtension;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TransportTermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
@@ -184,6 +184,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
     private static SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
     private static SetOnce<LicenseService> licenseService = new SetOnce<>();
+
+    private final List<SslProfileExtension> sslExtensions = new ArrayList<>();
 
     public XPackPlugin(final Settings settings) {
         super();
@@ -465,6 +467,8 @@ public class XPackPlugin extends XPackClientPlugin
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
 
+        settings.addAll(SSLService.getExtensionSettings(this.sslExtensions));
+
         // Don't register the license setting if there is an alternate implementation loaded as an extension.
         // this relies on the order in which methods are called - loadExtensions, (this method) getSettings, then createComponents
         if (getSharedLicenseService() == null) {
@@ -496,9 +500,9 @@ public class XPackPlugin extends XPackClientPlugin
      * of SSLContexts when configuration files change on disk.
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
-        final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
+        final SSLService.LoadedConfiguration sslConfigurations = SSLService.getSSLConfigurations(environment, this.sslExtensions);
         // Must construct the reloader before the SSL service so that we don't miss any config changes, see #54867
-        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
+        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations);
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);
         setSslService(sslService);
@@ -507,6 +511,11 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
+        loadLicenseService(loader);
+        this.sslExtensions.addAll(loader.loadExtensions(SslProfileExtension.class));
+    }
+
+    private void loadLicenseService(ExtensionLoader loader) {
         List<MutableLicenseService> licenseServices = loader.loadExtensions(MutableLicenseService.class);
         if (licenseServices.size() > 1) {
             throw new IllegalStateException(MutableLicenseService.class + " may not have multiple implementations");

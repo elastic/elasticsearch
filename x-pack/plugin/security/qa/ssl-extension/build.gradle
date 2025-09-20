@@ -1,0 +1,17 @@
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+esplugin {
+  name = 'test-ssl-extension'
+  description = 'A test plugin to test the SPI behaviour of SslProfileExtension'
+  classname = 'org.elasticsearch.test.xpack.core.ssl.extension.SslExtensionTestPlugin'
+  extendedPlugins = [ "x-pack-core" ]
+}
+
+dependencies {
+  compileOnly project(':x-pack:plugin:core')
+  clusterPlugins project(':x-pack:plugin:security:qa:ssl-extension')
+}
+
+tasks.named("javadoc").configure { enabled = false }

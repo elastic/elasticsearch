@@ -823,6 +823,9 @@ public final class Authentication implements ToXContentObject {
             apiKeyField.put("managed_by", CredentialManagedBy.CLOUD.getDisplayName());
             builder.field("api_key", Collections.unmodifiableMap(apiKeyField));
         }
+        if (metadata.containsKey("managed_by")) {
+            builder.field("managed_by", metadata.get("managed_by"));
+        }
     }
 
     public static Authentication getAuthenticationFromCrossClusterAccessMetadata(Authentication authentication) {

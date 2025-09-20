@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -48,6 +49,7 @@ public class Enrich extends UnaryPlan
     implements
         GeneratingPlan<Enrich>,
         PostOptimizationVerificationAware,
+        PostAnalysisVerificationAware,
         TelemetryAware,
         SortAgnostic,
         ExecutesOn {
@@ -69,12 +71,11 @@ public class Enrich extends UnaryPlan
 
     @Override
     public ExecuteLocation executesOn() {
-        if (mode == Mode.REMOTE) {
-            return ExecuteLocation.REMOTE;
-        } else if (mode == Mode.COORDINATOR) {
-            return ExecuteLocation.COORDINATOR;
-        }
-        return ExecuteLocation.ANY;
+        return switch (mode) {
+            case REMOTE -> ExecuteLocation.REMOTE;
+            case COORDINATOR -> ExecuteLocation.COORDINATOR;
+            default -> ExecuteLocation.ANY;
+        };
     }
 
     public enum Mode {
@@ -275,13 +276,32 @@ public class Enrich extends UnaryPlan
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
         Set<Source> fails = new HashSet<>();
 
-        this.forEachUp(LogicalPlan.class, u -> {
+        this.forEachDown(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
-                fails.add(u.source());
+                failures.add(
+                    fail(this, "ENRICH with remote policy can't be executed after [" + u.source().text() + "]" + u.source().source())
+                );
             }
         });
+    }
 
-        fails.forEach(f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source())));
+    private void checkMvExpandAfterLimit(Failures failures) {
+        this.forEachDown(MvExpand.class, u -> {
+            u.forEachDown(p -> {
+                if (p instanceof Limit || p instanceof TopN) {
+                    failures.add(fail(this, "MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
+                }
+            });
+        });
+
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (this.mode == Mode.REMOTE) {
+            checkMvExpandAfterLimit(failures);
+        }
+
     }
 
     @Override

@@ -96,6 +96,19 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         String err;
 
+        err = error("""
+            FROM test
+            | FORK (WHERE languages == 1) (WHERE languages == 2)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(
+            err,
+            containsString(
+                "4:3: ENRICH with remote policy can't be executed after [FORK (WHERE languages == 1) (WHERE languages == 2)]@2:3"
+            )
+        );
+
         // Remote enrich is ok after limit
         plan("""
             FROM test
@@ -212,19 +225,6 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
         assertThat(
             err,
             containsString("7:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3")
-        );
-
-        err = error("""
-            FROM test
-            | FORK (WHERE languages == 1) (WHERE languages == 2)
-            | EVAL language_code = languages
-            | ENRICH _remote:languages ON language_code
-            """, analyzer);
-        assertThat(
-            err,
-            containsString(
-                "4:3: ENRICH with remote policy can't be executed after [FORK (WHERE languages == 1) (WHERE languages == 2)]@2:3"
-            )
         );
 
         err = error("""

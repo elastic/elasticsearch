@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
@@ -27,6 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCase {
 
     @Override
@@ -402,6 +404,33 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
             assertCCSExecutionInfoDetails(executionInfo);
         }
+
+        // No renames, no KEEP - this is required to verify that ENRICH does not break sort with fields it overrides
+        query = """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | SORT timestamp, user, ip
+            | LIMIT 5
+            | ENRICH _remote:hosts
+            """;
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "192.168.1.2", "Windows"),
+                        List.of("192.168.1.3", 1L, "matthew", "192.168.1.3", "MacOS"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null, (String) null),
+                        List.of("192.168.1.5", 2L, "akio", "192.168.1.5", "Android"),
+                        List.of("192.168.1.6", 2L, "sergio", "192.168.1.6", "iOS")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
     }
 
     public void testLimitThenEnrichRemote() {
@@ -464,6 +493,19 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             """, enrichHosts(Enrich.Mode.COORDINATOR), enrichVendors(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
         assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [ENRICH  _COORDINATOR"));
+    }
+
+    public void testEnrichAfterMvExpandLimit() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | SORT timestamp
+            | LIMIT 2
+            | eval ip= TO_STR(host)
+            | MV_EXPAND host
+            | %s
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
+        assertThat(error.getMessage(), containsString("MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
     }
 
     private static void assertCCSExecutionInfoDetails(EsqlExecutionInfo executionInfo) {

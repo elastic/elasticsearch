@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichLimit;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.HoistRemoteEnrichTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PartiallyFoldCase;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
@@ -89,11 +91,11 @@ import java.util.List;
  *     time), combining expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever
  *     possible.  These rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off
  *     after many iterations, although hitting that is considered a bug)</li>
- *     <li>{@link LogicalPlanOptimizer#cleanup()}  Which can replace sorts+limit with a TopN</li>
+ *     <li>{@link LogicalPlanOptimizer#cleanup(boolean)}  Which can replace sorts+limit with a TopN</li>
  * </ul>
  *
- * <p>Note that the {@link LogicalPlanOptimizer#operators(boolean)} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
- * {@link LocalLogicalPlanOptimizer} layer.</p>
+ * <p>Note that the {@link LogicalPlanOptimizer#operators(boolean)} and {@link LogicalPlanOptimizer#cleanup(boolean)} steps are reapplied
+ * at the {@link LocalLogicalPlanOptimizer} layer.</p>
  */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
 
@@ -101,7 +103,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         substitutions(),
         operators(false),
         new Batch<>("Skip Compute", new SkipQueryOnLimitZero()),
-        cleanup(),
+        cleanup(false),
         new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized())
     );
 
@@ -114,7 +116,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     public LogicalPlan optimize(LogicalPlan verified) {
         var optimized = execute(verified);
 
-        Failures failures = verifier.verify(optimized, false, verified.output());
+        Failures failures = verifier.verify(optimized, verified.output());
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }
@@ -165,6 +167,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     protected static Batch<LogicalPlan> operators(boolean local) {
         return new Batch<>(
             "Operator Optimization",
+            new HoistRemoteEnrichLimit(local),
             new CombineProjections(local),
             new CombineEvals(),
             new PruneEmptyPlans(),
@@ -209,7 +212,13 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         );
     }
 
-    protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
+    protected static Batch<LogicalPlan> cleanup(boolean local) {
+        return new Batch<>(
+            "Clean Up",
+            new ReplaceLimitAndSortAsTopN(),
+            new HoistRemoteEnrichTopN(local),
+            new ReplaceRowAsLocalRelation(),
+            new PropgateUnmappedFields()
+        );
     }
 }

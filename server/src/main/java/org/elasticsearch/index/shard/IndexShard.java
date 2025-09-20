@@ -1895,7 +1895,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert postRecoveryComplete == null;
         SubscribableListener<Void> subscribableListener = new SubscribableListener<>();
         postRecoveryComplete = subscribableListener;
-        final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
+        final ActionListener<Void> intermediateListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
         try {
             // Some engine implementations try to acquire the engine reset write lock during refresh: in case something else is holding the
             // engine read lock at the same time then the refresh is a no-op for those engines. Here we acquire the engine reset write lock
@@ -1918,11 +1918,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw new IndexShardStartedException(shardId);
                 }
                 recoveryState.setStage(RecoveryState.Stage.DONE);
-                changeState(IndexShardState.POST_RECOVERY, reason);
             }
-            indexEventListener.afterIndexShardRecovery(this, finalListener);
+
+            indexEventListener.afterIndexShardRecovery(this, intermediateListener.delegateFailureAndWrap((finalListener, unused) -> {
+                synchronized (mutex) {
+                    if (state == IndexShardState.CLOSED) {
+                        throw new IndexShardClosedException(shardId);
+                    }
+                    if (state == IndexShardState.STARTED) {
+                        throw new IndexShardStartedException(shardId);
+                    }
+                    changeState(IndexShardState.POST_RECOVERY, reason);
+                }
+                finalListener.onResponse(null);
+            }));
         } catch (Exception e) {
-            finalListener.onFailure(e);
+            intermediateListener.onFailure(e);
         }
     }
 

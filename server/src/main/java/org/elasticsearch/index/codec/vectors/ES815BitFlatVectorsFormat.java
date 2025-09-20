@@ -29,11 +29,11 @@ import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
-class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
+public class ES815BitFlatVectorsFormat extends FlatVectorsFormat {
 
     private static final FlatVectorsFormat delegate = new Lucene99FlatVectorsFormat(FlatBitVectorScorer.INSTANCE);
 
-    protected ES815BitFlatVectorsFormat() {
+    public ES815BitFlatVectorsFormat() {
         super("ES815BitFlatVectorsFormat");
     }
 

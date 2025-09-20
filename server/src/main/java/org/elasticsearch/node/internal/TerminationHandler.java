@@ -26,4 +26,12 @@ public interface TerminationHandler {
      * The method which is called when the node is signalled to shut down. This method should block until the node is ready to shut down.
      */
     void handleTermination();
+
+    /**
+     * Block termination of this node.
+     *
+     * This method will be called during shutdown before any other shutdown actions occur, allowing the implementation to
+     * block termination until it is safe to shutdown.
+     */
+    void blockTermination();
 }

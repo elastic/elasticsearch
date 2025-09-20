@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134902
+- class: org.elasticsearch.simdvec.ESVectorUtilTests
+  method: testSoarDistance
+  issue: https://github.com/elastic/elasticsearch/issues/135139
 
 # Examples:
 #

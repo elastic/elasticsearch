@@ -38,7 +38,7 @@ For full details about the API syntax, refer to:
 
 In its most basic form, a request to the `_rank_eval` endpoint has two sections:
 
-```console
+```js
 GET /my-index-000001/_rank_eval
 {
   "requests": [ ... ],                            <1>
@@ -54,7 +54,7 @@ GET /my-index-000001/_rank_eval
 
 The request section contains several search requests typical to your application, along with the document ratings for each particular search request.
 
-```console
+```js
 GET /my-index-000001/_rank_eval
 {
   "requests": [
@@ -101,7 +101,7 @@ As an alternative to having to provide a single query per test request, it is po
 This way, queries with a similar structure that differ only in their parameters don't have to be repeated all the time in the `requests` section.
 In typical search systems, where user inputs usually get filled into a small set of query templates, this helps make the evaluation request more succinct.
 
-```console
+```js
 GET /my-index-000001/_rank_eval
 {
    [...]
@@ -131,6 +131,7 @@ GET /my-index-000001/_rank_eval
   ]
 }
 ```
+% NOTCONSOLE
 
 1. The template ID.
 2. The template definition to use.
@@ -140,7 +141,7 @@ GET /my-index-000001/_rank_eval
 You can also use a stored [search template](docs-content://solutions/search/search-templates.md).
 For example:
 
-```console
+```js
 GET /my_index/_rank_eval
 {
    [...]

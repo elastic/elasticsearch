@@ -411,6 +411,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 	}
 }
 ```
+%  NOTCONSOLE
 
 For example:
 
@@ -480,6 +481,7 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
     }
 }
 ```
+%  NOTCONSOLE
 
 Where the available options are:
 

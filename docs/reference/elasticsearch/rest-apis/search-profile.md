@@ -33,6 +33,7 @@ GET /my-index-000001/_search
   }
 }
 ```
+% TEST[setup:my_index]
 
 1. Setting the top-level `profile` parameter to `true` will enable profiling for the search.
 
@@ -229,6 +230,11 @@ The API returns the following result:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 25/"took": $body.took/]
+% TESTRESPONSE[s/"hits": \[...\]/"hits": $body.$_path/]
+% TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/"id": "\[q2aE02wS1R8qQFnYu6vDVQ\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+% TESTRESPONSE[s/"node_id": "q2aE02wS1R8qQFnYu6vDVQ",/"node_id": "$body.profile.shards.0.node_id",/]
 
 1. Search results are returned, but were omitted here for brevity.
 
@@ -412,6 +418,9 @@ Looking at the previous example:
   }
 ]
 ```
+% TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"node_id": "$body.profile.shards.0.node_id",\n"shard_id": $body.profile.shards.0.shard_id,\n"index": "$body.profile.shards.0.index",\n"cluster": "(local)",\n"searches": [{\n"query": $body.$_path,\n"rewrite_time": $body.$_path,/]
+% TESTRESPONSE[s/]$/]}], "aggregations": [], "fetch": $body.$_path}]}}/]
+% TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
 
 We see a top-level collector named `QueryPhaseCollector` which holds a child `SimpleTopScoreDocCollector`. `SimpleTopScoreDocCollector` is the  default "scoring and sorting" `Collector` used by {{es}}. The `reason` field attempts to give a plain English description of the class name. The `time_in_nanos` is similar to the time in the Query tree: a wall-clock time inclusive of all children. Similarly, `children` lists all sub-collectors. When aggregations are requested, the `QueryPhaseCollector` will hold an additional child collector with reason `aggregation` that is the one performing aggregations.
 
@@ -592,6 +601,12 @@ The API returns the following result:
   }
 }
 ```
+% TESTRESPONSE[s/"aggregations": \[\.\.\.\]/"aggregations": $body.$_path/]
+% TESTRESPONSE[s/"fetch": \{\.\.\.\}/"fetch": $body.$_path/]
+% TESTRESPONSE[s/\.\.\.//]
+% TESTRESPONSE[s/(?<=[" ])\d+(\.\d+)?/$body.$_path/]
+% TESTRESPONSE[s/"id": "\[P6xvulHtQRWuD4YnubWb7A\]\[my-index-000001\]\[0\]"/"id": $body.profile.shards.0.id/]
+% TESTRESPONSE[s/"node_id": "P6xvulHtQRWuD4YnubWb7A",/"node_id": "$body.profile.shards.0.node_id",/]
 
 1. The `"aggregations"` portion has been omitted because it will be covered in the next section.
 
@@ -992,6 +1007,7 @@ POST my-knn-index/_bulk?refresh=true
 { "index": { "_id": "3" } }
 { "my-vector": [15, 11, 23] }
 ```
+% TEST[skip:response format changes in 130254]
 
 With an index setup, we can now profile a kNN search query.
 
@@ -1007,6 +1023,7 @@ POST my-knn-index/_search
   }
 }
 ```
+%  TEST[skip:response format changes in 130254]
 
 1. The `profile` parameter is set to `true`.
 
@@ -1060,6 +1077,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
     }   ]
 }
 ```
+% TESTRESPONSE[skip:response format changes in 130254]
 
 In the `dfs.knn` portion of the response we can see the output the of timings for [query](search-profile.md#query-section), [rewrite](search-profile.md#rewrite-section), and [collector](search-profile.md#collectors-section). Unlike many other queries, kNN search does the bulk of the work during the query rewrite. This means `rewrite_time` represents the time spent on kNN search. The attribute `vector_operations_count` represents the overall count of vector operations performed during the kNN search.
 

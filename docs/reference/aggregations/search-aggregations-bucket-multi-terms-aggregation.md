@@ -11,6 +11,42 @@ A multi-bucket value source based aggregation where buckets are dynamically buil
 
 The multi_term aggregations are the most useful when you need to sort by a number of document or a metric aggregation on a composite key and get top N results. If sorting is not required and all values are expected to be retrieved using nested terms aggregation or [`composite aggregations`](/reference/aggregations/search-aggregations-bucket-composite-aggregation.md) will be a faster and more memory efficient solution.
 
+<!--
+```console
+PUT /products
+{
+  "mappings": {
+    "properties": {
+      "genre": {
+        "type": "keyword"
+      },
+      "product": {
+        "type": "keyword"
+      },
+      "quantity": {
+        "type": "integer"
+      }
+    }
+  }
+}
+
+POST /products/_bulk?refresh
+{"index":{"_id":0}}
+{"genre": "rock", "product": "Product A", "quantity": 4}
+{"index":{"_id":1}}
+{"genre": "rock", "product": "Product A", "quantity": 5}
+{"index":{"_id":2}}
+{"genre": "rock", "product": "Product B", "quantity": 1}
+{"index":{"_id":3}}
+{"genre": "jazz", "product": "Product B", "quantity": 10}
+{"index":{"_id":4}}
+{"genre": "electronic", "product": "Product B", "quantity": 3}
+{"index":{"_id":5}}
+{"genre": "electronic"}
+```
+% NOTCONSOLE
+% TESTSETUP
+-->
 Example:
 
 $$$multi-terms-aggregation-example$$$

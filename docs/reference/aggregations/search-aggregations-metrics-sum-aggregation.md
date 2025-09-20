@@ -103,7 +103,7 @@ POST /sales/_search?size=0
   }
 }
 ```
-
+% TEST[setup:sales]
 
 ## Histogram fields [search-aggregations-metrics-sum-aggregation-histogram-fields]
 

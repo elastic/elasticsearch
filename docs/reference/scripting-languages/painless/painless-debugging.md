@@ -24,6 +24,9 @@ POST /hockey/_explain/1
   }
 }
 ```
+% TEST[s/_explain\/1/_explain\/1?error_trace=false/ catch:/painless_explain_error/]
+% The test system sends error_trace=true by default for easier debugging so
+% we have to override it to get a normal shaped response
 
 Which shows that the class of `doc.first` is `org.elasticsearch.index.fielddata.ScriptDocValues.Longs` by responding with:
 
@@ -39,6 +42,7 @@ Which shows that the class of `doc.first` is `org.elasticsearch.index.fielddata.
    "status": 400
 }
 ```
+% TESTRESPONSE[s/\.\.\./"script_stack": $body.error.script_stack, "script": $body.error.script, "lang": $body.error.lang, "position": $body.error.position, "caused_by": $body.error.caused_by, "root_cause": $body.error.root_cause, "reason": $body.error.reason/]
 
 You can use the same trick to see that `_source` is a `LinkedHashMap` in the `_update` API:
 
@@ -48,6 +52,7 @@ POST /hockey/_update/1
   "script": "Debug.explain(ctx._source)"
 }
 ```
+% TEST[continued s/_update\/1/_update\/1?error_trace=false/ catch:/painless_explain_error/]
 
 The response looks like:
 
@@ -68,6 +73,9 @@ The response looks like:
   "status": 400
 }
 ```
+% TESTRESPONSE[s/"root_cause": \.\.\./"root_cause": $body.error.root_cause/]
+% TESTRESPONSE[s/\.\.\./"script_stack": $body.error.caused_by.script_stack, "script": $body.error.caused_by.script, "lang": $body.error.caused_by.lang, "position": $body.error.caused_by.position, "caused_by": $body.error.caused_by.caused_by, "reason": $body.error.caused_by.reason/]
+% TESTRESPONSE[s/"to_string": ".+"/"to_string": $body.error.caused_by.to_string/]
 
 Once you have a class you can go to [*Painless API Reference*](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference.html) to see a list of available methods.
 

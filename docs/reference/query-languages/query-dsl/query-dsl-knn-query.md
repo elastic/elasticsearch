@@ -44,6 +44,7 @@ PUT my-image-index
     { "index": { "_id": "3" } }
     { "image-vector": [15, 11, 23], "file-type": "jpg", "title": "mountain lake lodge" }
     ```
+    % TEST[continued]
 
 2. Run the search using the `knn` query, asking for the top 10 nearest vectors from each shard, and then combine shard results to get the top 3 global results.
 
@@ -60,7 +61,7 @@ PUT my-image-index
       }
     }
     ```
-
+    % TEST[continued]
 
 
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
@@ -213,7 +214,7 @@ To ensure correct results: each individual filter must be either over:
 
 This query performs a basic nested knn search:
 
-```json
+```js
 {
   "query" : {
     "nested" : {

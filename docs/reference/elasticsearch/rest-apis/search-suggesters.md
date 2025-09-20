@@ -90,6 +90,8 @@ POST _search
   }
 }
 ```
+% TEST[setup:messages]
+% TEST[s/^/PUT my-index-000001\/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
 
 The suggest text can in the above example also be specified as suggestion specific option. The suggest text specified on suggestion level override the suggest text on the global level.
 

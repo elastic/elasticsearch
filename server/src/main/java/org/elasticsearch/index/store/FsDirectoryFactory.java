@@ -48,10 +48,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             try {
                 value = Integer.parseInt(prop); // ensure it's a valid integer
             } catch (NumberFormatException e) {
-                Log.warn(
-                    () -> "unable to parse system property [" + SHARED_ARENA_MAX_PERMITS_SYSPROP + "] with value [" + prop + "]",
-                    e
-                );
+                Log.warn(() -> "unable to parse system property [" + SHARED_ARENA_MAX_PERMITS_SYSPROP + "] with value [" + prop + "]", e);
             }
         }
         sharedArenaMaxPermits = value; // default to 1

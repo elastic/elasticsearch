@@ -3,12 +3,12 @@
 **Example**
 
 ```esql
-ROW u = "https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz"
-| EVAL u = URL_DECODE(u)
+ROW u = "https://example.com/?x=foo bar&y=baz"
+| EVAL u = URL_ENCODE_COMPONENT(u)
 ```
 
 | u:keyword |
 | --- |
-| https://example.com/?x=foo bar&y=baz |
+| https%3A%2F%2Fexample.com%2F%3Fx%3Dfoo%20bar%26y%3Dbaz |
 
 

@@ -2,5 +2,5 @@
 
 **Description**
 
-URL encodes the input.
+URL-encodes the input. All characters are percent-encoded except for alphanumerics, `.`, `-`, `_`, and `~`. Spaces are encoded as `+`.
 

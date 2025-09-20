@@ -591,6 +591,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkWithStats}
   issue: https://github.com/elastic/elasticsearch/issues/135116
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
+  issue: https://github.com/elastic/elasticsearch/issues/135117
 
 # Examples:
 #

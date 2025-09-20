@@ -92,6 +92,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -712,7 +713,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
             if (helper.isTimeSeriesMetric(field, mapping)) {
                 try {
-                    addMetricFieldMapping(builder, field, mapping);
+                    addMetricFieldMapping(builder, field, mapping, helper.getDefaultMetric());
                 } catch (IOException e) {
                     throw new ElasticsearchException("Error while adding metric for field [" + field + "]");
                 }
@@ -761,7 +762,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     // public for testing
     public static AggregateMetricDoubleFieldSupportedMetrics getSupportedMetrics(
         final TimeSeriesParams.MetricType metricType,
-        final Map<String, ?> fieldProperties
+        final Map<String, ?> fieldProperties,
+        final IndexSettings.AggregateMetricDoubleDefaultMetric indexLevelDefaultMetric
     ) {
         boolean sourceIsAggregate = fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
         List<String> supportedAggs = List.of(metricType.supportedAggs());
@@ -783,13 +785,19 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 (String) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC),
                 defaultMetric
             );
+        } else {
+            defaultMetric = indexLevelDefaultMetric.name().toLowerCase(Locale.ROOT);
         }
 
         return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
     }
 
-    private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
-        throws IOException {
+    private static void addMetricFieldMapping(
+        final XContentBuilder builder,
+        final String field,
+        final Map<String, ?> fieldProperties,
+        IndexSettings.AggregateMetricDoubleDefaultMetric defaultMetric
+    ) throws IOException {
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
             fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
         );
@@ -801,7 +809,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 builder.field(fieldProperty, fieldProperties.get(fieldProperty));
             }
         } else {
-            var supported = getSupportedMetrics(metricType, fieldProperties);
+            var supported = getSupportedMetrics(metricType, fieldProperties, defaultMetric);
 
             builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
                 .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
@@ -942,6 +950,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .put(
                 IndexSettings.TIME_SERIES_END_TIME.getKey(),
                 sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+            )
+            .put(
+                IndexSettings.TIME_SERIES_DEFAULT_METRIC.getKey(),
+                sourceIndexMetadata.getSettings().get(IndexSettings.TIME_SERIES_DEFAULT_METRIC.getKey())
             );
         if (sourceIndexMetadata.getSettings().hasValue(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey())) {
             builder.put(

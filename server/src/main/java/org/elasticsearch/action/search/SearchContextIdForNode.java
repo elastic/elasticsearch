@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public final class SearchContextIdForNode implements Writeable {
     private final String node;
@@ -102,5 +103,19 @@ public final class SearchContextIdForNode implements Writeable {
             + clusterAlias
             + '\''
             + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        SearchContextIdForNode that = (SearchContextIdForNode) o;
+        return Objects.equals(node, that.node)
+            && Objects.equals(searchContextId, that.searchContextId)
+            && Objects.equals(clusterAlias, that.clusterAlias);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node, searchContextId, clusterAlias);
     }
 }

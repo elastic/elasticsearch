@@ -18,7 +18,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.gpu.GPUPlugin;
 import org.elasticsearch.xpack.gpu.GPUSupport;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class GPUDenseVectorFieldMapperTests extends DenseVectorFieldMapperTests {
 
-    @Before
-    public void setup() {
+    @BeforeClass
+    public static void setup() {
         assumeTrue("cuvs not supported", GPUSupport.isSupported(false));
     }
 

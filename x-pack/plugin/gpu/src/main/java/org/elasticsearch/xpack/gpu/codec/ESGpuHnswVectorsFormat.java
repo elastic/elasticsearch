@@ -18,6 +18,7 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -47,26 +48,32 @@ public class ESGpuHnswVectorsFormat extends KnnVectorsFormat {
     private final int maxConn;
     // Intermediate graph degree, the number of connections for each node before pruning
     private final int beamWidth;
-    final CuVSResourceManager cuVSResourceManager;
+    private final Supplier<CuVSResourceManager> cuVSResourceManagerSupplier;
 
     public ESGpuHnswVectorsFormat() {
-        this(CuVSResourceManager.pooling(), DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
+        this(CuVSResourceManager::pooling, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH);
     }
 
     public ESGpuHnswVectorsFormat(int maxConn, int beamWidth) {
-        this(CuVSResourceManager.pooling(), maxConn, beamWidth);
+        this(CuVSResourceManager::pooling, maxConn, beamWidth);
     };
 
-    public ESGpuHnswVectorsFormat(CuVSResourceManager cuVSResourceManager, int maxConn, int beamWidth) {
+    public ESGpuHnswVectorsFormat(Supplier<CuVSResourceManager> cuVSResourceManagerSupplier, int maxConn, int beamWidth) {
         super(NAME);
-        this.cuVSResourceManager = cuVSResourceManager;
+        this.cuVSResourceManagerSupplier = cuVSResourceManagerSupplier;
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
     }
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ESGpuHnswVectorsWriter(cuVSResourceManager, state, maxConn, beamWidth, flatVectorsFormat.fieldsWriter(state));
+        return new ESGpuHnswVectorsWriter(
+            cuVSResourceManagerSupplier.get(),
+            state,
+            maxConn,
+            beamWidth,
+            flatVectorsFormat.fieldsWriter(state)
+        );
     }
 
     @Override

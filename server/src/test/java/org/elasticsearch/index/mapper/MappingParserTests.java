@@ -325,7 +325,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.V_8_5_0);
         TransportVersion transportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersions.V_8_5_0
         );
         {

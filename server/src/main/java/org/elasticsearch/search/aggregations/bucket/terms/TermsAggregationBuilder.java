@@ -497,6 +497,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

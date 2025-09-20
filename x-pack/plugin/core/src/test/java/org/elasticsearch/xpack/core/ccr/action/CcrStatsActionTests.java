@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -56,6 +57,6 @@ public class CcrStatsActionTests extends AbstractWireSerializingTestCase<CcrStat
             request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(20, 25, 30)));
         }
         assertSerialization(request, TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_14_0));
-        assertSerialization(request, TransportVersions.MINIMUM_CCS_VERSION);
+        assertSerialization(request, TransportVersion.minimumCCSVersion());
     }
 }

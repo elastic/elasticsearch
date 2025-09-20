@@ -14,10 +14,10 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsFormat;
 
 import java.io.IOException;
 
@@ -56,7 +56,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int VERSION_START = 0;
     public static final int VERSION_CURRENT = VERSION_START;
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    private static final FlatVectorsFormat rawVectorFormat = new DirectIOLucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 

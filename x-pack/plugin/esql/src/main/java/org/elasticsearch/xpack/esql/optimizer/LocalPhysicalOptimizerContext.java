@@ -21,6 +21,7 @@ public record LocalPhysicalOptimizerContext(
     SplitPlanAfterTopN splitDataDriverPlanAfterTopN
 ) {
     /** Controls whether to run the {@link AvoidFieldExtractionAfterTopN}. Will run on {@link SplitPlanAfterTopN#SPLIT}. */
+    // FIXME(gal, NOCOMMIT) Go over all variables, make sure they all use the new name
     public enum SplitPlanAfterTopN {
         SPLIT,
         NO_SPLIT

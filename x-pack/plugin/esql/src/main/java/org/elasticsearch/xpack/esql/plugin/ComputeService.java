@@ -614,7 +614,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
-        SplitPlanAfterTopN projectAfterTopN,
+        SplitPlanAfterTopN splitAfterTopN,
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
@@ -649,7 +649,7 @@ public class ComputeService {
                 new ArrayList<>(context.searchExecutionContexts().collection()),
                 context.configuration(),
                 context.foldCtx(),
-                projectAfterTopN,
+                splitAfterTopN,
                 plan
             );
             if (LOGGER.isDebugEnabled()) {
@@ -740,26 +740,27 @@ public class ComputeService {
         EsqlFlags flags,
         Configuration configuration,
         FoldContext foldCtx,
-        ExchangeSinkExec plan,
+        ExchangeSinkExec originalPlan,
         ReductionPlanFeatures features
     ) {
-        PhysicalPlan source = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
+        PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         if (features == ReductionPlanFeatures.DISABLED) {
-            return plan.replaceChild(source);
+            return originalPlan.replaceChild(source);
         }
 
-        PhysicalPlan newPlan = switch (PlannerUtils.reductionPlan(plan)) {
+        PhysicalPlan newPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.SimplePlanReduction.NO_REDUCTION -> source;
             case PlannerUtils.SimplePlanReduction.TOP_N ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
                 // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
                 // we also need the original plan, since we add the project in the reduction node.
-                PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, plan)
+                PlannerUtils.planReduceDriverTopN(flags, configuration, foldCtx, originalPlan)
                     .filter(ignored -> features.supportsTopNSplit())
-                    .orElseGet(() -> plan.replaceChildren(List.of(source)));
+                    // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
+                    .orElseGet(() -> originalPlan.replaceChildren(List.of(source)));
             case PlannerUtils.ReducedPlan rp -> features.supportsOtherPlanReduction() ? rp.plan().replaceChildren(List.of(source)) : source;
         };
-        return plan.replaceChild(newPlan);
+        return originalPlan.replaceChild(newPlan);
     }
 
     enum ReductionPlanFeatures implements Writeable {

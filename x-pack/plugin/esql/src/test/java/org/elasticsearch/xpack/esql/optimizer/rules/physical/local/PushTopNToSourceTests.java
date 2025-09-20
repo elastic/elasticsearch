@@ -422,7 +422,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             configuration,
             FoldContext.small(),
             SearchStats.EMPTY,
-            LocalPhysicalOptimizerContext.SplitPlanAfterTopN.NO_SPLIT
+            randomFrom(LocalPhysicalOptimizerContext.SplitPlanAfterTopN.values())
         );
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);

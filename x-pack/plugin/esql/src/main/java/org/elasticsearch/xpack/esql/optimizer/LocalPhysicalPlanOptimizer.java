@@ -98,12 +98,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             firstRules.add(new AvoidFieldExtractionAfterTopN());
         }
         var prePushdown = new Batch<PhysicalPlan>("Pre-pushdown", Limiter.ONCE, firstRules.toArray(Rule[]::new));
-        var pushdown = new Batch<>("Push to ES", pushdownRules(optimizeForEsSource));
 
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
         // done, and it should be executed only once.
-        var substitutionRules = new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags());
         // add the field extraction in just one pass
         // add it at the end after all the other rules have run
         List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(3);
@@ -112,24 +110,26 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         fieldExtractionRules.add(new SpatialShapeBoundsExtraction());
         var fieldExtractionBatch = new Batch<PhysicalPlan>("Field extraction", Limiter.ONCE, fieldExtractionRules.toArray(Rule[]::new));
 
-        return optimizeForEsSource ?
-
-            List.of(prePushdown, pushdown, substitutionRules, fieldExtractionBatch) : List.of(prePushdown, pushdown, fieldExtractionBatch);
+        return optimizeForEsSource
+            ? List.of(
+                prePushdown,
+                new Batch<>("Push to ES", pushdownRules()),
+                new Batch<>("Substitute RoundTo with QueryAndTags", Limiter.ONCE, new ReplaceRoundToWithQueryAndTags()),
+                fieldExtractionBatch
+            )
+            : List.of(prePushdown, fieldExtractionBatch);
 
     }
 
     @SuppressWarnings("unchecked")
-    private static Rule<?, PhysicalPlan>[] pushdownRules(boolean optimizeForEsSource) {
-        var rules = optimizeForEsSource
-            ? List.of(
-                new PushTopNToSource(),
-                new PushLimitToSource(),
-                new PushFiltersToSource(),
-                new PushSampleToSource(),
-                new PushStatsToSource(),
-                new EnableSpatialDistancePushdown()
-            )
-            : List.of();
-        return rules.toArray(Rule[]::new);
+    private static Rule<?, PhysicalPlan>[] pushdownRules() {
+        return List.of(
+            new PushTopNToSource(),
+            new PushLimitToSource(),
+            new PushFiltersToSource(),
+            new PushSampleToSource(),
+            new PushStatsToSource(),
+            new EnableSpatialDistancePushdown()
+        ).toArray(Rule[]::new);
     }
 }

@@ -609,6 +609,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
   issue: https://github.com/elastic/elasticsearch/issues/135121
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testLookupExplosionBigString
+  issue: https://github.com/elastic/elasticsearch/issues/135122
 
 # Examples:
 #

@@ -600,6 +600,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
   issue: https://github.com/elastic/elasticsearch/issues/135118
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
+  issue: https://github.com/elastic/elasticsearch/issues/135118
 
 # Examples:
 #

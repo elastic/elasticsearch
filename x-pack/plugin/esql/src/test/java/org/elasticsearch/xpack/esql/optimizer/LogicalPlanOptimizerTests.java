@@ -13,6 +13,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
@@ -5785,12 +5786,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_StubRelation[[_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, gender{f}#9, hire_date{f}#14, job{f}#15, job.raw{f}#16, lang
      *          uages{f}#10, last_name{f}#11, long_noidx{f}#17, salary{f}#12, emp_no % 2{r}#6]]
      */
-    public void testInlinestatsNestedExpressionsInGroups() {
+    public void testInlineStatsNestedExpressionsInGroups() {
         var query = """
             FROM test
-            | INLINESTATS c = COUNT(salary) by emp_no % 2
+            | INLINE STATS c = COUNT(salary) by emp_no % 2
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -5809,10 +5810,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
-    public static boolean releaseBuildForInlinestats(String query) {
-        if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("mismatched input 'INLINESTATS' expecting"));
+    // if non-null, the `query` must have "INLINE STATS" capitalized
+    public static boolean releaseBuildForInlineStats(@Nullable String query) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled() == false) {
+            if (query != null) {
+                var e = expectThrows(ParsingException.class, () -> analyze(query));
+                assertThat(e.getMessage(), containsString("mismatched input 'INLINE' expecting"));
+            }
             return true;
         }
         return false;
@@ -5826,13 +5830,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     public void testInlinestatsGetsPrunedEntirely() {
         var query = """
             FROM employees
-            | INLINESTATS x = avg(salary) BY emp_no
+            | INLINE STATS x = avg(salary) BY emp_no
             | EVAL x = emp_no
             | SORT x
             | KEEP x, emp_no
             | LIMIT 1
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -5854,18 +5858,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_StubRelation[[_meta_field{f}#22, emp_no{f}#16, first_name{f}#17, gender{f}#18, hire_date{f}#23, job{f}#24, job.raw{f}#25,
      *              languages{f}#19, last_name{f}#20, long_noidx{f}#26, salary{f}#21, salaryK{r}#5]]
      */
-    public void testDoubleInlinestatsWithEvalGetsPrunedEntirely() {
+    public void testDoubleInlineStatsWithEvalGetsPrunedEntirely() {
         var query = """
             FROM employees
             | SORT languages DESC
             | EVAL salaryK = salary/1000
-            | INLINESTATS count = COUNT(*) BY salaryK
-            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | INLINE STATS count = COUNT(*) BY salaryK
+            | INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
             | KEEP emp_no, count
             | SORT emp_no
             | LIMIT 5
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -5897,18 +5901,18 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      * \_TopN[[Order[emp_no{f}#19,ASC,LAST]],1[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#25, emp_no{f}#19, first_name{f}#20, ..]
      */
-    public void testDoubleInlinestatsGetsPrunedEntirely() {
+    public void testDoubleInlineStatsGetsPrunedEntirely() {
         var query = """
             FROM employees
-            | INLINESTATS x = avg(salary) BY emp_no
-            | INLINESTATS y = avg(salary) BY languages
+            | INLINE STATS x = avg(salary) BY emp_no
+            | INLINE STATS y = avg(salary) BY languages
             | EVAL y = emp_no
             | EVAL x = y
             | SORT x
             | KEEP x, emp_no
             | LIMIT 1
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -5929,15 +5933,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_StubRelation[[_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, gender{f}#17, hire_date{f}#22, job{f}#23, job.raw{f}#24, l
      *          anguages{f}#18, last_name{f}#19, long_noidx{f}#25, salary{f}#20]]
      */
-    public void testInlinestatsGetsPrunedPartially() {
+    public void testInlineStatsGetsPrunedPartially() {
         var query = """
             FROM employees
-            | INLINESTATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
+            | INLINE STATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
             | EVAL x = emp_no
             | KEEP x, a, emp_no
             | LIMIT 1
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -5956,17 +5960,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     // same as above
-    public void testTripleInlinestatsGetsPrunedPartially() {
+    public void testTripleInlineStatsGetsPrunedPartially() {
         var query = """
             FROM employees
-            | INLINESTATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
-            | INLINESTATS y = AVG(salary), b = COUNT_DISTINCT(languages) BY emp_no
+            | INLINE STATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no
+            | INLINE STATS y = AVG(salary), b = COUNT_DISTINCT(languages) BY emp_no
             | EVAL x = emp_no
-            | INLINESTATS z = AVG(salary), c = COUNT_DISTINCT(languages), d = AVG(languages) BY last_name
+            | INLINE STATS z = AVG(salary), c = COUNT_DISTINCT(languages), d = AVG(languages) BY last_name
             | KEEP x, a, emp_no
             | LIMIT 1
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6002,22 +6006,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *         \_StubRelation[[emp_no{f}#864, hire_date{f}#865, languages{f}#860, languages.byte{f}#861, languages.long{f}#863,
      *              languages.short{f}#862, salary{f}#866, count{r}#838, salaryK{r}#836, sum{r}#845, hire_date_string{r}#842, date{r}#847]]
      */
-    public void testTripleInlinestatsMultipleAssignmentsGetsPrunedPartially() {
+    public void testTripleInlineStatsMultipleAssignmentsGetsPrunedPartially() {
         // TODO: reenable 1st sort, pull the 2nd further up when #132417 is in
         var query = """
             FROM employees
             // | SORT languages DESC
             | EVAL salaryK = salary / 10000
-            | INLINESTATS count = COUNT(*) BY salaryK
+            | INLINE STATS count = COUNT(*) BY salaryK
             | EVAL hire_date_string = hire_date::keyword
-            | INLINESTATS sum = SUM(languages) BY hire_date_string
+            | INLINE STATS sum = SUM(languages) BY hire_date_string
             | DISSECT hire_date_string "%{date}"
-            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
             | SORT emp_no
             | KEEP emp_no, salaryK, count, min
             | LIMIT 5
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6071,22 +6075,22 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     \_Eval[[TOSTRING(hire_date{f}#918) AS hire_date_string#898]]
      *       \_EsRelation[employees][emp_no{f}#917, hire_date{f}#918, languages{f}#913, ..]
      */
-    public void testTripleInlinestatsMultipleAssignmentsGetsPrunedEntirely() {
+    public void testTripleInlineStatsMultipleAssignmentsGetsPrunedEntirely() {
         // same as the above query, but only keep emp_no
         var query = """
             FROM employees
             // | SORT languages DESC
             | EVAL salaryK = salary / 10000
-            | INLINESTATS count = COUNT(*) BY salaryK
+            | INLINE STATS count = COUNT(*) BY salaryK
             | EVAL hire_date_string = hire_date::keyword
-            | INLINESTATS sum = SUM(languages) BY hire_date_string
+            | INLINE STATS sum = SUM(languages) BY hire_date_string
             | DISSECT hire_date_string "%{date}"
-            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
             | SORT emp_no
             | KEEP emp_no
             | LIMIT 5
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6110,24 +6114,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     | \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1560]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#1561]
      */
-    public void testTripleInlinestatsWithLookupJoinGetsPrunedEntirely() {
+    public void testTripleInlineStatsWithLookupJoinGetsPrunedEntirely() {
         var query = """
             FROM employees
             // | SORT languages DESC
             | EVAL salaryK = salary / 10000
             | EVAL language_code = languages
             | LOOKUP JOIN languages_lookup ON language_code
-            | INLINESTATS count = COUNT(*) BY salaryK
+            | INLINE STATS count = COUNT(*) BY salaryK
             | EVAL hire_date_string = hire_date::keyword
             | LOOKUP JOIN languages_lookup ON language_code
-            | INLINESTATS sum = SUM(languages) BY hire_date_string
+            | INLINE STATS sum = SUM(languages) BY hire_date_string
             | LOOKUP JOIN languages_lookup ON language_code
-            | INLINESTATS min = MIN(MV_COUNT(languages)) BY salaryK
+            | INLINE STATS min = MIN(MV_COUNT(languages)) BY salaryK
             | SORT emp_no
             | KEEP emp_no
             | LIMIT 5
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6164,11 +6168,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | EVAL decades = age / 10, decades = decades * 10
             | STATS avg = AVG(salary) BY decades
             | EVAL idecades = decades / 2
-            | INLINESTATS iavg = AVG(avg) BY idecades
+            | INLINE STATS iavg = AVG(avg) BY idecades
             | KEEP avg, decades
             """;
 
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6206,12 +6210,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | EVAL decades = age / 10, decades = decades * 10
             | STATS avg = AVG(salary) BY decades
             | EVAL idecades = decades / 2
-            | INLINESTATS iavg = AVG(avg) BY idecades
-            | INLINESTATS avgavg = AVG(avg)
+            | INLINE STATS iavg = AVG(avg) BY idecades
+            | INLINE STATS avgavg = AVG(avg)
             | KEEP avg, decades, avgavg
             """;
 
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6247,7 +6251,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *     |_EsRelation[airports][abbrev{f}#19, city{f}#25, city_location{f}#26, coun..]
      *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#27, language_name{f}#28]
      */
-    public void testInlinestatsWithLookupJoin() {
+    public void testInlineStatsWithLookupJoin() {
         var query = """
             FROM airports
             | EVAL backup_scalerank = scalerank
@@ -6255,13 +6259,13 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | LOOKUP JOIN languages_lookup ON language_code
             | RENAME language_name as scalerank
             | DROP language_code
-            | INLINESTATS count=COUNT(*) BY scalerank
+            | INLINE STATS count=COUNT(*) BY scalerank
             | SORT abbrev DESC
             | KEEP abbrev, *scalerank
             | LIMIT 5
             """;
         assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
 
@@ -6294,14 +6298,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_StubRelation[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, gender{f}#11, hire_date{f}#16, job{f}#17, job.raw{f}#18,
      *              languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
      */
-    public void testInlinestatsWithAvg() {
+    public void testInlineStatsWithAvg() {
         var query = """
             FROM employees
-            | INLINESTATS avg = AVG(salary) BY emp_no
+            | INLINE STATS avg = AVG(salary) BY emp_no
             | KEEP avg, emp_no, first_name
             | LIMIT 10
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6329,14 +6333,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *   \_LocalRelation[[salary{r}#3, emp_no{r}#5, gender{r}#7],
      *      org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@9d5b596d]
      */
-    public void testInlinestatsWithRow() {
+    public void testInlineStatsWithRow() {
         var query = """
             ROW salary = 12300, emp_no = 5, gender = "F"
             | EVAL salaryK = salary/1000
-            | INLINESTATS sum = SUM(salaryK) BY gender
+            | INLINE STATS sum = SUM(salaryK) BY gender
             | KEEP emp_no
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6367,14 +6371,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_StubRelation[[_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, gender{f}#8, hire_date{f}#13, job{f}#14, job.raw{f}#15,
      *                      languages{f}#9, last_name{f}#10, long_noidx{f}#16, salary{f}#11]]
      */
-    public void testInlinestatsWithLimit() {
+    public void testInlineStatsWithLimit() {
         var query = """
             FROM employees
-            | INLINESTATS a = AVG(salary)
+            | INLINE STATS a = AVG(salary)
             | LIMIT 2
             | KEEP a
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);
@@ -6404,15 +6408,15 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *       \_Aggregate[[gender{f}#14],[MAX(languages{f}#15,true[BOOLEAN]) AS max_lang#7, gender{f}#14]]
      *         \_StubRelation[[emp_no{f}#12, languages{f}#15, gender{f}#14]]
      */
-    public void testInlinestatsWithLimitAndAgg() {
+    public void testInlineStatsWithLimitAndAgg() {
         var query = """
             FROM employees
             | KEEP emp_no, languages, gender
-            | INLINESTATS max_lang = MAX(languages) BY gender
+            | INLINE STATS max_lang = MAX(languages) BY gender
             | LIMIT 1
             | STATS v = VALUES(max_lang)
             """;
-        if (releaseBuildForInlinestats(query)) {
+        if (releaseBuildForInlineStats(query)) {
             return;
         }
         var plan = optimizedPlan(query);

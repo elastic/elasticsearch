@@ -14,12 +14,16 @@ import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
+import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 /**
  * Codec format for Inverted File Vector indexes. This index expects to break the dimensional space
@@ -59,6 +63,7 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
+    private static final Map<String, FlatVectorsFormat> supportedFormats = Map.of(rawVectorFormat.getName(), rawVectorFormat);
 
     // This dynamically sets the cluster probe based on the `k` requested and the number of clusters.
     // useful when searching with 'efSearch' type parameters instead of requiring a specific ratio.
@@ -106,12 +111,23 @@ public class ES920DiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES920DiskBBQVectorsWriter(state, rawVectorFormat.fieldsWriter(state), vectorPerCluster, centroidsPerParentCluster);
+        return new ES920DiskBBQVectorsWriter(
+            rawVectorFormat.getName(),
+            state,
+            rawVectorFormat.fieldsWriter(state),
+            vectorPerCluster,
+            centroidsPerParentCluster
+        );
     }
 
     @Override
     public KnnVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new ES920DiskBBQVectorsReader(state, rawVectorFormat.fieldsReader(state));
+        Map<String, FlatVectorsReader> readers = Maps.newHashMapWithExpectedSize(supportedFormats.size());
+        for (var fe : supportedFormats.entrySet()) {
+            readers.put(fe.getKey(), fe.getValue().fieldsReader(state));
+        }
+
+        return new ES920DiskBBQVectorsReader(state, Collections.unmodifiableMap(readers));
     }
 
     @Override

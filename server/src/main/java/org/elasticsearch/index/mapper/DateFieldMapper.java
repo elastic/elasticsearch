@@ -1218,7 +1218,7 @@ public final class DateFieldMapper extends FieldMapper {
         final IndexSortConfig indexSortConfig,
         final String fullFieldName
     ) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+        return indexCreatedVersion.onOrAfter(IndexVersions.REENABLED_TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
             && useDocValuesSkipper
             && hasDocValues
             && (IndexMode.LOGSDB.equals(indexMode) || IndexMode.TIME_SERIES.equals(indexMode))

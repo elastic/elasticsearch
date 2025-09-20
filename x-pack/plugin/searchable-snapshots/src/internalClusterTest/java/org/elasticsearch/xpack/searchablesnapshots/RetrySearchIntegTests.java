@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
@@ -22,13 +24,18 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.MockSearchService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -36,6 +43,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockSearchService.TestPlugin.class);
+        return plugins;
+    }
 
     public void testSearcherId() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -109,9 +123,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
 
     public void testRetryPointInTime() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numberOfShards = between(1, 5);
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build())
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build())
                 .setMapping("""
                     {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
         );
@@ -146,6 +161,12 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
         final BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
+        assertEquals(numberOfShards, SearchContextId.decode(writableRegistry(), pitId).shards().size());
+        logger.info(
+            "---> Original PIT id: "
+                + new PointInTimeBuilder(pitId).getSearchContextId(this.writableRegistry()).toString().replace("},", "\n")
+        );
+        SetOnce<BytesReference> updatedPit = new SetOnce<>();
         try {
             assertNoFailuresAndResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)), resp -> {
                 assertThat(resp.pointInTimeId(), equalTo(pitId));
@@ -157,19 +178,45 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 ensureGreen(indexName);
             }
             ensureGreen(indexName);
+
+            // we run a search after the restart to ensure that all shards from the PIT have re-created their search contexts
+            assertNoFailuresAndResponse(
+                prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
+                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                resp -> {
+                    assertHitCount(resp, docCount);
+                    updatedPit.set(resp.pointInTimeId());
+                }
+            );
+            logger.info("--> first search after node restart finished");
+
+            // At this point we should have re-created all contexts, running a second search
+            // should not re-trigger creation of new contexts. Lets check this.
+            final AtomicLong newContexts = new AtomicLong(0);
+            for (String allocatedNode : allocatedNodes) {
+                MockSearchService searchService = (MockSearchService) internalCluster().getInstance(SearchService.class, allocatedNode);
+                searchService.setOnPutContext(context -> { newContexts.incrementAndGet(); });
+            }
+
             assertNoFailuresAndResponse(
                 prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreFilterShardSize(between(1, 10))
-                    .setAllowPartialSearchResults(true)
-                    .setPointInTime(new PointInTimeBuilder(pitId)),
+                    .setAllowPartialSearchResults(randomBoolean())  // partial results should not matter here
+                    .setPointInTime(new PointInTimeBuilder(updatedPit.get())),
                 resp -> {
-                    assertThat(resp.pointInTimeId(), equalTo(pitId));
+                    assertThat(resp.pointInTimeId(), equalTo(updatedPit.get()));
                     assertHitCount(resp, docCount);
                 }
             );
+            logger.info("--> second search after node restart finished");
+            assertThat("Search should not create new contexts", newContexts.get(), equalTo(0L));
+        } catch (Exception e) {
+            logger.error("---> unexpected exception", e);
+            throw e;
         } finally {
-            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
+            client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(updatedPit.get())).actionGet();
         }
     }
 }

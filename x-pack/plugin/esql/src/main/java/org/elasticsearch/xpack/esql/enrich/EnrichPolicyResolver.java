@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.expression.Foldables.stringLiteralValueOf;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithFinalStateAndNoShards;
 
@@ -121,7 +122,7 @@ public class EnrichPolicyResolver {
         }
 
         doResolvePolicies(
-            new HashSet<>(executionInfo.getClusters().keySet()),
+            executionInfo.clusterInfo.isEmpty() ? new HashSet<>() : executionInfo.getRunningClusterAliases().collect(toSet()),
             enriches.stream().map(EnrichPolicyResolver.UnresolvedPolicy::from).toList(),
             executionInfo,
             listener
@@ -310,7 +311,7 @@ public class EnrichPolicyResolver {
             Set<String> remotePolicies = unresolvedPolicies.stream()
                 .filter(u -> u.mode != Enrich.Mode.COORDINATOR)
                 .map(u -> u.name)
-                .collect(Collectors.toSet());
+                .collect(toSet());
             // remote clusters
             if (remotePolicies.isEmpty() == false) {
                 for (String cluster : remoteClusters) {
@@ -342,7 +343,7 @@ public class EnrichPolicyResolver {
             Set<String> localPolicies = unresolvedPolicies.stream()
                 .filter(u -> includeLocal || u.mode != Enrich.Mode.REMOTE)
                 .map(u -> u.name)
-                .collect(Collectors.toSet());
+                .collect(toSet());
             if (localPolicies.isEmpty() == false) {
                 transportService.sendRequest(
                     transportService.getLocalNode(),

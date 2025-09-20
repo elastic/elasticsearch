@@ -487,7 +487,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public void lookupOrds(int[] sortedOrds, int uniqueCount, TermConsumer consumer) throws IOException {
-            termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
+            // termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
+            var r = new BulkOrdinalLookup(entry.termsDictEntry, data, merging);
+            r.lookupOrds(sortedOrds, uniqueCount, consumer);
         }
     }
 
@@ -644,7 +646,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final BytesRef term;
         long ord = -1;
 
-        BytesRef blockBuffer = null;
+        final BytesRef blockBuffer;
         ByteArrayDataInput blockInput = null;
         long currentCompressedBlockStart = -1;
         long currentCompressedBlockEnd = -1;
@@ -715,6 +717,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         void lookupOrds(int[] sortedOrds, int uniqueCount, BlockLoader.BulkOrdinalLookup.TermConsumer consumer) throws IOException {
+            final long firstBlockIndex = sortedOrds[0] >> TERMS_DICT_BLOCK_LZ4_SHIFT;
+            final long firstBlockAddress = blockAddresses.get(firstBlockIndex);
+            bytes.seek(firstBlockAddress);
+            this.ord = (firstBlockIndex << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
+
             for (int offset = 0; offset < uniqueCount; offset++) {
                 int targetOrd = sortedOrds[offset];
                 // Signed shift since ord is -1 when the terms enum is not positioned
@@ -726,36 +733,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     bytes.seek(blockAddress);
                     this.ord = (blockIndex << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
                 }
-
                 // Scan to the looked up ord
                 while (this.ord < targetOrd) {
                     next();
                 }
-
-                // Scan to the looked up ord
-                // for (this.ord++; this.ord < targetOrd; this.ord++) {
-                // if (++this.ord >= entry.termsDictSize) {
-                // return null;
-                // }
-
-                // if ((this.ord & blockMask) == 0L) {
-                // decompressBlock();
-                // } else {
-                // DataInput input = blockInput;
-                // final int token = Byte.toUnsignedInt(input.readByte());
-                // int prefixLength = token & 0x0F;
-                // int suffixLength = 1 + (token >>> 4);
-                // if (prefixLength == 15) {
-                // prefixLength += input.readVInt();
-                // }
-                // if (suffixLength == 16) {
-                // suffixLength += input.readVInt();
-                // }
-                // term.length = prefixLength + suffixLength;
-                // input.readBytes(term.bytes, prefixLength, suffixLength);
-                // }
-                // }
-
                 consumer.onTerm(offset, term);
             }
         }
@@ -913,6 +894,123 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         public int docFreq() throws IOException {
             throw new UnsupportedOperationException();
         }
+    }
+
+    static final class BulkOrdinalLookup implements BlockLoader.BulkOrdinalLookup {
+
+        final TermsDictEntry entry;
+        final LongValues blockAddresses;
+        final IndexInput bytes;
+        final long blockMask;
+        final LongValues indexAddresses;
+        final RandomAccessInput indexBytes;
+        final BytesRef blockBuffer;
+
+        long currentCompressedBlockStart = -1;
+        long currentCompressedBlockEnd = -1;
+
+        BulkOrdinalLookup(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
+            this.entry = entry;
+            RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
+            blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
+            bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
+            blockMask = (1L << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
+            RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
+                entry.termsIndexAddressesOffset,
+                entry.termsIndexAddressesLength
+            );
+            indexAddresses = DirectMonotonicReader.getInstance(entry.termsIndexAddressesMeta, indexAddressesSlice, merging);
+            indexBytes = data.randomAccessSlice(entry.termsIndexOffset, entry.termsIndexLength);
+
+            // add the max term length for the dictionary
+            // add 7 padding bytes can help decompression run faster.
+            int bufferSize = entry.maxBlockLength + entry.maxTermLength + TermsDict.LZ4_DECOMPRESSOR_PADDING;
+            blockBuffer = new BytesRef(new byte[bufferSize], 0, bufferSize);
+        }
+
+        @Override
+        public void lookupOrds(int[] sortedOrds, int uniqueCount, TermConsumer consumer) throws IOException {
+            assert sortedOrds[sortedOrds.length - 1] < entry.termsDictSize;
+
+            BytesRef term = new BytesRef(entry.maxTermLength);
+
+            long blockIndex = sortedOrds[0] >> TERMS_DICT_BLOCK_LZ4_SHIFT;
+            long blockAddress = blockAddresses.get(blockIndex);
+            bytes.seek(blockAddress);
+            long currentOrd = (blockIndex << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
+
+            ByteArrayDataInput blockInput = null;
+            for (int offset = 0; offset < uniqueCount; offset++) {
+                int targetOrd = sortedOrds[offset];
+                // Signed shift since ord is -1 when the terms enum is not positioned
+                long currentBlockIndex = currentOrd >> TERMS_DICT_BLOCK_LZ4_SHIFT;
+                blockIndex = targetOrd >> TERMS_DICT_BLOCK_LZ4_SHIFT;
+                if (blockIndex != currentBlockIndex) {
+                    // The looked up ord belongs to a different block, seek again
+                    blockAddress = blockAddresses.get(blockIndex);
+                    bytes.seek(blockAddress);
+                    currentOrd = (blockIndex << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
+                }
+
+                // Scan to the looked up ord
+                while (currentOrd < targetOrd) {
+                    currentOrd++;
+                    if ((currentOrd & blockMask) == 0L) {
+                        blockInput = decompressBlock(term, blockInput);
+                    } else {
+                        DataInput input = blockInput;
+                        final int token = Byte.toUnsignedInt(input.readByte());
+                        int prefixLength = token & 0x0F;
+                        int suffixLength = 1 + (token >>> 4);
+                        if (prefixLength == 15) {
+                            prefixLength += input.readVInt();
+                        }
+                        if (suffixLength == 16) {
+                            suffixLength += input.readVInt();
+                        }
+
+                        term.length = prefixLength + suffixLength;
+                        input.readBytes(term.bytes, prefixLength, suffixLength);
+                        // if (currentOrd == targetOrd) {
+                        // term.length = prefixLength + suffixLength;
+                        // input.readBytes(term.bytes, prefixLength, suffixLength);
+                        // } else {
+                        // input.skipBytes(suffixLength);
+                        // }
+                    }
+                }
+                consumer.onTerm(offset, term);
+            }
+        }
+
+        private ByteArrayDataInput decompressBlock(BytesRef term, ByteArrayDataInput blockInput) throws IOException {
+            // The first term is kept uncompressed, so no need to decompress block if only
+            // look up the first term when doing seek block.
+            term.length = bytes.readVInt();
+            bytes.readBytes(term.bytes, 0, term.length);
+            long offset = bytes.getFilePointer();
+            if (offset < entry.termsDataLength - 1) {
+                // Avoid decompress again if we are reading a same block.
+                if (currentCompressedBlockStart != offset) {
+                    blockBuffer.offset = term.length;
+                    blockBuffer.length = bytes.readVInt();
+                    // Decompress the remaining of current block, using the first term as a dictionary
+                    System.arraycopy(term.bytes, 0, blockBuffer.bytes, 0, blockBuffer.offset);
+                    LZ4.decompress(bytes, blockBuffer.length, blockBuffer.bytes, blockBuffer.offset);
+                    currentCompressedBlockStart = offset;
+                    currentCompressedBlockEnd = bytes.getFilePointer();
+                } else {
+                    // Skip decompression but need to re-seek to block end.
+                    bytes.seek(currentCompressedBlockEnd);
+                }
+
+                // Reset the buffer.
+                return new ByteArrayDataInput(blockBuffer.bytes, blockBuffer.offset, blockBuffer.length);
+            } else {
+                return blockInput;
+            }
+        }
+
     }
 
     @Override

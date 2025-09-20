@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED;
 
 public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceSettingsTestCase<
     GoogleVertexAiChatCompletionServiceSettings> {
@@ -37,7 +37,9 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
         GoogleVertexAiChatCompletionServiceSettings instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
+        if (version.supports(ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
+            return instance;
+        } else {
             return new GoogleVertexAiChatCompletionServiceSettings(
                 instance.projectId(),
                 instance.location(),
@@ -47,8 +49,6 @@ public class GoogleVertexAIChatCompletionServiceSettingsTests extends InferenceS
                 null,
                 instance.rateLimitSettings()
             );
-        } else {
-            return instance;
         }
     }
 

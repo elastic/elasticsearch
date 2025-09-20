@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.net.URI;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -153,7 +154,7 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
 
         // Validate that either Google Model Garden or Google Vertex AI settings are provided
         if ((provider == null && uri == null && streamingUri == null) && (projectId == null || location == null || modelId == null)) {
-            validationException.addValidationError(String.format("""
+            validationException.addValidationError(String.format(Locale.ROOT, """
                 For Google Model Garden, you must provide either provider with url and/or streaming_url. \
                 For Google Vertex AI models, you must provide location, project_id, and model. \
                 provider, url and streaming url were not provided. \

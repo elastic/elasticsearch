@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.inference.services.InferenceSettingsTestCase;
@@ -18,6 +17,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig.THINKING_BUDGET_FIELD;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.completion.ThinkingConfig.THINKING_CONFIG_FIELD;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED;
 import static org.hamcrest.Matchers.is;
 
 public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSettingsTestCase<GoogleVertexAiChatCompletionTaskSettings> {
@@ -116,10 +116,10 @@ public class GoogleVertexAiChatCompletionTaskSettingsTests extends InferenceSett
         GoogleVertexAiChatCompletionTaskSettings instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
-            return new GoogleVertexAiChatCompletionTaskSettings(instance.thinkingConfig(), null);
-        } else {
+        if (version.supports(ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
             return instance;
+        } else {
+            return new GoogleVertexAiChatCompletionTaskSettings(instance.thinkingConfig(), null);
         }
     }
 

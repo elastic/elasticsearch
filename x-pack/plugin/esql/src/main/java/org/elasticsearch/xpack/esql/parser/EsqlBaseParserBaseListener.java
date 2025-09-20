@@ -673,6 +673,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
+  @Override public void enterLoadResultCommand(EsqlBaseParser.LoadResultCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitLoadResultCommand(EsqlBaseParser.LoadResultCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
   @Override public void enterEnrichCommand(EsqlBaseParser.EnrichCommandContext ctx) { }
   /**
    * {@inheritDoc}

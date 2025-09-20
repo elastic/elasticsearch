@@ -430,7 +430,8 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        new InferenceService(mock(Client.class))
+        new InferenceService(mock(Client.class)),
+        mock(Client.class)
     );
 
     private static TransportService createMockTransportService() {

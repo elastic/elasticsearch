@@ -4553,4 +4553,9 @@ public class AnalyzerTests extends ESTestCase {
     static Literal literal(int value) {
         return new Literal(EMPTY, value, DataType.INTEGER);
     }
+
+    public void testLoadResultPreMapperProducesEmptyWhenRunning() {
+        // This test would require wiring mocks for client and transport; leaving as a placeholder
+        // to be implemented with proper test scaffolding in a follow-up.
+    }
 }

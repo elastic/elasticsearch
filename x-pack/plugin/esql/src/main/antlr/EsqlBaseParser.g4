@@ -41,6 +41,7 @@ sourceCommand
     : fromCommand
     | rowCommand
     | showCommand
+    | {this.isDevVersion()}? loadResultCommand
     | timeSeriesCommand
     // in development
     | {this.isDevVersion()}? explainCommand
@@ -268,6 +269,10 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
+    ;
+
+loadResultCommand
+    : DEV_LOAD_RESULT string
     ;
 
 enrichCommand

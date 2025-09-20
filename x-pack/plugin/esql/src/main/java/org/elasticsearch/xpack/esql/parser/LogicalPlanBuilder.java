@@ -80,6 +80,7 @@ import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.load.LoadResult;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -506,6 +507,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitShowInfo(EsqlBaseParser.ShowInfoContext ctx) {
         return new ShowInfo(source(ctx));
+    }
+
+    @Override
+    public LogicalPlan visitLoadResultCommand(EsqlBaseParser.LoadResultCommandContext ctx) {
+        String id = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small()));
+        return new LoadResult(source(ctx), id);
     }
 
     @Override

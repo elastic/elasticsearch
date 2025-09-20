@@ -200,7 +200,7 @@ At search time, {{es}} defaults to the analyzer defined in the field mapping. Th
 ```
 
 1. `hits`: Contains the total number of matching documents and their relation to the total.
-2. `max_score`: The highest relevance score among all matching documents. In this example, there is only have one matching document.
+2. `max_score`: The highest relevance score among all matching documents. In this example, there is only one matching document.
 3. `_score`: The relevance score for a specific document, indicating how well it matches the query. Higher scores indicate better matches. In this example the `max_score` is the same as the `_score`, as there is only one matching document.
 4. The title contains both "Fluffy" and "Pancakes", matching the search terms exactly.
 5. The description includes "fluffiest" and "pancakes", further contributing to the document's relevance due to the analysis process.

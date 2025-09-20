@@ -13,8 +13,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
-    public static TransportVersionDefinition fromString(Path file, String contents) {
+record TransportVersionDefinition(String name, List<TransportVersionId> ids, boolean isReferable) {
+    public static TransportVersionDefinition fromString(Path file, String contents, boolean isReferable) {
         String filename = file.getFileName().toString();
         assert filename.endsWith(".csv");
         String name = filename.substring(0, filename.length() - 4);
@@ -41,6 +41,6 @@ record TransportVersionDefinition(String name, List<TransportVersionId> ids) {
             }
         }
 
-        return new TransportVersionDefinition(name, ids);
+        return new TransportVersionDefinition(name, ids, isReferable);
     }
 }

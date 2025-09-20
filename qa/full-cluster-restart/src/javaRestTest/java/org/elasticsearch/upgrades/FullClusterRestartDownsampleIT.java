@@ -51,6 +51,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
         var cluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .detachedVersion(isOldClusterDetachedVersion())
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("indices.lifecycle.poll_interval", "5s")

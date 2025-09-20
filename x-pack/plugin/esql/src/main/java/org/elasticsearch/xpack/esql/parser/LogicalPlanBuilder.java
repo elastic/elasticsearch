@@ -511,7 +511,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitLoadResultCommand(EsqlBaseParser.LoadResultCommandContext ctx) {
-        String id = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small()));
+        String id;
+        if (ctx.string() != null) {
+            id = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small()));
+        } else {
+            id = ctx.UNQUOTED_IDENTIFIER().getText();
+        }
         return new LoadResult(source(ctx), id);
     }
 

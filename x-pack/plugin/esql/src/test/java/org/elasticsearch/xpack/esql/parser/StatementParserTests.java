@@ -5157,4 +5157,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
         }
     }
+
+    public void testLoadResultParsesQuotedId() {
+        var plan = statement("load_result \"FmNJRUZ1\"");
+        assertThat(plan.getClass().getSimpleName(), equalTo("LoadResult"));
+    }
+
+    public void testLoadResultParsesUnquoted() {
+        var plan = statement("load_result FmNJRUZ1");
+        assertThat(plan.getClass().getSimpleName(), equalTo("LoadResult"));
+    }
 }

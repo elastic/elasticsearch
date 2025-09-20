@@ -272,7 +272,7 @@ showCommand
     ;
 
 loadResultCommand
-    : DEV_LOAD_RESULT string
+    : DEV_LOAD_RESULT (UNQUOTED_IDENTIFIER | string)
     ;
 
 enrichCommand

@@ -17,6 +17,16 @@ LOAD_RESULT_PIPE : PIPE -> type(PIPE), popMode;
 // allow quoted string IDs in this mode
 LOAD_RESULT_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
+// also allow unquoted ids composed of letters, digits, underscore (common for base64url-like ids)
+fragment LR_LETTER : [a-zA-Z];
+fragment LR_DIGIT : [0-9];
+fragment LR_UNDERSCORE : '_';
+fragment LR_DASH : '-';
+fragment LR_TILDE : '~';
+fragment LR_DOT : '.';
+fragment LR_UNQUOTED_ID_BODY : (LR_LETTER | LR_DIGIT | LR_UNDERSCORE | LR_DASH | LR_TILDE | LR_DOT)+;
+LOAD_RESULT_UNQUOTED_ID : LR_UNQUOTED_ID_BODY -> type(UNQUOTED_IDENTIFIER);
+
 LOAD_RESULT_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
     ;

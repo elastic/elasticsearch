@@ -27,6 +27,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;

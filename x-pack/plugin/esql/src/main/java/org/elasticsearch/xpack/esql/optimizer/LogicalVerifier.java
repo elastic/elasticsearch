@@ -20,20 +20,23 @@ import java.util.function.BiConsumer;
 
 public final class LogicalVerifier extends PostOptimizationPhasePlanVerifier<LogicalPlan> {
 
-    public static final LogicalVerifier INSTANCE = new LogicalVerifier();
+    private LogicalVerifier(boolean isLocal) {
+        super(isLocal);
+    }
 
-    private LogicalVerifier() {}
+    public static LogicalVerifier getLocalVerifier() {
+        return new LogicalVerifier(true);
+    }
+
+    public static LogicalVerifier getGeneralVerifier() {
+        return new LogicalVerifier(false);
+    }
 
     @Override
-    boolean skipVerification(LogicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
-        if (skipRemoteEnrichVerification) {
-            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-            var enriches = optimizedPlan.collectFirstChildren(Enrich.class::isInstance);
-            if (enriches.isEmpty() == false && ((Enrich) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-                return true;
-            }
-        }
-        return false;
+    boolean hasRemoteEnrich(LogicalPlan optimizedPlan) {
+        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+        var enriches = optimizedPlan.collectFirstChildren(Enrich.class::isInstance);
+        return enriches.stream().anyMatch(e -> ((Enrich) e).mode() == Enrich.Mode.REMOTE);
     }
 
     @Override

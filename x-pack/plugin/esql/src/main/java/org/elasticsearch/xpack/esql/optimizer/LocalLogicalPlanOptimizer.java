@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
+    private final LogicalVerifier verifier = LogicalVerifier.getLocalVerifier();
 
     private static final List<Batch<LogicalPlan>> RULES = arrayAsArrayList(
         new Batch<>(
@@ -90,7 +90,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
 
     public LogicalPlan localOptimize(LogicalPlan plan) {
         LogicalPlan optimized = execute(plan);
-        Failures failures = verifier.verify(optimized, true, plan.output());
+        Failures failures = verifier.verify(optimized, plan.output());
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

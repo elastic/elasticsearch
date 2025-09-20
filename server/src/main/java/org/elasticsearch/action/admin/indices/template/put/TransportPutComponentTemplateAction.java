@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -32,7 +33,10 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -41,6 +45,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
     private final ProjectResolver projectResolver;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -50,7 +55,8 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexScopedSettings indexScopedSettings,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        NamedXContentRegistry xContentRegistry
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -64,6 +70,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
         this.projectResolver = projectResolver;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -73,26 +80,30 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
 
     public static ComponentTemplate normalizeComponentTemplate(
         ComponentTemplate componentTemplate,
-        IndexScopedSettings indexScopedSettings
-    ) {
+        IndexScopedSettings indexScopedSettings,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
         Template template = componentTemplate.template();
         // Normalize the index settings if necessary
-        if (template.settings() != null) {
-            Settings.Builder builder = Settings.builder().put(template.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-            Settings settings = builder.build();
+        Settings settings = template.settings();
+        if (settings != null) {
+            settings = Settings.builder().put(settings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX).build();
             indexScopedSettings.validate(settings, true);
-            template = Template.builder(template).settings(settings).build();
-            componentTemplate = new ComponentTemplate(
-                template,
-                componentTemplate.version(),
-                componentTemplate.metadata(),
-                componentTemplate.deprecated(),
-                componentTemplate.createdDateMillis().orElse(null),
-                componentTemplate.modifiedDateMillis().orElse(null)
-            );
         }
+        CompressedXContent mappings = template.mappings();
+        CompressedXContent wrappedMappings = MetadataIndexTemplateService.wrapMappingsIfNecessary(mappings, xContentRegistry);
 
-        return componentTemplate;
+        if (Objects.equals(settings, template.settings()) || Objects.equals(wrappedMappings, mappings)) {
+            return componentTemplate;
+        }
+        return new ComponentTemplate(
+            template,
+            componentTemplate.version(),
+            componentTemplate.metadata(),
+            componentTemplate.deprecated(),
+            componentTemplate.createdDateMillis().orElse(null),
+            componentTemplate.modifiedDateMillis().orElse(null)
+        );
     }
 
     @Override
@@ -101,16 +112,28 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
         final PutComponentTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
-    ) {
-        ComponentTemplate componentTemplate = normalizeComponentTemplate(request.componentTemplate(), indexScopedSettings);
-        var projectId = projectResolver.getProjectId();
+    ) throws Exception {
+        final var project = projectResolver.getProjectMetadata(state);
+        ComponentTemplate existing = project.componentTemplates().get(request.name());
+        if (request.create() && existing != null) {
+            throw new IllegalArgumentException("component template [" + request.name() + "] already exists");
+        }
+        ComponentTemplate componentTemplate = normalizeComponentTemplate(
+            request.componentTemplate(),
+            indexScopedSettings,
+            xContentRegistry
+        );
+        if (componentTemplate.contentEquals(existing)) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
         indexTemplateService.putComponentTemplate(
             request.cause(),
             request.create(),
             request.name(),
             request.masterNodeTimeout(),
             componentTemplate,
-            projectId,
+            project.id(),
             listener
         );
     }

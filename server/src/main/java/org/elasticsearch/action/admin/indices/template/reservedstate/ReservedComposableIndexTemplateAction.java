@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -57,13 +58,16 @@ public class ReservedComposableIndexTemplateAction
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final NamedXContentRegistry xContentRegistry;
 
     public ReservedComposableIndexTemplateAction(
         MetadataIndexTemplateService indexTemplateService,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        NamedXContentRegistry xContentRegistry
     ) {
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -156,7 +160,8 @@ public class ReservedComposableIndexTemplateAction
         for (var request : components) {
             ComponentTemplate template = TransportPutComponentTemplateAction.normalizeComponentTemplate(
                 request.componentTemplate(),
-                indexScopedSettings
+                indexScopedSettings,
+                xContentRegistry
             );
 
             project = indexTemplateService.addComponentTemplate(project, false, request.name(), template);

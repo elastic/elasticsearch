@@ -431,6 +431,30 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         }
     }
 
+    public ProjectMetadata withUpdatedComponentTemplates(Map<String, ComponentTemplate> updatedComponentTemplates) {
+        if (updatedComponentTemplates == componentTemplates()) {
+            return this;
+        }
+        return new ProjectMetadata(
+            id,
+            indices,
+            aliasedIndices,
+            templates,
+            customs,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
     /**
      * @return The identifier of this project
      */

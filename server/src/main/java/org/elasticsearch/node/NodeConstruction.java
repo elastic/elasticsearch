@@ -1692,7 +1692,9 @@ class NodeConstruction {
     ) {
         List<ReservedProjectStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
-        reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
+        reservedStateHandlers.add(
+            new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings(), xContentRegistry)
+        );
 
         // add all reserved state handlers from plugins
         handlers.forEach(h -> reservedStateHandlers.addAll(h.projectHandlers()));

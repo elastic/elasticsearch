@@ -258,6 +258,20 @@ public class IndexSortSettingsTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unknown index sort field:[@timestamp] required by [index.mode=time_series]"));
     }
 
+    public void testLogsdb() {
+        {
+            var settings = Settings.builder().put(IndexSettings.MODE.getKey(), "logsdb").build();
+            assertEquals(List.of("host.name", "@timestamp"), IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings));
+        }
+        {
+            var settings = Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "logsdb")
+                .put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), false)
+                .build();
+            assertEquals(List.of("@timestamp"), IndexSortConfig.INDEX_SORT_FIELD_SETTING.get(settings));
+        }
+    }
+
     private Sort buildIndexSort(IndexSettings indexSettings, MappedFieldType... mfts) {
         Map<String, MappedFieldType> lookup = Maps.newMapWithExpectedSize(mfts.length);
         for (MappedFieldType mft : mfts) {

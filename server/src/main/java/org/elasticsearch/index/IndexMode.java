@@ -141,8 +141,11 @@ public enum IndexMode {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
                 throw new IllegalArgumentException(error(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING));
             }
+
+            // The default for these settings require knowledge of the mode
+            Settings settingsWithMode = Settings.builder().put("index.mode", this.name()).build();
             for (Setting<?> unsupported : TIME_SERIES_UNSUPPORTED) {
-                if (false == Objects.equals(unsupported.getDefault(Settings.EMPTY), settings.get(unsupported))) {
+                if (false == Objects.equals(unsupported.getDefault(settingsWithMode), settings.get(unsupported))) {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.ExpressionCoreWritables;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
+import org.elasticsearch.xpack.esql.expression.function.inference.InferenceWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
@@ -120,6 +121,7 @@ public class ExpressionWritables {
         entries.addAll(fullText());
         entries.addAll(unaryScalars());
         entries.addAll(vector());
+        entries.addAll(inference());
         return entries;
     }
 
@@ -264,5 +266,9 @@ public class ExpressionWritables {
 
     private static List<NamedWriteableRegistry.Entry> vector() {
         return VectorWritables.getNamedWritables();
+    }
+
+    private static List<NamedWriteableRegistry.Entry> inference() {
+        return InferenceWritables.getNamedWritables();
     }
 }

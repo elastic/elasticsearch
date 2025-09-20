@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
@@ -211,7 +212,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
-                false
+                false,
+                CoordinatorSearchPhaseAPMMetrics.NOOP
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {
@@ -407,7 +409,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 task,
                 SearchResponse.Clusters.EMPTY,
                 null,
-                false
+                false,
+                CoordinatorSearchPhaseAPMMetrics.NOOP
             ) {
                 @Override
                 protected SearchPhase getNextPhase() {

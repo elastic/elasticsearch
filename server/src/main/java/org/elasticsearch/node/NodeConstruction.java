@@ -122,6 +122,8 @@ import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -853,6 +855,10 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
+        CanMatchPhaseAPMMetrics canMatchMetrics = new CanMatchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics =
+            new CoordinatorSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
+
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
@@ -1350,6 +1356,8 @@ class NodeConstruction {
             b.bind(ShutdownPrepareService.class).toInstance(shutdownPrepareService);
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
+            b.bind(CanMatchPhaseAPMMetrics.class).toInstance(canMatchMetrics);
+            b.bind(CoordinatorSearchPhaseAPMMetrics.class).toInstance(coordinatorSearchPhaseAPMMetrics);
         });
 
         if (ReadinessService.enabled(environment)) {

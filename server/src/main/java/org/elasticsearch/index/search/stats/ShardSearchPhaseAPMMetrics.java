@@ -9,30 +9,27 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+public final class ShardSearchPhaseAPMMetrics extends SearchPhaseAPMMetrics implements SearchOperationListener {
 
-public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener {
-
+    public static final String DFS_SEARCH_PHASE_METRIC = "es.search.shards.phases.dfs.duration.histogram";
     public static final String QUERY_SEARCH_PHASE_METRIC = "es.search.shards.phases.query.duration.histogram";
     public static final String FETCH_SEARCH_PHASE_METRIC = "es.search.shards.phases.fetch.duration.histogram";
 
-    public static final String SYSTEM_THREAD_ATTRIBUTE_NAME = "system_thread";
-
+    private final LongHistogram dfsPhaseMetric;
     private final LongHistogram queryPhaseMetric;
     private final LongHistogram fetchPhaseMetric;
 
-    // Avoid allocating objects in the search path and multithreading clashes
-    private static final ThreadLocal<Map<String, Object>> THREAD_LOCAL_ATTRS = ThreadLocal.withInitial(() -> new HashMap<>(1));
-
     public ShardSearchPhaseAPMMetrics(MeterRegistry meterRegistry) {
+        this.dfsPhaseMetric = meterRegistry.registerLongHistogram(
+            DFS_SEARCH_PHASE_METRIC,
+            "DFS search phase execution times at the shard level, expressed as a histogram",
+            "ms"
+        );
         this.queryPhaseMetric = meterRegistry.registerLongHistogram(
             QUERY_SEARCH_PHASE_METRIC,
             "Query search phase execution times at the shard level, expressed as a histogram",
@@ -46,6 +43,11 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     }
 
     @Override
+    public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+        recordPhaseLatency(dfsPhaseMetric, tookInNanos);
+    }
+
+    @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
         recordPhaseLatency(queryPhaseMetric, tookInNanos);
     }
@@ -53,12 +55,5 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
         recordPhaseLatency(fetchPhaseMetric, tookInNanos);
-    }
-
-    private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
-        Map<String, Object> attrs = ShardSearchPhaseAPMMetrics.THREAD_LOCAL_ATTRS.get();
-        boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
-        attrs.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
-        histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attrs);
     }
 }

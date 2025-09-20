@@ -61,6 +61,8 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.search.stats.CanMatchPhaseAPMMetrics;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -1815,7 +1817,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
-                new UsageService()
+                new UsageService(),
+                CanMatchPhaseAPMMetrics.NOOP,
+                CoordinatorSearchPhaseAPMMetrics.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -66,7 +67,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             new ArraySearchPhaseResults<>(numShards),
             5,
-            null
+            null,
+            CoordinatorSearchPhaseAPMMetrics.NOOP
         );
         this.numShards = numShards;
         numSuccess = new AtomicInteger(numShards);

@@ -17,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -88,7 +89,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             results,
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+            CoordinatorSearchPhaseAPMMetrics.NOOP
         ) {
             @Override
             protected SearchPhase getNextPhase() {

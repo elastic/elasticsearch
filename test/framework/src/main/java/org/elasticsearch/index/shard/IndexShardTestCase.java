@@ -687,7 +687,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     /**
      * Takes an existing shard, closes it and starts a new initialing shard at the same location
      *
-     * @param listeners new listerns to use for the newly created shard
+     * @param listeners new listeners to use for the newly created shard
      */
     protected IndexShard reinitShard(IndexShard current, IndexingOperationListener... listeners) throws IOException {
         final ShardRouting shardRouting = current.routingEntry();

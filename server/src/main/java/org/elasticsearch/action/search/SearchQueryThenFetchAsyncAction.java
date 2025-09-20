@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.search.stats.CoordinatorSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -108,7 +109,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         SearchTask task,
         SearchResponse.Clusters clusters,
         Client client,
-        boolean batchQueryPhase
+        boolean batchQueryPhase,
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics
     ) {
         super(
             "query",
@@ -127,7 +129,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters,
+            coordinatorSearchPhaseAPMMetrics
         );
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

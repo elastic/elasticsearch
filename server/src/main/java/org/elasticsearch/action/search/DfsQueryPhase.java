@@ -66,6 +66,7 @@ class DfsQueryPhase extends SearchPhase {
 
     // protected for testing
     protected SearchPhase nextPhase(AggregatedDfs dfs) {
+        context.recordPhaseTookTime(getName());
         return SearchQueryThenFetchAsyncAction.nextPhase(client, context, queryResult, dfs);
     }
 

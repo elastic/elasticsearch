@@ -260,6 +260,7 @@ class FetchSearchPhase extends SearchPhase {
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
+        context.recordPhaseTookTime(getName());
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);

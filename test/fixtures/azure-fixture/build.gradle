@@ -12,6 +12,6 @@ description = 'Fixture for Azure external service'
 tasks.named("test").configure { enabled = false }
 
 dependencies {
-  api project(':server')
-  api project(':test:framework')
+  implementation project(':server')
+  implementation project(':test:framework')
 }

@@ -15,8 +15,8 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analysis-phonetic:${versions.lucene}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
+  implementation "org.apache.lucene:lucene-analysis-phonetic:${versions.lucene}"
+  implementation "commons-codec:commons-codec:${versions.commonscodec}"
 }
 
 restResources {

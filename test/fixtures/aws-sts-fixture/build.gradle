@@ -11,9 +11,9 @@ apply plugin: 'elasticsearch.java'
 description = 'Fixture for emulating the Security Token Service (STS) running in AWS'
 
 dependencies {
-  api project(':server')
+  implementation project(':server')
   api("junit:junit:${versions.junit}") {
     transitive = false
   }
-  api project(':test:framework')
+  implementation project(':test:framework')
 }

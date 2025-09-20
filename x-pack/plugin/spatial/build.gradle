@@ -20,7 +20,7 @@ dependencies {
   compileOnly project(path: ':modules:legacy-geo')
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(path: xpackModule('core'))
-  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api project(":libs:h3")
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:percolator')

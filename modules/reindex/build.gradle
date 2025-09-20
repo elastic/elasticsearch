@@ -35,8 +35,8 @@ testClusters.configureEach {
 }
 
 dependencies {
-  api project(":client:rest")
-  api project(":libs:ssl-config")
+  implementation project(":client:rest")
+  implementation project(":libs:ssl-config")
   // for parent/child testing
   testImplementation project(':modules:parent-join')
   testImplementation project(':modules:rest-root')

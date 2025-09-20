@@ -647,6 +647,7 @@ public class PersistedClusterStateService {
 
         logger.trace("got metadata for [{}] mappings, now reading index metadata", mappingsByHash.size());
 
+        final Map<ProjectId, ProjectMetadata.Builder> projectBuilders = new HashMap<>();
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, document -> document.getField(INDEX_UUID_FIELD_NAME).stringValue(), (doc, bytes) -> {
             ProjectId projectId = ProjectId.ofNullable(doc.get(PROJECT_ID_FIELD_NAME), Metadata.DEFAULT_PROJECT_ID);
@@ -661,8 +662,10 @@ public class PersistedClusterStateService {
             if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
                 throw new CorruptStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
             }
-            builder.getProject(projectId).put(indexMetadata, false);
+            var projectBuilder = projectBuilders.computeIfAbsent(projectId, k -> builder.createNewProjectBuilder(projectId));
+            projectBuilder.put(indexMetadata, false);
         });
+        projectBuilders.values().forEach(pb -> builder.put(pb.build()));
 
         final Map<String, String> userData = reader.getIndexCommit().getUserData();
         logger.trace("loaded metadata [{}] from [{}]", userData, reader.directory());

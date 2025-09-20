@@ -343,7 +343,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
         assertEquals(0, TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, indexNameExpressionResolver()).size());
 
-        metadata = Metadata.builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable(projectId));
         String indexToRemove = TransformInternalIndexConstants.LATEST_INDEX_NAME;
         if (randomBoolean()) {
@@ -366,7 +365,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
 
         csBuilder = ClusterState.builder(cs);
         csBuilder.putRoutingTable(projectId, routingTable.build());
-        csBuilder.metadata(metadata);
         List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
             csBuilder.build(),
             indexNameExpressionResolver()
@@ -490,13 +488,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private void addIndices(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
+        final var projectBuilder = metadata.createNewProjectBuilder(projectId);
         List<String> indices = new ArrayList<>();
         indices.add(TransformInternalIndexConstants.AUDIT_INDEX);
         indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
             indexMetadata.settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "_uuid"));
-            metadata.getProject(projectId).put(indexMetadata);
+            projectBuilder.put(indexMetadata);
             Index index = new Index(indexName, "_uuid");
             ShardId shardId = new ShardId(index, 0);
             ShardRouting shardRouting = ShardRouting.newUnassigned(
@@ -512,6 +511,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting))
             );
         }
+        metadata.put(projectBuilder);
     }
 
     private DiscoveryNodes.Builder buildNodes(
@@ -635,7 +635,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
 
         PersistentTasksCustomMetadata pTasks = pTasksBuilder.build();
-        metadata.getProject(projectId).putCustom(PersistentTasksCustomMetadata.TYPE, pTasks);
+        metadata.put(metadata.createNewProjectBuilder(projectId).putCustom(PersistentTasksCustomMetadata.TYPE, pTasks));
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name")).nodes(nodes);
         csBuilder.putRoutingTable(projectId, routingTable.build());

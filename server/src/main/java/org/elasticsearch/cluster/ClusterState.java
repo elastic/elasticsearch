@@ -1051,13 +1051,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             this.clusterName = clusterName;
         }
 
-        public Builder putProjectMetadata(ProjectMetadata.Builder projectMetadata) {
+        public Builder putProjectMetadata(ProjectMetadata projectMetadata) {
             metadata = Metadata.builder(metadata).put(projectMetadata).build();
             return this;
         }
 
-        public Builder putProjectMetadata(ProjectMetadata projectMetadata) {
-            return putProjectMetadata(ProjectMetadata.builder(projectMetadata));
+        public Builder putProjectMetadata(ProjectMetadata.Builder projectMetadata) {
+            return putProjectMetadata(projectMetadata.build());
         }
 
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {

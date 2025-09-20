@@ -1291,7 +1291,7 @@ public class MetadataIndexStateService {
                 return "opening indices [" + indexNames + "]";
             });
 
-            final Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+            final Map<ProjectId, ProjectMetadata.Builder> projectBuilders = new HashMap<>();
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder(currentState.blocks());
             final IndexVersion minIndexCompatibilityVersion = currentState.getNodes().getMinSupportedIndexVersion();
             final IndexVersion minReadOnlyIndexCompatibilityVersion = currentState.getNodes().getMinReadOnlySupportedIndexVersion();
@@ -1336,14 +1336,26 @@ public class MetadataIndexStateService {
                     } catch (Exception e) {
                         throw new ElasticsearchException("Failed to verify index " + index, e);
                     }
-                    metadata.getProject(projectId).put(newIndexMetadata, true);
+                    var projectBuilder = projectBuilders.computeIfAbsent(
+                        projectId,
+                        k -> ProjectMetadata.builder(currentState.metadata().getProject(projectId))
+                    );
+                    projectBuilder.put(newIndexMetadata, true);
                 }
 
                 // Always removes index closed blocks (note: this can fail on-going close index actions)
                 blocks.removeIndexBlockWithId(projectId, index.getName(), INDEX_CLOSED_BLOCK_ID);
             }
 
-            ClusterState updatedState = ClusterState.builder(currentState).metadata(metadata).blocks(blocks).build();
+            final Metadata updatedMetadata;
+            if (projectBuilders.isEmpty()) {
+                updatedMetadata = currentState.metadata();
+            } else {
+                final Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+                projectBuilders.values().forEach(pb -> metadataBuilder.put(pb.build()));
+                updatedMetadata = metadataBuilder.build();
+            }
+            ClusterState updatedState = ClusterState.builder(currentState).metadata(updatedMetadata).blocks(blocks).build();
 
             final Map<ProjectId, RoutingTable.Builder> routingTableBuilders = new HashMap<>();
             for (var indexToOpen : indicesToOpen) {

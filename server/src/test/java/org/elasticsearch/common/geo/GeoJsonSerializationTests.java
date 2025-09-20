@@ -12,6 +12,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
@@ -23,6 +24,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -132,8 +134,8 @@ public class GeoJsonSerializationTests extends ESTestCase {
                 XContentParser parser = XContentType.JSON.xContent()
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)
             ) {
-                Map<String, Object> map = GeoJson.toMap(geometry);
-                assertThat(parser.map(), equalTo(map));
+                Map<String, Object> map = GeoJson.toMap(geometry, randomBoolean());
+                assertThat(parser.map(), equalTo(XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map).map()));
             }
         }
     }

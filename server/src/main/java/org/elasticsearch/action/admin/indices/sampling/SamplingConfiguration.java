@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -29,14 +30,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 /**
  * Configuration for sampling raw documents in an index.
- *
- * @param rate The fraction of documents to sample (between 0 and 1)
- * @param maxSamples The maximum number of documents to sample (optional)
- * @param maxSize The maximum total size of sampled documents (optional)
- * @param timeToLive The duration for which the sampled documents should be retained (optional)
- * @param condition An optional condition that sampled documents must satisfy (optional)
  */
-public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
+public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, Script condition)
     implements
         ToXContentObject,
         SimpleDiffable<SamplingConfiguration> {
@@ -68,33 +63,46 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     public static final String INVALID_TIME_TO_LIVE_MAX_MESSAGE = "timeToLive must be less than or equal to "
         + MAX_TIME_TO_LIVE_DAYS
         + " days";
-    public static final String INVALID_CONDITION_MESSAGE = "condition must be a non-empty string";
 
     private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(TYPE, true, args -> {
         double rate = (double) args[0];
         Integer maxSamples = (Integer) args[1];
         ByteSizeValue maxSize = (ByteSizeValue) args[2];
         TimeValue timeToLive = (TimeValue) args[3];
-        String condition = (String) args[4];
+        Script condition = (Script) args[4];
         return new SamplingConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
     });
 
     static {
         PARSER.declareDouble(constructorArg(), new ParseField(RATE_FIELD_NAME));
-        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_MAX_SAMPLES, new ParseField(MAX_SAMPLES_FIELD_NAME));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(MAX_SAMPLES_FIELD_NAME));
+        // Handle both human-readable and machine-readable fields for maxSize
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME);
+            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return ByteSizeValue.ofBytes(p.longValue());
+            } else {
+                throw new IllegalArgumentException("Unexpected token type: " + p.currentToken());
+            }
+        }, new ParseField(MAX_SIZE_IN_BYTES_FIELD_NAME), ObjectParser.ValueType.VALUE);
+        // Handle both human-readable and machine-readable fields for timeToLive
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME);
+            } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return TimeValue.timeValueMillis(p.longValue());
+            } else {
+                throw new IllegalArgumentException("Unexpected token type: " + p.currentToken());
+            }
+        }, new ParseField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.VALUE);
+
         PARSER.declareField(
             optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SIZE_FIELD_NAME),
-            new ParseField(MAX_SIZE_FIELD_NAME),
-            ObjectParser.ValueType.STRING
+            (p, c) -> Script.parse(p, CONDITION_FIELD_NAME),
+            new ParseField(CONDITION_FIELD_NAME),
+            ObjectParser.ValueType.OBJECT
         );
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), TIME_TO_LIVE_FIELD_NAME),
-            new ParseField(TIME_TO_LIVE_FIELD_NAME),
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
     }
 
     /**
@@ -103,23 +111,19 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
      * @param rate The fraction of documents to sample (must be between 0 and 1)
      * @param maxSamples The maximum number of documents to sample (optional, defaults to {@link #DEFAULT_MAX_SAMPLES})
      * @param maxSize The maximum total size of sampled documents (optional, defaults to {@link #DEFAULT_MAX_SIZE_GIGABYTES} GB)
-     * @param timeToLive The duration for which the sampled documents should be retained (optional, defaults to {@link #DEFAULT_TIME_TO_LIVE_DAYS} days)
-     * @param condition An optional condition that sampled documents must satisfy (optional, can be null)
+     * @param timeToLive The duration for which the sampled documents
+     *                   should be retained (optional, defaults to {@link #DEFAULT_TIME_TO_LIVE_DAYS} days)
+     * @param condition An optional condition script that sampled documents must satisfy (optional, can be null)
      * @throws IllegalArgumentException If any of the parameters are invalid, according to the validation rules
      */
-    public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
+    public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, Script condition) {
         validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
-
-        // Set defaults
-        maxSamples = maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples;
-        maxSize = maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize;
-        timeToLive = timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive;
 
         // Initialize record fields
         this.rate = rate;
-        this.maxSamples = maxSamples;
-        this.maxSize = maxSize;
-        this.timeToLive = timeToLive;
+        this.maxSamples = maxSamples == null ? DEFAULT_MAX_SAMPLES : maxSamples;
+        this.maxSize = maxSize == null ? ByteSizeValue.ofGb(DEFAULT_MAX_SIZE_GIGABYTES) : maxSize;
+        this.timeToLive = timeToLive == null ? TimeValue.timeValueDays(DEFAULT_TIME_TO_LIVE_DAYS) : timeToLive;
         this.condition = condition;
     }
 
@@ -130,23 +134,17 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
      * @throws IOException If an I/O error occurs during deserialization
      */
     public SamplingConfiguration(StreamInput in) throws IOException {
-        this(
-            in.readDouble(),
-            in.readOptionalInt(),
-            in.readOptionalWriteable(ByteSizeValue::readFrom),
-            in.readOptionalTimeValue(),
-            in.readOptionalString()
-        );
+        this(in.readDouble(), in.readInt(), ByteSizeValue.readFrom(in), in.readTimeValue(), in.readOptionalWriteable(Script::new));
     }
 
     // Write to StreamOutput
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeDouble(this.rate);
-        out.writeOptionalInt(this.maxSamples);
-        out.writeOptionalWriteable(this.maxSize);
-        out.writeOptionalTimeValue(this.timeToLive);
-        out.writeOptionalString(this.condition);
+        out.writeInt(this.maxSamples);
+        out.writeWriteable(this.maxSize);
+        out.writeTimeValue(this.timeToLive);
+        out.writeOptionalWriteable(this.condition);
     }
 
     // Serialize to XContent (JSON)
@@ -154,16 +152,10 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(RATE_FIELD_NAME, rate);
-        if (maxSamples != null) {
-            builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
-        }
-        if (maxSize != null) {
-            builder.humanReadableField(MAX_SIZE_IN_BYTES_FIELD_NAME, MAX_SIZE_FIELD_NAME, maxSize.getBytes());
-        }
-        if (timeToLive != null) {
-            builder.humanReadableField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME, TIME_TO_LIVE_FIELD_NAME, timeToLive.millis());
-        }
-        if (condition != null && condition.isEmpty() == false) {
+        builder.field(MAX_SAMPLES_FIELD_NAME, maxSamples);
+        builder.humanReadableField(MAX_SIZE_IN_BYTES_FIELD_NAME, MAX_SIZE_FIELD_NAME, maxSize);
+        builder.humanReadableField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME, TIME_TO_LIVE_FIELD_NAME, timeToLive);
+        if (condition != null) {
             builder.field(CONDITION_FIELD_NAME, condition);
         }
         builder.endObject();
@@ -193,7 +185,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     }
 
     // Input validation method
-    private static void validateInputs(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
+    private static void validateInputs(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, Script condition) {
         // Validate rate
         if (rate <= 0 || rate > 1) {
             throw new IllegalArgumentException(INVALID_RATE_MESSAGE);
@@ -229,11 +221,6 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
             if (timeToLive.compareTo(maxLimit) > 0) {
                 throw new IllegalArgumentException(INVALID_TIME_TO_LIVE_MAX_MESSAGE);
             }
-        }
-
-        // Validate condition
-        if (condition != null && condition.isEmpty()) {
-            throw new IllegalArgumentException(INVALID_CONDITION_MESSAGE);
         }
     }
 }

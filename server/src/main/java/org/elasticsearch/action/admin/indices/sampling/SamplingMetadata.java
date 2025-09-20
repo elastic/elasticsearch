@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.sampling;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -40,6 +39,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * An object to store a map from index name to SamplingConfiguration.
  */
 public class SamplingMetadata implements Metadata.ProjectCustom {
+
+    public static final TransportVersion SAMPLING_CONFIGURATION = TransportVersion.fromName("sampling_configuration");
 
     public static final String TYPE = "sampling";
     private static final String INDEX_SAMPLING_CONFIG_MAP_FIELD_NAME = "index_to_sampling_config";
@@ -124,7 +125,7 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SamplingMetadata that = (SamplingMetadata) o;
-        return Objects.equals(indexToSamplingConfigMap, that.indexToSamplingConfigMap);
+        return indexToSamplingConfigMap.equals(that.indexToSamplingConfigMap);
     }
 
     @Override
@@ -144,7 +145,7 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.SAMPLING_CONFIGURATION;
+        return SAMPLING_CONFIGURATION;
     }
 
     @Override
@@ -210,7 +211,7 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.SAMPLING_CONFIGURATION;
+            return SAMPLING_CONFIGURATION;
         }
     }
 

@@ -8,10 +8,16 @@
  */
 package org.elasticsearch.action.admin.indices.sampling;
 
+import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-public class SamplingMetadataTests extends AbstractChunkedSerializingTestCase<SamplingMetadata> {
+public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
     @Override
     protected SamplingMetadata doParseInstance(XContentParser parser) throws IOException {
@@ -27,7 +33,7 @@ public class SamplingMetadataTests extends AbstractChunkedSerializingTestCase<Sa
     }
 
     @Override
-    protected Writeable.Reader<SamplingMetadata> instanceReader() {
+    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
         return SamplingMetadata::new;
     }
 
@@ -37,8 +43,9 @@ public class SamplingMetadataTests extends AbstractChunkedSerializingTestCase<Sa
     }
 
     @Override
-    protected SamplingMetadata mutateInstance(SamplingMetadata instance) {
-        Map<String, SamplingConfiguration> map = new HashMap<>(instance.getIndexToSamplingConfigMap());
+    protected SamplingMetadata mutateInstance(Metadata.ProjectCustom instance) {
+        SamplingMetadata metadata = (SamplingMetadata) instance;
+        Map<String, SamplingConfiguration> map = new HashMap<>(metadata.getIndexToSamplingConfigMap());
         if (map.isEmpty() || randomBoolean()) {
             // Add a new entry
             map.put(randomAlphaOfLength(10), createRandomSampleConfig());
@@ -47,6 +54,21 @@ public class SamplingMetadataTests extends AbstractChunkedSerializingTestCase<Sa
             map.remove(map.keySet().iterator().next());
         }
         return new SamplingMetadata(map);
+    }
+
+    @Override
+    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
+        return randomValueOtherThan(testInstance, this::createTestInstance);
+    }
+
+    @Override
+    protected Writeable.Reader<Diff<Metadata.ProjectCustom>> diffReader() {
+        return SamplingMetadata::readDiffFrom;
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
     }
 
     private Map<String, SamplingConfiguration> randomSampleConfigMap() {
@@ -64,7 +86,7 @@ public class SamplingMetadataTests extends AbstractChunkedSerializingTestCase<Sa
             randomBoolean() ? null : randomIntBetween(1, 1000),
             randomBoolean() ? null : ByteSizeValue.ofGb(randomIntBetween(1, 5)),
             randomBoolean() ? null : new TimeValue(randomIntBetween(1, 30), TimeUnit.DAYS),
-            randomBoolean() ? randomAlphaOfLength(10) : null
+            randomBoolean() ? new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of()) : null
         );
     }
 }

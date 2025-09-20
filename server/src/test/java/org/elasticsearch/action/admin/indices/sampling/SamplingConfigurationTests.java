@@ -11,10 +11,13 @@ package org.elasticsearch.action.admin.indices.sampling;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -38,7 +41,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             randomBoolean() ? null : randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
             randomBoolean() ? null : ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
             randomBoolean() ? null : TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
-            randomBoolean() ? null : randomAlphaOfLength(10)
+            randomBoolean() ? null : new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of())
         );
     }
 
@@ -84,7 +87,10 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
                 instance.maxSamples(),
                 instance.maxSize(),
                 instance.timeToLive(),
-                randomValueOtherThan(instance.condition(), () -> randomAlphaOfLength(10))
+                randomValueOtherThan(
+                    instance.condition(),
+                    () -> new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of())
+                )
             );
             default -> throw new AssertionError("Unexpected value");
         };
@@ -147,20 +153,23 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         );
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MAX_MESSAGE));
 
-        // Test invalid condition
-        e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, null, null, ""));
-        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_CONDITION_MESSAGE));
     }
 
     public void testValidInputs() {
         // Test boundary conditions
-        new SamplingConfiguration(0.001, 1, ByteSizeValue.ofBytes(1), TimeValue.timeValueMillis(1), "a"); // minimum values
+        new SamplingConfiguration(
+            0.001,
+            1,
+            ByteSizeValue.ofBytes(1),
+            TimeValue.timeValueMillis(1),
+            new Script(ScriptType.INLINE, "painless", "a", Map.of())
+        ); // minimum values
         new SamplingConfiguration(
             1.0,
             SamplingConfiguration.MAX_SAMPLES_LIMIT,
             ByteSizeValue.ofGb(SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES),
             TimeValue.timeValueDays(SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS),
-            "condition"
+            new Script(ScriptType.INLINE, "painless", "condition", Map.of())
         ); // maximum values
 
         // Test random valid values
@@ -169,7 +178,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
             ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
             TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
-            randomAlphaOfLength(10)
+            new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of())
         );
     }
 }

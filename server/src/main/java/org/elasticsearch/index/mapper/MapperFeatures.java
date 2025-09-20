@@ -48,7 +48,8 @@ public class MapperFeatures implements FeatureSpecification {
     static final NodeFeature IVF_NESTED_SUPPORT = new NodeFeature("mapper.ivf_nested_support");
     static final NodeFeature BBQ_DISK_SUPPORT = new NodeFeature("mapper.bbq_disk_support");
     static final NodeFeature SEARCH_LOAD_PER_SHARD = new NodeFeature("mapper.search_load_per_shard");
-    static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
+    public static final NodeFeature PATTERN_TEXT = new NodeFeature("mapper.patterned_text");
+    public static final NodeFeature PATTERN_TEXT_RENAME = new NodeFeature("mapper.pattern_text.rename");
     static final NodeFeature IGNORED_SOURCE_FIELDS_PER_ENTRY = new NodeFeature("mapper.ignored_source_fields_per_entry");
     public static final NodeFeature MULTI_FIELD_UNICODE_OPTIMISATION_FIX = new NodeFeature("mapper.multi_field.unicode_optimisation_fix");
 
@@ -85,6 +86,7 @@ public class MapperFeatures implements FeatureSpecification {
             SEARCH_LOAD_PER_SHARD,
             SPARSE_VECTOR_INDEX_OPTIONS_FEATURE,
             PATTERN_TEXT,
+            PATTERN_TEXT_RENAME,
             IGNORED_SOURCE_FIELDS_PER_ENTRY,
             MULTI_FIELD_UNICODE_OPTIMISATION_FIX,
             MATCH_ONLY_TEXT_BLOCK_LOADER_FIX

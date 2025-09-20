@@ -15,9 +15,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.mapper.MapperFeatures;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -29,6 +31,14 @@ public abstract class AbstractRollingUpgradeWithSecurityTestCase extends Paramet
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
+
+    @Before
+    public void setPatternTextRenameCheck() {
+        assumeTrue(
+            "Only run these tests when patterned_text is renamed to pattern_text",
+            oldClusterHasFeature(MapperFeatures.PATTERN_TEXT_RENAME)
+        );
+    }
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
 

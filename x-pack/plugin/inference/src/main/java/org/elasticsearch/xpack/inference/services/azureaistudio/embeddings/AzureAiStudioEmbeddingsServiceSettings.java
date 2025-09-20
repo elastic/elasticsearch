@@ -19,7 +19,6 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioServiceSettings;
@@ -29,12 +28,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.missingSettingErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.invalidSettingError;
 
 public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioServiceSettings {
 
@@ -74,7 +75,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
                 dimensionsSetByUser = dims != null;
@@ -82,7 +83,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }

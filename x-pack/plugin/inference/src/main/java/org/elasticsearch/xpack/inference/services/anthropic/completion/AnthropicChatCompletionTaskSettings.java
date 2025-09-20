@@ -23,9 +23,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.nonNullOrDefault;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.MAX_TOKENS;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.anthropic.AnthropicServiceFields.TOP_K_FIELD;

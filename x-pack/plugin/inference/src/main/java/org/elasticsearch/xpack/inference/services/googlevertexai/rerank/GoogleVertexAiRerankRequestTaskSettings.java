@@ -13,7 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
 
 public record GoogleVertexAiRerankRequestTaskSettings(@Nullable Integer topN) {
 

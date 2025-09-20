@@ -27,9 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.missingOneOfSettingsErrorMsg;
 
 public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
@@ -93,10 +94,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), ModelConfigurations.SERVICE_SETTINGS)
             );
         }
 
@@ -260,10 +258,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
 
         if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
-                ServiceUtils.missingOneOfSettingsErrorMsg(
-                    List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
-                    ModelConfigurations.SERVICE_SETTINGS
-                )
+                missingOneOfSettingsErrorMsg(List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS), ModelConfigurations.SERVICE_SETTINGS)
             );
         }
         if (numAllocations != null && adaptiveAllocationsSettings != null) {

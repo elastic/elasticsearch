@@ -13,7 +13,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.USER;
 
 /**

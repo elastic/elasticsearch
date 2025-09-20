@@ -26,7 +26,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
 
 /**
  * Maintains mutable settings for SageMaker. Model-specific settings are stored in {@link SageMakerStoredTaskSchema}.

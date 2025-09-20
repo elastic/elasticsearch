@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.xpack.inference.Utils.modifiableMap;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.modifiableMap;
 import static org.hamcrest.Matchers.is;
 
 public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestCase<CustomSecretSettings> {

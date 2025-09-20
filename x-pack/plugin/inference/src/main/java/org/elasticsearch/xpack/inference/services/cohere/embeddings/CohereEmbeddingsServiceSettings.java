@@ -19,7 +19,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
@@ -29,7 +28,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.invalidValue;
 
 public class CohereEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "cohere_embeddings_service_settings";
@@ -67,12 +68,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                 CohereEmbeddingType.FLOAT
             );
             case PERSISTENT -> {
-                var embeddingType = ServiceUtils.extractOptionalString(
-                    map,
-                    EMBEDDING_TYPE,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    validationException
-                );
+                var embeddingType = extractOptionalString(map, EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, validationException);
                 yield fromCohereOrDenseVectorEnumValues(embeddingType, validationException);
             }
 
@@ -101,7 +97,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                     .map(value -> value.toString().toLowerCase(Locale.ROOT))
                     .toArray(String[]::new);
                 validationException.addValidationError(
-                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
+                    invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
                 );
                 return null;
             }

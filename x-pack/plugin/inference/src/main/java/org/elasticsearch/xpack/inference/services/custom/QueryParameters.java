@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalListOfStringTuples;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalListOfStringTuples;
 
 public record QueryParameters(List<Parameter> parameters) implements ToXContentFragment, Writeable {
 

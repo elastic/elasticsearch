@@ -29,6 +29,10 @@ import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
@@ -36,11 +40,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 
 /**

@@ -13,9 +13,9 @@ import org.elasticsearch.inference.ModelConfigurations;
 
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalMapRemoveNulls;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.validateMapStringValues;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 

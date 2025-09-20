@@ -26,8 +26,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticInferenceServiceRerankServiceSettings extends FilteredXContentObject
     implements

@@ -14,10 +14,11 @@ import org.elasticsearch.common.ssl.SslConfigurationKeys;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 import javax.net.ssl.KeyManagerFactory;
 
-public class CrossClusterApiKeySignerSettings {
+public class CrossClusterApiKeySigningSettings {
     static final String SETTINGS_PART_SIGNING = "signing";
 
     static final String KEYSTORE_ALIAS_SUFFIX = "keystore.alias";
@@ -84,6 +85,49 @@ public class CrossClusterApiKeySignerSettings {
         key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
     );
 
+    static final Setting.AffixSetting<List<String>> SIGNING_CERTIFICATE_AUTHORITIES = Setting.affixKeySetting(
+        "cluster.remote.",
+        SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.CERTIFICATE_AUTHORITIES,
+        key -> Setting.listSetting(
+            key,
+            List.of(),
+            Function.identity(),
+            Setting.Property.NodeScope,
+            Setting.Property.Filtered,
+            Setting.Property.Dynamic
+        )
+    );
+
+    static final Setting.AffixSetting<String> SIGNING_TRUSTSTORE_PATH = Setting.affixKeySetting(
+        "cluster.remote.",
+        SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.TRUSTSTORE_PATH,
+        key -> Setting.simpleString(key, Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
+    );
+
+    static final Setting.AffixSetting<SecureString> SIGNING_TRUSTSTORE_SECURE_PASSWORD = Setting.affixKeySetting(
+        "cluster.remote.",
+        SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.TRUSTSTORE_SECURE_PASSWORD,
+        key -> SecureSetting.secureString(key, null)
+    );
+
+    static final Setting.AffixSetting<String> SIGNING_TRUSTSTORE_ALGORITHM = Setting.affixKeySetting(
+        "cluster.remote.",
+        SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.TRUSTSTORE_ALGORITHM,
+        key -> Setting.simpleString(
+            key,
+            KeyManagerFactory.getDefaultAlgorithm(),
+            Setting.Property.NodeScope,
+            Setting.Property.Filtered,
+            Setting.Property.Dynamic
+        )
+    );
+
+    static final Setting.AffixSetting<String> SIGNING_TRUSTSTORE_TYPE = Setting.affixKeySetting(
+        "cluster.remote.",
+        SETTINGS_PART_SIGNING + "." + SslConfigurationKeys.TRUSTSTORE_TYPE,
+        key -> Setting.simpleString(key, "", Setting.Property.NodeScope, Setting.Property.Filtered, Setting.Property.Dynamic)
+    );
+
     public static List<Setting.AffixSetting<?>> getDynamicSettings() {
         return List.of(
             SIGNING_KEYSTORE_ALIAS,
@@ -91,12 +135,21 @@ public class CrossClusterApiKeySignerSettings {
             SIGNING_KEYSTORE_ALGORITHM,
             SIGNING_KEYSTORE_TYPE,
             SIGNING_KEY_PATH,
-            SIGNING_CERT_PATH
+            SIGNING_CERT_PATH,
+            SIGNING_TRUSTSTORE_TYPE,
+            SIGNING_TRUSTSTORE_ALGORITHM,
+            SIGNING_TRUSTSTORE_PATH,
+            SIGNING_CERTIFICATE_AUTHORITIES
         );
     }
 
     public static List<Setting<?>> getSecureSettings() {
-        return List.of(SIGNING_KEYSTORE_SECURE_PASSWORD, SIGNING_KEYSTORE_SECURE_KEY_PASSWORD, SIGNING_KEY_SECURE_PASSPHRASE);
+        return List.of(
+            SIGNING_KEYSTORE_SECURE_PASSWORD,
+            SIGNING_KEYSTORE_SECURE_KEY_PASSWORD,
+            SIGNING_KEY_SECURE_PASSPHRASE,
+            SIGNING_TRUSTSTORE_SECURE_PASSWORD
+        );
     }
 
     public static List<Setting<?>> getSettings() {

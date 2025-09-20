@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.InMemoryClonedSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslKeyConfig;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
@@ -23,13 +21,11 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
-import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -38,12 +34,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.SETTINGS_PART_SIGNING;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.getDynamicSettings;
-import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignerSettings.getSecureSettings;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SETTINGS_PART_SIGNING;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.getDynamicSettings;
+import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.getSecureSettings;
 
 /**
- * Responsible for reloading a provided {@link CrossClusterApiKeySigner} when updates are received from the following sources:
+ * Responsible for reloading a provided {@link CrossClusterApiKeySignatureManager} when updates are received from the following
+ * sources:
  * - Dynamic cluster settings
  * - Reloadable secure settings
  * - File changes in any of the files pointed to by the cluster settings
@@ -55,7 +52,7 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
     private final ResourceWatcherService resourceWatcherService;
     private final Map<String, Settings> settingsByClusterAlias = new ConcurrentHashMap<>();
 
-    private final PlainActionFuture<CrossClusterApiKeySigner> crossClusterApiKeySignerFuture = new PlainActionFuture<>() {
+    private final PlainActionFuture<CrossClusterApiKeySignatureManager> signingConfigLoaderFuture = new PlainActionFuture<>() {
         @Override
         protected boolean blockingAllowed() {
             return true; // waits on the scheduler thread, once, and not for long
@@ -65,11 +62,12 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
     public CrossClusterApiKeySigningConfigReloader(
         Environment environment,
         ResourceWatcherService resourceWatcherService,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Map<Path, Set<String>> initialFilesToMonitor
     ) {
         this.resourceWatcherService = resourceWatcherService;
         settingsByClusterAlias.putAll(environment.settings().getGroups("cluster.remote.", true));
-        watchDependentFilesForClusterAliases(resourceWatcherService, getInitialFilesToMonitor(environment));
+        watchDependentFilesForClusterAliases(resourceWatcherService, initialFilesToMonitor);
         clusterSettings.addAffixGroupUpdateConsumer(getDynamicSettings(), (key, val) -> {
             reloadConsumer(key, val.getByPrefix("cluster.remote." + key + "."), false);
             logger.info("Updated signing configuration for [{}] due to updated cluster settings", key);
@@ -78,8 +76,8 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
 
     private void validateUpdate(String clusterAlias, Settings settings) {
         try {
-            var apiKeySigner = crossClusterApiKeySignerFuture.get();
-            apiKeySigner.validateSigningConfigUpdate(clusterAlias, settings.getByPrefix("cluster.remote." + clusterAlias + "."));
+            var signingConfigLoader = signingConfigLoaderFuture.get();
+            signingConfigLoader.validate(clusterAlias, settings.getByPrefix("cluster.remote." + clusterAlias + "."));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
@@ -94,19 +92,19 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
 
     private void reloadConsumer(String clusterAlias, @Nullable Settings settings, boolean updateSecureSettings) {
         try {
-            var apiKeySigner = crossClusterApiKeySignerFuture.get();
+            var signingConfigLoader = signingConfigLoaderFuture.get();
             settingsByClusterAlias.compute(clusterAlias, (key, val) -> {
                 var effectiveSettings = buildEffectiveSettings(val, settings, updateSecureSettings);
                 try {
-                    var signingConfig = apiKeySigner.loadSigningConfig(clusterAlias, effectiveSettings);
-                    signingConfig.ifPresent(
-                        config -> watchDependentFilesForClusterAliases(
-                            resourceWatcherService,
-                            config.dependentFiles().stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
-                        )
-                    );
+                    signingConfigLoader.reload(clusterAlias, effectiveSettings);
                 } catch (IllegalStateException e) {
                     logger.error(Strings.format("Failed to load signing config for cluster [%s]", clusterAlias), e);
+                } finally {
+                    var configFiles = signingConfigLoader.getDependentFiles(clusterAlias);
+                    watchDependentFilesForClusterAliases(
+                        resourceWatcherService,
+                        configFiles.stream().collect(Collectors.toMap(file -> file, (file) -> Set.of(clusterAlias)))
+                    );
                 }
                 return effectiveSettings;
             });
@@ -117,23 +115,9 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
         }
     }
 
-    public void setApiKeySigner(CrossClusterApiKeySigner apiKeySigner) {
-        assert crossClusterApiKeySignerFuture.isDone() == false : "apiKeySigner already set";
-        crossClusterApiKeySignerFuture.onResponse(apiKeySigner);
-    }
-
-    private Map<Path, Set<String>> getInitialFilesToMonitor(Environment environment) {
-        Map<Path, Set<String>> filesToMonitor = new HashMap<>();
-        this.settingsByClusterAlias.forEach((clusterAlias, settingsForCluster) -> {
-            SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settingsForCluster, SETTINGS_PART_SIGNING + ".", environment, false);
-            for (Path path : keyConfig.getDependentFiles()) {
-                filesToMonitor.compute(
-                    path,
-                    (p, aliases) -> aliases == null ? Set.of(clusterAlias) : Sets.addToCopy(aliases, clusterAlias)
-                );
-            }
-        });
-        return filesToMonitor;
+    public void setSigningConfigLoader(CrossClusterApiKeySignatureManager signingConfigLoader) {
+        assert signingConfigLoaderFuture.isDone() == false : "signingConfigLoaders already set";
+        signingConfigLoaderFuture.onResponse(signingConfigLoader);
     }
 
     private void watchDependentFilesForClusterAliases(
@@ -236,7 +220,6 @@ public final class CrossClusterApiKeySigningConfigReloader implements Reloadable
                 .setSecureSettings(InMemoryClonedSecureSettings.cloneSecureSettings(settings, getSecureSettings()))
                 .build();
             cachedSettings.getGroups("cluster.remote.", true).forEach((clusterAlias, settingsForCluster) -> {
-                // Only update signing config if settings were found, since empty signing config settings means config deletion
                 if (settingsForCluster.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
                     reloadConsumer(clusterAlias, settingsForCluster, true);
                     logger.info("Updated signing configuration for [{}] due to reload of secure settings", clusterAlias);

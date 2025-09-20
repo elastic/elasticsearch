@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.docbuilder;
 
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
 import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 import io.opentelemetry.proto.metrics.v1.AggregationTemporality;
 import io.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint;
 import io.opentelemetry.proto.metrics.v1.HistogramDataPoint;
+import io.opentelemetry.proto.metrics.v1.Metric;
+import io.opentelemetry.proto.metrics.v1.ResourceMetrics;
+import io.opentelemetry.proto.metrics.v1.ScopeMetrics;
 import io.opentelemetry.proto.metrics.v1.SummaryDataPoint;
 import io.opentelemetry.proto.resource.v1.Resource;
 
-import com.google.protobuf.ByteString;
-
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.routing.TsidBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -24,16 +28,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPoint;
+import org.elasticsearch.xpack.oteldata.otlp.OtlpUtils;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
-import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static io.opentelemetry.proto.metrics.v1.AggregationTemporality.AGGREGATION_TEMPORALITY_DELTA;
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class MetricDocumentBuilderTests extends ESTestCase {
 
     private final MetricDocumentBuilder documentBuilder = new MetricDocumentBuilder(new BufferedByteStringAccessor());
+    private final DataPointGroupingContext dataPointGroupingContext = new DataPointGroupingContext(new BufferedByteStringAccessor());
     private final long timestamp = randomLong();
     private final long startTimestamp = randomLong();
 
@@ -63,74 +66,85 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         resourceAttributes.add(keyValue("service.name", "test-service"));
         resourceAttributes.add(keyValue("host.name", "test-host"));
         Resource resource = Resource.newBuilder().addAllAttributes(resourceAttributes).setDroppedAttributesCount(1).build();
-        ByteString resourceSchemaUrl = ByteString.copyFromUtf8("https://opentelemetry.io/schemas/1.0.0");
-
         InstrumentationScope scope = InstrumentationScope.newBuilder()
             .setName("test-scope")
             .setVersion("1.0.0")
             .setDroppedAttributesCount(2)
             .addAttributes(keyValue("scope_attr", "value"))
             .build();
-        ByteString scopeSchemaUrl = ByteString.copyFromUtf8("https://opentelemetry.io/schemas/1.0.0");
 
         List<KeyValue> dataPointAttributes = List.of(keyValue("operation", "test"), (keyValue("environment", "production")));
-
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            resourceSchemaUrl,
-            scope,
-            scopeSchemaUrl,
-            dataPointAttributes,
+        Metric gaugeMetric = createGaugeMetric(
+            "system.cpu.usage",
             "{test}",
-            TargetIndex.defaultMetrics()
+            List.of(createDoubleDataPoint(timestamp, startTimestamp, dataPointAttributes))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Number(
-                createDoubleDataPoint(timestamp, startTimestamp, dataPointAttributes),
-                createGaugeMetric("system.cpu.usage", "", List.of())
-            )
+        Metric sumMetric = createSumMetric(
+            "system.network.packets",
+            "{test}",
+            List.of(createLongDataPoint(timestamp, startTimestamp, dataPointAttributes)),
+            true,
+            AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Number(
-                createLongDataPoint(timestamp, startTimestamp, dataPointAttributes),
-                createSumMetric(
-                    "system.network.packets",
-                    "{test}",
-                    List.of(),
-                    true,
-                    AggregationTemporality.AGGREGATION_TEMPORALITY_CUMULATIVE
+        dataPointGroupingContext.groupDataPoints(
+            ExportMetricsServiceRequest.newBuilder()
+                .addResourceMetrics(
+                    ResourceMetrics.newBuilder()
+                        .setResource(resource)
+                        .setSchemaUrl("https://opentelemetry.io/schemas/1.0.0")
+                        .addScopeMetrics(
+                            ScopeMetrics.newBuilder()
+                                .setScope(scope)
+                                .setSchemaUrl("https://opentelemetry.io/schemas/1.0.0")
+                                .addMetrics(gaugeMetric)
+                                .addMetrics(sumMetric)
+                                .build()
+                        )
+                        .build()
                 )
-            )
+                .build()
         );
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            BytesRef tsid = documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
-        assertThat(doc.<Number>evaluate("start_timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(startTimestamp)));
-        assertThat(doc.evaluate("data_stream.type"), equalTo("metrics"));
-        assertThat(doc.evaluate("data_stream.dataset"), equalTo("generic.otel"));
-        assertThat(doc.evaluate("data_stream.namespace"), equalTo("default"));
-        assertThat(doc.evaluate("resource.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
-        assertThat(doc.evaluate("resource.dropped_attributes_count"), equalTo(1));
-        assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
-        assertThat(doc.evaluate("resource.attributes.host\\.name"), equalTo("test-host"));
-        assertThat(doc.evaluate("scope.name"), equalTo("test-scope"));
-        assertThat(doc.evaluate("scope.version"), equalTo("1.0.0"));
-        assertThat(doc.evaluate("scope.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
-        assertThat(doc.evaluate("scope.dropped_attributes_count"), equalTo(2));
-        assertThat(doc.evaluate("scope.attributes.scope_attr"), equalTo("value"));
-        assertThat(doc.evaluate("_metric_names_hash"), isA(String.class));
-        assertThat(doc.evaluate("attributes.operation"), equalTo("test"));
-        assertThat(doc.evaluate("attributes.environment"), equalTo("production"));
-        assertThat(doc.evaluate("unit"), equalTo("{test}"));
-        assertThat(doc.evaluate("metrics.system\\.cpu\\.usage"), isA(Number.class));
-        assertThat(doc.evaluate("metrics.system\\.network\\.packets"), isA(Number.class));
-        assertThat(dynamicTemplates, hasEntry("metrics.system.cpu.usage", "gauge_double"));
-        assertThat(dynamicTemplates, hasEntry("metrics.system.network.packets", "counter_long"));
+            assertThat(doc.<Number>evaluate("@timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(timestamp)));
+            assertThat(doc.<Number>evaluate("start_timestamp").longValue(), equalTo(TimeUnit.NANOSECONDS.toMillis(startTimestamp)));
+            assertThat(doc.evaluate("data_stream.type"), equalTo("metrics"));
+            assertThat(doc.evaluate("data_stream.dataset"), equalTo("generic.otel"));
+            assertThat(doc.evaluate("data_stream.namespace"), equalTo("default"));
+            assertThat(doc.evaluate("resource.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
+            assertThat(doc.evaluate("resource.dropped_attributes_count"), equalTo(1));
+            assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
+            assertThat(doc.evaluate("resource.attributes.host\\.name"), equalTo("test-host"));
+            assertThat(doc.evaluate("scope.name"), equalTo("test-scope"));
+            assertThat(doc.evaluate("scope.version"), equalTo("1.0.0"));
+            assertThat(doc.evaluate("scope.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
+            assertThat(doc.evaluate("scope.dropped_attributes_count"), equalTo(2));
+            assertThat(doc.evaluate("scope.attributes.scope_attr"), equalTo("value"));
+            assertThat(doc.evaluate("_metric_names_hash"), isA(String.class));
+            assertThat(doc.evaluate("attributes.operation"), equalTo("test"));
+            assertThat(doc.evaluate("attributes.environment"), equalTo("production"));
+            assertThat(doc.evaluate("unit"), equalTo("{test}"));
+            assertThat(doc.evaluate("metrics.system\\.cpu\\.usage"), isA(Number.class));
+            assertThat(doc.evaluate("metrics.system\\.network\\.packets"), isA(Number.class));
+            assertThat(dynamicTemplates, hasEntry("metrics.system.cpu.usage", "gauge_double"));
+            assertThat(dynamicTemplates, hasEntry("metrics.system.network.packets", "counter_long"));
+
+            TsidBuilder expectedTsidBuilder = new TsidBuilder();
+            expectedTsidBuilder.addStringDimension("resource.attributes.service.name", "test-service");
+            expectedTsidBuilder.addStringDimension("resource.attributes.host.name", "test-host");
+            expectedTsidBuilder.addStringDimension("scope.name", "test-scope");
+            expectedTsidBuilder.addStringDimension("scope.attributes.scope_attr", "value");
+            expectedTsidBuilder.addStringDimension("_metric_names_hash", doc.<String>evaluate("_metric_names_hash"));
+            expectedTsidBuilder.addStringDimension("attributes.operation", "test");
+            expectedTsidBuilder.addStringDimension("attributes.environment", "production");
+            expectedTsidBuilder.addStringDimension("unit", "{test}");
+            assertThat(tsid, equalTo(expectedTsidBuilder.buildTsid()));
+        });
     }
 
     public void testAttributeTypes() throws IOException {
@@ -140,248 +154,183 @@ public class MetricDocumentBuilderTests extends ESTestCase {
         resourceAttributes.add(keyValue("int_attr", 123L));
         resourceAttributes.add(keyValue("double_attr", 123.45));
         resourceAttributes.add(keyValue("array_attr", "value1", "value2"));
-
-        Resource resource = Resource.newBuilder().addAllAttributes(resourceAttributes).build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
-
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            resourceAttributes,
+            List.of(createGaugeMetric("test.metric", "", List.of(createDoubleDataPoint(timestamp, startTimestamp, List.of()))))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
-        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        documentBuilder.buildMetricDocument(builder, dataPointGroup);
+            assertThat(doc.evaluate("resource.attributes.string_attr"), equalTo("string_value"));
+            assertThat(doc.evaluate("resource.attributes.bool_attr"), equalTo(true));
+            assertThat(doc.evaluate("resource.attributes.int_attr"), equalTo(123));
+            assertThat(doc.evaluate("resource.attributes.double_attr"), equalTo(123.45));
 
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-
-        assertThat(doc.evaluate("resource.attributes.string_attr"), equalTo("string_value"));
-        assertThat(doc.evaluate("resource.attributes.bool_attr"), equalTo(true));
-        assertThat(doc.evaluate("resource.attributes.int_attr"), equalTo(123));
-        assertThat(doc.evaluate("resource.attributes.double_attr"), equalTo(123.45));
-
-        assertThat(doc.evaluate("resource.attributes.array_attr.0"), equalTo("value1"));
-        assertThat(doc.evaluate("resource.attributes.array_attr.1"), equalTo("value2"));
+            assertThat(doc.evaluate("resource.attributes.array_attr.0"), equalTo("value1"));
+            assertThat(doc.evaluate("resource.attributes.array_attr.1"), equalTo("value2"));
+        });
     }
 
     public void testEmptyFields() throws IOException {
-        Resource resource = Resource.newBuilder().build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
-
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        Metric metric = createGaugeMetric("test.metric", "", List.of(createDoubleDataPoint(timestamp, startTimestamp, List.of())));
+        ResourceMetrics resourceMetrics = OtlpUtils.createResourceMetrics(
+            List.of(keyValue("service.name", "test-service")),
+            List.of(ScopeMetrics.newBuilder().addMetrics(metric).build())
         );
 
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Number(createDoubleDataPoint(timestamp), createGaugeMetric("test.metric", "", List.of()))
-        );
+        ExportMetricsServiceRequest metricsRequest = ExportMetricsServiceRequest.newBuilder().addResourceMetrics(resourceMetrics).build();
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        documentBuilder.buildMetricDocument(builder, dataPointGroup);
-
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        // Verify that empty fields are not included
-        assertThat(doc.evaluate("resource.schema_url"), is(nullValue()));
-        assertThat(doc.evaluate("resource.dropped_attributes_count"), is(nullValue()));
-        assertThat(doc.evaluate("scope.name"), is(nullValue()));
-        assertThat(doc.evaluate("scope.schema_url"), is(nullValue()));
-        assertThat(doc.evaluate("scope.dropped_attributes_count"), is(nullValue()));
-        assertThat(doc.evaluate("scope.version"), is(nullValue()));
-        assertThat(doc.evaluate("unit"), is(nullValue()));
+            // Verify that empty fields are not included
+            assertThat(doc.evaluate("resource.schema_url"), is(nullValue()));
+            assertThat(doc.evaluate("resource.dropped_attributes_count"), is(nullValue()));
+            assertThat(doc.evaluate("scope.name"), is(nullValue()));
+            assertThat(doc.evaluate("scope.schema_url"), is(nullValue()));
+            assertThat(doc.evaluate("scope.dropped_attributes_count"), is(nullValue()));
+            assertThat(doc.evaluate("scope.version"), is(nullValue()));
+            assertThat(doc.evaluate("unit"), is(nullValue()));
+        });
     }
 
     public void testExponentialHistogram() throws Exception {
-        Resource resource = Resource.newBuilder().build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setZeroCount(1)
+            .setPositive(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
+            .setNegative(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
+            .build();
 
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createExponentialHistogramMetric("exponential_histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.ExponentialHistogram(
-                ExponentialHistogramDataPoint.newBuilder()
-                    .setTimeUnixNano(timestamp)
-                    .setStartTimeUnixNano(startTimestamp)
-                    .setZeroCount(1)
-                    .setPositive(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
-                    .setNegative(ExponentialHistogramDataPoint.Buckets.newBuilder().setOffset(0).addAllBucketCounts(List.of(1L, 1L)))
-                    .build(),
-                createExponentialHistogramMetric("exponential_histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
-            )
-        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
-
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertThat(doc.evaluate("metrics.exponential_histogram.values"), equalTo(List.of(-3.0, -1.5, 0.0, 1.5, 3.0)));
-        assertThat(doc.evaluate("metrics.exponential_histogram.counts"), equalTo(List.of(1, 1, 1, 1, 1)));
-        assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
+            assertThat(doc.evaluate("metrics.exponential_histogram.values"), equalTo(List.of(-3.0, -1.5, 0.0, 1.5, 3.0)));
+            assertThat(doc.evaluate("metrics.exponential_histogram.counts"), equalTo(List.of(1, 1, 1, 1, 1)));
+            assertThat(dynamicTemplates, hasEntry("metrics.exponential_histogram", "histogram"));
+        });
     }
 
     public void testExponentialHistogramAsAggregateMetricDouble() throws Exception {
-        Resource resource = Resource.newBuilder().build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+        ExponentialHistogramDataPoint dataPoint = ExponentialHistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setSum(42)
+            .setCount(1L)
+            .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+            .build();
 
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createExponentialHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.ExponentialHistogram(
-                ExponentialHistogramDataPoint.newBuilder()
-                    .setTimeUnixNano(timestamp)
-                    .setStartTimeUnixNano(startTimestamp)
-                    .setSum(42)
-                    .setCount(1L)
-                    .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
-                    .build(),
-                createExponentialHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
-            )
-        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
-
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
-        assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
-        assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
+            assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
+            assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
+            assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
+        });
     }
 
     public void testHistogram() throws Exception {
-        Resource resource = Resource.newBuilder().build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .addBucketCounts(10L)
+            .addExplicitBounds(5.0)
+            .build();
 
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Histogram(
-                HistogramDataPoint.newBuilder()
-                    .setTimeUnixNano(timestamp)
-                    .setStartTimeUnixNano(startTimestamp)
-                    .addBucketCounts(10L)
-                    .addExplicitBounds(5.0)
-                    .build(),
-                createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
-            )
-        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
-
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(2.5)));
-        assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
-        assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
+            assertThat(doc.evaluate("metrics.histogram.values"), equalTo(List.of(2.5)));
+            assertThat(doc.evaluate("metrics.histogram.counts"), equalTo(List.of(10)));
+            assertThat(dynamicTemplates, hasEntry("metrics.histogram", "histogram"));
+        });
     }
 
     public void testHistogramAsAggregateMetricDouble() throws Exception {
-        Resource resource = Resource.newBuilder().build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+        HistogramDataPoint dataPoint = HistogramDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setSum(42)
+            .setCount(1L)
+            .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
+            .build();
 
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createHistogramMetric("histogram", "", List.of(dataPoint), AGGREGATION_TEMPORALITY_DELTA))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Histogram(
-                HistogramDataPoint.newBuilder()
-                    .setTimeUnixNano(timestamp)
-                    .setStartTimeUnixNano(startTimestamp)
-                    .setSum(42)
-                    .setCount(1L)
-                    .addAllAttributes(mappingHints(MappingHints.AGGREGATE_METRIC_DOUBLE))
-                    .build(),
-                createHistogramMetric("histogram", "", List.of(), AGGREGATION_TEMPORALITY_DELTA)
-            )
-        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
-
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
-        assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
-        assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
+            assertThat(doc.evaluate("metrics.histogram.sum"), equalTo(42.0));
+            assertThat(doc.evaluate("metrics.histogram.value_count"), equalTo(1));
+            assertThat(dynamicTemplates, hasEntry("metrics.histogram", "summary"));
+        });
     }
 
     public void testSummary() throws Exception {
-        Resource resource = Resource.newBuilder().build();
-        InstrumentationScope scope = InstrumentationScope.newBuilder().build();
+        SummaryDataPoint dataPoint = SummaryDataPoint.newBuilder()
+            .setTimeUnixNano(timestamp)
+            .setStartTimeUnixNano(startTimestamp)
+            .setCount(1)
+            .setSum(42.0)
+            .addAllAttributes(mappingHints(MappingHints.DOC_COUNT))
+            .build();
 
-        DataPointGroupingContext.DataPointGroup dataPointGroup = new DataPointGroupingContext.DataPointGroup(
-            resource,
-            null,
-            scope,
-            null,
-            List.of(),
-            "",
-            TargetIndex.defaultMetrics()
+        ExportMetricsServiceRequest metricsRequest = OtlpUtils.createMetricsRequest(
+            List.of(createSummaryMetric("summary", "", List.of(dataPoint)))
         );
-        dataPointGroup.addDataPoint(
-            Set.of(),
-            new DataPoint.Summary(
-                SummaryDataPoint.newBuilder()
-                    .setTimeUnixNano(timestamp)
-                    .setStartTimeUnixNano(startTimestamp)
-                    .setCount(1)
-                    .setSum(42.0)
-                    .addAllAttributes(mappingHints(MappingHints.DOC_COUNT))
-                    .build(),
-                createSummaryMetric("summary", "", List.of())
-            )
-        );
+        dataPointGroupingContext.groupDataPoints(metricsRequest);
+        assertThat(dataPointGroupingContext.totalDataPoints(), equalTo(1));
+        dataPointGroupingContext.consume(dataPointGroup -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            HashMap<String, String> dynamicTemplates = new HashMap<>();
+            documentBuilder.buildMetricDocument(builder, dynamicTemplates, dataPointGroup);
+            ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
 
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        HashMap<String, String> dynamicTemplates = documentBuilder.buildMetricDocument(builder, dataPointGroup);
-
-        ObjectPath doc = ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        assertThat(doc.evaluate("metrics.summary.sum"), equalTo(42.0));
-        assertThat(doc.evaluate("metrics.summary.value_count"), equalTo(1));
-        assertThat(doc.evaluate("_doc_count"), equalTo(1));
-        assertThat(dynamicTemplates, hasEntry("metrics.summary", "summary"));
+            assertThat(doc.evaluate("metrics.summary.sum"), equalTo(42.0));
+            assertThat(doc.evaluate("metrics.summary.value_count"), equalTo(1));
+            assertThat(doc.evaluate("_doc_count"), equalTo(1));
+            assertThat(dynamicTemplates, hasEntry("metrics.summary", "summary"));
+        });
     }
+
 }

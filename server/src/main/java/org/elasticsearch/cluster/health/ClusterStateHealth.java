@@ -121,9 +121,9 @@ public final class ClusterStateHealth implements Writeable {
 
         // shortcut on green
         if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
-            this.activeShardsPercent = 100;
+            this.activeShardsPercent = 100.0;
         } else {
-            this.activeShardsPercent = (((double) this.activeShards) / totalShardCount) * 100;
+            this.activeShardsPercent = totalShardCount == 0 ? 0.0 : (((double) this.activeShards) / totalShardCount) * 100;
         }
     }
 

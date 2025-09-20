@@ -40,7 +40,7 @@ public class CountOverTime extends TimeSeriesAggregateFunction {
         type = FunctionType.TIME_SERIES_AGGREGATE,
         returnType = { "long" },
         description = "The count over time value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         note = "Available with the [TS](/reference/query-languages/esql/commands/source-commands.md#esql-ts) command in snapshot builds",
         examples = { @Example(file = "k8s-timeseries", tag = "count_over_time") }
     )

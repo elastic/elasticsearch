@@ -285,6 +285,16 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             indexDocsInManySegmentsUntil(indexName, () -> plugin.pendingMerges.size() > backloggedMerges);
         }
 
+        // Sometime closes the shard concurrently with the tragic failure
+        Thread closingThread = null;
+        if (rarely()) {
+            closingThread = new Thread(() -> {
+                safeAwait(plugin.runMerges, TimeValue.ONE_MINUTE);
+                client().admin().indices().prepareClose(indexName).get();
+            });
+            closingThread.start();
+        }
+
         // unblock merges, one merge will fail the IndexWriter
         plugin.runMerges.countDown();
 
@@ -312,6 +322,10 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 
         // verify that the shard store is effectively closed
         assertTrue(plugin.shardStoreClosedListener.isDone());
+
+        if (closingThread != null) {
+            closingThread.join();
+        }
 
         final var shardId = new ShardId(resolveIndex(indexName), 0);
         var nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, dataNode);

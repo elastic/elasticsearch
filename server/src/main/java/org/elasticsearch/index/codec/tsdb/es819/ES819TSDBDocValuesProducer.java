@@ -487,7 +487,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public void lookupOrds(int[] sortedOrds, int uniqueCount, TermConsumer consumer) throws IOException {
-             termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
+            termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
         }
     }
 

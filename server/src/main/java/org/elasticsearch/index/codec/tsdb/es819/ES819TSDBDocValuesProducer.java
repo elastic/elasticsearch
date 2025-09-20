@@ -487,9 +487,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         public void lookupOrds(int[] sortedOrds, int uniqueCount, TermConsumer consumer) throws IOException {
-            // termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
-            var r = new BulkOrdinalLookup(entry.termsDictEntry, data, merging);
-            r.lookupOrds(sortedOrds, uniqueCount, consumer);
+             termsEnum.lookupOrds(sortedOrds, uniqueCount, consumer);
         }
     }
 
@@ -676,7 +674,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             if (++ord >= entry.termsDictSize) {
                 return null;
             }
+            readTerm();
+            return term;
+        }
 
+        void readTerm() throws IOException {
             if ((ord & blockMask) == 0L) {
                 decompressBlock();
             } else {
@@ -693,7 +695,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 term.length = prefixLength + suffixLength;
                 input.readBytes(term.bytes, prefixLength, suffixLength);
             }
-            return term;
         }
 
         @Override
@@ -735,7 +736,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
                 // Scan to the looked up ord
                 while (this.ord < targetOrd) {
-                    next();
+                    ord++;
+                    readTerm();
                 }
                 consumer.onTerm(offset, term);
             }

@@ -639,6 +639,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testTermsAggregation
   issue: https://github.com/elastic/elasticsearch/issues/135140
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/135141
 
 # Examples:
 #

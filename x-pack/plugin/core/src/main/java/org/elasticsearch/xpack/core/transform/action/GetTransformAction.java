@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,22 +49,49 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
     public static class Request extends AbstractGetResourcesRequest {
 
+        // for legacy purposes, this transport action previously had no timeout
+        private static final TimeValue LEGACY_TIMEOUT_VALUE = TimeValue.MAX_VALUE;
         private static final int MAX_SIZE_RETURN = 1000;
+        private final boolean checkForDanglingTasks;
+        private final TimeValue timeout;
 
         public Request(String id) {
-            super(id, PageParams.defaultParams(), true);
+            this(id, false, LEGACY_TIMEOUT_VALUE);
         }
 
-        public Request() {
-            super(null, PageParams.defaultParams(), true);
+        public Request(String id, boolean checkForDanglingTasks, TimeValue timeout) {
+            super(id, PageParams.defaultParams(), true);
+            this.checkForDanglingTasks = checkForDanglingTasks;
+            this.timeout = timeout;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            // TODO Fix before checkin after TransportVersion code gets ported over to the new logic
+            this.checkForDanglingTasks = (in.getTransportVersion().onOrAfter(TransportVersion.current()) == false) || in.readBoolean();
+            this.timeout = in.getTransportVersion().onOrAfter(TransportVersion.current()) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            // TODO Fix before checkin after TransportVersion code gets ported over to the new logic
+            if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+                out.writeBoolean(checkForDanglingTasks);
+                out.writeTimeValue(timeout);
+            }
         }
 
         public String getId() {
             return getResourceId();
+        }
+
+        public boolean checkForDanglingTasks() {
+            return checkForDanglingTasks;
+        }
+
+        public TimeValue timeout() {
+            return timeout;
         }
 
         @Override

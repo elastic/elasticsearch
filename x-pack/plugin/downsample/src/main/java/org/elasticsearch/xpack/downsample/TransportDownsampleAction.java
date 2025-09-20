@@ -45,14 +45,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -75,9 +73,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
@@ -91,6 +86,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -99,6 +95,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.FIELD_TYPE;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.MULTI_FIELDS;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.PROPERTIES;
+import static org.elasticsearch.action.admin.cluster.stats.MappingVisitor.visitAndCopyMapping;
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDEX_PREFIX;
 
@@ -111,7 +111,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDownsampleAction.class);
-
+    private static final String MAPPING_DYNAMIC_TEMPLATES = "dynamic_templates";
     private final Client client;
     private final IndicesService indicesService;
     private final MasterServiceTaskQueue<DownsampleClusterStateUpdateTask> taskQueue;
@@ -342,7 +342,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
 
             final String mapping;
             try {
-                mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), mapperService, sourceIndexMappings);
+                mapping = createDownsampleIndexMapping(helper, request.getDownsampleConfig(), sourceIndexMappings);
             } catch (IOException e) {
                 recordFailureMetrics(startTime);
                 delegate.onFailure(e);
@@ -677,82 +677,82 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
      * @param sourceIndexMappings a map with the source index mapping
      * @return the mapping of the downsample index
      */
-    public static String createDownsampleIndexMapping(
+    static String createDownsampleIndexMapping(
         final TimeseriesFieldTypeHelper helper,
         final DownsampleConfig config,
-        final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
-    ) throws IOException {
-        final XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-
-        addDynamicTemplates(builder);
-
-        builder.startObject("properties");
-
-        addTimestampField(config, sourceIndexMappings, builder);
-        addMetricFields(helper, sourceIndexMappings, builder);
-
-        builder.endObject(); // match initial startObject
-        builder.endObject(); // match startObject("properties")
-
-        final CompressedXContent mappingDiffXContent = CompressedXContent.fromJSON(
-            XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON)
-        );
-        return mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappingDiffXContent, MapperService.MergeReason.INDEX_TEMPLATE)
-            .mappingSource()
-            .uncompressed()
-            .utf8ToString();
-    }
-
-    private static void addMetricFields(
-        final TimeseriesFieldTypeHelper helper,
-        final Map<String, Object> sourceIndexMappings,
-        final XContentBuilder builder
-    ) {
-        MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            if (helper.isTimeSeriesMetric(field, mapping)) {
-                try {
-                    addMetricFieldMapping(builder, field, mapping);
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Error while adding metric for field [" + field + "]");
-                }
-            }
-        });
-    }
-
-    private static void addTimestampField(
-        final DownsampleConfig config,
-        Map<String, Object> sourceIndexMappings,
-        final XContentBuilder builder
     ) throws IOException {
         final String timestampField = config.getTimestampField();
         final String dateIntervalType = config.getIntervalType();
         final String dateInterval = config.getInterval().toString();
         final String timezone = config.getTimeZone();
-        builder.startObject(timestampField);
-
-        MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
-            try {
-                if (timestampField.equals(field)) {
-                    final String timestampType = String.valueOf(mapping.get("type"));
-                    builder.field("type", timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
-                    if (mapping.get("format") != null) {
-                        builder.field("format", mapping.get("format"));
-                    }
-                    if (mapping.get("ignore_malformed") != null) {
-                        builder.field("ignore_malformed", mapping.get("ignore_malformed"));
-                    }
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchException("Unable to create timestamp field mapping for field [" + timestampField + "]", e);
+        Map<String, Object> downsampledMapping = new HashMap<>();
+        addDynamicTemplateForStrings(downsampledMapping);
+        for (Map.Entry<String, Object> entry : sourceIndexMappings.entrySet()) {
+            if (entry.getKey().equals(MAPPING_DYNAMIC_TEMPLATES)) {
+                List<?> sourceDynamicTemplates = (List<?>) sourceIndexMappings.get(MAPPING_DYNAMIC_TEMPLATES);
+                @SuppressWarnings("unchecked")
+                List<Object> downsampledDynamicTemplates = (List<Object>) downsampledMapping.get(MAPPING_DYNAMIC_TEMPLATES);
+                downsampledDynamicTemplates.addAll(sourceDynamicTemplates);
+            } else if (entry.getKey().equals(MappingVisitor.PROPERTIES) == false) {
+                downsampledMapping.put(entry.getKey(), entry.getValue());
+            }
+        }
+        visitAndCopyMapping(sourceIndexMappings, downsampledMapping, (fieldName, sourceMapping, updatedMapping) -> {
+            if (timestampField.equals(fieldName)) {
+                updateTimestampField(sourceMapping, updatedMapping, dateIntervalType, dateInterval, timezone);
+                return;
+            } else if (helper.isTimeSeriesMetric(fieldName, sourceMapping)) {
+                processMetricField(sourceMapping, updatedMapping);
+            } else {
+                copyMapping(sourceMapping, updatedMapping);
             }
         });
 
-        builder.startObject("meta")
-            .field(dateIntervalType, dateInterval)
-            .field(DownsampleConfig.TIME_ZONE, timezone)
-            .endObject()
-            .endObject();
+        return new CompressedXContent(downsampledMapping).uncompressed().utf8ToString();
+    }
+
+    private static void processMetricField(Map<String, ?> sourceMapping, Map<String, Object> updatedMapping) {
+        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
+            sourceMapping.get(TIME_SERIES_METRIC_PARAM).toString()
+        );
+        if (metricType == TimeSeriesParams.MetricType.GAUGE
+            && AggregateMetricDoubleFieldMapper.CONTENT_TYPE.equals(sourceMapping.get(FIELD_TYPE)) == false) {
+            var supportedMetrics = getSupportedMetrics(metricType, sourceMapping);
+
+            updatedMapping.put(TIME_SERIES_METRIC_PARAM, metricType.toString());
+            updatedMapping.put(FIELD_TYPE, AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+            updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.METRICS, supportedMetrics.supportedMetrics);
+            updatedMapping.put(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supportedMetrics.defaultMetric);
+        } else {
+            copyMapping(sourceMapping, updatedMapping);
+        }
+    }
+
+    private static void copyMapping(Map<String, ?> sourceMapping, Map<String, Object> updatedMapping) {
+        for (String f : sourceMapping.keySet()) {
+            if (f.equals(PROPERTIES) == false && f.equals(MULTI_FIELDS) == false) {
+                updatedMapping.put(f, sourceMapping.get(f));
+            }
+        }
+    }
+
+    private static void updateTimestampField(
+        Map<String, ?> sourceMapping,
+        Map<String, Object> updatedMapping,
+        String dateIntervalType,
+        String dateInterval,
+        String timezone
+    ) {
+        final String timestampType = String.valueOf(sourceMapping.get(FIELD_TYPE));
+        updatedMapping.put(FIELD_TYPE, timestampType != null ? timestampType : DateFieldMapper.CONTENT_TYPE);
+        if (sourceMapping.get("format") != null) {
+            updatedMapping.put("format", sourceMapping.get("format"));
+        }
+        if (sourceMapping.get("ignore_malformed") != null) {
+            updatedMapping.put("ignore_malformed", sourceMapping.get("ignore_malformed"));
+        }
+        updatedMapping.put("meta", Map.of(dateIntervalType, dateInterval, DownsampleConfig.TIME_ZONE, timezone));
     }
 
     // public for testing
@@ -763,7 +763,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         final TimeSeriesParams.MetricType metricType,
         final Map<String, ?> fieldProperties
     ) {
-        boolean sourceIsAggregate = fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+        boolean sourceIsAggregate = fieldProperties.get(FIELD_TYPE).equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
         List<String> supportedAggs = List.of(metricType.supportedAggs());
 
         if (sourceIsAggregate) {
@@ -786,29 +786,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         }
 
         return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
-    }
-
-    private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
-        throws IOException {
-        final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
-            fieldProperties.get(TIME_SERIES_METRIC_PARAM).toString()
-        );
-        builder.startObject(field);
-        if (metricType == TimeSeriesParams.MetricType.COUNTER) {
-            // For counters, we keep the same field type, because they store
-            // only one value (the last value of the counter)
-            for (String fieldProperty : fieldProperties.keySet()) {
-                builder.field(fieldProperty, fieldProperties.get(fieldProperty));
-            }
-        } else {
-            var supported = getSupportedMetrics(metricType, fieldProperties);
-
-            builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
-                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
-                .field(TIME_SERIES_METRIC_PARAM, metricType);
-        }
-        builder.endObject();
     }
 
     private static void validateDownsamplingInterval(MapperService mapperService, DownsampleConfig config) {
@@ -903,17 +880,10 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     /**
      * Configure the dynamic templates to always map strings to the keyword field type.
      */
-    private static void addDynamicTemplates(final XContentBuilder builder) throws IOException {
-        builder.startArray("dynamic_templates")
-            .startObject()
-            .startObject("strings")
-            .field("match_mapping_type", "string")
-            .startObject("mapping")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endArray();
+    private static void addDynamicTemplateForStrings(Map<String, Object> mapping) {
+        List<Object> dynamicTemplates = new ArrayList<>();
+        dynamicTemplates.add(Map.of("strings", Map.of("match_mapping_type", "string", "mapping", Map.of(FIELD_TYPE, "keyword"))));
+        mapping.put(MAPPING_DYNAMIC_TEMPLATES, dynamicTemplates);
     }
 
     private void createDownsampleIndex(

@@ -78,6 +78,11 @@ interface Injected {
 }
 
 tasks.named("test").configure {
+  // prevent empty stacktraces on JDK 25 for intrinsic Math.*Exact invocations
+  // https://bugs.openjdk.org/browse/JDK-8367990
+  // https://github.com/elastic/elasticsearch/issues/135009
+  jvmArgs '-XX:-OmitStackTraceInFastThrow'
+
   if (buildParams.ci == false) {
     systemProperty 'generateDocs', true
     def injected = project.objects.newInstance(Injected)

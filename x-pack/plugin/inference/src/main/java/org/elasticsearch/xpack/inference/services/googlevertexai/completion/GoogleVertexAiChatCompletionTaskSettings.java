@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,7 +49,8 @@ public class GoogleVertexAiChatCompletionTaskSettings implements TaskSettings {
 
     public GoogleVertexAiChatCompletionTaskSettings(StreamInput in) throws IOException {
         thinkingConfig = new ThinkingConfig(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED)) {
+        TransportVersion version = in.getTransportVersion();
+        if (GoogleVertexAiUtils.supportsModelGarden(version)) {
             maxTokens = Objects.requireNonNullElse(in.readOptionalInt(), DEFAULT_MAX_TOKENS);
         } else {
             maxTokens = DEFAULT_MAX_TOKENS;

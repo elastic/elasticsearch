@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleModelGardenProvider;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -72,17 +73,17 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         URI streamingUriFromStreamInput = null;
         GoogleModelGardenProvider providerFromStreamInput = null;
 
-        if (isBeforeModelGarden(version)) {
-            projectIdFromStreamInput = in.readString();
-            locationFromStreamInput = in.readString();
-            modelIdFromStreamInput = in.readString();
-        } else {
+        if (GoogleVertexAiUtils.supportsModelGarden(version)) {
             projectIdFromStreamInput = in.readOptionalString();
             locationFromStreamInput = in.readOptionalString();
             modelIdFromStreamInput = in.readOptionalString();
             uriFromStreamInput = ServiceUtils.createOptionalUri(in.readOptionalString());
             streamingUriFromStreamInput = ServiceUtils.createOptionalUri(in.readOptionalString());
             providerFromStreamInput = in.readOptionalEnum(GoogleModelGardenProvider.class);
+        } else {
+            projectIdFromStreamInput = in.readString();
+            locationFromStreamInput = in.readString();
+            modelIdFromStreamInput = in.readString();
         }
         RateLimitSettings rateLimitSettingsFromStreamInput = new RateLimitSettings(in);
 
@@ -244,26 +245,20 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
     public void writeTo(StreamOutput out) throws IOException {
         TransportVersion version = out.getTransportVersion();
 
-        boolean isBeforeModelGarden = isBeforeModelGarden(version);
-
-        if (isBeforeModelGarden) {
-            out.writeString(Objects.requireNonNullElse(projectId, ""));
-            out.writeString(Objects.requireNonNullElse(location, ""));
-            out.writeString(Objects.requireNonNullElse(modelId, ""));
-        } else {
+        if (GoogleVertexAiUtils.supportsModelGarden(version)) {
             out.writeOptionalString(projectId);
             out.writeOptionalString(location);
             out.writeOptionalString(modelId);
             out.writeOptionalString(uri != null ? uri.toString() : null);
             out.writeOptionalString(streamingUri != null ? streamingUri.toString() : null);
             out.writeOptionalEnum(provider);
+        } else {
+            out.writeString(Objects.requireNonNullElse(projectId, ""));
+            out.writeString(Objects.requireNonNullElse(location, ""));
+            out.writeString(Objects.requireNonNullElse(modelId, ""));
         }
 
         rateLimitSettings.writeTo(out);
-    }
-
-    private static boolean isBeforeModelGarden(TransportVersion version) {
-        return version.before(TransportVersions.ML_INFERENCE_GOOGLE_MODEL_GARDEN_ADDED);
     }
 
     @Override

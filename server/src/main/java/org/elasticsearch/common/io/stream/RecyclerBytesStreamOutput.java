@@ -33,13 +33,13 @@ import java.util.Objects;
  */
 public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
-    protected static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
-    protected static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
-    protected static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
-    protected static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
+    static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    static final VarHandle VH_LE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+    static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+    static final VarHandle VH_LE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
-    private final Recycler<BytesRef> recycler;
     private ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(8);
+    private final Recycler<BytesRef> recycler;
     private final int pageSize;
     private int pageIndex = -1;
     private int currentCapacity = 0;
@@ -67,9 +67,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (1 > (pageSize - currentPageOffset)) {
             ensureCapacity(1);
             nextPage();
-            currentPageOffset = this.currentPageOffset;
+            currentPageOffset = 0;
         }
-
         BytesRef currentPage = currentBytesRef;
         currentPage.bytes[currentPage.offset + currentPageOffset] = b;
         this.currentPageOffset = currentPageOffset + 1;
@@ -155,7 +154,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         }
     }
 
-    protected static int vIntLength(int value) {
+    private static int vIntLength(int value) {
         int leadingZeros = Integer.numberOfLeadingZeros(value);
         if (leadingZeros >= 25) {
             return 1;
@@ -308,6 +307,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 this.currentPageOffset = offsetInPage;
             }
         } else {
+            // We always have an initial page to special handling for seekin to 0.
             assert position == 0;
             this.pageIndex = 0;
             this.currentPageOffset = 0;

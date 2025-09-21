@@ -497,7 +497,7 @@ public class IndexRequestTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 20); i++) {
             indexRequest.addPipeline(randomAlphaOfLength(20));
         }
-        indexRequest.tsid(randomFrom((BytesRef) null, new BytesRef(randomAlphaOfLength(20))));
+        indexRequest.tsid(randomFrom(new BytesRef(randomAlphaOfLength(20)), null));
         return indexRequest;
     }
 }

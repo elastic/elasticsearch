@@ -16,6 +16,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -50,6 +51,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PAT
  */
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
+    public static final boolean INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG = new FeatureFlag("index_dimensions_tsid_optimization")
+        .isEnabled();
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
@@ -131,7 +134,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             dimensions
                         );
                         if (dimensions.isEmpty() == false) {
-                            if (matchesAllDimensions) {
+                            if (matchesAllDimensions && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
                                 // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
                                 // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
                                 additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);

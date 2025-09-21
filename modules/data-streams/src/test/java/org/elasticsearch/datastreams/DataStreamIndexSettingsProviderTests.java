@@ -37,6 +37,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirs
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -107,12 +108,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field3", "field4", "field5", "field6"));
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGetAdditionalIndexSettingsIndexRoutingPathAlreadyDefined() throws Exception {
@@ -231,12 +236,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         // The index.time_series.end_time setting requires index.mode to be set to time_series adding it here so that we read this setting:
         // (in production the index.mode setting is usually provided in an index or component template)
         result = builder().put(result).put("index.mode", "time_series").build();
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("field1", "field3"));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field3"));
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("field1", "field3"));
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGetAdditionalIndexSettingsNoMappings() {
@@ -516,12 +525,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntries() throws Exception {
@@ -557,7 +570,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
@@ -565,10 +578,14 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             IndexMetadata.INDEX_ROUTING_PATH.get(result),
             containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
         );
-        assertThat(
-            IndexMetadata.INDEX_DIMENSIONS.get(result),
-            containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
-        );
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(
+                IndexMetadata.INDEX_DIMENSIONS.get(result),
+                containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
+            );
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplateWithMultiplePathMatchEntriesMultiFields() throws Exception {
@@ -609,18 +626,22 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(
-            IndexMetadata.INDEX_DIMENSIONS.get(result),
-            containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
-        );
-        assertThat(
             IndexMetadata.INDEX_ROUTING_PATH.get(result),
             containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
         );
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(
+                IndexMetadata.INDEX_DIMENSIONS.get(result),
+                containsInAnyOrder("host.id", "xprometheus.labels.*", "yprometheus.labels.*")
+            );
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplate_templateWithNoPathMatch() throws Exception {
@@ -665,12 +686,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGenerateRoutingPathFromDynamicTemplate_nonKeywordTemplate() throws Exception {
@@ -717,7 +742,11 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = generateTsdbSettings(mapping, now);
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("host.id", "prometheus.labels.*"));
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testGenerateRoutingPathFromPassThroughObject() throws Exception {
@@ -748,12 +777,16 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             }
             """;
         Settings result = generateTsdbSettings(mapping, now);
-        assertThat(result.size(), equalTo(5));
+        assertThat(result.size(), equalTo(INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG ? 5 : 4));
         assertThat(IndexSettings.MODE.get(result), equalTo(IndexMode.TIME_SERIES));
         assertThat(IndexSettings.TIME_SERIES_START_TIME.get(result), equalTo(now.minusMillis(DEFAULT_LOOK_BACK_TIME.getMillis())));
         assertThat(IndexSettings.TIME_SERIES_END_TIME.get(result), equalTo(now.plusMillis(DEFAULT_LOOK_AHEAD_TIME.getMillis())));
         assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), containsInAnyOrder("labels.*"));
-        assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("labels.*"));
+        if (INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), containsInAnyOrder("labels.*"));
+        } else {
+            assertThat(IndexMetadata.INDEX_DIMENSIONS.get(result), empty());
+        }
     }
 
     public void testAddNewDimension() throws Exception {

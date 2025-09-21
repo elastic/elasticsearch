@@ -927,7 +927,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());
-        registerHandler.accept(new RestResolveIndexAction());
+        registerHandler.accept(new RestResolveIndexAction(settings));
 
         registerHandler.accept(new RestIndexAction(clusterService, projectIdResolver));
         registerHandler.accept(new CreateHandler(clusterService, projectIdResolver));
@@ -936,7 +936,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetSourceAction());
         registerHandler.accept(new RestMultiGetAction(settings));
         registerHandler.accept(new RestDeleteAction());
-        registerHandler.accept(new RestCountAction());
+        registerHandler.accept(new RestCountAction(settings));
         registerHandler.accept(new RestTermVectorsAction());
         registerHandler.accept(new RestMultiTermVectorsAction());
         registerHandler.accept(new RestBulkAction(settings, clusterSettings, bulkService));
@@ -945,7 +945,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSearchAction(restController.getSearchUsageHolder(), clusterSupportsFeature, settings));
         registerHandler.accept(new RestSearchScrollAction());
         registerHandler.accept(new RestClearScrollAction());
-        registerHandler.accept(new RestOpenPointInTimeAction());
+        registerHandler.accept(new RestOpenPointInTimeAction(settings));
         registerHandler.accept(new RestClosePointInTimeAction());
         registerHandler.accept(new RestMultiSearchAction(settings, restController.getSearchUsageHolder(), clusterSupportsFeature));
         registerHandler.accept(new RestKnnSearchAction());
@@ -965,7 +965,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetScriptContextAction());
         registerHandler.accept(new RestGetScriptLanguageAction());
 
-        registerHandler.accept(new RestFieldCapabilitiesAction());
+        registerHandler.accept(new RestFieldCapabilitiesAction(settings));
 
         // Tasks API
         registerHandler.accept(new RestListTasksAction(nodesInCluster));
@@ -993,7 +993,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestIndicesAction(projectIdResolver));
         registerHandler.accept(new RestSegmentsAction());
         // Fully qualified to prevent interference with rest.action.count.RestCountAction
-        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction());
+        registerHandler.accept(new org.elasticsearch.rest.action.cat.RestCountAction(settings));
         // Fully qualified to prevent interference with rest.action.indices.RestRecoveryAction
         registerHandler.accept(new RestCatRecoveryAction());
         registerHandler.accept(new RestHealthAction());

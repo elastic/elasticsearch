@@ -80,7 +80,8 @@ public final class DateExtractConstantMillisEvaluator implements EvalOperator.Ex
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateExtract.processMillis(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
+        long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
+        result.appendLong(DateExtract.processMillis(value, this.chronoField, this.zone));
       }
       return result.build();
     }
@@ -89,7 +90,8 @@ public final class DateExtractConstantMillisEvaluator implements EvalOperator.Ex
   public LongVector eval(int positionCount, LongVector valueVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateExtract.processMillis(valueVector.getLong(p), this.chronoField, this.zone));
+        long value = valueVector.getLong(p);
+        result.appendLong(p, DateExtract.processMillis(value, this.chronoField, this.zone));
       }
       return result.build();
     }

@@ -820,15 +820,16 @@ public class HeapAttackIT extends ESRestTestCase {
     }
 
     public void testLookupExplosionBigString() throws IOException {
-        int sensorDataCount = 150;
+        int sensorDataCount = 500;
         int lookupEntries = 1;
         Map<?, ?> map = lookupExplosionBigString(sensorDataCount, lookupEntries);
         assertMap(map, matchesMap().extraOk().entry("values", List.of(List.of(sensorDataCount * lookupEntries))));
     }
 
     public void testLookupExplosionBigStringManyMatches() throws IOException {
-        // 500, 1 is enough to make it fail locally but some CI needs more
-        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 500, 1));
+        // 500, 1 is enough with a single node, but the serverless copy of this test uses many nodes.
+        // So something like 5000, 10 is much more of a sure thing there.
+        assertCircuitBreaks(attempt -> lookupExplosionBigString(attempt * 5000, 10));
     }
 
     private Map<String, Object> lookupExplosion(

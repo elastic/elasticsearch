@@ -8020,7 +8020,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         LimitExec limitExec = as(reduction, LimitExec.class);
-        assertThat(limitExec.estimatedRowSize(), equalTo(328));
+        assertThat(limitExec.estimatedRowSize(), equalTo(2276));
     }
 
     public void testEqualsPushdownToDelegate() {

@@ -8640,6 +8640,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "u",
             "uu",
             "uuu",
+            // Quarter patterns
+            "yyyy-Q",
+            "yyyy-QQ",
+            "yyyy-q",
+            "yyyy-qq",
+            "yyyy-qqqq-MM",
             // Week-based year
             "YYYY-MM-dd",
             // Additional month formats
@@ -8807,10 +8813,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "G yyyy",
             "GGGG yyyy",
             // Quarter patterns
-            "yyyy-Q",
-            "yyyy-QQ",
-            "yyyy-q",
-            "yyyy-qq",
+            "yyyy-qqq-d",
             // Week patterns
             "yyyy-w",
             "yyyy-ww",
@@ -8848,13 +8851,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             "yyyy mm", // year + minute (skips month, day, hour)
             "DD" // day of year only (missing year context)
         );
-        // Project[[avg{r}#7, date{r}#4]]
-        // \_Eval[[$$SUM$avg$0{r$}#20 / $$COUNT$avg$1{r$}#21 AS avg#7]]
-        // \_Limit[1000[INTEGER],false]
-        // \_Aggregate[[date{r}#4],[SUM(salary{f}#14,true[BOOLEAN],compensated[KEYWORD]) AS $$SUM$avg$0#20, COUNT(salary{f}#14,true[BO
-        // OLEAN]) AS $$COUNT$avg$1#21, date{r}#4]]
-        // \_Eval[[DATEFORMAT(G yyyy[KEYWORD],hire_date{f}#16) AS date#4]]
-        // \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
         for (var format : unsupportedFormats) {
             var query = """
                 FROM test

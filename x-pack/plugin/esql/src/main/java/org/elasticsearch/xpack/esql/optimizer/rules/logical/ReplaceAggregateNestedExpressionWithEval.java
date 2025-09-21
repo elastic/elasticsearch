@@ -274,7 +274,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
      * Attempts to infer the minimal time interval that corresponds to a given date format.
      * <p>
      * The idea is to map {@code DATE_FORMAT} patterns to the smallest truncation unit
-     * (year, month, day, hour, minute, second, millisecond) so that we can optimize
+     * (year, month, day, hour, minute, second, millisecond, quarter) so that we can optimize
      * {@code DATE_FORMAT} by rewriting it as {@code DATE_TRUNC} when possible.
      * <p>
      * Limitations:
@@ -282,7 +282,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
      *   <li>The format must represent a continuous hierarchy of time units starting from "year".
      *       For example: {@code yyyy-MM-dd HH:mm:ss} is valid, but skipping "month" while using "day"
      *       is not.</li>
-     *   <li>Patterns involving unsupported fields (e.g., ERA, QUARTER, DAY_OF_WEEK, AM/PM, nanoseconds)
+     *   <li>Quarter optimization is a special case: it's only applied when the format contains
+     *       only year and quarter fields (e.g., "yyyy-Q").</li>
+     *   <li>Patterns involving unsupported fields (e.g., ERA, DAY_OF_WEEK, AM/PM, nanoseconds)
      *       cannot be mapped to {@code DATE_TRUNC} and will return {@code null}.</li>
      *   <li>Nanosecond-level precision is not supported by {@code DATE_TRUNC}.</li>
      * </ul>
@@ -300,7 +302,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             // Not supported to be converted to interval
             if (formatterAsString.contains("Text(" + ChronoField.ERA) // G
                 || formatterAsString.contains("Value(" + JulianFields.MODIFIED_JULIAN_DAY) // g
-                || formatterAsString.contains("Value(" + IsoFields.QUARTER_OF_YEAR) // Q/q
                 || formatterAsString.contains("Value(" + ChronoField.ALIGNED_WEEK_OF_MONTH) // f
                 || formatterAsString.contains("Text(" + ChronoField.DAY_OF_WEEK) // E
                 || formatterAsString.contains("Localized(" + ChronoField.DAY_OF_WEEK) // c/e
@@ -339,13 +340,20 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             // Define the hierarchy of time units, starting from year and gradually decreasing.
             // 0: year, 1: month, 2: day, 3: hour, 4: minute, 5: second, 6: millisecond
             boolean[] levels = new boolean[7];
-
+            boolean hasQuarter = false;
             // year
             // y/u/Y
             if (formatterAsString.contains("Value(" + ChronoField.YEAR_OF_ERA)
                 || formatterAsString.contains("Value(" + ChronoField.YEAR)
                 || formatterAsString.contains("Localized(WeekBasedYear")) {
                 levels[0] = true;
+            }
+
+            // quarter
+            // Q/q
+            if (formatterAsString.contains("Value(" + IsoFields.QUARTER_OF_YEAR)
+                || formatterAsString.contains("Text(" + IsoFields.QUARTER_OF_YEAR)) {
+                hasQuarter = true;
             }
 
             // month
@@ -404,6 +412,12 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                         return null; // Not continuous, return null
                     }
                 }
+            }
+
+            // Special case: when format contains only year and quarter fields (e.g., "yyyy-Q"),
+            // return a 3-month period to represent quarterly truncation at the year level
+            if (lastLevel == 0 && hasQuarter) {
+                return new Literal(source, Period.ofMonths(3), DataType.DATE_PERIOD);
             }
 
             // Return the smallest time unit.

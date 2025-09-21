@@ -20,10 +20,12 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
 
     public void testYear() {
         List<String> formats = List.of("y", "yy", "yyy", "yyyy", "yyyyyyyyyy", "u", "uu", "uuu", "uuuuuu");
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("P1Y", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "P1Y");
+    }
+
+    public void testQuarter() {
+        List<String> formats = List.of("yyyy-Q", "yyyy-QQ", "yyyy-q", "yyyy-qq", "yyyy-qqq", "yyyy-qqqq");
+        test(formats, "P3M");
     }
 
     public void testMonth() {
@@ -40,10 +42,7 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "yyyy-LLL",
             "yyyy-LLLL" // Standalone month names
         );
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("Format '" + format + "' should return P1M", "P1M", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "P1M");
     }
 
     public void testDay() {
@@ -62,10 +61,7 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "yyyy-D",
             "y-DDD"
         );
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("Format '" + format + "' should return P1D", "P1D", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "P1D");
     }
 
     public void testHour() {
@@ -80,10 +76,7 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "yyyy-MM-dd H",
             "yyyy-MM-dd k"
         );
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("Format '" + format + "' should return PT1H", "PT1H", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "PT1H");
     }
 
     public void testMinute() {
@@ -97,10 +90,7 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "yyyy-MM-dd H.mm",
             "yyyy-MM-dd HH mm"
         );
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("Format '" + format + "' should return PT1M", "PT1M", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "PT1M");
     }
 
     public void testSecond() {
@@ -117,19 +107,13 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "yyyy-MM-dd'T'H:m:s", // ISO with single digits
             "yyyy-MM-dd HH.mm.ss" // Mixed separators
         );
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("Format '" + format + "' should return PT1S", "PT1S", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "PT1S");
     }
 
     public void testMillisecond() {
         // Millisecond of day (A) should map to millisecond level
         List<String> formats = List.of("yyyy-MM-dd A");
-        for (String format : formats) {
-            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
-            assertEquals("Format '" + format + "' should return PT0.001S", "PT0.001S", Objects.requireNonNull(literal).toString());
-        }
+        test(formats, "PT0.001S");
     }
 
     public void testUnsupportedPatterns() {
@@ -139,10 +123,8 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "G yyyy",
             "GGGG yyyy",
             // Quarter
-            "yyyy-Q",
-            "yyyy-QQ",
-            "yyyy-q",
-            "yyyy-qq",
+            "yyyy-Q-h",
+            "yyyy-QQ-d",
             // Week fields
             "yyyy-w",
             "yyyy-ww",
@@ -167,8 +149,6 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
             "yyyy-MM-dd HH:mm:ss X",
             "yyyy-MM-dd HH:mm:ss VV",
             "yyyy-MM-dd HH:mm:ss O",
-            // Week-based year
-            "YYYY-MM-dd",
             // Day period
             "yyyy-MM-dd HH:mm B",
             // Modified Julian Day
@@ -190,6 +170,13 @@ public class DateFormatToTruncIntervalTests extends ESTestCase {
 
         for (String format : unsupportedFormats) {
             assertNull("Format '" + format + "' should return null", inferTruncIntervalFromFormat(format, Source.EMPTY));
+        }
+    }
+
+    private static void test(List<String> formats, String expected) {
+        for (String format : formats) {
+            Literal literal = inferTruncIntervalFromFormat(format, Source.EMPTY);
+            assertEquals("Format '" + format + "' should return " + expected, expected, Objects.requireNonNull(literal).toString());
         }
     }
 

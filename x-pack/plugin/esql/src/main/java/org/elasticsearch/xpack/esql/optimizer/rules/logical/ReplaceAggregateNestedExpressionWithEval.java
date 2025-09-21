@@ -302,7 +302,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
      *         cannot be represented as a truncation unit.
      * @see EsqlDataTypeConverter.INTERVALS for supported truncation units.
      */
-    private static Literal inferTruncIntervalFromFormat(String format, Source source) {
+    public static Literal inferTruncIntervalFromFormat(String format, Source source) {
         try {
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT);
             String formatterAsString = formatter.toString();
@@ -311,7 +311,8 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 || formatterAsString.contains("Value(" + JulianFields.MODIFIED_JULIAN_DAY) // g
                 || formatterAsString.contains("Value(" + IsoFields.QUARTER_OF_YEAR) // Q/q
                 || formatterAsString.contains("Value(" + ChronoField.ALIGNED_WEEK_OF_MONTH) // f
-                || formatterAsString.contains("Text(" + ChronoField.DAY_OF_WEEK) // E/c/e
+                || formatterAsString.contains("Text(" + ChronoField.DAY_OF_WEEK) // E
+                || formatterAsString.contains("Localized(" + ChronoField.DAY_OF_WEEK) // c/e
                 || formatterAsString.contains("Text(" + ChronoField.AMPM_OF_DAY) // a
                 || formatterAsString.contains("Value(" + ChronoField.HOUR_OF_AMPM) // K
                 || formatterAsString.contains("Value(" + ChronoField.CLOCK_HOUR_OF_AMPM) // h
@@ -338,7 +339,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 || formatterAsString.contains("Localized(WeekOfMonth,1)") // W
                 || formatterAsString.contains("Localized(WeekOfWeekBasedYear,1)") // w
                 || formatterAsString.contains("Localized(WeekOfWeekBasedYear,2)") // ww
-                || formatterAsString.contains("Localized(WeekBasedYear") // Y
                 || formatterAsString.contains("DayPeriod(SHORT)") // B
                 || formatterAsString.contains("DayPeriod(FULL)") // BBBB
                 || formatterAsString.contains("DayPeriod(NARROW)")) {// BBBBB
@@ -350,14 +350,17 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
             boolean[] levels = new boolean[7];
 
             // year
-            // y/u
-            if (formatterAsString.contains("Value(" + ChronoField.YEAR_OF_ERA) || formatterAsString.contains("Value(" + ChronoField.YEAR)) {
+            // y/u/Y
+            if (formatterAsString.contains("Value(" + ChronoField.YEAR_OF_ERA)
+                || formatterAsString.contains("Value(" + ChronoField.YEAR)
+                || formatterAsString.contains("Localized(WeekBasedYear")) {
                 levels[0] = true;
             }
 
             // month
             // M/L
-            if (formatterAsString.contains("Value(" + ChronoField.MONTH_OF_YEAR)) {
+            if (formatterAsString.contains("Value(" + ChronoField.MONTH_OF_YEAR)
+                || formatterAsString.contains("Text(" + ChronoField.MONTH_OF_YEAR)) {
                 levels[1] = true;
             }
 
@@ -429,7 +432,9 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 case 6:
                     return new Literal(source, ChronoUnit.MILLIS.getDuration(), DataType.TIME_DURATION);
             }
-        } catch (IllegalArgumentException ignored) {}
+        } catch (
+
+        IllegalArgumentException ignored) {}
         return null;
     }
 }

@@ -73,22 +73,13 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
         List<Alias> evalsBeforeAgg = new ArrayList<>();
+        List<Alias> evalsAfterAgg = new ArrayList<>();
         Map<String, Attribute> evalNames = new HashMap<>();
         Map<GroupingFunction, Attribute> groupingAttributes = new HashMap<>();
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         List<NamedExpression> newProjections = new ArrayList<>();
         Map<NamedExpression, Attribute> referenceAttributes = new HashMap<>();
         boolean groupingChanged = false;
-
-        List<Alias> evalsAfterAgg = new ArrayList<>();
-
-        // Count DateFormat occurrences to avoid incorrect grouping when replacing multiple DATE_FORMAT with DATE_TRUNC
-        int[] dateFormatCount = new int[] { 0 };
-        for (Expression g : newGroupings) {
-            if (g instanceof Alias as && as.child() instanceof DateFormat) {
-                dateFormatCount[0]++;
-            }
-        }
 
         // start with the groupings since the aggs might reuse/reference them
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
@@ -107,7 +98,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                     // Move the alias into an eval and replace it with its attribute.
                     groupingChanged = true;
                     var attr = as.toAttribute();
-                    if (asChild instanceof DateFormat df && dateFormatCount[0] == 1) {
+                    if (asChild instanceof DateFormat df) {
                         // Extract the format pattern and field from DateFormat
                         Literal format = (Literal) df.format();
                         Expression field = df.field();

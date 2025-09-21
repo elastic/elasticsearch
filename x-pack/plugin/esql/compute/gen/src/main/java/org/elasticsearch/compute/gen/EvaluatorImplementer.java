@@ -66,6 +66,9 @@ public class EvaluatorImplementer {
             elements.getPackageOf(declarationType).toString(),
             declarationType.getSimpleName() + extraName + "Evaluator"
         );
+        if (this.processFunction.hasBlockType) {
+            System.err.println("ADFADSF " + declarationType);
+        }
         this.processOutputsMultivalued = this.processFunction.hasBlockType && (this.processFunction.builderArg != null);
     }
 

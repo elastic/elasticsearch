@@ -76,6 +76,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
     private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
+    private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
@@ -228,7 +229,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             includeSourceOnError = in.readBoolean();
         } // else default value is true
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_INCLUDE_TSID)) {
+        if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             tsid = in.readBytesRefOrNullIfEmpty();
         }
     }
@@ -817,7 +818,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             out.writeBoolean(includeSourceOnError);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_REQUEST_INCLUDE_TSID)) {
+        if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
             out.writeBytesRef(tsid);
         }
     }

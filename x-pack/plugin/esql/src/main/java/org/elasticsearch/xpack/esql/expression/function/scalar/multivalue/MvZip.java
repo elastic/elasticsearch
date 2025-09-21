@@ -164,7 +164,13 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     }
 
     @Evaluator
-    static void process(BytesRefBlock.Builder builder, @Position int position, BytesRefBlock leftField, BytesRefBlock rightField, BytesRef delim) {
+    static void process(
+        BytesRefBlock.Builder builder,
+        @Position int position,
+        BytesRefBlock leftField,
+        BytesRefBlock rightField,
+        BytesRef delim
+    ) {
         int leftFieldValueCount = leftField.getValueCount(position);
         int rightFieldValueCount = rightField.getValueCount(position);
 

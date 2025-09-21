@@ -273,7 +273,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Evaluator(extraName = "Double")
-    static void process(DoubleBlock.Builder builder,@Position  int position, DoubleBlock field1, DoubleBlock field2) {
+    static void process(DoubleBlock.Builder builder, @Position int position, DoubleBlock field1, DoubleBlock field2) {
         int count1 = field1.getValueCount(position);
         int count2 = field2.getValueCount(position);
         if (count1 == 0 || count2 == 0) {

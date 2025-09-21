@@ -663,6 +663,9 @@ tests:
 - class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
   method: testSearchableSnapshotUpgrade {p0=[9.2.0, 9.2.0, 9.2.0]}
   issue: https://github.com/elastic/elasticsearch/issues/135150
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.2.0, 9.2.0, 9.2.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/135151
 
 # Examples:
 #

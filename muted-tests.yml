@@ -666,6 +666,9 @@ tests:
 - class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
   method: testMountSearchableSnapshot {p0=[9.2.0, 9.2.0, 9.2.0]}
   issue: https://github.com/elastic/elasticsearch/issues/135151
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
 
 # Examples:
 #

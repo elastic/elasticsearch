@@ -684,6 +684,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SampleBytesRefAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/135157
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=analytics/nested_top_metrics_sort/terms order by top metrics numeric not null double values}
+  issue: https://github.com/elastic/elasticsearch/issues/135159
 
 # Examples:
 #

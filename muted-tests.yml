@@ -681,6 +681,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkStoredSourceChallengeRestIT
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/135156
+- class: org.elasticsearch.compute.aggregation.SampleBytesRefAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/135157
 
 # Examples:
 #

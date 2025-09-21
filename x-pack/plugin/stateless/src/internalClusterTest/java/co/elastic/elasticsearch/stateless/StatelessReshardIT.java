@@ -323,7 +323,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         assertTrue(
             StreamSupport.stream(search.getHits().spliterator(), false)
-                .allMatch(hit -> hit.getShard().getShardId().getId() == indexRouting.indexShard(hit.getId(), null, null, null))
+                .allMatch(hit -> hit.getShard().getShardId().getId() == indexRouting.indexShard(hit.getId(), null, null, null, null))
         );
 
         search.decRef();
@@ -706,7 +706,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         Function<Integer, String> findRoutingValue = shard -> {
             while (true) {
                 String routingValue = randomAlphaOfLength(5);
-                int routedShard = wouldBeAfterSplitRouting.indexShard("dummy", routingValue, null, null);
+                int routedShard = wouldBeAfterSplitRouting.indexShard("dummy", routingValue, null, null, null);
                 if (routedShard == shard) {
                     return routingValue;
                 }
@@ -2056,7 +2056,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         return switch (between(0, 2)) {
-            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 0 -> indexRouting.indexShard(id, routing, null, null, null);
             case 1 -> indexRouting.updateShard(id, routing);
             case 2 -> indexRouting.deleteShard(id, routing);
             default -> throw new AssertionError("invalid option");

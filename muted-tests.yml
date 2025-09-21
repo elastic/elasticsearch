@@ -693,6 +693,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.SampleBooleanAggregatorFunctionTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/135163
+- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
+  method: test {p0=search/160_exists_query/Test exists query on mapped geo_point field with no doc values}
+  issue: https://github.com/elastic/elasticsearch/issues/135164
 
 # Examples:
 #

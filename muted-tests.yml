@@ -672,6 +672,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.BulkChallengeRestIT
   method: testHistogramAggregation
   issue: https://github.com/elastic/elasticsearch/issues/135153
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testHistogramAggregation
+  issue: https://github.com/elastic/elasticsearch/issues/135154
 
 # Examples:
 #

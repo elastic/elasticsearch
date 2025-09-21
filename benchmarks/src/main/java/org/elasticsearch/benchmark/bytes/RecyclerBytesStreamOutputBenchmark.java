@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
 @Fork(value = 1)
-public class RecyclerBytesStreamBenchmark {
+public class RecyclerBytesStreamOutputBenchmark {
 
     private final AtomicReference<BytesRef> bytesRef = new AtomicReference<>(new BytesRef(16384));
     private RecyclerBytesStreamOutput streamOutput;
@@ -45,7 +45,7 @@ public class RecyclerBytesStreamBenchmark {
     private byte[] bytes1;
     private byte[] bytes2;
     private byte[] bytes3;
-    private byte[] bytes4;
+    private byte[] multiPageBytes;
     private int[] vints;
 
     @Setup
@@ -67,11 +67,11 @@ public class RecyclerBytesStreamBenchmark {
         bytes1 = new byte[327];
         bytes2 = new byte[712];
         bytes3 = new byte[1678];
-        bytes4 = new byte[16387 * 4];
+        multiPageBytes = new byte[16387 * 4];
         random.nextBytes(bytes1);
         random.nextBytes(bytes2);
         random.nextBytes(bytes3);
-        random.nextBytes(bytes4);
+        random.nextBytes(multiPageBytes);
 
         // Create a mix of vint values for benchmarking
         vints = new int[1000];
@@ -96,7 +96,7 @@ public class RecyclerBytesStreamBenchmark {
 
     @Benchmark
     public void writeByte() throws IOException {
-        streamOutput.seek(1);
+        streamOutput.seek(0);
         for (byte item : bytes1) {
             streamOutput.writeByte(item);
         }
@@ -110,7 +110,7 @@ public class RecyclerBytesStreamBenchmark {
 
     @Benchmark
     public void writeBytes() throws IOException {
-        streamOutput.seek(1);
+        streamOutput.seek(0);
         streamOutput.writeBytes(bytes1, 0, bytes1.length);
         streamOutput.writeBytes(bytes2, 0, bytes2.length);
         streamOutput.writeBytes(bytes3, 0, bytes3.length);
@@ -127,7 +127,7 @@ public class RecyclerBytesStreamBenchmark {
     @Benchmark
     public void writeBytesMultiPage() throws IOException {
         streamOutput.seek(16384 - 1000);
-        streamOutput.writeBytes(bytes4, 0, bytes4.length);
+        streamOutput.writeBytes(multiPageBytes, 0, multiPageBytes.length);
     }
 
     @Benchmark
@@ -141,7 +141,7 @@ public class RecyclerBytesStreamBenchmark {
 
     @Benchmark
     public void writeVInt() throws IOException {
-        streamOutput.seek(1);
+        streamOutput.seek(0);
         for (int vint : vints) {
             streamOutput.writeVInt(vint);
         }

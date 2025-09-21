@@ -200,10 +200,17 @@ public class SingletonOrdinalsBuilder implements BlockLoader.SingletonOrdinalsBu
                     blockFactory.adjustBreaker(offsetsAndLength);
                     breakerSize += offsetsAndLength;
                     int[] offsets = new int[uniqueCount + 1];
-                    for (int o = 0; o < uniqueCount; o++) {
-                        BytesRef v = docValues.lookupOrd(sortedOrds[o]);
-                        offsets[o] = copies.length();
-                        copies.append(v);
+                    if (docValues instanceof BlockLoader.BulkOrdinalLookup bulkOrdinalLookup) {
+                        bulkOrdinalLookup.lookupOrds(sortedOrds, uniqueCount, (ord, term) -> {
+                            offsets[ord] = copies.length();
+                            copies.append(term);
+                        });
+                    } else {
+                        for (int o = 0; o < uniqueCount; o++) {
+                            BytesRef v = docValues.lookupOrd(sortedOrds[o]);
+                            offsets[o] = copies.length();
+                            copies.append(v);
+                        }
                     }
                     offsets[uniqueCount] = copies.length();
 

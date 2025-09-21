@@ -158,8 +158,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 assertNotNull(tagsDV);
                 var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
                 assertNotNull(tagBytesDV);
+                List<Integer> ordinals = new ArrayList<>();
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
+                    ordinals.add(hostNameDV.ordValue());
                     int batchIndex = i / numHosts;
                     assertEquals(batchIndex, hostNameDV.ordValue());
                     String expectedHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
@@ -204,6 +206,27 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     assertEquals(i, tagBytesDV.nextDoc());
                     BytesRef tagBytesValue = tagBytesDV.binaryValue();
                     assertTrue("unexpected bytes " + tagBytesValue, Arrays.binarySearch(tags, tagBytesValue.utf8ToString()) >= 0);
+                }
+
+                var bulkOrdinalLookup = (BlockLoader.BulkOrdinalLookup) hostNameDV;
+                {
+                    int[] sortedOrds = ordinals.stream().distinct().mapToInt(i -> i).toArray();
+                    var hosts = new ArrayList<>(numHosts);
+                    bulkOrdinalLookup.lookupOrds(sortedOrds, sortedOrds.length, (offset, term) -> hosts.add(term.utf8ToString()));
+                    for (int i = 0; i < hosts.size(); i++) {
+                        String expectedHostName = String.format(Locale.ROOT, "host-%03d", i);
+                        assertEquals(expectedHostName, hosts.get(i));
+                    }
+                }
+                {
+                    int offset = ordinals.size() - 3;
+                    int[] sortedOrds = ordinals.subList(offset, ordinals.size()).stream().distinct().mapToInt(i -> i).toArray();
+                    var hosts = new ArrayList<>(numHosts);
+                    bulkOrdinalLookup.lookupOrds(sortedOrds, sortedOrds.length, (o, term) -> hosts.add(term.utf8ToString()));
+                    for (int i = offset; i < hosts.size(); i++) {
+                        String expectedHostName = String.format(Locale.ROOT, "host-%03d", i);
+                        assertEquals(expectedHostName, hosts.get(i));
+                    }
                 }
             }
         }

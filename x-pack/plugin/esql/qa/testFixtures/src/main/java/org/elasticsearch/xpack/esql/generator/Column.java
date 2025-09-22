@@ -9,4 +9,10 @@ package org.elasticsearch.xpack.esql.generator;
 
 import java.util.List;
 
+/**
+ * A column in the output schema of a query execution.
+ * @param name the field name
+ * @param type the field type
+ * @param originalTypes the original types, in case of a union type.
+ */
 public record Column(String name, String type, List<String> originalTypes) {}

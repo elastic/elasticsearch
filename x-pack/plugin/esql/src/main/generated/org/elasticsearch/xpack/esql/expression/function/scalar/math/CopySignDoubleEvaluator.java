@@ -93,7 +93,9 @@ public final class CopySignDoubleEvaluator implements EvalOperator.ExpressionEva
           result.appendNull();
           continue position;
         }
-        result.appendDouble(CopySign.processDouble(magnitudeBlock.getDouble(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        double magnitude = magnitudeBlock.getDouble(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendDouble(CopySign.processDouble(magnitude, sign));
       }
       return result.build();
     }
@@ -103,7 +105,9 @@ public final class CopySignDoubleEvaluator implements EvalOperator.ExpressionEva
       DoubleVector signVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, CopySign.processDouble(magnitudeVector.getDouble(p), signVector.getDouble(p)));
+        double magnitude = magnitudeVector.getDouble(p);
+        double sign = signVector.getDouble(p);
+        result.appendDouble(p, CopySign.processDouble(magnitude, sign));
       }
       return result.build();
     }

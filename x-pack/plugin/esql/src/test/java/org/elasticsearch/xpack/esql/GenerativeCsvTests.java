@@ -301,6 +301,7 @@ public class GenerativeCsvTests extends ESTestCase implements QueryExecutor {
                 EsqlQueryGenerator.SIMPLIFIED_PIPE_COMMANDS,
                 mappingInfo,
                 exec,
+                false,
                 this
             );
         }
@@ -354,7 +355,7 @@ public class GenerativeCsvTests extends ESTestCase implements QueryExecutor {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(false, false, false).stream()
+        return availableDatasetsForEs(false, false, false, false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();
@@ -506,12 +507,12 @@ public class GenerativeCsvTests extends ESTestCase implements QueryExecutor {
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
-        if (preAnalysis.index() == null) {
+        if (preAnalysis.indexPattern() == null) {
             // If the data set doesn't matter we'll just grab one we know works. Employees is fine.
             return CsvTestsDataLoader.MultiIndexTestDataset.of(CSV_DATASET_MAP.get("employees"));
         }
 
-        String indexName = preAnalysis.index().indexPattern();
+        String indexName = preAnalysis.indexPattern().indexPattern();
         List<CsvTestsDataLoader.TestDataset> datasets = new ArrayList<>();
         if (indexName.endsWith("*")) {
             String indexPrefix = indexName.substring(0, indexName.length() - 1);

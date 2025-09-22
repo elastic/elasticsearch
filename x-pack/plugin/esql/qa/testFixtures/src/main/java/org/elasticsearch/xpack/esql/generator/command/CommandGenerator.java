@@ -72,7 +72,8 @@ public interface CommandGenerator {
      * @param schema           The columns returned by the query so far. It contains name and type information for each column.
      * @param executor
      * @return All the details about the generated command. See {@link CommandDescription}.
-     * If something goes wrong and for some reason you can't generate a command, you should return {@link CommandGenerator#EMPTY_DESCRIPTION}
+     * If something goes wrong and for some reason you can't generate a command,
+     * you should return {@link CommandGenerator#EMPTY_DESCRIPTION}
      */
     CommandDescription generate(
         List<CommandDescription> previousCommands,
@@ -90,14 +91,16 @@ public interface CommandGenerator {
      *                         It also contains the context information you stored during command generation.
      * @param previousColumns  The output schema of the original query (without last generated command).
      *                         It contains name and type information for each column, see {@link Column}
-     * @param previousOutput   The output of the original query (without last generated command), as a list (rows) of lists (columns) of values
+     * @param previousOutput   The output of the original query (without last generated command),
+     *                         as a list (rows) of lists (columns) of values
      * @param columns          The output schema of the full query (WITH last generated command).
      * @param output           The output of the full query (WITH last generated command), as a list (rows) of lists (columns) of values
      * @param deterministic    True if the query is executed in deterministic mode (eg. in CsvTests), ie. that the
      *                         results (also their order) are stable between multiple executions.
      *                         False if the query is executed in non-deterministic mode (eg. in GenerativeIT, against an ES cluster)
      * @return The result of the output validation. If the validation succeeds, you should return {@link CommandGenerator#VALIDATION_OK}.
-     * Also, if for some reason you can't validate the output, just return {@link CommandGenerator#VALIDATION_OK}; for a command, having a generator without
+     * Also, if for some reason you can't validate the output, just return {@link CommandGenerator#VALIDATION_OK};
+     * for a command, having a generator without
      * validation is much better than having no generator at all.
      */
     ValidationResult validateOutput(

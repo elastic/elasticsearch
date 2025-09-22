@@ -61,13 +61,23 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
-        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
+        // https://github.com/elastic/elasticsearch/issues/125866
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
 
         // Awaiting fixes for correctness
-        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
+
+        // TS-command tests
+        "time-series .* the first aggregation .* is not allowed",
+        "count_star .* can't be used with TS command",
+        "time_series aggregate.* can only be used with the TS command",
+        "Invalid call to dataType on an unresolved object \\?LASTOVERTIME", // https://github.com/elastic/elasticsearch/issues/134791
+        // https://github.com/elastic/elasticsearch/issues/134793
+        "class org.elasticsearch.compute.data..*Block cannot be cast to class org.elasticsearch.compute.data..*Block",
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -83,6 +93,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected abstract boolean supportsSourceFieldMapping();
+
+    protected boolean requiresTimeSeries() {
+        return false;
+    }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
@@ -149,13 +163,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             };
             EsqlQueryGenerator.generatePipeline(
                 MAX_DEPTH,
-                EsqlQueryGenerator.sourceCommand(),
+                sourceCommand(),
                 EsqlQueryGenerator.PIPE_COMMANDS,
                 mappingInfo,
                 exec,
+                requiresTimeSeries(),
                 this
             );
         }
+    }
+
+    protected CommandGenerator sourceCommand() {
+        return EsqlQueryGenerator.sourceCommand();
     }
 
     private static CommandGenerator.ValidationResult checkResults(
@@ -207,22 +226,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     @Override
     @SuppressWarnings("unchecked")
-    public QueryExecuted execute(String command, int depth) {
+    public QueryExecuted execute(String query, int depth) {
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
+                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC
             );
             List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new QueryExecuted(command, depth, outputSchema, values, null);
+            return new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new QueryExecuted(command, depth, null, null, e);
+            return new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new QueryExecuted(command, depth, null, null, new RuntimeException(ae.getMessage()));
+            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
 
     }
@@ -248,7 +267,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries()).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

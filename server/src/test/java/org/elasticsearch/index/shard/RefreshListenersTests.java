@@ -58,6 +58,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -107,6 +108,7 @@ public class RefreshListenersTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName());
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .put(Node.NODE_NAME_SETTING.getKey(), "nodename")
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         nodeEnvironment = newNodeEnvironment(settings);

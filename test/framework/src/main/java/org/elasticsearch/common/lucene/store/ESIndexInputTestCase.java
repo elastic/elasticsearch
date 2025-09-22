@@ -44,7 +44,7 @@ public class ESIndexInputTestCase extends ESTestCase {
             name,
             10,
             0,
-            EsExecutors.daemonThreadFactory(name),
+            EsExecutors.daemonThreadFactory("test-node", name),
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

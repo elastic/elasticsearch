@@ -48,7 +48,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             settableWrapper(TimeUnit.NANOSECONDS.toNanos(100)),
-            EsExecutors.daemonThreadFactory("queuetest"),
+            EsExecutors.daemonThreadFactory("nodename", "queuetest", false),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -116,7 +116,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             (runnable) -> adjustableTimedRunnable,
-            EsExecutors.daemonThreadFactory("queue-latency-test"),
+            EsExecutors.daemonThreadFactory("nodename", "queue-latency-test", false),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -183,7 +183,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             (runnable) -> adjustableTimedRunnable,
-            EsExecutors.daemonThreadFactory("queue-latency-test"),
+            EsExecutors.daemonThreadFactory("nodename", "queue-latency-test", false),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -233,7 +233,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             exceptionalWrapper(),
-            EsExecutors.daemonThreadFactory("queuetest"),
+            EsExecutors.daemonThreadFactory("nodename", "queuetest", false),
             new EsAbortPolicy(),
             context,
             randomBoolean()
@@ -269,7 +269,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             TimedRunnable::new,
-            EsExecutors.daemonThreadFactory("queuetest"),
+            EsExecutors.daemonThreadFactory("nodename", "queuetest", false),
             new EsAbortPolicy(),
             context,
             EsExecutors.TaskTrackingConfig.builder()
@@ -306,7 +306,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             TimedRunnable::new,
-            EsExecutors.daemonThreadFactory("queuetest"),
+            EsExecutors.daemonThreadFactory("nodename", "queuetest", false),
             new EsAbortPolicy(),
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.builder()

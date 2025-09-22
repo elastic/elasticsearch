@@ -241,15 +241,15 @@ public class SubscribableListenerTests extends ESTestCase {
         }
 
         final var completion = new AtomicBoolean();
-        final var executorThreadPrefix = randomAlphaOfLength(10);
+        final var executorName = randomAlphaOfLength(10);
         final var executor = EsExecutors.newScaling(
-            executorThreadPrefix,
+            executorName,
             1,
             1,
             10,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory(executorThreadPrefix),
+            EsExecutors.daemonThreadFactory("node", executorName),
             threadContext
         );
 
@@ -265,7 +265,8 @@ public class SubscribableListenerTests extends ESTestCase {
                 threadContext.putHeader(headerName, headerValue);
                 listener.addListener(ActionListener.releaseAfter(assertingListener.map(result -> {
                     assertNotSame(testThread, Thread.currentThread());
-                    assertThat(Thread.currentThread().getName(), containsString(executorThreadPrefix));
+                    assertThat(Thread.currentThread().getName(), containsString(executorName));
+                    assertEquals(EsExecutors.executorName(Thread.currentThread()), executorName);
                     assertEquals(headerValue, threadContext.getHeader(headerName));
                     return result;
                 }), refs.acquire()), executor, threadContext);

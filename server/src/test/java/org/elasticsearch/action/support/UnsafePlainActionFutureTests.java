@@ -51,7 +51,7 @@ public class UnsafePlainActionFutureTests extends ESTestCase {
     }
 
     private static Thread getThread(String executorName) {
-        Thread t = new Thread("[" + executorName + "][]");
+        var t = EsExecutors.daemonThreadFactory("node", executorName).newThread(() -> {});
         assertThat(EsExecutors.executorName(t), equalTo(executorName));
         return t;
     }

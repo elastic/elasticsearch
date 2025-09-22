@@ -61,7 +61,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
             holder,
             null
         );
@@ -95,7 +95,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
             holder,
             null
         );
@@ -129,7 +129,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
             holder,
             null
         );
@@ -163,7 +163,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizing(
             getTestName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
             holder,
             null
         );
@@ -195,10 +195,12 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     }
 
     public void testTimeout() throws Exception {
-        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(EsExecutors.daemonThreadFactory(getTestName()));
+        ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false)
+        );
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
             holder,
             timer
         );
@@ -265,7 +267,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         final AtomicBoolean timeoutCalled = new AtomicBoolean();
         PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
             getName(),
-            EsExecutors.daemonThreadFactory(getTestName()),
+            EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
             holder,
             timer
         );

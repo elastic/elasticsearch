@@ -145,7 +145,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
                 public boolean offer(Runnable r) {
                     throw exception;
                 }
-            }, EsExecutors.daemonThreadFactory("test"), new ThreadContext(Settings.EMPTY));
+            }, EsExecutors.daemonThreadFactory("nodename", "test", false), new ThreadContext(Settings.EMPTY));
         }
 
         @Override

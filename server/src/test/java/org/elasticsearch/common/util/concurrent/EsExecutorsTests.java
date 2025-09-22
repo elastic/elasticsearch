@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
@@ -67,7 +66,7 @@ public class EsExecutorsTests extends ESTestCase {
             getName(),
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.daemonThreadFactory("nodename", "test", false),
             threadContext,
             randomFrom(DEFAULT, DO_NOT_TRACK)
         );
@@ -136,7 +135,7 @@ public class EsExecutorsTests extends ESTestCase {
             getName(),
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.daemonThreadFactory("nodename", "test", false),
             threadContext,
             randomFrom(DEFAULT, DO_NOT_TRACK)
         );
@@ -204,7 +203,7 @@ public class EsExecutorsTests extends ESTestCase {
             between(1, 100),
             randomTimeUnit(),
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.daemonThreadFactory("nodename", "test", false),
             threadContext
         );
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
@@ -242,7 +241,7 @@ public class EsExecutorsTests extends ESTestCase {
             between(1, 100),
             TimeUnit.MILLISECONDS,
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.daemonThreadFactory("nodename", "test", false),
             threadContext
         );
         assertThat("Min property", pool.getCorePoolSize(), equalTo(min));
@@ -281,7 +280,7 @@ public class EsExecutorsTests extends ESTestCase {
             getName(),
             pool,
             queue,
-            EsExecutors.daemonThreadFactory("dummy"),
+            EsExecutors.daemonThreadFactory("nodename", "dummy", false),
             threadContext,
             randomFrom(DEFAULT, DO_NOT_TRACK)
         );
@@ -388,7 +387,7 @@ public class EsExecutorsTests extends ESTestCase {
             getName(),
             pool,
             queue,
-            EsExecutors.daemonThreadFactory("dummy"),
+            EsExecutors.daemonThreadFactory("nodename", "dummy", false),
             threadContext,
             randomFrom(DEFAULT, DO_NOT_TRACK)
         );
@@ -425,7 +424,7 @@ public class EsExecutorsTests extends ESTestCase {
             getName(),
             pool,
             queue,
-            EsExecutors.daemonThreadFactory("dummy"),
+            EsExecutors.daemonThreadFactory("nodename", "dummy", false),
             threadContext,
             randomFrom(DEFAULT, DO_NOT_TRACK)
         );
@@ -529,7 +528,7 @@ public class EsExecutorsTests extends ESTestCase {
             60,
             TimeUnit.SECONDS,
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.daemonThreadFactory("nodename", "test", false),
             new ThreadContext(Settings.EMPTY)
         );
         try {
@@ -564,7 +563,7 @@ public class EsExecutorsTests extends ESTestCase {
             60,
             TimeUnit.SECONDS,
             false,
-            EsExecutors.daemonThreadFactory(getName()),
+            EsExecutors.daemonThreadFactory("nodename", getName(), false),
             new ThreadContext(Settings.EMPTY)
         );
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
@@ -606,7 +605,7 @@ public class EsExecutorsTests extends ESTestCase {
                 60,
                 TimeUnit.SECONDS,
                 true,
-                EsExecutors.daemonThreadFactory(getName()),
+                EsExecutors.daemonThreadFactory("nodename", getName(), false),
                 new ThreadContext(Settings.EMPTY)
             )
         );
@@ -618,7 +617,7 @@ public class EsExecutorsTests extends ESTestCase {
                 getName(),
                 between(1, 5),
                 between(1, 5),
-                EsExecutors.daemonThreadFactory(getName()),
+                EsExecutors.daemonThreadFactory("nodename", getName(), false),
                 threadContext,
                 randomFrom(DEFAULT, DO_NOT_TRACK)
             )
@@ -631,7 +630,7 @@ public class EsExecutorsTests extends ESTestCase {
                 getName(),
                 between(1, 5),
                 -1,
-                EsExecutors.daemonThreadFactory(getName()),
+                EsExecutors.daemonThreadFactory("nodename", getName(), false),
                 threadContext,
                 randomFrom(DEFAULT, DO_NOT_TRACK)
             )
@@ -659,11 +658,7 @@ public class EsExecutorsTests extends ESTestCase {
 
         final var thread = threadFactory.newThread(() -> {});
         try {
-            assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
             assertThat(EsExecutors.executorName(thread), equalTo(executorName));
-            assertThat(EsExecutors.executorName("TEST-" + thread.getName()), is(nullValue()));
-            assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
-            assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
             assertThat(((EsExecutors.EsThread) thread).isSystem(), equalTo(isSystem));
         } finally {
             thread.join();
@@ -683,7 +678,7 @@ public class EsExecutorsTests extends ESTestCase {
                 between(1, 100),
                 randomTimeUnit(),
                 randomBoolean(),
-                EsExecutors.daemonThreadFactory("test"),
+                EsExecutors.daemonThreadFactory("nodename", "test", false),
                 threadContext,
                 randomBoolean()
                     ? EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(executionTimeEwma).build()
@@ -700,7 +695,7 @@ public class EsExecutorsTests extends ESTestCase {
                 between(1, 100),
                 randomTimeUnit(),
                 randomBoolean(),
-                EsExecutors.daemonThreadFactory("test"),
+                EsExecutors.daemonThreadFactory("nodename", "test", false),
                 threadContext
             );
             assertThat(pool, instanceOf(EsThreadPoolExecutor.class));
@@ -714,7 +709,7 @@ public class EsExecutorsTests extends ESTestCase {
                 between(1, 100),
                 randomTimeUnit(),
                 randomBoolean(),
-                EsExecutors.daemonThreadFactory("test"),
+                EsExecutors.daemonThreadFactory("nodename", "test", false),
                 threadContext,
                 DO_NOT_TRACK
             );
@@ -774,7 +769,7 @@ public class EsExecutorsTests extends ESTestCase {
                 0,
                 TimeUnit.MILLISECONDS,
                 true,
-                EsExecutors.daemonThreadFactory(getTestName()),
+                EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
                 threadContext
             )
         );
@@ -789,7 +784,7 @@ public class EsExecutorsTests extends ESTestCase {
                 1,
                 TimeUnit.MILLISECONDS,
                 true,
-                EsExecutors.daemonThreadFactory(getTestName()),
+                EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
                 threadContext
             )
         );
@@ -804,7 +799,7 @@ public class EsExecutorsTests extends ESTestCase {
                 0,
                 TimeUnit.MILLISECONDS,
                 true,
-                EsExecutors.daemonThreadFactory(getTestName()),
+                EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
                 threadContext
             )
         );
@@ -819,7 +814,7 @@ public class EsExecutorsTests extends ESTestCase {
                 1,
                 TimeUnit.MILLISECONDS,
                 true,
-                EsExecutors.daemonThreadFactory(getTestName()),
+                EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
                 threadContext
             )
         );
@@ -835,7 +830,7 @@ public class EsExecutorsTests extends ESTestCase {
                 0,
                 TimeUnit.MILLISECONDS,
                 new EsExecutors.ExecutorScalingQueue<>(),
-                EsExecutors.daemonThreadFactory(getTestName()),
+                EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
                 new EsExecutors.ForceQueuePolicy(true, true),
                 threadContext
             )
@@ -852,7 +847,7 @@ public class EsExecutorsTests extends ESTestCase {
                 1,
                 TimeUnit.MILLISECONDS,
                 new EsExecutors.ExecutorScalingQueue<>(),
-                EsExecutors.daemonThreadFactory(getTestName()),
+                EsExecutors.daemonThreadFactory("nodename", getTestName(), false),
                 new EsExecutors.ForceQueuePolicy(true, true),
                 threadContext
             )

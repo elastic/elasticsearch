@@ -89,7 +89,7 @@ public class S3HttpFixture extends ExternalResource {
                 30,
                 TimeUnit.SECONDS,
                 true,
-                EsExecutors.daemonThreadFactory("s3-http-fixture"),
+                EsExecutors.daemonThreadFactory("nodename", "s3-http-fixture", false),
                 new ThreadContext(Settings.EMPTY)
             );
 

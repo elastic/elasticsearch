@@ -93,7 +93,7 @@ public class LifecycleTests extends ESTestCase {
                 10,
                 TimeUnit.SECONDS,
                 true,
-                EsExecutors.daemonThreadFactory("test"),
+                EsExecutors.daemonThreadFactory("nodename", "test", false),
                 new ThreadContext(Settings.EMPTY)
             );
         }

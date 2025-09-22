@@ -205,7 +205,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             randomLongBetween(0, 100),
             TimeUnit.MILLISECONDS,
             rejectAfterShutdown,
-            EsExecutors.daemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            EsExecutors.daemonThreadFactory("nodename", getTestName().toLowerCase(Locale.ROOT), false),
             new ThreadContext(Settings.EMPTY)
         );
         try {
@@ -308,7 +308,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             randomLongBetween(0, 100),
             TimeUnit.MILLISECONDS,
             true,
-            EsExecutors.daemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            EsExecutors.daemonThreadFactory("nodename", getTestName().toLowerCase(Locale.ROOT), false),
             new ThreadContext(Settings.EMPTY)
         );
         try {

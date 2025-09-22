@@ -105,7 +105,7 @@ public class RefCountingRunnableTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.daemonThreadFactory("nodename", "test", false),
             new ThreadContext(Settings.EMPTY)
         );
         final var asyncPermits = new Semaphore(between(0, 1000));

@@ -98,7 +98,7 @@ class LinuxNativeAccess extends PosixNativeAccess {
             this.systemd = null; // not running under systemd
         } else {
             logger.debug("Systemd socket path: {}", socketPath);
-            var buffer = newBuffer(64);
+            var buffer = newBuffer(64, true);
             this.systemd = new Systemd(libraryProvider.getLibrary(PosixCLibrary.class), socketPath, buffer);
         }
     }

@@ -78,7 +78,7 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
-    public CloseableByteBuffer newBuffer(int len) {
+    public CloseableByteBuffer newBuffer(int len, boolean shared) {
         logger.warn("cannot allocate buffer because native access is not available");
         return null;
     }

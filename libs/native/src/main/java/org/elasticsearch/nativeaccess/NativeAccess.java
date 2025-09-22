@@ -93,7 +93,7 @@ public interface NativeAccess {
      * @param len the number of bytes the buffer should allocate
      * @return the buffer
      */
-    CloseableByteBuffer newBuffer(int len);
+    CloseableByteBuffer newBuffer(int len, boolean shared);
 
     /**
      * Possible stats for execution filtering.

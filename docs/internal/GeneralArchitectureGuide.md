@@ -116,7 +116,9 @@ are coordinated.
 > If [TransportAction] elects a separate executor, [InboundHandler] performs message deserialization before delegating execution to the executor,
 > refer to [TransportResponseHandler] method executor() for more details.
 >
->
+> [TransportAction] requests received from remote nodes are always deserialized on the Netty [EventLoop]. In contrast, [TransportAction] responses are
+> deserialized only after being dispatched to the designated executor. Outbound messages, including both requests and responses, are serialized
+> synchronously on the calling thread.
 
 ### Action registration
 Elasticsearch contains many [TransportAction]s, configured statically in [ActionModule#setupActions]. [ActionPlugin]s can

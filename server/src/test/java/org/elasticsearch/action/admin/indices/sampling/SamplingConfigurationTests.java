@@ -11,13 +11,10 @@ package org.elasticsearch.action.admin.indices.sampling;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,7 +38,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             randomBoolean() ? null : randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
             randomBoolean() ? null : ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
             randomBoolean() ? null : TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
-            randomBoolean() ? null : new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of())
+            randomBoolean() ? null : randomAlphaOfLength(10)
         );
     }
 
@@ -89,7 +86,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
                 instance.timeToLive(),
                 randomValueOtherThan(
                     instance.condition(),
-                    () -> new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of())
+                    () -> randomAlphaOfLength(10)
                 )
             );
             default -> throw new AssertionError("Unexpected value");
@@ -153,6 +150,13 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         );
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MAX_MESSAGE));
 
+        // Test invalid condition
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SamplingConfiguration(0.5, null, null, null, "")
+        );
+        assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_CONDITION_MESSAGE));
+
     }
 
     public void testValidInputs() {
@@ -162,14 +166,14 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             1,
             ByteSizeValue.ofBytes(1),
             TimeValue.timeValueMillis(1),
-            new Script(ScriptType.INLINE, "painless", "a", Map.of())
+            randomAlphaOfLength(10)
         ); // minimum values
         new SamplingConfiguration(
             1.0,
             SamplingConfiguration.MAX_SAMPLES_LIMIT,
             ByteSizeValue.ofGb(SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES),
             TimeValue.timeValueDays(SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS),
-            new Script(ScriptType.INLINE, "painless", "condition", Map.of())
+            randomAlphaOfLength(10)
         ); // maximum values
 
         // Test random valid values
@@ -178,7 +182,7 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             randomIntBetween(1, SamplingConfiguration.MAX_SAMPLES_LIMIT),
             ByteSizeValue.ofGb(randomLongBetween(1, SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES)),
             TimeValue.timeValueDays(randomLongBetween(1, SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS)),
-            new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of())
+            randomAlphaOfLength(10)
         );
     }
 }

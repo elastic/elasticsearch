@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,7 +30,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 /**
  * Configuration for sampling raw documents in an index.
  */
-public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, Script condition)
+public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition)
     implements
         ToXContentObject,
         SimpleDiffable<SamplingConfiguration> {
@@ -63,13 +62,14 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     public static final String INVALID_TIME_TO_LIVE_MAX_MESSAGE = "timeToLive must be less than or equal to "
         + MAX_TIME_TO_LIVE_DAYS
         + " days";
+    public static final String INVALID_CONDITION_MESSAGE = "condition script, if provided, must not be empty";
 
     private static final ConstructingObjectParser<SamplingConfiguration, Void> PARSER = new ConstructingObjectParser<>(TYPE, true, args -> {
         double rate = (double) args[0];
         Integer maxSamples = (Integer) args[1];
         ByteSizeValue maxSize = (ByteSizeValue) args[2];
         TimeValue timeToLive = (TimeValue) args[3];
-        Script condition = (Script) args[4];
+        String condition = (String) args[4];
         return new SamplingConfiguration(rate, maxSamples, maxSize, timeToLive, condition);
     });
 
@@ -97,12 +97,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
             }
         }, new ParseField(TIME_TO_LIVE_IN_MILLIS_FIELD_NAME), ObjectParser.ValueType.VALUE);
 
-        PARSER.declareField(
-            optionalConstructorArg(),
-            (p, c) -> Script.parse(p, CONDITION_FIELD_NAME),
-            new ParseField(CONDITION_FIELD_NAME),
-            ObjectParser.ValueType.OBJECT
-        );
+        PARSER.declareString(optionalConstructorArg(), new ParseField(CONDITION_FIELD_NAME));
     }
 
     /**
@@ -116,7 +111,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
      * @param condition An optional condition script that sampled documents must satisfy (optional, can be null)
      * @throws IllegalArgumentException If any of the parameters are invalid, according to the validation rules
      */
-    public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, Script condition) {
+    public SamplingConfiguration(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         validateInputs(rate, maxSamples, maxSize, timeToLive, condition);
 
         // Initialize record fields
@@ -134,7 +129,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
      * @throws IOException If an I/O error occurs during deserialization
      */
     public SamplingConfiguration(StreamInput in) throws IOException {
-        this(in.readDouble(), in.readInt(), ByteSizeValue.readFrom(in), in.readTimeValue(), in.readOptionalWriteable(Script::new));
+        this(in.readDouble(), in.readInt(), ByteSizeValue.readFrom(in), in.readTimeValue(), in.readOptionalString());
     }
 
     // Write to StreamOutput
@@ -144,7 +139,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
         out.writeInt(this.maxSamples);
         out.writeWriteable(this.maxSize);
         out.writeTimeValue(this.timeToLive);
-        out.writeOptionalWriteable(this.condition);
+        out.writeOptionalString(this.condition);
     }
 
     // Serialize to XContent (JSON)
@@ -185,7 +180,7 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
     }
 
     // Input validation method
-    private static void validateInputs(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, Script condition) {
+    private static void validateInputs(double rate, Integer maxSamples, ByteSizeValue maxSize, TimeValue timeToLive, String condition) {
         // Validate rate
         if (rate <= 0 || rate > 1) {
             throw new IllegalArgumentException(INVALID_RATE_MESSAGE);
@@ -221,6 +216,10 @@ public record SamplingConfiguration(double rate, Integer maxSamples, ByteSizeVal
             if (timeToLive.compareTo(maxLimit) > 0) {
                 throw new IllegalArgumentException(INVALID_TIME_TO_LIVE_MAX_MESSAGE);
             }
+        }
+
+        if (condition != null && condition.isEmpty()) {
+            throw new IllegalArgumentException("condition script, if provided, must not be empty");
         }
     }
 }

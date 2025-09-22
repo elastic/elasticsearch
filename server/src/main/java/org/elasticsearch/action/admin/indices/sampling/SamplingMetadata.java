@@ -66,7 +66,7 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
      * Constructs a new SamplingMetadata with the given index to sampling configuration map.
      *
      * @param indexToSamplingConfigMap A map from index name to sampling configuration. The map is copied
-     *                                 to ensure immutability of the metadata object.
+     *                                 to ensure the immutability of the metadata object.
      */
     public SamplingMetadata(Map<String, SamplingConfiguration> indexToSamplingConfigMap) {
         this.indexToSamplingConfigMap = new HashMap<>(indexToSamplingConfigMap);

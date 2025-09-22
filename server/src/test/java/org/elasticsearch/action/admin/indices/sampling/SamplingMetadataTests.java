@@ -15,15 +15,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ProjectCustom> {
 
@@ -86,7 +87,23 @@ public class SamplingMetadataTests extends ChunkedToXContentDiffableSerializatio
             randomBoolean() ? null : randomIntBetween(1, 1000),
             randomBoolean() ? null : ByteSizeValue.ofGb(randomIntBetween(1, 5)),
             randomBoolean() ? null : new TimeValue(randomIntBetween(1, 30), TimeUnit.DAYS),
-            randomBoolean() ? new Script(ScriptType.INLINE, "painless", randomAlphaOfLength(10), Map.of()) : null
+            randomBoolean() ? randomAlphaOfLength(10) : null
         );
+    }
+
+    public void testHumanReadableParsing() throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+            """
+                {
+                  "rate": ".05",
+                  "max_samples": 20,
+                  "max_size": "10mb",
+                  "time_to_live": "1d",
+                  "if": "ctx?.network?.name == 'Guest'"
+                }
+                """);
+        SamplingConfiguration configuration = SamplingConfiguration.fromXContent(parser);
+        assertThat(configuration.maxSize(), equalTo(ByteSizeValue.ofMb(10)));
+        assertThat(configuration.timeToLive(), equalTo(TimeValue.timeValueDays(1)));
     }
 }

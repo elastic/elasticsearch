@@ -298,32 +298,32 @@ public class Approximate {
                 return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
             } else if (encounteredStats.get() == false && plan instanceof Aggregate aggregate) {
                 encounteredStats.set(true);
-                Alias sampleId = new Alias(
+                Alias bucketId = new Alias(
                     Source.EMPTY,
-                    ".sample_id",
+                    ".bucket_id",
                     new MvAppend(
                         Source.EMPTY,
                         Literal.integer(Source.EMPTY, -1),
                         new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
                     )
                 );
-                Eval addSampleId = new Eval(Source.EMPTY, aggregate.child(), List.of(sampleId));
+                Eval addBucketId = new Eval(Source.EMPTY, aggregate.child(), List.of(bucketId));
                 List<NamedExpression> aggregates = new ArrayList<>();
                 for (NamedExpression aggr : aggregate.aggregates()) {
                     if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        aggregates.add(new Alias(Source.EMPTY, ".sampled-" + alias.name(), alias.child()));
+                        aggregates.add(new Alias(Source.EMPTY, ".bucketed-" + alias.name(), alias.child()));
                     } else {
                         aggregates.add(aggr);
                     }
                 }
                 List<Expression> groupings = new ArrayList<>(aggregate.groupings());
-                groupings.add(sampleId.toAttribute());
-                aggregates.add(sampleId.toAttribute());
-                Aggregate aggregateWithSampledId = (Aggregate) aggregate.with(addSampleId, groupings, aggregates)
+                groupings.add(bucketId.toAttribute());
+                aggregates.add(bucketId.toAttribute());
+                Aggregate aggregateWithBucketId = (Aggregate) aggregate.with(addBucketId, groupings, aggregates)
                     .transformExpressionsOnlyUp(
                         expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(
                             new Case(Source.EMPTY,
-                                new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
                                 List.of(
                                     Literal.fromDouble(Source.EMPTY, sampleProbability),
                                     Literal.fromDouble(Source.EMPTY, sampleProbability / BUCKET_COUNT)
@@ -333,7 +333,7 @@ public class Approximate {
                 aggregates = new ArrayList<>();
                 for (int i = 0; i < aggregate.aggregates().size(); i++) {
                     NamedExpression aggr = aggregate.aggregates().get(i);
-                    NamedExpression sampledAggr = aggregateWithSampledId.aggregates().get(i);
+                    NamedExpression sampledAggr = aggregateWithBucketId.aggregates().get(i);
                     if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
                         // TODO: probably filter low non-empty bucket counts. They're inaccurate and for skew, you need >=3.
                         aggregates.add(
@@ -343,12 +343,12 @@ public class Approximate {
                                     new Min(
                                         Source.EMPTY,
                                         sampledAggr.toAttribute(),
-                                        new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1))
+                                        new Equals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1))
                                     ),
                                     new Top(
                                         Source.EMPTY,
                                         sampledAggr.toAttribute(),
-                                        new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                        new NotEquals(Source.EMPTY, bucketId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
                                         Literal.integer(Source.EMPTY, BUCKET_COUNT),
                                         Literal.keyword(Source.EMPTY, "ASC")
                                     ),
@@ -363,7 +363,7 @@ public class Approximate {
                 }
                 plan = new Aggregate(
                     Source.EMPTY,
-                    aggregateWithSampledId,
+                    aggregateWithBucketId,
                     aggregate.groupings().stream().map(e -> e instanceof Alias a ? a.toAttribute() : e).toList(),
                     aggregates
                 );

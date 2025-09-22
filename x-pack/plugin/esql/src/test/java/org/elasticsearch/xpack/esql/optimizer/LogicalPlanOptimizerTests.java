@@ -1051,7 +1051,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             : new Limit(
                 limit.source(),
                 limit.limit(),
-                join.replaceChildren(limit.replaceChild(join.left()).withLocal(true), join.right()),
+                join.replaceChildren(limit.replaceChild(join.left()), join.right()),
                 true
             );
 

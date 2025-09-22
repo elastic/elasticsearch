@@ -152,9 +152,8 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 return Optional.of(ReadAdvice.NORMAL);
             }
             Optional<ReadAdvice> advice = MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
-            return MADV_RANDOM_FEATURE_FLAG.isEnabled() ? advice : advice.map(r -> r == ReadAdvice.RANDOM ? ReadAdvice.NORMAL : r);  // avoid
-                                                                                                                                     // RANDOM
-                                                                                                                                     // regardless
+            // avoid RANDOM regardless
+            return MADV_RANDOM_FEATURE_FLAG.isEnabled() ? advice : advice.map(r -> r == ReadAdvice.RANDOM ? ReadAdvice.NORMAL : r);
         };
     }
 

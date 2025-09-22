@@ -550,6 +550,32 @@ public class LuceneTests extends ESTestCase {
         IOUtils.close(writer, dir);
     }
 
+    public void testQueryFilteredDirectoryReader() throws IOException {
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+
+                Document doc = new Document();
+                doc.add(new StringField("foo", "bar", Store.YES));
+                w.addDocument(doc);
+
+                doc = new Document();
+                doc.add(new StringField("foo", "baz", Store.YES));
+                w.addDocument(doc);
+
+                try (DirectoryReader reader = w.getReader()) {
+                    assertThat(reader.numDocs(), equalTo(2));
+                    DirectoryReader filtered = Lucene.queryFilteredDirectoryReader(reader, new TermQuery(new Term("foo", "bar")));
+                    assertThat(filtered.numDocs(), equalTo(1));
+                    IndexSearcher searcher = newSearcher(filtered);
+                    TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+                    StoredFields storedFields = filtered.storedFields();
+                    assertThat(topDocs.totalHits.value(), equalTo(1L));
+                    assertThat(storedFields.document(topDocs.scoreDocs[0].doc).get("foo"), equalTo("baz"));
+                }
+            }
+        }
+    }
+
     public void testSortFieldSerialization() throws IOException {
         Tuple<SortField, SortField> sortFieldTuple = randomSortField();
         SortField deserialized = copyInstance(

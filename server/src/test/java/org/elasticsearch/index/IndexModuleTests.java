@@ -12,8 +12,12 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.Weight;
@@ -356,6 +360,84 @@ public class IndexModuleTests extends ESTestCase {
         closeIndexService(indexService);
     }
 
+    public void testDirectoryFilterIsBound() throws IOException {
+        final MockEngineFactory engineFactory = new MockEngineFactory(AssertingDirectoryReader.class);
+        IndexModule module = new IndexModule(
+            indexSettings,
+            emptyAnalysisRegistry,
+            engineFactory,
+            Collections.emptyMap(),
+            () -> true,
+            indexNameExpressionResolver,
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP,
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
+            MergeMetrics.NOOP
+        );
+
+        // also test that if a wrapper is set, both are applied and the wrapper is outermost
+        final boolean alsoWrap = randomBoolean();
+        // check that we handle returning a null filter (the common case)
+        final var doFilter = randomBoolean();
+
+        class Wrapper extends FilterDirectoryReader {
+            final DirectoryReader wrappedReader;
+
+            Wrapper(DirectoryReader in) throws IOException {
+                super(in, new SubReaderWrapper() {
+                    @Override
+                    public LeafReader wrap(LeafReader reader) {
+                        return reader;
+                    }
+                });
+                this.wrappedReader = in;
+            }
+
+            @Override
+            protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+                return null;
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        }
+
+        final var filterApplied = new AtomicBoolean(false);
+        module.setReaderFilter(s -> {
+            if (doFilter == false) {
+                return r -> null;
+            } else {
+                filterApplied.set(true);
+                return r -> new MatchAllDocsQuery();
+            }
+        });
+        if (alsoWrap) {
+            module.setReaderWrapper(s -> Wrapper::new);
+        }
+
+        IndexService indexService = newIndexService(module);
+        var wrapper = indexService.getReaderWrapper();
+
+        try (var directory = newDirectory(); var reader = new DummyDirectoryReader(directory)) {
+            var wrapped = wrapper.apply(reader);
+            assertThat(filterApplied.get(), is(doFilter));
+            if (alsoWrap) {
+                assertTrue(wrapped instanceof Wrapper);
+                wrapped = ((Wrapper) wrapped).wrappedReader;
+            }
+            if (false == doFilter) {
+                assertThat(wrapped, sameInstance(reader));
+            }
+        }
+
+        closeIndexService(indexService);
+    }
+
     public void testOtherServiceBound() throws IOException {
         final AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         final IndexEventListener eventListener = new IndexEventListener() {
@@ -489,6 +571,7 @@ public class IndexModuleTests extends ESTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexEventListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexOperationListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReaderFilter(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReaderWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setDirectoryWrapper(null)).getMessage());
@@ -892,6 +975,52 @@ public class IndexModuleTests extends ESTestCase {
         protected WrappedDirectory(Directory in, ShardRouting shardRouting) {
             super(in);
             this.shardRouting = shardRouting;
+        }
+    }
+
+    private static class DummyDirectoryReader extends DirectoryReader {
+        DummyDirectoryReader(Directory directory) throws IOException {
+            super(directory, new LeafReader[0], null);
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged(IndexCommit commit) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected DirectoryReader doOpenIfChanged(IndexWriter writer, boolean applyAllDeletes) throws IOException {
+            return null;
+        }
+
+        @Override
+        public long getVersion() {
+            return 0;
+        }
+
+        @Override
+        public boolean isCurrent() throws IOException {
+            return false;
+        }
+
+        @Override
+        public IndexCommit getIndexCommit() throws IOException {
+            return null;
+        }
+
+        @Override
+        protected void doClose() throws IOException {
+
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
         }
     }
 }

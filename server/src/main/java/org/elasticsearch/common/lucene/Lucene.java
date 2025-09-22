@@ -29,12 +29,14 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NoMergeScheduler;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
@@ -60,9 +62,11 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
@@ -78,6 +82,8 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
+import org.elasticsearch.lucene.util.BitSets;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
 import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
@@ -1010,6 +1016,168 @@ public class Lucene {
         @Override
         public CacheHelper getReaderCacheHelper() {
             return null; // Modifying liveDocs
+        }
+    }
+
+    public static DirectoryReader queryFilteredDirectoryReader(DirectoryReader in, Query query) throws IOException {
+        return new QueryFilterDirectoryReader(in, query);
+    }
+
+    private static class QueryFilterDirectoryReader extends FilterDirectoryReader {
+        private final Query query;
+
+        QueryFilterDirectoryReader(DirectoryReader in, Query query) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new QueryFilterLeafReader(reader, query);
+                }
+            });
+            this.query = query;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new QueryFilterDirectoryReader(in, query);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+    }
+
+    private static class QueryFilterLeafReader extends SequentialStoredFieldsLeafReader {
+        private final Query query;
+
+        private int numDocs = -1;
+        private BitSet filteredDocs;
+
+        protected QueryFilterLeafReader(LeafReader in, Query query) {
+            super(in);
+            this.query = query;
+        }
+
+        /**
+         * Returns all documents that are not deleted and are owned by the current shard.
+         * We need to recalculate this every time because `in.getLiveDocs()` can change when deletes are performed.
+         */
+        @Override
+        public Bits getLiveDocs() {
+            ensureFilteredDocumentsPresent();
+            Bits actualLiveDocs = in.getLiveDocs();
+
+            if (filteredDocs == null) {
+                return actualLiveDocs;
+            }
+
+            if (filteredDocs instanceof MatchAllBitSet) {
+                return new Bits.MatchNoBits(in.maxDoc());
+            }
+
+            var liveDocsBitsWithAllLiveCheck = actualLiveDocs == null ? new MatchAllBitSet(in.maxDoc()) : actualLiveDocs;
+            return new FilterBits(liveDocsBitsWithAllLiveCheck, filteredDocs);
+        }
+
+        @Override
+        public int numDocs() {
+            ensureFilteredDocumentsPresent();
+            return numDocs;
+        }
+
+        @Override
+        public boolean hasDeletions() {
+            // It is possible that there are unowned docs which we are going to present as deletes.
+            return true;
+        }
+
+        @Override
+        protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+            return reader;
+        }
+
+        @Override
+        public CacheHelper getCoreCacheHelper() {
+            return in.getCoreCacheHelper();
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            // Not delegated since we change live docs.
+            return null;
+        }
+
+        private void ensureFilteredDocumentsPresent() {
+            if (numDocs == -1) {
+                synchronized (this) {
+                    if (numDocs == -1) {
+                        try {
+                            filteredDocs = queryFilteredDocs();
+                            numDocs = calculateNumDocs(in, filteredDocs);
+                        } catch (Exception e) {
+                            throw new ElasticsearchException("Failed to execute filtered documents query", e);
+                        }
+                    }
+                }
+            }
+        }
+
+        private BitSet queryFilteredDocs() throws IOException {
+            final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(in.getContext());
+
+            final IndexSearcher searcher = new IndexSearcher(topLevelContext);
+            searcher.setQueryCache(null);
+
+            final Query rewrittenQuery = searcher.rewrite(query);
+            // TODO there is a possible optimization of checking for MatchAllDocsQuery which would mean that all documents are unowned.
+            final Weight weight = searcher.createWeight(rewrittenQuery, ScoreMode.COMPLETE_NO_SCORES, 1f);
+            final Scorer s = weight.scorer(in.getContext());
+            if (s == null) {
+                return null;
+            } else {
+                return BitSets.of(s.iterator(), in.maxDoc());
+            }
+        }
+
+        private static int calculateNumDocs(LeafReader reader, BitSet unownedDocs) {
+            final Bits liveDocs = reader.getLiveDocs();
+
+            // No deleted documents are present, therefore number of documents is total minus unowned.
+            if (liveDocs == null) {
+                return reader.numDocs() - unownedDocs.cardinality();
+            }
+
+            if (unownedDocs instanceof MatchAllBitSet) {
+                return 0;
+            }
+
+            int numDocs = 0;
+            for (int i = 0; i < liveDocs.length(); i++) {
+                if (liveDocs.get(i) && unownedDocs.get(i) == false) {
+                    numDocs++;
+                }
+            }
+            return numDocs;
+        }
+    }
+
+    static class FilterBits implements Bits {
+        private final Bits original;
+        private final Bits filteredOut;
+
+        FilterBits(Bits original, BitSet filteredOut) {
+            this.original = original;
+            this.filteredOut = filteredOut;
+        }
+
+        @Override
+        public boolean get(int index) {
+            return original.get(index) && (filteredOut.get(index) == false);
+        }
+
+        @Override
+        public int length() {
+            return original.length();
         }
     }
 

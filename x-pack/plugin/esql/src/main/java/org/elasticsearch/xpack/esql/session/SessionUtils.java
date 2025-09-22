@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongFunction;
 
 public class SessionUtils {
 
@@ -40,6 +41,14 @@ public class SessionUtils {
             Releasables.closeExpectNoException(builders);
         }
         return blocks;
+    }
+
+    public static long checkPagesBelowSize(List<Page> pages, long maxSize, LongFunction<String> exceptionMessage) {
+        long currentSize = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+        if (currentSize > maxSize) {
+            throw new IllegalArgumentException(exceptionMessage.apply(currentSize));
+        }
+        return currentSize;
     }
 
     public static List<Object> fromPage(List<Attribute> schema, Page page) {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -93,6 +94,7 @@ import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
+import static org.elasticsearch.xpack.esql.session.SessionUtils.checkPagesBelowSize;
 
 public class EsqlSession {
 
@@ -107,6 +109,9 @@ public class EsqlSession {
     }
 
     private static final TransportVersion LOOKUP_JOIN_CCS = TransportVersion.fromName("lookup_join_ccs");
+    private static final double INTERMEDIATE_LOCAL_RELATION_CB_PERCETAGE = .1;
+    private static final long INTERMEDIATE_LOCAL_RELATION_MIN_SIZE = ByteSizeValue.ofMb(1).getBytes();
+    private static final long INTERMEDIATE_LOCAL_RELATION_MAX_SIZE = ByteSizeValue.ofMb(30).getBytes();
 
     private final String sessionId;
     private final Configuration configuration;
@@ -127,6 +132,7 @@ public class EsqlSession {
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
+    private final long maxIntermediateLocalRelationSize;
 
     private boolean explainMode;
     private String parsedPlanString;
@@ -164,6 +170,7 @@ public class EsqlSession {
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
+        maxIntermediateLocalRelationSize = maxIntermediateLocalRelationSize(blockFactory);
     }
 
     public String sessionId() {
@@ -277,7 +284,7 @@ public class EsqlSession {
             try {
                 // Translate the subquery into a separate, coordinator based plan and the results 'broadcasted' as a local relation
                 completionInfoAccumulator.accumulate(result.completionInfo());
-                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan(), result);
+                LocalRelation resultWrapper = resultToPlan(subPlans.stubReplacedSubPlan().source(), result);
                 localRelationBlocks.set(resultWrapper.supplier().get());
                 var releasingNext = ActionListener.runAfter(next, () -> releaseLocalRelationBlocks(localRelationBlocks));
 
@@ -317,11 +324,19 @@ public class EsqlSession {
         }));
     }
 
-    private LocalRelation resultToPlan(LogicalPlan plan, Result result) {
+    private LocalRelation resultToPlan(Source planSource, Result result) {
         List<Page> pages = result.pages();
+        checkPagesBelowSize(
+            pages,
+            maxIntermediateLocalRelationSize,
+            (actual) -> "sub-plan execution results too large ["
+                + ByteSizeValue.ofBytes(actual)
+                + "] > "
+                + ByteSizeValue.ofBytes(maxIntermediateLocalRelationSize)
+        );
         List<Attribute> schema = result.schema();
         Block[] blocks = SessionUtils.fromPages(schema, pages, blockFactory);
-        return new LocalRelation(plan.source(), schema, LocalSupplier.of(blocks));
+        return new LocalRelation(planSource, schema, LocalSupplier.of(blocks));
     }
 
     private static void releaseLocalRelationBlocks(AtomicReference<Block[]> localRelationBlocks) {
@@ -329,6 +344,14 @@ public class EsqlSession {
         if (relationBlocks != null) {
             Releasables.closeExpectNoException(relationBlocks);
         }
+    }
+
+    // returns INTERMEDIATE_LOCAL_RELATION_CB_PERCETAGE percent of the circuit breaker limit, but at least
+    // INTERMEDIATE_LOCAL_RELATION_MIN_SIZE and at most INTERMEDIATE_LOCAL_RELATION_MAX_SIZE
+    static long maxIntermediateLocalRelationSize(BlockFactory blockFactory) {
+        long breakerLimit = blockFactory.breaker().getLimit();
+        long percentageLimit = (long) (breakerLimit * INTERMEDIATE_LOCAL_RELATION_CB_PERCETAGE / 100.d);
+        return Math.min(Math.max(percentageLimit, INTERMEDIATE_LOCAL_RELATION_MIN_SIZE), INTERMEDIATE_LOCAL_RELATION_MAX_SIZE);
     }
 
     private EsqlStatement parse(String query, QueryParams params) {

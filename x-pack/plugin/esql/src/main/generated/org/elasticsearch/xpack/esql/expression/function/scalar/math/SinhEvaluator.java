@@ -73,8 +73,9 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Sinh.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Sinh.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -87,8 +88,9 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double val = valVector.getDouble(p);
         try {
-          result.appendDouble(Sinh.process(valVector.getDouble(p)));
+          result.appendDouble(Sinh.process(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -79,7 +78,7 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         when(clusterService.state().getMinTransportVersion()).thenReturn(
             TransportVersionUtils.randomVersionBetween(
                 random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
+                TransportVersion.minimumCompatible(),
                 TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
             )
         );

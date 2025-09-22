@@ -292,7 +292,7 @@ final class TransportHandshaker {
                 return localTransportVersion;
             }
             final var bestKnownVersion = remoteTransportVersion.bestKnownVersion();
-            if (bestKnownVersion.equals(TransportVersions.ZERO) == false) {
+            if (bestKnownVersion.equals(TransportVersion.zero()) == false) {
                 if (bestKnownVersion.equals(remoteTransportVersion) == false) {
                     // Remote is semantically older than us (i.e. has a lower transport protocol version), but we do not know its exact
                     // transport protocol version so it must be chronologically newer. We recommend not doing this, it implies an upgrade

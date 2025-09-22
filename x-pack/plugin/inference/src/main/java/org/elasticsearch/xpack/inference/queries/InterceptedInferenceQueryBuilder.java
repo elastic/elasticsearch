@@ -175,7 +175,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
     /**
      * Get the query-time inference ID override. If not applicable or available, {@code null} should be returned.
      */
-    protected String getInferenceIdOverride() {
+    protected FullyQualifiedInferenceId getInferenceIdOverride() {
         return null;
     }
 
@@ -284,14 +284,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // In this case, the remote data node will receive the original query, which will in turn result in an error about querying an
         // unsupported field type.
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        Set<String> inferenceIds = getInferenceIdsForFields(
+        Set<FullyQualifiedInferenceId> inferenceIds = getInferenceIdsForFields(
             resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+            queryRewriteContext.getLocalClusterAlias(),
             getFields(),
             resolveWildcards(),
             useDefaultFields()
         );
 
-        if (inferenceIds.isEmpty()) {
+        // If we are handling a CCS request, always retain the intercepted query logic so that we can get inference results generated on
+        // the local cluster from the inference results map when rewriting on remote cluster data nodes. This can be necessary when:
+        // - A query specifies an inference ID override
+        // - Only non-inference fields are queried on the remote cluster
+        if (inferenceIds.isEmpty() && this.ccsRequest == false) {
             // Not querying a semantic text field
             return originalQuery;
         }
@@ -299,7 +304,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // Validate early to prevent partial failures
         coordinatorNodeValidate(resolvedIndices);
 
-        boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
             throw new IllegalArgumentException(
                 originalQuery.getName()
@@ -309,7 +314,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
             );
         }
 
-        String inferenceIdOverride = getInferenceIdOverride();
+        FullyQualifiedInferenceId inferenceIdOverride = getInferenceIdOverride();
         if (inferenceIdOverride != null) {
             inferenceIds = Set.of(inferenceIdOverride);
         }
@@ -337,13 +342,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         return rewritten;
     }
 
-    private static Set<String> getInferenceIdsForFields(
+    private static Set<FullyQualifiedInferenceId> getInferenceIdsForFields(
         Collection<IndexMetadata> indexMetadataCollection,
+        String clusterAlias,
         Map<String, Float> fields,
         boolean resolveWildcards,
         boolean useDefaultFields
     ) {
-        Set<String> inferenceIds = new HashSet<>();
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             final Map<String, Float> indexQueryFields = (useDefaultFields && fields.isEmpty())
                 ? getDefaultFields(indexMetadata.getSettings())
@@ -354,23 +360,34 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 if (indexInferenceFields.containsKey(indexQueryField)) {
                     // No wildcards in field name
                     InferenceFieldMetadata inferenceFieldMetadata = indexInferenceFields.get(indexQueryField);
-                    inferenceIds.add(inferenceFieldMetadata.getSearchInferenceId());
+                    fullyQualifiedInferenceIds.add(
+                        new FullyQualifiedInferenceId(clusterAlias, inferenceFieldMetadata.getSearchInferenceId())
+                    );
                     continue;
                 }
                 if (resolveWildcards) {
                     if (Regex.isMatchAllPattern(indexQueryField)) {
-                        indexInferenceFields.values().forEach(ifm -> inferenceIds.add(ifm.getSearchInferenceId()));
+                        indexInferenceFields.values()
+                            .forEach(
+                                ifm -> fullyQualifiedInferenceIds.add(
+                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
+                                )
+                            );
                     } else if (Regex.isSimpleMatchPattern(indexQueryField)) {
                         indexInferenceFields.values()
                             .stream()
                             .filter(ifm -> Regex.simpleMatch(indexQueryField, ifm.getName()))
-                            .forEach(ifm -> inferenceIds.add(ifm.getSearchInferenceId()));
+                            .forEach(
+                                ifm -> fullyQualifiedInferenceIds.add(
+                                    new FullyQualifiedInferenceId(clusterAlias, ifm.getSearchInferenceId())
+                                )
+                            );
                     }
                 }
             }
         }
 
-        return inferenceIds;
+        return fullyQualifiedInferenceIds;
     }
 
     private static Map<String, Float> getInferenceFieldsMap(

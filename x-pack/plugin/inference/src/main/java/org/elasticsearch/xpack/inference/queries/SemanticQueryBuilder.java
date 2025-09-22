@@ -235,8 +235,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     /**
      * <p>
-     * Get inference results for the provided query using the provided inference IDs. The inference IDs are fully qualified by the
-     * cluster alias in the provided {@link QueryRewriteContext}.
+     * Get inference results for the provided query using the provided fully qualified inference IDs.
      * </p>
      * <p>
      * This method will return an inference results map that will be asynchronously populated with inference results. If the provided
@@ -245,14 +244,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
      * </p>
      *
      * @param queryRewriteContext The query rewrite context
-     * @param inferenceIds The inference IDs to use to generate inference results
+     * @param fullyQualifiedInferenceIds The fully qualified inference IDs to use to generate inference results
      * @param inferenceResultsMap The initial inference results map
      * @param query The query to generate inference results for
      * @return An inference results map
      */
     static Map<FullyQualifiedInferenceId, InferenceResults> getInferenceResults(
         QueryRewriteContext queryRewriteContext,
-        Set<String> inferenceIds,
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds,
         @Nullable Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         @Nullable String query
     ) {
@@ -262,12 +261,19 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             : Map.of();
 
         if (query != null) {
-            for (String inferenceId : inferenceIds) {
-                FullyQualifiedInferenceId fullyQualifiedInferenceId = new FullyQualifiedInferenceId(
-                    queryRewriteContext.getLocalClusterAlias(),
-                    inferenceId
-                );
+            for (FullyQualifiedInferenceId fullyQualifiedInferenceId : fullyQualifiedInferenceIds) {
                 if (currentInferenceResultsMap.containsKey(fullyQualifiedInferenceId) == false) {
+                    if (fullyQualifiedInferenceId.clusterAlias().equals(queryRewriteContext.getLocalClusterAlias()) == false) {
+                        // Catch if we are missing inference results that should have been generated on another cluster
+                        throw new IllegalStateException(
+                            "Cannot get inference results for cluster ["
+                                + fullyQualifiedInferenceId.clusterAlias()
+                                + "] on cluster ["
+                                + queryRewriteContext.getLocalClusterAlias()
+                                + "]"
+                        );
+                    }
+
                     if (modifiedInferenceResultsMap == false) {
                         // Copy the inference results map to ensure it is mutable and thread safe
                         currentInferenceResultsMap = new ConcurrentHashMap<>(currentInferenceResultsMap);
@@ -278,7 +284,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                         queryRewriteContext,
                         ((ConcurrentHashMap<FullyQualifiedInferenceId, InferenceResults>) currentInferenceResultsMap),
                         query,
-                        inferenceId
+                        fullyQualifiedInferenceId.inferenceId()
                     );
                 }
             }
@@ -429,7 +435,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        boolean ccsRequest = this.ccsRequest || resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
         if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
             throw new IllegalArgumentException(
                 NAME + " query does not support cross-cluster search when [ccs_minimize_roundtrips] is false"
@@ -438,10 +444,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         SemanticQueryBuilder rewritten = this;
         if (queryRewriteContext.hasAsyncActions() == false) {
-            Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
+            Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = getInferenceIdsForForField(
+                resolvedIndices.getConcreteLocalIndicesMetadata().values(),
+                queryRewriteContext.getLocalClusterAlias(),
+                fieldName
+            );
             Map<FullyQualifiedInferenceId, InferenceResults> modifiedInferenceResultsMap = getInferenceResults(
                 queryRewriteContext,
-                inferenceIds,
+                fullyQualifiedInferenceIds,
                 inferenceResultsMap,
                 query
             );
@@ -528,17 +538,21 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         throw new IllegalStateException(NAME + " should have been rewritten to another query type");
     }
 
-    private static Set<String> getInferenceIdsForForField(Collection<IndexMetadata> indexMetadataCollection, String fieldName) {
-        Set<String> inferenceIds = new HashSet<>();
+    private static Set<FullyQualifiedInferenceId> getInferenceIdsForForField(
+        Collection<IndexMetadata> indexMetadataCollection,
+        String clusterAlias,
+        String fieldName
+    ) {
+        Set<FullyQualifiedInferenceId> fullyQualifiedInferenceIds = new HashSet<>();
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
             String indexInferenceId = inferenceFieldMetadata != null ? inferenceFieldMetadata.getSearchInferenceId() : null;
             if (indexInferenceId != null) {
-                inferenceIds.add(indexInferenceId);
+                fullyQualifiedInferenceIds.add(new FullyQualifiedInferenceId(clusterAlias, indexInferenceId));
             }
         }
 
-        return inferenceIds;
+        return fullyQualifiedInferenceIds;
     }
 
     @Override

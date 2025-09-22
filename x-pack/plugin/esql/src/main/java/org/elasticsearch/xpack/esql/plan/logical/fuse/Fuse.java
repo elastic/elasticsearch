@@ -8,23 +8,28 @@
 package org.elasticsearch.xpack.esql.plan.logical.fuse;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
 import java.util.List;
 
-public class Fuse extends UnaryPlan implements TelemetryAware {
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
+
+public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
     private final Attribute score;
     private final Attribute discriminator;
-    private final List<NamedExpression> groupings;
+    private final List<NamedExpression> keys;
     private final FuseType fuseType;
     private final MapExpression options;
 
@@ -38,17 +43,16 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
         LogicalPlan child,
         Attribute score,
         Attribute discriminator,
-        List<NamedExpression> groupings,
+        List<NamedExpression> keys,
         FuseType fuseType,
         MapExpression options
     ) {
         super(source, child);
         this.score = score;
         this.discriminator = discriminator;
-        this.groupings = groupings;
+        this.keys = keys;
         this.fuseType = fuseType;
         this.options = options;
-
     }
 
     @Override
@@ -63,16 +67,16 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fuse::new, child(), score, discriminator, groupings, fuseType, options);
+        return NodeInfo.create(this, Fuse::new, child(), score, discriminator, keys, fuseType, options);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Fuse(source(), newChild, score, discriminator, groupings, fuseType, options);
+        return new Fuse(source(), newChild, score, discriminator, keys, fuseType, options);
     }
 
-    public List<NamedExpression> groupings() {
-        return groupings;
+    public List<NamedExpression> keys() {
+        return keys;
     }
 
     public Attribute discriminator() {
@@ -93,6 +97,32 @@ public class Fuse extends UnaryPlan implements TelemetryAware {
 
     @Override
     public boolean expressionsResolved() {
-        return score.resolved() && discriminator.resolved() && groupings.stream().allMatch(Expression::resolved);
+        return score.resolved() && discriminator.resolved() && keys.stream().allMatch(Expression::resolved);
+    }
+
+    @Override
+    public void postAnalysisVerification(Failures failures) {
+        if (score.dataType() != DataType.DOUBLE) {
+            failures.add(fail(score, "expected SCORE BY column [{}] to be DOUBLE, not {}", score.name(), score.dataType()));
+        }
+
+        if (DataType.isString(discriminator.dataType()) == false) {
+            failures.add(
+                fail(
+                    discriminator,
+                    "expected GROUP BY field [{}] to be KEYWORD or TEXT, not {}",
+                    discriminator.name(),
+                    discriminator.dataType()
+                )
+            );
+        }
+
+        for (NamedExpression grouping : keys) {
+            if (DataType.isString(grouping.dataType()) == false) {
+                failures.add(
+                    fail(grouping, "expected KEY BY field [{}] to be KEYWORD or TEXT, not {}", grouping.name(), grouping.dataType())
+                );
+            }
+        }
     }
 }

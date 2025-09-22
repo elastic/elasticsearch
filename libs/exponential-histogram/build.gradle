@@ -13,9 +13,9 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
-  api project(':libs:core')
-  api project(':libs:x-content')
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  implementation project(':libs:core')
+  implementation project(':libs:x-content')
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework"))
   testImplementation('ch.obermuhlner:big-math:2.3.2')

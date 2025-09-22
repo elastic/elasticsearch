@@ -24,9 +24,9 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-queries:${versions.lucene}"
-  api "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-core:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-queries:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-codecs:${versions.lucene}"
   implementation project(':libs:simdvec')
   implementation project(':libs:native')
   implementation project(':libs:logging')

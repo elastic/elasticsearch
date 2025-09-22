@@ -11,10 +11,10 @@ apply plugin: 'elasticsearch.java'
 description = 'Fixture for emulating the EC2 DescribeInstances API running in AWS'
 
 dependencies {
-  api project(':server')
+  implementation project(':server')
   api("junit:junit:${versions.junit}") {
     transitive = false
   }
-  api project(':test:framework')
-  api project(':test:fixtures:aws-fixture-utils')
+  implementation project(':test:framework')
+  implementation project(':test:fixtures:aws-fixture-utils')
 }

@@ -19,7 +19,7 @@ base {
 }
 
 dependencies {
-  api project(":libs:exponential-histogram")
+  implementation project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }

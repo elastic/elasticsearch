@@ -14,8 +14,8 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
-  api project(':libs:core')
-  api project(':libs:logging')
+  implementation project(':libs:core')
+  implementation project(':libs:logging')
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'native'
   }

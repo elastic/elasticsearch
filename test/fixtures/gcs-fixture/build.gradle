@@ -11,6 +11,6 @@ apply plugin: 'elasticsearch.java'
 description = 'Fixture for Google Cloud Storage service'
 
 dependencies {
-  api project(':server')
-  api project(':test:framework')
+  implementation project(':server')
+  implementation project(':test:framework')
 }

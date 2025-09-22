@@ -15,7 +15,7 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  api project(path: ':modules:reindex')
+  implementation project(path: ':modules:reindex')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')

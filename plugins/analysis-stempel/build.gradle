@@ -15,7 +15,7 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analysis-stempel:${versions.lucene}"
+  implementation "org.apache.lucene:lucene-analysis-stempel:${versions.lucene}"
 }
 
 restResources {

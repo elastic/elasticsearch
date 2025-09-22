@@ -27,8 +27,8 @@ dependencies {
   compileOnly project(path: xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   compileOnly "org.locationtech.jts:jts-core:${versions.jts}"
-  api "com.wdtinc:mapbox-vector-tile:3.1.0"
-  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  implementation "com.wdtinc:mapbox-vector-tile:3.1.0"
+  implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
   runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
   //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714

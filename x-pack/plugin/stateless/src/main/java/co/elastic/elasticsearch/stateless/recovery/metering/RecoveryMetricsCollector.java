@@ -105,7 +105,7 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     @Override
     public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
         try {
-            if (indexShard.state() == IndexShardState.POST_RECOVERY) {
+            if (indexShard.state() == IndexShardState.RECOVERING) {
                 final RecoveryState recoveryState = indexShard.recoveryState();
                 assert recoveryState != null;
                 if (recoveryState.getStage() == RecoveryState.Stage.DONE) {

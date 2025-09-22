@@ -416,8 +416,8 @@ class StatelessIndexEventListener implements IndexEventListener {
             } else {
                 final Engine engineOrNull = indexShard.getEngineOrNull();
                 if (engineOrNull instanceof SearchEngine searchEngine) {
-                    assert indexShard.state() == IndexShardState.POST_RECOVERY
-                        : "expected post recovery index shard state but is: " + indexShard.state();
+                    assert indexShard.state() == IndexShardState.RECOVERING
+                        : "expected index in recovering shard state but is: " + indexShard.state();
                     assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
                         : "expected initializing shard routing state but is: " + indexShard.state();
                     indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");

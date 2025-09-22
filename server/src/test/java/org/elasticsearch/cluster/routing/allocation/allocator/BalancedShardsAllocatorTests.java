@@ -688,11 +688,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     public void testReturnEarlyOnShardAssignmentChanges() {
+        var shardWriteLoads = new HashMap<ShardId, Double>();
         var allocationService = new MockAllocationService(
             prefixAllocationDeciders(),
             new TestGatewayAllocator(),
             new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
-            EmptyClusterInfoService.INSTANCE,
+            () -> ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
 
@@ -738,7 +739,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 )
         );
 
-        // A started index with a non-preferred allocation
+        // A started index with a non-preferred allocation (low write load)
+        final double notPreferredLowerWriteLoad = randomDoubleBetween(0.0, 5.0, true);
         final IndexMetadata notPreferredAllocation = anIndex("large-not-preferred-allocation", indexSettings(IndexVersion.current(), 1, 0))
             .putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID()))
             .build();
@@ -751,6 +753,30 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                         .build()
                 )
         );
+        shardWriteLoads.put(new ShardId(notPreferredAllocation.getIndex(), 0), notPreferredLowerWriteLoad);
+
+        // A started index with a non-preferred allocation (max write load)
+        final double notPreferredMaxWriteLoad = randomDoubleBetween(notPreferredLowerWriteLoad, 15.0, true);
+        final IndexMetadata notPreferredAllocationMaxWriteLoad = anIndex(
+            "large-not-preferred-allocation-max-write-load",
+            indexSettings(IndexVersion.current(), 1, 0)
+        ).putInSyncAllocationIds(0, Set.of(UUIDs.randomBase64UUID())).build();
+        projectMetadataBuilder.put(notPreferredAllocationMaxWriteLoad, false);
+        routingTableBuilder.add(
+            IndexRoutingTable.builder(notPreferredAllocationMaxWriteLoad.getIndex())
+                .addShard(
+                    shardRoutingBuilder(
+                        notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                        0,
+                        "large-1",
+                        true,
+                        ShardRoutingState.STARTED
+                    ).withAllocationId(
+                        AllocationId.newInitializing(notPreferredAllocationMaxWriteLoad.inSyncAllocationIds(0).iterator().next())
+                    ).build()
+                )
+        );
+        shardWriteLoads.put(new ShardId(notPreferredAllocationMaxWriteLoad.getIndex(), 0), notPreferredMaxWriteLoad);
 
         // Indices with unbalanced weight of write loads
         final var numWriteLoadIndices = between(3, 5);
@@ -789,12 +815,22 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             assertTrue("unexpected shard state: " + replicaShard, replicaShard.initializing());
 
             // Undesired allocation is not moved because allocate call returns early
-            final var undesiredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
+            final var undesiredShard = routingTable.shardRoutingTable(undesiredAllocation.getIndex().getName(), 0).primaryShard();
             assertTrue("unexpected shard state: " + undesiredShard, undesiredShard.started());
 
             // Not-preferred shard is not moved because allocate call returns early
             final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
             assertFalse("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
+
+            // Not-preferred (max-write-load) shard is not moved because allocate call returns early
+            final var notPreferredAllocationMaxWriteLoadShard = routingTable.shardRoutingTable(
+                notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                0
+            ).primaryShard();
+            assertFalse(
+                "unexpected shard state: " + notPreferredAllocationMaxWriteLoadShard,
+                notPreferredAllocationMaxWriteLoadShard.relocating()
+            );
 
             // Also no rebalancing for indices with unbalanced write loads due to returning early
             for (int i = 0; i < numWriteLoadIndices; i++) {
@@ -815,6 +851,16 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
             assertFalse("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
 
+            // Not-preferred (max-write-load) shard is not moved because allocate call returns early
+            final var notPreferredAllocationMaxWriteLoadShard = routingTable.shardRoutingTable(
+                notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                0
+            ).primaryShard();
+            assertFalse(
+                "unexpected shard state: " + notPreferredAllocationMaxWriteLoadShard,
+                notPreferredAllocationMaxWriteLoadShard.relocating()
+            );
+
             // Still no rebalancing for indices with unbalanced write loads due to returning early
             for (int i = 0; i < numWriteLoadIndices; i++) {
                 final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
@@ -830,6 +876,16 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocation.getIndex().getName(), 0).primaryShard();
             assertTrue("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
 
+            // Not-preferred (max-write-load) shard is not moved because allocate call returns early
+            final var notPreferredAllocationMaxWriteLoadShard = routingTable.shardRoutingTable(
+                notPreferredAllocationMaxWriteLoad.getIndex().getName(),
+                0
+            ).primaryShard();
+            assertFalse(
+                "unexpected shard state: " + notPreferredAllocationMaxWriteLoadShard,
+                notPreferredAllocationMaxWriteLoadShard.relocating()
+            );
+
             // Still no rebalancing for indices with unbalanced write loads due to returning early
             for (int i = 0; i < numWriteLoadIndices; i++) {
                 final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
@@ -838,6 +894,22 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         // Fourth reroute
+        clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
+        {
+            // Not-preferred (max-write-load) allocation is now relocating
+            final RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
+            final var notPreferredShard = routingTable.shardRoutingTable(notPreferredAllocationMaxWriteLoad.getIndex().getName(), 0)
+                .primaryShard();
+            assertTrue("unexpected shard state: " + notPreferredShard, notPreferredShard.relocating());
+
+            // Still no rebalancing for indices with unbalanced write loads due to returning early
+            for (int i = 0; i < numWriteLoadIndices; i++) {
+                final var writeLoadShard = routingTable.shardRoutingTable("large-write-load-" + i, 0).primaryShard();
+                assertTrue("unexpected shard state: " + writeLoadShard, writeLoadShard.started());
+            }
+        }
+
+        // Fifth reroute
         clusterState = startInitializingShardsAndReroute(allocationService, clusterState);
         {
             // Rebalance should happen for one and only one of the indices with unbalanced write loads due to returning early

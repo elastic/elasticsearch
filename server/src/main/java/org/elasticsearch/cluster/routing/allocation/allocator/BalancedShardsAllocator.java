@@ -930,9 +930,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     }
                 } else {
                     // one of the shards is the max-write-load shard
-                    if (shardWriteLoads.containsKey(rhs.shardId()) ^ shardWriteLoads.containsKey(lhs.shardId())) {
+                    final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
+                    final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
+                    if (rhsIsMissing ^ lhsIsMissing) {
                         // prefer any known write-load over it
-                        return shardWriteLoads.containsKey(rhs.shardId()) ? -1 : 1;
+                        return lhsIsMissing ? -1 : 1;
                     } else {
                         // prefer the lowest (non-max) write load
                         return (int) Math.signum(rhsWriteLoad - lhsWriteLoad);

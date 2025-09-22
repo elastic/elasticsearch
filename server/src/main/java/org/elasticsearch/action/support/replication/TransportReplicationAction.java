@@ -469,9 +469,9 @@ public abstract class TransportReplicationAction<
                     throw blockException;
                 }
 
-                int reshardSplitShardCount = primaryRequest.getRequest().reshardSplitShardCount();
-                assert (reshardSplitShardCount == 0
-                    || reshardSplitShardCount == indexMetadata.getReshardSplitShardCountForIndexing(
+                int reshardSplitShardCountChecksum = primaryRequest.getRequest().reshardSplitShardCountChecksum();
+                assert (reshardSplitShardCountChecksum == 0
+                    || reshardSplitShardCountChecksum == indexMetadata.getReshardSplitShardCountForIndexing(
                         primaryRequest.getRequest().shardId().getId()
                     ));
                 if (primaryShardReference.isRelocated()) {

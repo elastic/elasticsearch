@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -38,6 +38,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     implements
         IndicesRequest {
 
+    private static final TransportVersion INDEX_RESHARD_SHARDCOUNT_CHECKSUM = TransportVersion.fromName(
+        "index_reshard_shardcount_checksum"
+    );
+
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     /**
@@ -51,7 +55,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected String index;
 
     /**
-     * The reshardSplitShardCount has been added to accommodate the Resharding feature.
+     * The reshardSplitShardCountChecksum has been added to accommodate the Resharding feature.
      * This is populated when the coordinator is deciding which shards a request applies to.
      * For example, {@link org.elasticsearch.action.bulk.BulkOperation} splits
      * an incoming bulk request into shard level {@link org.elasticsearch.action.bulk.BulkShardRequest}
@@ -72,21 +76,22 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * Example 1:
      * Suppose we are resharding an index from 2 -> 4 shards. While splitting a bulk request, the coordinator observes
      * that target shards are not ready for indexing. So requests that are meant for shard 0 and 2 are bundled together,
-     * sent to shard 0 with “reshardSplitShardCount” 2 in the request.
-     * Requests that are meant for shard 1 and 3 are bundled together, sent to shard 1 with “reshardSplitShardCount” 2 in the request.
+     * sent to shard 0 with “reshardSplitShardCountChecksum” 2 in the request.
+     * Requests that are meant for shard 1 and 3 are bundled together,
+     * sent to shard 1 with “reshardSplitShardCountChecksum” 2 in the request.
      *
      * Example 2:
      * Suppose we are resharding an index from 4 -> 8 shards. While splitting a bulk request, the coordinator observes
      * that source shard 0 has completed HANDOFF but source shards 1, 2, 3 have not completed handoff.
-     * So, the shard-bulk-request it sends to shard 0 and 4 has the "reshardSplitShardCount" 8,
-     * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCount" 4.
+     * So, the shard-bulk-request it sends to shard 0 and 4 has the "reshardSplitShardCountChecksum" 8,
+     * while the shard-bulk-request it sends to shard 1,2,3 has the "reshardSplitShardCountChecksum" 4.
      * Note that in this case no shard-bulk-request is sent to shards 5, 6, 7 and the requests that were meant for these target shards
      * are bundled together with and sent to their source shards.
      *
-     * A value of 0 indicates an INVALID reshardSplitShardCount. Hence, a request with INVALID reshardSplitShardCount
+     * A value of 0 indicates an INVALID reshardSplitShardCountChecksum. Hence, a request with INVALID reshardSplitShardCountChecksum
      * will be treated as a checksum mismatch on the source shard node.
      */
-    protected final int reshardSplitShardCount;
+    protected final int reshardSplitShardCountChecksum;
 
     /**
      * The number of shard copies that must be active before proceeding with the replication action.
@@ -103,7 +108,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         this(shardId, 0, in);
     }
 
-    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount, StreamInput in) throws IOException {
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCountChecksum, StreamInput in) throws IOException {
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
@@ -123,14 +128,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
             index = in.readString();
         }
         routedBasedOnClusterVersion = in.readVLong();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
+        if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_CHECKSUM)) {
             if (thinRead) {
-                this.reshardSplitShardCount = reshardSplitShardCount;
+                this.reshardSplitShardCountChecksum = reshardSplitShardCountChecksum;
             } else {
-                this.reshardSplitShardCount = in.readInt();
+                this.reshardSplitShardCountChecksum = in.readInt();
             }
         } else {
-            this.reshardSplitShardCount = 0;
+            this.reshardSplitShardCountChecksum = 0;
         }
     }
 
@@ -142,13 +147,13 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * Creates a new request with resolved shard id and reshardSplitShardCount
+     * Creates a new request with resolved shard id and reshardSplitShardCountChecksum
      */
-    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCount) {
+    public ReplicationRequest(@Nullable ShardId shardId, int reshardSplitShardCountChecksum) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
         this.timeout = DEFAULT_TIMEOUT;
-        this.reshardSplitShardCount = reshardSplitShardCount;
+        this.reshardSplitShardCountChecksum = reshardSplitShardCountChecksum;
     }
 
     /**
@@ -201,8 +206,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * @return The effective shard count as seen by the coordinator when creating this request.
      * can be 0 if this has not yet been resolved.
      */
-    public int reshardSplitShardCount() {
-        return reshardSplitShardCount;
+    public int reshardSplitShardCountChecksum() {
+        return reshardSplitShardCountChecksum;
     }
 
     /**
@@ -259,14 +264,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeTimeValue(timeout);
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARD_SHARDCOUNT_REPLICATION_REQUEST)) {
-            out.writeInt(reshardSplitShardCount);
+        if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_CHECKSUM)) {
+            out.writeInt(reshardSplitShardCountChecksum);
         }
     }
 
     /**
      * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
-     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #reshardSplitShardCount}.
+     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #reshardSplitShardCountChecksum}.
      */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);

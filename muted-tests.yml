@@ -612,9 +612,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/135122
-- class: org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputerTests
-  method: testDesiredBalanceShouldConvergeInABigCluster
-  issue: https://github.com/elastic/elasticsearch/issues/135123
 - class: org.elasticsearch.search.vectors.CachingEnableFilterQueryTests
   method: testBooleanQuery
   issue: https://github.com/elastic/elasticsearch/issues/135124

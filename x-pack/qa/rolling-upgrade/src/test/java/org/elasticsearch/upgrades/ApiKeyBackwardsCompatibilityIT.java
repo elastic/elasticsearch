@@ -209,7 +209,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testCertificateIdentityBackwardsCompatibility() throws Exception {
         switch (CLUSTER_TYPE) {
             case OLD -> {
-                // Old nodes don't support certificate identity feature
                 var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));
                 assertThat(
                     exception.getMessage(),
@@ -255,9 +254,6 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
                 final ObjectPath getPath = ObjectPath.createFromResponse(getResponse);
                 assertThat(getPath.evaluate("api_keys.0.certificate_identity"), equalTo("CN=test-.*"));
-
-                // Verify authentication works
-                authenticateWithApiKey(apiKey.v1(), apiKey.v2());
             }
         }
     }

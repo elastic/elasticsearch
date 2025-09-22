@@ -633,6 +633,9 @@ tests:
 - class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
   method: testBuiltInRolesSyncedOnClusterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/135194
+- class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/135224
 
 # Examples:
 #

@@ -33,8 +33,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
         this(fromMap(map));
     }
 
-    public record Settings(@Nullable String user, @Nullable Map<String, String> headers) {
-    }
+    public record Settings(@Nullable String user, @Nullable Map<String, String> headers) {}
 
     public static Settings createSettings(String user, Map<String, String> stringHeaders) {
         if (user == null && stringHeaders == null) {

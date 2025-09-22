@@ -39,7 +39,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  */
 public class ES920DiskBBQVectorsReader extends IVFVectorsReader {
 
-    public ES920DiskBBQVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
+    public ES920DiskBBQVectorsReader(SegmentReadState state, Map<String, FlatVectorsReader> rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);
     }
 

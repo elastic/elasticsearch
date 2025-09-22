@@ -110,7 +110,16 @@ public class IndexAbstractionResolver {
                 } else {
                     boolean authorized = isAuthorized.test(indexAbstraction, selector);
                     boolean visible = authorized
-                        && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
+                        && indexExists(projectMetadata, indexAbstraction)
+                        && isIndexVisible(
+                            indexAbstraction,
+                            selectorString,
+                            indexAbstraction,
+                            indicesOptions,
+                            projectMetadata,
+                            indexNameExpressionResolver,
+                            includeDataStreams
+                        );
 
                     LocalIndexResolutionResult result = authorized
                         ? (visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE)
@@ -120,7 +129,7 @@ public class IndexAbstractionResolver {
                     // discarded from the `finalIndices` list. Other "ways of unavailable" must be handled by the action
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
-                    Set<String> finalIndices = includeIndices ? resolvedIndices : Set.of();
+                    Set<String> finalIndices = includeIndices ? resolvedIndices : new HashSet<>();
                     resolvedExpressionsBuilder.addLocalExpressions(index, finalIndices, result);
                 }
             }
@@ -278,23 +287,7 @@ public class IndexAbstractionResolver {
         return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
     }
 
-    private boolean existsAndVisible(
-        IndicesOptions indicesOptions,
-        ProjectMetadata projectMetadata,
-        boolean includeDataStreams,
-        String indexAbstraction,
-        String selectorString
-    ) {
-        final IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
-        return abstraction != null
-            && isIndexVisible(
-                indexAbstraction,
-                selectorString,
-                indexAbstraction,
-                indicesOptions,
-                projectMetadata,
-                indexNameExpressionResolver,
-                includeDataStreams
-            );
+    private static boolean indexExists(ProjectMetadata projectMetadata, String indexAbstraction) {
+        return projectMetadata.getIndicesLookup().get(indexAbstraction) != null;
     }
 }

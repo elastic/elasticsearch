@@ -128,7 +128,6 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE));
         e = expectThrows(IllegalArgumentException.class, () -> new SamplingConfiguration(0.5, null, ByteSizeValue.ofBytes(-1), null, null));
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_MAX_SIZE_MIN_MESSAGE));
-        ByteSizeValue maxSizeLimit = ByteSizeValue.ofGb(SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES);
         e = expectThrows(
             IllegalArgumentException.class,
             () -> new SamplingConfiguration(0.5, null, ByteSizeValue.ofGb(SamplingConfiguration.MAX_SIZE_LIMIT_GIGABYTES + 1), null, null)
@@ -143,7 +142,6 @@ public class SamplingConfigurationTests extends AbstractXContentSerializingTestC
             () -> new SamplingConfiguration(0.5, null, null, TimeValue.timeValueDays(-1), null)
         );
         assertThat(e.getMessage(), equalTo(SamplingConfiguration.INVALID_TIME_TO_LIVE_MIN_MESSAGE));
-        TimeValue maxTimeLimit = TimeValue.timeValueDays(SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS);
         e = expectThrows(
             IllegalArgumentException.class,
             () -> new SamplingConfiguration(0.5, null, null, TimeValue.timeValueDays(SamplingConfiguration.MAX_TIME_TO_LIVE_DAYS + 1), null)

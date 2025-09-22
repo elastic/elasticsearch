@@ -46,7 +46,7 @@ public class OpenAiChatCompletionTaskSettings extends OpenAiTaskSettings<OpenAiC
             headers = null;
         }
 
-        return new Settings(user, headers);
+        return createSettings(user, headers);
     }
 
     @Override

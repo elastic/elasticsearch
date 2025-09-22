@@ -45,7 +45,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends OpenAiTaskSettingsTests<O
     }
 
     @Override
-    protected OpenAiEmbeddingsTaskSettings create(Map<String, Object> map) {
+    protected OpenAiEmbeddingsTaskSettings createFromMap(Map<String, Object> map) {
         return new OpenAiEmbeddingsTaskSettings(map);
     }
 

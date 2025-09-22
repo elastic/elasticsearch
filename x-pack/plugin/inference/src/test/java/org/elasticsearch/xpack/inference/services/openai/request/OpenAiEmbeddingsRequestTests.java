@@ -38,12 +38,15 @@ import static org.hamcrest.Matchers.is;
 public class OpenAiEmbeddingsRequestTests extends ESTestCase {
     public void testCreateRequest_WithUrlOrganizationUser_AndCustomHeadersDefined() throws IOException {
 
+        var headerKey = "key";
+        var headerValue = "value";
+
         var model = new OpenAiEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
             new OpenAiEmbeddingsServiceSettings("model", URI.create("www.elastic.co"), "org", null, null, null, false, null),
-            new OpenAiEmbeddingsTaskSettings("user", Map.of("key", "value")),
+            new OpenAiEmbeddingsTaskSettings("user", Map.of(headerKey, headerValue)),
             null,
             new DefaultSecretSettings(new SecureString("secret".toCharArray()))
         );
@@ -63,7 +66,7 @@ public class OpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertThat(httpPost.getLastHeader(ORGANIZATION_HEADER).getValue(), is("org"));
-        assertThat(httpPost.getLastHeader("key").getValue(), is("value"));
+        assertThat(httpPost.getLastHeader(headerKey).getValue(), is(headerValue));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(3));

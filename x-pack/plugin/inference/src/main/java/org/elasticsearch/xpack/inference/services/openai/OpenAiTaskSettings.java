@@ -33,7 +33,16 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
         this(fromMap(map));
     }
 
-    public record Settings(@Nullable String user, @Nullable Map<String, String> headers) {}
+    public record Settings(@Nullable String user, @Nullable Map<String, String> headers) {
+    }
+
+    public static Settings createSettings(String user, Map<String, String> stringHeaders) {
+        if (user == null && stringHeaders == null) {
+            return EMPTY_SETTINGS;
+        } else {
+            return new Settings(user, stringHeaders);
+        }
+    }
 
     private static Settings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {
@@ -50,7 +59,7 @@ public abstract class OpenAiTaskSettings<T extends OpenAiTaskSettings<T>> implem
             throw validationException;
         }
 
-        return new Settings(user, stringHeaders);
+        return createSettings(user, stringHeaders);
     }
 
     public OpenAiTaskSettings(@Nullable String user, @Nullable Map<String, String> headers) {

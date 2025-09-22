@@ -12,7 +12,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettings;
 
 import java.io.IOException;
@@ -24,7 +23,7 @@ import java.util.Map;
  * User is an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
  *  <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
  */
-public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbeddingsTaskSettings> implements TaskSettings {
+public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbeddingsTaskSettings> {
 
     public static final String NAME = "openai_embeddings_task_settings";
 
@@ -58,7 +57,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
             headers = null;
         }
 
-        return new Settings(user, headers);
+        return createSettings(user, headers);
     }
 
     @Override

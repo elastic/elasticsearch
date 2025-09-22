@@ -46,7 +46,7 @@ public class OpenAiChatCompletionTaskSettingsTests extends OpenAiTaskSettingsTes
     }
 
     @Override
-    protected OpenAiChatCompletionTaskSettings create(@Nullable Map<String, Object> map) {
+    protected OpenAiChatCompletionTaskSettings createFromMap(@Nullable Map<String, Object> map) {
         return new OpenAiChatCompletionTaskSettings(map);
     }
 }

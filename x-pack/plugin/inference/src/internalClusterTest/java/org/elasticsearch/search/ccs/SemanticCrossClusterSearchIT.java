@@ -11,6 +11,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
@@ -25,17 +26,20 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -44,6 +48,7 @@ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.ml.action.TransportCoordinatedInferenceAction;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -53,9 +58,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase {
@@ -204,7 +211,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 variableInferenceIdField,
                 semanticTextMapping(localInferenceId),
                 mixedTypeField,
-                semanticTextMapping(localInferenceId)
+                Map.of("type", "text")
             ),
             Map.of(
                 "local_doc_1",
@@ -229,7 +236,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 variableInferenceIdField,
                 semanticTextMapping(remoteInferenceId),
                 mixedTypeField,
-                Map.of("type", "text")
+                semanticTextMapping(remoteInferenceId)
             ),
             Map.of(
                 "remote_doc_1",
@@ -264,13 +271,151 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
-            new MatchQueryBuilder(mixedTypeField, "z"),
+            new MatchQueryBuilder(mixedTypeField, "c"),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")
+            )
+        );
+    }
+
+    public void testKnnQuery() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+
+        final String commonInferenceId = "common-inference-id";
+        final String localInferenceId = "local-inference-id";
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String mixedTypeField1 = "mixed-type-field-1";
+        final String mixedTypeField2 = "mixed-type-field-2";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(
+                commonInferenceId,
+                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                localInferenceId,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                denseVectorMapping(384),
+                mixedTypeField2,
+                semanticTextMapping(localInferenceId)
+            ),
+            Map.of(
+                "local_doc_1",
+                Map.of(commonInferenceIdField, "a"),
+                "local_doc_2",
+                Map.of(mixedTypeField1, generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT)),
+                "local_doc_3",
+                Map.of(mixedTypeField2, "c")
+            )
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(
+                commonInferenceId,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField2,
+                denseVectorMapping(384)
+            ),
+            Map.of(
+                "remote_doc_1",
+                Map.of(commonInferenceIdField, "x"),
+                "remote_doc_2",
+                Map.of(mixedTypeField1, "y"),
+                "remote_doc_3",
+                Map.of(mixedTypeField2, generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT))
+            )
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                commonInferenceIdField,
+                new TextEmbeddingQueryVectorBuilder(null, "a"),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                null
+            ),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1")
+            )
+        );
+
+        // Query a field that has mixed types across clusters
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                mixedTypeField1,
+                new TextEmbeddingQueryVectorBuilder(localInferenceId, "y"),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                null
+            ),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2")
+            )
+        );
+
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                mixedTypeField2,
+                new TextEmbeddingQueryVectorBuilder(localInferenceId, "c"),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                null
+            ),
             queryIndices,
             List.of(
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
             )
         );
+
+        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
+        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
+            mixedTypeField2,
+            new TextEmbeddingQueryVectorBuilder(null, "c"),
+            10,
+            100,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null
+        );
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
+        SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
+        assertResponse(client().search(searchRequest), response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            assertThat(hits.length, equalTo(1));
+            assertThat(hits[0].getId(), equalTo("local_doc_3"));
+
+            SearchResponse.Cluster remoteCluster = response.getClusters().getCluster(REMOTE_CLUSTER);
+            assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+            assertThat(remoteCluster.getFailures().size(), equalTo(1));
+
+            Throwable cause = remoteCluster.getFailures().getFirst().getCause();
+            assertThat(cause, instanceOf(IllegalArgumentException.class));
+            assertThat(cause.getMessage(), equalTo("[model_id] must not be null."));
+        });
     }
 
     private void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
@@ -393,11 +538,30 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         return Map.of("type", SemanticTextFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
     }
 
+    private static Map<String, Object> denseVectorMapping(int dimensions) {
+        return Map.of("type", DenseVectorFieldMapper.CONTENT_TYPE, "dims", dimensions);
+    }
+
     private static String fullyQualifiedIndexName(String clusterAlias, String indexName) {
         return clusterAlias + ":" + indexName;
     }
 
-    public static class FakeMlPlugin extends Plugin implements SearchPlugin {
+    private static float[] generateDenseVectorFieldValue(int dimensions, DenseVectorFieldMapper.ElementType elementType) {
+        if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+            assert dimensions % 8 == 0;
+            dimensions /= 8;
+        }
+
+        float[] vector = new float[dimensions];
+        for (int i = 0; i < dimensions; i++) {
+            // Use a constant value so that relevance is consistent
+            vector[i] = -128.0f;
+        }
+
+        return vector;
+    }
+
+    public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return new MlInferenceNamedXContentProvider().getNamedWriteables();
@@ -412,6 +576,11 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                     TextEmbeddingQueryVectorBuilder.PARSER
                 )
             );
+        }
+
+        @Override
+        public Collection<ActionHandler> getActions() {
+            return List.of(new ActionHandler(CoordinatedInferenceAction.INSTANCE, TransportCoordinatedInferenceAction.class));
         }
     }
 

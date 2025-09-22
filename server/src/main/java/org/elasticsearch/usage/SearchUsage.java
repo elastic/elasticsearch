@@ -10,17 +10,23 @@
 package org.elasticsearch.usage;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Holds usage statistics for an incoming search request
  */
 public final class SearchUsage {
+
+    public final String RETRIEVERS_NAME = "retrievers";
+
     private final Set<String> queries = new HashSet<>();
     private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
     private final Set<String> retrievers = new HashSet<>();
+    private final Map<String, Map<String,Set<String>>> extendedData = new HashMap<>();
 
     /**
      * Track the usage of the provided query
@@ -43,12 +49,27 @@ public final class SearchUsage {
         rescorers.add(name);
     }
 
-    /**
-     * Track retrieve usage
-     */
     public void trackRetrieverUsage(String retriever) {
         retrievers.add(retriever);
+        extendedData
+            .computeIfAbsent(RETRIEVERS_NAME, k -> new HashMap<>())
+            .put(retriever, new HashSet<>());
     }
+
+    /**
+     * Track the usage of extended data for a specific category
+     */
+    private void trackExtendedDataUsage(String category, String name, Set<String> values) {
+        extendedData
+            .computeIfAbsent(RETRIEVERS_NAME, k -> new HashMap<String, Set<String>>())
+            .computeIfAbsent(name, k -> new HashSet<>())
+            .addAll(values);
+    }
+
+    public void trackRetrieverExtendedDataUsage(String name, Set<String> values) {
+        trackExtendedDataUsage(RETRIEVERS_NAME, name, values);
+    }
+
 
     /**
      * Returns the query types that have been used at least once in the tracked search request
@@ -76,5 +97,12 @@ public final class SearchUsage {
      */
     public Set<String> getRetrieverUsage() {
         return Collections.unmodifiableSet(retrievers);
+    }
+
+    /**
+     * Returns the extended data that has been tracked for the search request
+     */
+    public Map<String, Map<String,Set<String>>> getExtendedDataUsage() {
+        return Collections.unmodifiableMap(extendedData);
     }
 }

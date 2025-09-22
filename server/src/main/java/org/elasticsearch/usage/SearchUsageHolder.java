@@ -10,10 +10,12 @@
 package org.elasticsearch.usage;
 
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
+import org.elasticsearch.action.admin.cluster.stats.extended.ExtendedData;
 import org.elasticsearch.common.util.Maps;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -28,6 +30,7 @@ public final class SearchUsageHolder {
     private final Map<String, LongAdder> rescorersUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> sectionsUsage = new ConcurrentHashMap<>();
     private final Map<String, LongAdder> retrieversUsage = new ConcurrentHashMap<>();
+    private final Map<String,Map<String,Map<String,LongAdder>>> extendedDataUsage = new ConcurrentHashMap<>();
 
     SearchUsageHolder() {}
 
@@ -48,6 +51,18 @@ public final class SearchUsageHolder {
         for (String retriever : searchUsage.getRetrieverUsage()) {
             retrieversUsage.computeIfAbsent(retriever, q -> new LongAdder()).increment();
         }
+        for (Map.Entry<String, Map<String,Set<String>>> entry : searchUsage.getExtendedDataUsage().entrySet()) {
+            String category = entry.getKey();
+            for (Map.Entry<String, Set<String>> innerEntry : entry.getValue().entrySet()) {
+                String name = innerEntry.getKey();
+                for (String value : innerEntry.getValue()) {
+                    extendedDataUsage.computeIfAbsent(category, k -> new ConcurrentHashMap<>())
+                        .computeIfAbsent(name, k -> new ConcurrentHashMap<>())
+                        .computeIfAbsent(value, k -> new LongAdder())
+                        .increment();
+                }
+            }
+        }
     }
 
     /**
@@ -62,11 +77,25 @@ public final class SearchUsageHolder {
         rescorersUsage.forEach((query, adder) -> rescorersUsageMap.put(query, adder.longValue()));
         Map<String, Long> retrieversUsageMap = Maps.newMapWithExpectedSize(retrieversUsage.size());
         retrieversUsage.forEach((retriever, adder) -> retrieversUsageMap.put(retriever, adder.longValue()));
+
+        Map<String, Map<String,Map<String, Long>>> extendedDataMap = Maps.newMapWithExpectedSize(extendedDataUsage.size());
+        extendedDataUsage.forEach((category, innerMap) -> {
+            Map<String, Map<String,Long>> nameMap = Maps.newMapWithExpectedSize(innerMap.size());
+            innerMap.forEach((name, valueMap) -> {
+                Map<String, Long> valueCountMap = Maps.newMapWithExpectedSize(valueMap.size());
+                valueMap.forEach((value, adder) -> valueCountMap.put(value, adder.longValue()));
+                nameMap.put(name, Collections.unmodifiableMap(valueCountMap));
+            });
+            extendedDataMap.put(category, Collections.unmodifiableMap(nameMap));
+        });
+        ExtendedData extendedData = new ExtendedData(extendedDataMap);
+
         return new SearchUsageStats(
             Collections.unmodifiableMap(queriesUsageMap),
             Collections.unmodifiableMap(rescorersUsageMap),
             Collections.unmodifiableMap(sectionsUsageMap),
             Collections.unmodifiableMap(retrieversUsageMap),
+            extendedData,
             totalSearchCount.longValue()
         );
     }

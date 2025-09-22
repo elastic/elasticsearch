@@ -6,17 +6,20 @@
  */
 package org.elasticsearch.xpack.esql.view;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 
-public class ListViewsAction extends ActionType<AcknowledgedResponse> {
+public class ListViewsAction extends ActionType<GetViewAction.Response> {
 
     public static final ListViewsAction INSTANCE = new ListViewsAction();
     public static final String NAME = "cluster:admin/xpack/esql/views";
@@ -25,9 +28,9 @@ public class ListViewsAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends MasterNodeRequest<ListViewsAction.Request> {
-        public Request(TimeValue masterNodeTimeout) {
-            super(masterNodeTimeout);
+    public static class Request extends ActionRequest {
+        public Request() {
+            super();
         }
 
         public Request(StreamInput in) throws IOException {
@@ -53,6 +56,51 @@ public class ListViewsAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return ListViewsAction.Request.class.hashCode();
+        }
+    }
+
+    public static class Response extends ActionResponse implements ToXContentObject {
+
+        private final Map<String, View> views;
+
+        public Response(final Map<String, View> views) {
+            this.views = views;
+        }
+
+        public Map<String, View> getViews() {
+            return views;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportAction.localOnly();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.value(views);
+            return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            return views.equals(((Response) o).views);
+        }
+
+        @Override
+        public int hashCode() {
+            return views.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "GetViewAction.Response{view=" + views.toString() + '}';
         }
     }
 }

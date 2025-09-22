@@ -7,61 +7,37 @@
 package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.cluster.remote.RemoteInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Set;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
-public class TransportListViewsAction extends AcknowledgedTransportMasterNodeAction<ListViewsAction.Request> {
+public class TransportListViewsAction extends HandledTransportAction<ListViewsAction.Request, ListViewsAction.Response> {
+    public static final ActionType<RemoteInfoResponse> TYPE = new ActionType<>(ListViewsAction.NAME);
     private final ViewService viewService;
 
     @Inject
-    public TransportListViewsAction(
-        TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        ViewService viewService
-    ) {
-        super(
-            ListViewsAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            ListViewsAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+    public TransportListViewsAction(TransportService transportService, ActionFilters actionFilters, ViewService viewService) {
+        super(ListViewsAction.NAME, transportService, actionFilters, ListViewsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.viewService = viewService;
     }
 
     @Override
-    protected void masterOperation(
-        Task task,
-        ListViewsAction.Request request,
-        ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
-        Set<String> view = viewService.list();
-        if (view == null) {
-            listener.onResponse(AcknowledgedResponse.FALSE);
-        } else {
-            listener.onResponse(AcknowledgedResponse.TRUE);
+    protected void doExecute(Task task, ListViewsAction.Request request, ActionListener<ListViewsAction.Response> listener) {
+        Map<String, View> views = new LinkedHashMap<>();
+        for (String name : viewService.list()) {
+            View view = viewService.get(name);
+            if (view != null) {
+                views.put(name, viewService.get(name));
+            }
         }
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(ListViewsAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        listener.onResponse(new ListViewsAction.Response(views));
     }
 }

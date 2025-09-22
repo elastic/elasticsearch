@@ -94,6 +94,7 @@ public class IndexAbstractionResolver {
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
+                    resolvedExpressionsBuilder.putLocalExpressions(index, Set.of(), SUCCESS);
                 } else {
                     if (minus) {
                         resolvedExpressionsBuilder.excludeAll(resolvedIndices);

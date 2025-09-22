@@ -179,7 +179,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
                         "shard has failed to be restored from the snapshot [default:_repository:_existing/_uuid]"
                             + " - manually close or delete the index "
                             + "[test] in order to retry to restore the snapshot again or use the reroute API to force the allocation of "
-                            + "an empty primary shard. Check the logs for more information about the failure. Failure details:"
+                            + "an empty primary shard. Check the logs for more information about the failure. Details:"
                     )
                 );
             } else {

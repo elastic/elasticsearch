@@ -8,8 +8,8 @@ mapped_pages:
 
 Returns documents that match a provided text, number, date or boolean value. The provided text is analyzed before matching.
 
-See also the {ref}/indices/analyze.html[Analyze API] and
-{ref}/analysis.html[Text analysis concepts].
+See also the [Analyze API]({ref}/indices/analyze.html) and
+[Text analysis concepts]({ref}/analysis.html).
 
 The `match` query is the standard query for performing a full-text search, including options for fuzzy matching.
 

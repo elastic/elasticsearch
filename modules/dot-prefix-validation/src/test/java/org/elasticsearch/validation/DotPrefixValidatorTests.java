@@ -133,6 +133,7 @@ public class DotPrefixValidatorTests extends ESTestCase {
             return "";
         }
 
+        @Override
         void validateIndices(@Nullable Set<String> indices) {
             super.validateIndices(indices);
             if (assertNoWarnings) {

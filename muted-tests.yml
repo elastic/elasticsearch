@@ -630,6 +630,9 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/135224
+- class: org.elasticsearch.compute.aggregation.SampleDoubleAggregatorFunctionTests
+  method: testSimpleWithCranky
+  issue: https://github.com/elastic/elasticsearch/issues/135239
 
 # Examples:
 #

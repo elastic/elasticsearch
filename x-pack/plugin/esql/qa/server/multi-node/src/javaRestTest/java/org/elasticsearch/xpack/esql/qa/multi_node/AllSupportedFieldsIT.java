@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.multi_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.TestClustersThreadFilter;

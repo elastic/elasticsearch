@@ -80,6 +80,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     private final IndexMode indexMode;
 
     private record NodeInfo(String id, Version version) {}
+
     private Map<String, NodeInfo> nodeToInfo;
 
     protected AllSupportedFieldsTestCase(MappedFieldType.FieldExtractPreference extractPreference, IndexMode indexMode) {
@@ -297,8 +298,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case AGGREGATE_METRIC_DOUBLE ->
                 // TODO why not a map?
                 equalTo("{\"min\":-302.5,\"max\":702.3,\"sum\":200.0,\"value_count\":25}");
-            case DENSE_VECTOR ->
-                version.onOrAfter(Version.V_9_2_0)
+            case DENSE_VECTOR -> version.onOrAfter(Version.V_9_2_0)
                 ? matchesList().item(0.5).item(10.0).item(5.9999995)
                 : matchesList().item(0.04283529).item(0.85670584).item(0.5140235);
             default -> throw new AssertionError("unsupported field type [" + type + "]");

@@ -390,7 +390,7 @@ public enum DataType {
     }
 
     private static final Collection<DataType> TYPES = Arrays.stream(values())
-        .filter(d -> d != DOC_DATA_TYPE && d != TSID_DATA_TYPE)
+        .filter(d -> d != DOC_DATA_TYPE)
         .sorted(Comparator.comparing(DataType::typeName))
         .toList();
 

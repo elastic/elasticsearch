@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 /**
  * Collection of static utility methods for helping transform response data between pages and values.
@@ -150,9 +151,13 @@ public final class ResponseValueUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case TSID_DATA_TYPE -> {
+                BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
+                yield TimeSeriesIdFieldMapper.encodeTsid(val);
+            }
             case DENSE_VECTOR -> ((FloatBlock) block).getFloat(offset);
-            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, NULL,
-                PARTIAL_AGG -> throw EsqlIllegalArgumentException.illegalDataType(dataType);
+            case SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, NULL, PARTIAL_AGG ->
+                throw EsqlIllegalArgumentException.illegalDataType(dataType);
         };
     }
 }

@@ -44,6 +44,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -282,6 +283,24 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         floatBuilder.appendFloat(randomFloat());
                     }
                     floatBuilder.endPositionEntry();
+                }
+                case TSID_DATA_TYPE -> {
+                    RoutingPathFields routingPathFields = new RoutingPathFields(null);
+
+                    int numDimensions = randomIntBetween(1, 4);
+                    for (int i = 0; i < numDimensions; i++) {
+                        String fieldName = "dim" + i;
+                        if (randomBoolean()) {
+                            routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
+                        } else {
+                            routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
+                        }
+                    }
+
+
+                    new BytesRef();
+
+                    ((BytesRefBlock.Builder) builder).appendBytesRef(routingPathFields.buildHash().toBytesRef());
                 }
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
@@ -1249,6 +1268,19 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             }
                         }
                         floatBuilder.endPositionEntry();
+                    }
+                    case TSID_DATA_TYPE -> {
+                        RoutingPathFields routingPathFields = new RoutingPathFields(null);
+                        routingPathFields.addString("dimStr", randomAlphaOfLength(randomIntBetween(3, 10)));
+                        routingPathFields.addLong("dimLong", randomLongBetween(1, 1000));
+
+
+//                        BytesRef bytesRef = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+//                        return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
+
+
+
+                        ((BytesRefBlock.Builder) builder).appendBytesRef(routingPathFields.buildHash().toBytesRef());
                     }
                 }
             }

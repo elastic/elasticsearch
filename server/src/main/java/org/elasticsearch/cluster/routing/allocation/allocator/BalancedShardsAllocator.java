@@ -926,21 +926,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     } else if (rhsOverThreshold) {
                         // lhs below threshold, rhs between threshold and maximum, prefer rhs
                         return -1;
-                    } else {
-                        // Both values below the threshold, prefer highest
-                        return Double.compare(lhsWriteLoad, rhsWriteLoad);
                     }
+                    // Both values below the threshold, prefer highest
+                    return Double.compare(lhsWriteLoad, rhsWriteLoad);
+                }
+
+                // at least one of the shards is the max-write-load shard
+                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
+                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
+                if (rhsIsMissing ^ lhsIsMissing) {
+                    // prefer any known write-load over it
+                    return lhsIsMissing ? -1 : 1;
                 } else {
-                    // one of the shards is the max-write-load shard
-                    final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
-                    final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
-                    if (rhsIsMissing ^ lhsIsMissing) {
-                        // prefer any known write-load over it
-                        return lhsIsMissing ? -1 : 1;
-                    } else {
-                        // prefer the lowest (non-max) write load
-                        return Double.compare(rhsWriteLoad, lhsWriteLoad);
-                    }
+                    // prefer the lowest (non-max) write load
+                    return Double.compare(rhsWriteLoad, lhsWriteLoad);
                 }
             }
         }

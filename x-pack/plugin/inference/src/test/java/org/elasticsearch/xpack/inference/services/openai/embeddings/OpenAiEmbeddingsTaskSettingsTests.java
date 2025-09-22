@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS;
@@ -28,16 +25,6 @@ public class OpenAiEmbeddingsTaskSettingsTests extends OpenAiTaskSettingsTests<O
     @Override
     protected OpenAiEmbeddingsTaskSettings createTestInstance() {
         return createRandom();
-    }
-
-    public static Map<String, Object> getTaskSettingsMap(@Nullable String user) {
-        var map = new HashMap<String, Object>();
-
-        if (user != null) {
-            map.put(OpenAiServiceFields.USER, user);
-        }
-
-        return map;
     }
 
     @Override

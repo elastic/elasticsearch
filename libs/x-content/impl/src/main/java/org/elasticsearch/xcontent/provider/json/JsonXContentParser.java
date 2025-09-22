@@ -145,19 +145,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentString optimizedText() throws IOException {
-        if (currentToken().isValue() == false) {
-            throwOnNoText();
-        }
-        var parser = this.parser;
-        if (parser instanceof FilteringParserDelegate delegate) {
-            parser = delegate.delegate();
-        }
-        if (parser instanceof OptimizedTextCapable optimizedTextCapableParser) {
-            var bytesRef = optimizedTextCapableParser.getValueAsText();
-            if (bytesRef != null) {
-                return bytesRef;
-            }
-        }
+        // TODO: enable utf-8 parsing optimization once verified it is completely safe
         return new Text(text());
     }
 

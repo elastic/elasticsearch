@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.TestEsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
@@ -105,7 +106,7 @@ public class RefCountingRunnableTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             true,
-            ESTestCase.testOnlyDaemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             new ThreadContext(Settings.EMPTY)
         );
         final var asyncPermits = new Semaphore(between(0, 1000));

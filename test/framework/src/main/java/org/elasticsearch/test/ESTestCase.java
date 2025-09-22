@@ -205,7 +205,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -490,22 +489,6 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static TransportAddress buildNewFakeTransportAddress() {
         return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
-    }
-
-    /**
-     * Other than EsExecutors.daemonThreadFactory this doesn't follow the general naming pattern of ES threads:
-     * {@code elasticsearch[<nodeName>][<executorName>][T#<threadNumber>]}.
-     * This is sometimes desirable to easily distinguish test threads from ES threads.
-     */
-    public static ThreadFactory testOnlyDaemonThreadFactory(final String name) {
-        assert name != null && name.isEmpty() == false;
-        final AtomicInteger threadNumber = new AtomicInteger(1);
-        final ThreadGroup group = Thread.currentThread().getThreadGroup();
-        return runnable -> {
-            Thread t = new Thread(group, runnable, name + "[T#" + threadNumber.getAndIncrement() + "]");
-            t.setDaemon(true);
-            return t;
-        };
     }
 
     /**

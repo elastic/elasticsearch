@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TestEsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
@@ -93,7 +94,7 @@ public class LifecycleTests extends ESTestCase {
                 10,
                 TimeUnit.SECONDS,
                 true,
-                ESTestCase.testOnlyDaemonThreadFactory("test"),
+                TestEsExecutors.testOnlyDaemonThreadFactory("test"),
                 new ThreadContext(Settings.EMPTY)
             );
         }

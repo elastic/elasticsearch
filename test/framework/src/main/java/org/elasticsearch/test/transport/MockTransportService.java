@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.TestEsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -306,7 +307,7 @@ public class MockTransportService extends TransportService {
             30,
             TimeUnit.SECONDS,
             true,
-            ESTestCase.testOnlyDaemonThreadFactory("mock-transport"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("mock-transport"),
             threadPool.getThreadContext()
         );
     }

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AbstractThrottledTaskRunnerTests extends ESTestCase {
 
-    private static final ThreadFactory threadFactory = ESTestCase.testOnlyDaemonThreadFactory("test");
+    private static final ThreadFactory threadFactory = TestEsExecutors.testOnlyDaemonThreadFactory("test");
     private static final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
 
     private ExecutorService executor;

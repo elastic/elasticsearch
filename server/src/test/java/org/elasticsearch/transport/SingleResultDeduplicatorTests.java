@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TestEsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -110,7 +111,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                     "test",
                     threads,
                     0,
-                    ESTestCase.testOnlyDaemonThreadFactory("test"),
+                    TestEsExecutors.testOnlyDaemonThreadFactory("test"),
                     threadContext,
                     EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 );

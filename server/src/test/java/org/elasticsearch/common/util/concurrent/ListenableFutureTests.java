@@ -82,7 +82,7 @@ public class ListenableFutureTests extends ESTestCase {
             "testConcurrentListenerRegistrationAndCompletion",
             numberOfThreads,
             1000,
-            ESTestCase.testOnlyDaemonThreadFactory("listener"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("listener"),
             threadContext,
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
@@ -157,7 +157,7 @@ public class ListenableFutureTests extends ESTestCase {
             "testRejection",
             1,
             1,
-            ESTestCase.testOnlyDaemonThreadFactory("testRejection"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("testRejection"),
             threadContext,
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );

@@ -16,10 +16,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TestEsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.util.HashMap;
@@ -206,7 +206,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             randomLongBetween(0, 100),
             TimeUnit.MILLISECONDS,
             rejectAfterShutdown,
-            ESTestCase.testOnlyDaemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
             new ThreadContext(Settings.EMPTY)
         );
         try {
@@ -309,7 +309,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             randomLongBetween(0, 100),
             TimeUnit.MILLISECONDS,
             true,
-            ESTestCase.testOnlyDaemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
+            TestEsExecutors.testOnlyDaemonThreadFactory(getTestName().toLowerCase(Locale.ROOT)),
             new ThreadContext(Settings.EMPTY)
         );
         try {

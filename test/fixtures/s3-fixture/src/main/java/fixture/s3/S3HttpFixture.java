@@ -15,10 +15,10 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.TestEsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.rules.ExternalResource;
 
@@ -90,7 +90,7 @@ public class S3HttpFixture extends ExternalResource {
                 30,
                 TimeUnit.SECONDS,
                 true,
-                ESTestCase.testOnlyDaemonThreadFactory("s3-http-fixture"),
+                TestEsExecutors.testOnlyDaemonThreadFactory("s3-http-fixture"),
                 new ThreadContext(Settings.EMPTY)
             );
 

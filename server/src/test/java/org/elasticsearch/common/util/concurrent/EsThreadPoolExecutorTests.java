@@ -11,7 +11,6 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.security.AccessControlException;
@@ -146,7 +145,7 @@ public class EsThreadPoolExecutorTests extends ESSingleNodeTestCase {
                 public boolean offer(Runnable r) {
                     throw exception;
                 }
-            }, ESTestCase.testOnlyDaemonThreadFactory("test"), new ThreadContext(Settings.EMPTY));
+            }, TestEsExecutors.testOnlyDaemonThreadFactory("test"), new ThreadContext(Settings.EMPTY));
         }
 
         @Override

@@ -60,7 +60,7 @@ public class JsonXContentTests extends BaseXContentTestCase {
             assertTrue(parser.nextToken().isValue());
             Text text = (Text) parser.optimizedText();
             // TODO: uncomment after utf8 optimized parsing has been enabled again:
-//            assertTrue(text.hasBytes());
+            // assertTrue(text.hasBytes());
             assertThat(text.string(), equalTo("foo"));
         }
     }

@@ -4463,10 +4463,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testImplicitCastingForAggregateMetricDouble() {
-        assumeTrue(
-            "aggregate metric double implicit casting must be available",
-            EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS.isEnabled()
-        );
         Map<String, EsField> mapping = Map.of(
             "@timestamp",
             new EsField("@timestamp", DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE),

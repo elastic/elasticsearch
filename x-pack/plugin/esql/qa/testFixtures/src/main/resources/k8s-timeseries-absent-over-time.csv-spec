@@ -165,7 +165,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_of_aggregate_metric_double
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | STATS is_present = max(absent_over_time(network.eth0.tx)) BY cluster, time_bucket = tbucket(10 minute) | SORT time_bucket, cluster | LIMIT 10;
 
 is_present:boolean | cluster:keyword | time_bucket:datetime
@@ -271,7 +271,7 @@ false              | staging         | 2024-05-10T00:20:00.000Z
 
 absent_over_time_older_than_10d
 required_capability: ts_command_v0
-required_capability: aggregate_metric_double
+required_capability: aggregate_metric_double_v0
 TS k8s-downsampled | WHERE cluster == "qa" AND @timestamp < now() - 10 day | STATS is_present = max(absent_over_time(network.eth0.rx)) BY pod, time_bucket = tbucket(10 minute) | SORT time_bucket, pod | LIMIT 5;
 
 is_present:boolean | pod:keyword | time_bucket:datetime

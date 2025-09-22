@@ -50,10 +50,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             randomClusterAliases(),
             clusterAlias -> updateClusterSettings(
                 Settings.builder()
-                    .put(
-                        SIGNING_CERTIFICATE_AUTHORITIES.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                        getDataPath("/org/elasticsearch/xpack/security/signature/root.crt")
-                    )
+                    .put(SIGNING_CERTIFICATE_AUTHORITIES.getKey(), getDataPath("/org/elasticsearch/xpack/security/signature/root.crt"))
                     .put(
                         SIGNING_CERT_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")
@@ -69,7 +66,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             ),
             clusterAlias -> updateClusterSettings(
                 Settings.builder()
-                    .putNull(SIGNING_CERTIFICATE_AUTHORITIES.getConcreteSettingForNamespace(clusterAlias).getKey())
+                    .putNull(SIGNING_CERTIFICATE_AUTHORITIES.getKey())
                     .putNull(SIGNING_CERT_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEY_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
             )
@@ -82,21 +79,18 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                 Map.of(
                     SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey(),
                     "secretpassword".toCharArray(),
-                    SIGNING_TRUSTSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                    SIGNING_TRUSTSTORE_SECURE_PASSWORD.getKey(),
                     (inFipsJvm() ? "secretpassword".toCharArray() : "changeit".toCharArray())
                 )
             );
             updateClusterSettings(
                 Settings.builder()
                     .put(
-                        SIGNING_TRUSTSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey(),
+                        SIGNING_TRUSTSTORE_PATH.getKey(),
                         getDataPath("/org/elasticsearch/xpack/security/signature/truststore." + (inFipsJvm() ? "bcfks" : "jks"))
                     )
-                    .put(SIGNING_TRUSTSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey(), inFipsJvm() ? "BCFKS" : "PKCS12")
-                    .put(
-                        SIGNING_TRUSTSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                        KeyManagerFactory.getDefaultAlgorithm()
-                    )
+                    .put(SIGNING_TRUSTSTORE_TYPE.getKey(), inFipsJvm() ? "BCFKS" : "PKCS12")
+                    .put(SIGNING_TRUSTSTORE_ALGORITHM.getKey(), KeyManagerFactory.getDefaultAlgorithm())
                     .put(
                         SIGNING_KEYSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey(),
                         KeyManagerFactory.getDefaultAlgorithm()
@@ -112,18 +106,18 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
             updateClusterSettings(
                 Settings.builder()
                     .putNull(SIGNING_KEYSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
-                    .putNull(SIGNING_TRUSTSTORE_PATH.getConcreteSettingForNamespace(clusterAlias).getKey())
-                    .putNull(SIGNING_TRUSTSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey())
+                    .putNull(SIGNING_TRUSTSTORE_PATH.getKey())
+                    .putNull(SIGNING_TRUSTSTORE_TYPE.getKey())
                     .putNull(SIGNING_KEYSTORE_TYPE.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEYSTORE_ALIAS.getConcreteSettingForNamespace(clusterAlias).getKey())
                     .putNull(SIGNING_KEYSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey())
-                    .putNull(SIGNING_TRUSTSTORE_ALGORITHM.getConcreteSettingForNamespace(clusterAlias).getKey())
+                    .putNull(SIGNING_TRUSTSTORE_ALGORITHM.getKey())
                     .setSecureSettings(new MockSecureSettings())
             );
             removeSecureSettingsFromKeyStoreAndReload(
                 Set.of(
                     SIGNING_KEYSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey(),
-                    SIGNING_TRUSTSTORE_SECURE_PASSWORD.getConcreteSettingForNamespace(clusterAlias).getKey()
+                    SIGNING_TRUSTSTORE_SECURE_PASSWORD.getKey()
                 )
             );
         });
@@ -297,7 +291,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
                     .put(SIGNING_KEY_PATH.getConcreteSettingForNamespace("test").getKey(), unknownFile)
             )
         );
-        assertThat(exception.getMessage(), equalTo("File [" + unknownFile + "] configured for remote cluster [test] does no exist"));
+        assertThat(exception.getMessage(), equalTo("Configured file [" + unknownFile + "] not found"));
     }
 
     private void addAndRemoveClusterConfigsRuntime(
@@ -315,7 +309,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         try {
             for (var clusterAlias : clusterAliases) {
                 var signer = manager.signerForClusterAlias(clusterAlias);
-                var verfier = manager.verifierForClusterAlias(clusterAlias);
+                var verfier = manager.verifier();
                 // Try to create a signature for a remote cluster that doesn't exist
                 assertNull(signer.sign(testHeaders));
                 clusterCreator.accept(clusterAlias);
@@ -333,7 +327,7 @@ public class CrossClusterSigningConfigReloaderIntegTests extends SecurityIntegTe
         } finally {
             var builder = Settings.builder();
             for (var clusterAlias : clusterAliases) {
-                CrossClusterApiKeySigningSettings.getDynamicSettings().forEach(setting -> {
+                CrossClusterApiKeySigningSettings.getDynamicSigningSettings().forEach(setting -> {
                     builder.putNull(setting.getConcreteSettingForNamespace(clusterAlias).getKey());
                 });
             }

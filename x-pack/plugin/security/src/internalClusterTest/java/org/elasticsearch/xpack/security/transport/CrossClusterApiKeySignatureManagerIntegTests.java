@@ -47,14 +47,14 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
             getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt").getParent()
         );
 
-        var verifier = manager.verifierForClusterAlias(STATIC_TEST_CLUSTER_ALIAS);
+        var verifier = manager.verifier();
 
         assertThat(signature.algorithm(), equalToIgnoringCase(keyConfig.getKeys().getFirst().v2().getSigAlgName()));
         assertEquals(signature.certificates()[0], keyConfig.getKeys().getFirst().v2());
         assertTrue(verifier.verify(signature, testHeaders));
     }
 
-    public void testSignAndVerifyUnknownClusterAlias() {
+    public void testSignUnknownClusterAlias() {
         final CrossClusterApiKeySignatureManager manager = internalCluster().getInstance(
             CrossClusterApiKeySignatureManager.class,
             internalCluster().getRandomNodeName()
@@ -62,18 +62,6 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
         final String[] testHeaders = randomArray(5, String[]::new, () -> randomAlphanumericOfLength(randomInt(20)));
         X509CertificateSignature signature = manager.signerForClusterAlias("unknowncluster").sign(testHeaders);
         assertNull(signature);
-
-        var signatureMock = new X509CertificateSignature(
-            new X509Certificate[] { mock(X509Certificate.class) },
-            KeyManagerFactory.getDefaultAlgorithm(),
-            new BytesArray("test")
-        );
-
-        var exception = assertThrows(
-            IllegalStateException.class,
-            () -> manager.verifierForClusterAlias("unknowncluster").verify(signatureMock, testHeaders)
-        );
-        assertThat(exception.getMessage(), equalToIgnoringCase("No trust manager found for [unknowncluster]"));
     }
 
     public void testSeveralKeyStoreAliases() {
@@ -136,10 +124,7 @@ public class CrossClusterApiKeySignatureManagerIntegTests extends SecurityIntegT
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         var builder = Settings.builder();
         MockSecureSettings secureSettings = (MockSecureSettings) builder.put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(
-                SIGNING_CERTIFICATE_AUTHORITIES.getConcreteSettingForNamespace(STATIC_TEST_CLUSTER_ALIAS).getKey(),
-                getDataPath("/org" + "/elasticsearch/xpack/security/signature/root.crt")
-            )
+            .put(SIGNING_CERTIFICATE_AUTHORITIES.getKey(), getDataPath("/org" + "/elasticsearch/xpack/security/signature/root.crt"))
             .put(
                 SIGNING_CERT_PATH.getConcreteSettingForNamespace(STATIC_TEST_CLUSTER_ALIAS).getKey(),
                 getDataPath("/org/elasticsearch/xpack/security/signature/signing_rsa.crt")

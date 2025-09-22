@@ -21,6 +21,8 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ssl.SslSettingsLoader;
 
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509KeyManager;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,15 +35,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.KEYSTORE_ALIAS_SUFFIX;
 import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigningSettings.SETTINGS_PART_SIGNING;
@@ -49,7 +50,7 @@ import static org.elasticsearch.xpack.security.transport.CrossClusterApiKeySigni
 public class CrossClusterApiKeySignatureManager {
     private final Logger logger = LogManager.getLogger(getClass());
     private final Environment environment;
-    private final Map<String, X509ExtendedTrustManager> trustManagerByClusterAlias = new ConcurrentHashMap<>();
+    private final AtomicReference<X509ExtendedTrustManager> trustManager = new AtomicReference<>();
     private final Map<String, X509KeyPair> keyPairByClusterAlias = new ConcurrentHashMap<>();
     private final Map<String, SslConfiguration> sslConfigByClusterAlias = new ConcurrentHashMap<>();
 
@@ -58,6 +59,28 @@ public class CrossClusterApiKeySignatureManager {
     public CrossClusterApiKeySignatureManager(Environment environment) {
         this.environment = environment;
         loadSigningConfigs();
+        loadTrustConfig();
+    }
+
+    public void reload(Settings settings) {
+        try {
+            // Only load a trust manager if trust is configured to avoid using key store as trust store
+            if (settingsHaveTrustConfig(settings)) {
+                var sslConfig = loadSslConfig(environment, settings);
+                var trustConfig = sslConfig.trustConfig();
+                final X509ExtendedTrustManager newTrustManager = trustConfig.createTrustManager();
+                if (newTrustManager.getAcceptedIssuers().length == 0) {
+                    logger.warn("Cross cluster API Key trust configuration [{}] has no accepted certificate issuers", this, trustConfig);
+                    trustManager.set(null);
+                } else {
+                    trustManager.set(newTrustManager);
+                }
+            } else {
+                trustManager.set(null);
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load trust config", e);
+        }
     }
 
     public void reload(String clusterAlias, Settings settings) {
@@ -66,22 +89,6 @@ public class CrossClusterApiKeySignatureManager {
             try {
                 var sslConfig = loadSslConfig(environment, settings);
                 sslConfigByClusterAlias.put(clusterAlias, sslConfig);
-
-                // Only load a trust manager if trust is configured to avoid using key store as trust store
-                if (settingsHaveTrustConfig(settings)) {
-                    var trustConfig = sslConfig.trustConfig();
-                    final X509ExtendedTrustManager trustManager = trustConfig.createTrustManager();
-                    if (trustManager.getAcceptedIssuers().length == 0) {
-                        logger.warn(
-                            "Cross cluster API Key trust configuration [{}] has no accepted certificate issuers",
-                            this,
-                            trustConfig
-                        );
-                        trustManagerByClusterAlias.remove(clusterAlias);
-                    } else {
-                        trustManagerByClusterAlias.put(clusterAlias, trustManager);
-                    }
-                }
 
                 var keyConfig = sslConfig.keyConfig();
                 if (keyConfig.hasKeyMaterial()) {
@@ -105,9 +112,13 @@ public class CrossClusterApiKeySignatureManager {
             }
         } else {
             logger.trace("No valid signing config settings found for [{}] with settings [{}]", clusterAlias, settings);
-            trustManagerByClusterAlias.remove(clusterAlias);
             keyPairByClusterAlias.remove(clusterAlias);
         }
+    }
+
+    public Collection<Path> getDependentFiles() {
+        var sslConfig = loadSslConfig(environment, environment.settings().getByPrefix("cluster.remote."));
+        return sslConfig == null ? Collections.emptyList() : sslConfig.getDependentFiles();
     }
 
     public Collection<Path> getDependentFiles(String clusterAlias) {
@@ -115,22 +126,25 @@ public class CrossClusterApiKeySignatureManager {
         return sslConfig == null ? Collections.emptyList() : sslConfig.getDependentFiles();
     }
 
-    public void validate(String clusterAlias, Settings settings) {
+    public void validate(Settings settings) {
         if (settings.getByPrefix(SETTINGS_PART_SIGNING).isEmpty() == false) {
             var sslConfig = loadSslConfig(environment, settings);
             if (sslConfig != null) {
                 sslConfig.getDependentFiles().forEach(path -> {
                     if (Files.exists(path) == false) {
-                        throw new IllegalArgumentException(
-                            Strings.format("File [%s] configured for remote cluster [%s] does no exist", path, clusterAlias)
-                        );
+                        throw new IllegalArgumentException(Strings.format("Configured file [%s] not found", path));
                     }
                 });
             }
         }
     }
 
-    public static Map<Path, Set<String>> getInitialFilesToMonitor(Environment environment) {
+    public static Set<Path> getInitialTrustFilesToMonitor(Environment environment) {
+        var trustConfig = loadSslConfig(environment, environment.settings().getByPrefix("cluster.remote."));
+        return new HashSet<>(trustConfig.getDependentFiles());
+    }
+
+    public static Map<Path, Set<String>> getInitialSigningFilesToMonitor(Environment environment) {
         var clusterSettingsByClusterAlias = environment.settings().getGroups("cluster.remote.", true);
         Map<Path, Set<String>> filesToMonitor = new HashMap<>();
         clusterSettingsByClusterAlias.forEach((clusterAlias, settingsForCluster) -> {
@@ -147,8 +161,8 @@ public class CrossClusterApiKeySignatureManager {
         return filesToMonitor;
     }
 
-    public Verifier verifierForClusterAlias(String clusterAlias) {
-        return new Verifier(clusterAlias);
+    public Verifier verifier() {
+        return new Verifier();
     }
 
     public Signer signerForClusterAlias(String clusterAlias) {
@@ -156,25 +170,22 @@ public class CrossClusterApiKeySignatureManager {
     }
 
     public class Verifier {
-        private final String clusterAlias;
-
-        private Verifier(String clusterAlias) {
-            this.clusterAlias = clusterAlias;
-        }
+        private Verifier() {}
 
         public boolean verify(X509CertificateSignature signature, String... headers) {
             assert signature.certificates().length > 0 : "Signature not valid without trusted certificate chain";
 
-            var trustManager = trustManagerByClusterAlias.get(clusterAlias);
-            if (trustManager == null) {
-                logger.warn("No trust manager found for [{}]", clusterAlias);
-                throw new IllegalStateException("No trust manager found for [" + clusterAlias + "]");
+            var authTrustManager = trustManager.get();
+            if (authTrustManager == null) {
+                logger.warn("No trust manager found");
+                throw new IllegalStateException("No trust manager found");
             }
 
             try {
                 // Make sure the provided certificate chain is trusted
-                trustManager.checkClientTrusted(signature.certificates(), signature.certificates()[0].getPublicKey().getAlgorithm());
+                authTrustManager.checkClientTrusted(signature.certificates(), signature.certificates()[0].getPublicKey().getAlgorithm());
                 // TODO Make sure the signing certificate belongs to the correct DN (the configured api key cert identity)
+                // TODO Make sure the signing certificate is valid
                 // Make sure signature is correct
                 final Signature signer = Signature.getInstance(signature.algorithm());
                 signer.initVerify(signature.certificates()[0]);
@@ -182,12 +193,7 @@ public class CrossClusterApiKeySignatureManager {
                 return signer.verify(signature.signature().array());
             } catch (GeneralSecurityException e) {
                 logger.debug("failed certificate validation for Signature [" + signature + "]", e);
-                throw new ElasticsearchSecurityException(
-                    "Failed to verify signature for [{}] from [{}]",
-                    clusterAlias,
-                    signature.certificates()[0],
-                    e
-                );
+                throw new ElasticsearchSecurityException("Failed to verify signature from [{}]", signature.certificates()[0], e);
             }
         }
     }
@@ -264,6 +270,10 @@ public class CrossClusterApiKeySignatureManager {
 
     private void loadSigningConfigs() {
         this.environment.settings().getGroups("cluster.remote.", true).forEach(this::reload);
+    }
+
+    private void loadTrustConfig() {
+        reload(this.environment.settings().getByPrefix("cluster.remote."));
     }
 
     private X509KeyPair buildKeyPair(X509KeyManager keyManager, SslKeyConfig keyConfig) {

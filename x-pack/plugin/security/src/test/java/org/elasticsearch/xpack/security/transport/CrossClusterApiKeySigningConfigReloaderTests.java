@@ -52,13 +52,14 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
     public void testSimpleDynamicSettingsUpdate() {
         Settings settings = settingsBuilder.put("cluster.remote.my_remote.signing.keystore.alias", "mykey").build();
         var environment = TestEnvironment.newEnvironment(settings);
-        var clusterSettings = new ClusterSettings(settings, new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSettings()));
+        var clusterSettings = new ClusterSettings(settings, new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSigningSettings()));
 
         var crossClusterApiKeySigningConfigReloader = new CrossClusterApiKeySigningConfigReloader(
             TestEnvironment.newEnvironment(settings),
             resourceWatcherService,
             clusterSettings,
-            CrossClusterApiKeySignatureManager.getInitialFilesToMonitor(environment)
+            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
+            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
         );
         crossClusterApiKeySigningConfigReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);
         clusterSettings.applySettings(Settings.builder().put("cluster.remote.my_remote.signing.keystore.alias", "anotherkey").build());
@@ -88,14 +89,15 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
 
         var clusterSettings = new ClusterSettings(
             settingsBuilder.build(),
-            new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSettings())
+            new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSigningSettings())
         );
 
         var crossClusterApiKeySigningConfigReloader = new CrossClusterApiKeySigningConfigReloader(
             environment,
             resourceWatcherService,
             clusterSettings,
-            CrossClusterApiKeySignatureManager.getInitialFilesToMonitor(environment)
+            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
+            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
         );
         var crossClusterApiKeySigner = mock(CrossClusterApiKeySignatureManager.class);
 
@@ -121,13 +123,17 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
     }
 
     public void testSimpleSecureSettingsReload() {
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSettings()));
+        var clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSigningSettings())
+        );
         var environment = TestEnvironment.newEnvironment(settingsBuilder.build());
         var crossClusterApiKeySigningConfigReloader = new CrossClusterApiKeySigningConfigReloader(
             environment,
             resourceWatcherService,
             clusterSettings,
-            CrossClusterApiKeySignatureManager.getInitialFilesToMonitor(environment)
+            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
+            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
         );
 
         crossClusterApiKeySigningConfigReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);
@@ -141,13 +147,17 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
     }
 
     public void testSecureSettingsReloadNoMatchingSecureSettings() {
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSettings()));
+        var clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSigningSettings())
+        );
         var environment = TestEnvironment.newEnvironment(settingsBuilder.build());
         var crossClusterApiKeySigningConfigReloader = new CrossClusterApiKeySigningConfigReloader(
             environment,
             resourceWatcherService,
             clusterSettings,
-            CrossClusterApiKeySignatureManager.getInitialFilesToMonitor(environment)
+            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
+            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
         );
         crossClusterApiKeySigningConfigReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);
 
@@ -161,14 +171,18 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
 
     public void testFileUpdatedReloaded() throws Exception {
         var fileToMonitor = createTempFile();
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSettings()));
+        var clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSigningSettings())
+        );
         var initialSettings = settingsBuilder.put("cluster.remote.my_remote.signing.keystore.path", fileToMonitor).build();
         var environment = TestEnvironment.newEnvironment(initialSettings);
         var crossClusterApiKeySigningConfigReloader = new CrossClusterApiKeySigningConfigReloader(
             environment,
             resourceWatcherService,
             clusterSettings,
-            CrossClusterApiKeySignatureManager.getInitialFilesToMonitor(environment)
+            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
+            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
         );
 
         crossClusterApiKeySigningConfigReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);
@@ -185,14 +199,18 @@ public class CrossClusterApiKeySigningConfigReloaderTests extends ESTestCase {
 
     public void testFileDeletedReloaded() throws Exception {
         var fileToMonitor = createTempFile();
-        var clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSettings()));
+        var clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(CrossClusterApiKeySigningSettings.getDynamicSigningSettings())
+        );
         var initialSettings = settingsBuilder.put("cluster.remote.my_remote.signing.keystore.path", fileToMonitor).build();
         var environment = TestEnvironment.newEnvironment(initialSettings);
         var crossClusterApiKeySigningConfigReloader = new CrossClusterApiKeySigningConfigReloader(
             environment,
             resourceWatcherService,
             clusterSettings,
-            CrossClusterApiKeySignatureManager.getInitialFilesToMonitor(environment)
+            CrossClusterApiKeySignatureManager.getInitialTrustFilesToMonitor(environment),
+            CrossClusterApiKeySignatureManager.getInitialSigningFilesToMonitor(environment)
         );
 
         crossClusterApiKeySigningConfigReloader.setSigningConfigLoader(crossClusterApiKeySignatureManager);

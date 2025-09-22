@@ -223,7 +223,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
 
         // We only install the blocker when all primary permits are held during primary relocation or when a hollow shard
         // is recovering (before any ingestion is processed)
-        assert indexShard.state() == IndexShardState.POST_RECOVERY || indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
+        assert indexShard.state() == IndexShardState.RECOVERING || indexShard.getActiveOperationsCount() == IndexShard.OPERATIONS_BLOCKED
             : "can only be done in post recovery or when all primary permits are blocked. current state is "
                 + indexShard.state()
                 + " and active operations count "

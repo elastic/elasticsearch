@@ -948,9 +948,14 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
         final var allShards = stateWithIndices.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
         final var shardWriteLoads = new HashMap<ShardId, Double>();
-        addRandomWriteLoads(shardWriteLoads, allShards, numAtMax, () -> maxWriteLoad);
-        addRandomWriteLoads(shardWriteLoads, allShards, numBetweenLowAndMax, () -> randomDoubleBetween(lowThreshold, maxWriteLoad, true));
-        addRandomWriteLoads(shardWriteLoads, allShards, numBelowLow, () -> randomDoubleBetween(0, lowThreshold, true));
+        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numAtMax, () -> maxWriteLoad);
+        addRandomWriteLoadAndRemoveShard(
+            shardWriteLoads,
+            allShards,
+            numBetweenLowAndMax,
+            () -> randomDoubleBetween(lowThreshold, maxWriteLoad, true)
+        );
+        addRandomWriteLoadAndRemoveShard(shardWriteLoads, allShards, numBelowLow, () -> randomDoubleBetween(0, lowThreshold, true));
         assertThat(allShards, hasSize(numMissing));
 
         final var allocation = new RoutingAllocation(
@@ -1017,7 +1022,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    private void addRandomWriteLoads(
+    private void addRandomWriteLoadAndRemoveShard(
         Map<ShardId, Double> shardWriteLoads,
         Set<ShardRouting> shards,
         int count,

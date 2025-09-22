@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.4 [elasticsearch-9.1.4-release-notes]
-```{applies_to}
-stack: ga 9.1.4
-```
 
 ### Features and enhancements [elasticsearch-9.1.4-features-enhancements]
 
@@ -94,6 +91,8 @@ Search:
 Snapshot/Restore:
 * Delay S3 repo warning if default region absent [#133848](https://github.com/elastic/elasticsearch/pull/133848)
 
+
+
 ## 9.0.7 [elasticsearch-9.0.7-release-notes]
 
 ### Features and enhancements [elasticsearch-9.0.7-features-enhancements]
@@ -144,6 +143,8 @@ Relevance:
 
 Search:
 * KQL: Support boolean operators in field queries [#133737](https://github.com/elastic/elasticsearch/pull/133737) (issue: [#132366](https://github.com/elastic/elasticsearch/issues/132366))
+
+
 
 ## 9.0.6 [elasticsearch-9.0.6-release-notes]
 

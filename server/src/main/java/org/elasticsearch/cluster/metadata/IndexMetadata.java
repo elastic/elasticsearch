@@ -1230,7 +1230,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * See {@code getReshardSplitShardCountChecksum} for more details.
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      */
-    public int getReshardSplitShardCountForIndexing(int shardId) {
+    public int getReshardSplitShardCountChecksumForIndexing(int shardId) {
         return (getReshardSplitShardCountChecksum(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF));
     }
 
@@ -1242,7 +1242,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * See {@code getReshardSplitShardCount} for more details.
      * @param shardId  Input shardId for which we want to calculate the effective shard count
      */
-    public int getReshardSplitShardCountForSearch(int shardId) {
+    public int getReshardSplitShardCountChecksumForSearch(int shardId) {
         return (getReshardSplitShardCountChecksum(shardId, IndexReshardingState.Split.TargetShardState.SPLIT));
     }
 

@@ -471,7 +471,7 @@ public abstract class TransportReplicationAction<
 
                 int reshardSplitShardCountChecksum = primaryRequest.getRequest().reshardSplitShardCountChecksum();
                 assert (reshardSplitShardCountChecksum == 0
-                    || reshardSplitShardCountChecksum == indexMetadata.getReshardSplitShardCountForIndexing(
+                    || reshardSplitShardCountChecksum == indexMetadata.getReshardSplitShardCountChecksumForIndexing(
                         primaryRequest.getRequest().shardId().getId()
                     ));
                 if (primaryShardReference.isRelocated()) {

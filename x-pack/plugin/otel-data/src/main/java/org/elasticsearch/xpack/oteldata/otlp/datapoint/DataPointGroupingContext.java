@@ -151,8 +151,6 @@ public class DataPointGroupingContext {
             TsidBuilder scopeTsidBuilder = ScopeTsidFunnel.forScope(byteStringAccessor, scopeMetrics);
             Hash128 scopeHash = scopeTsidBuilder.hash();
             scopeTsidBuilder.addAll(resourceTsidBuilder);
-            // functionally not required but may speed up sorting of all dimensions if these are already partially sorted
-            scopeTsidBuilder.sortDimensions();
             ScopeGroup scopeGroup = scopes.get(scopeHash);
             if (scopeGroup == null) {
                 scopeGroup = new ScopeGroup(this, scopeMetrics.getScope(), scopeMetrics.getSchemaUrlBytes(), scopeTsidBuilder);

@@ -7,14 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-
-import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -39,27 +31,23 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.action.ContextualAiActionCreator;
-import org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequest;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
-import org.elasticsearch.xpack.inference.services.contextualai.response.ContextualAiRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Contextual AI inference service for reranking tasks.
@@ -137,7 +125,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
         if (taskType != TaskType.RERANK) {
             throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
-        
+
         return new ContextualAiRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
     }
 

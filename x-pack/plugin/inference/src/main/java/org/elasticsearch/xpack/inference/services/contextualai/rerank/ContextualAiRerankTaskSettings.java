@@ -7,13 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
@@ -24,10 +17,13 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
 public class ContextualAiRerankTaskSettings implements TaskSettings {
 
@@ -67,9 +63,7 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
             ? requestSettings.getReturnDocuments()
             : originalSettings.getReturnDocuments();
         var topN = requestSettings.getTopN() != null ? requestSettings.getTopN() : originalSettings.getTopN();
-        var instruction = requestSettings.getInstruction() != null 
-            ? requestSettings.getInstruction() 
-            : originalSettings.getInstruction();
+        var instruction = requestSettings.getInstruction() != null ? requestSettings.getInstruction() : originalSettings.getInstruction();
 
         return new ContextualAiRerankTaskSettings(returnDocuments, topN, instruction);
     }
@@ -138,7 +132,7 @@ public class ContextualAiRerankTaskSettings implements TaskSettings {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
         ContextualAiRerankTaskSettings that = (ContextualAiRerankTaskSettings) object;
-        return Objects.equals(returnDocuments, that.returnDocuments) 
+        return Objects.equals(returnDocuments, that.returnDocuments)
             && Objects.equals(topN, that.topN)
             && Objects.equals(instruction, that.instruction);
     }

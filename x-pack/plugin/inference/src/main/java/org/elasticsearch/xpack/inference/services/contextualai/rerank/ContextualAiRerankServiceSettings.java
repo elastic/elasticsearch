@@ -7,15 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-
-import java.io.IOException;
-import java.net.URI;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
@@ -30,10 +21,21 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
-import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
-public class ContextualAiRerankServiceSettings extends FilteredXContentObject implements ContextualAiRateLimitServiceSettings, ServiceSettings {
+import java.io.IOException;
+import java.net.URI;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+
+public class ContextualAiRerankServiceSettings extends FilteredXContentObject
+    implements
+        ContextualAiRateLimitServiceSettings,
+        ServiceSettings {
 
     public static final String NAME = "contextualai_rerank_service_settings";
     private static final String API_KEY = "api_key";
@@ -41,7 +43,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject im
 
     // TODO: Make this configurable instead of hardcoded. Should support custom endpoints or different ContextualAI regions.
     private static final String DEFAULT_URL = "https://api.contextual.ai/v1/rerank";
-    
+
     // Default rate limit settings - can be adjusted based on ContextualAI's actual limits
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1000); // 1000 requests per minute
 
@@ -54,7 +56,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject im
 
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        
+
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,

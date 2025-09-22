@@ -13,8 +13,8 @@ import java.net.URI;
 
 public interface ContextualAiRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
-    
+
     URI uri();
-    
+
     String modelId();
 }

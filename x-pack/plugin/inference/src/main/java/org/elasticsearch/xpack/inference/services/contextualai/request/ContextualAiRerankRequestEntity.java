@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.request;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Request entity for Contextual AI rerank API.

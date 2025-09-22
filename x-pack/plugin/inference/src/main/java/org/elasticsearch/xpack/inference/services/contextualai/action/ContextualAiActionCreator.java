@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.contextualai.ContextualAiResponseHandler;
-import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 import org.elasticsearch.xpack.inference.services.contextualai.request.ContextualAiRerankRequest;
+import org.elasticsearch.xpack.inference.services.contextualai.rerank.ContextualAiRerankModel;
 import org.elasticsearch.xpack.inference.services.contextualai.response.ContextualAiRerankResponseEntity;
 
 import java.util.Map;

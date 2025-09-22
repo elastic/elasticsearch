@@ -251,22 +251,19 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     }
 
     public void testMaybeReEncode() {
-        String[] nodeIds = new String[] { "node1", "node2", "node3"};
+        String[] nodeIds = new String[] { "node1", "node2", "node3" };
         AtomicInteger idGenerator = new AtomicInteger(0);
         Map<ShardId, SearchContextIdForNode> originalShardIdMap = randomMap(
             10,
             20,
             () -> new Tuple<>(
                 new ShardId("index", "index-uuid", idGenerator.getAndIncrement()),
-                new SearchContextIdForNode(
-                    null,
-                    randomFrom(nodeIds),
-                    randomSearchShardId()
-                )
+                new SearchContextIdForNode(null, randomFrom(nodeIds), randomSearchShardId())
             )
         );
-        PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(SearchContextId.encode(originalShardIdMap, Collections.emptyMap(),
-                TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY));
+        PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(
+            SearchContextId.encode(originalShardIdMap, Collections.emptyMap(), TransportVersion.current(), ShardSearchFailure.EMPTY_ARRAY)
+        );
         {
             // case 1, result shard ids are identical to original PIT ids
             ArrayList<SearchPhaseResult> results = new ArrayList<>();
@@ -280,11 +277,11 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 );
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
-                    pointInTimeBuilder,
-                    results,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    TransportVersionUtils.randomCompatibleVersion(random())
+                pointInTimeBuilder,
+                results,
+                ShardSearchFailure.EMPTY_ARRAY,
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                TransportVersionUtils.randomCompatibleVersion(random())
             );
             assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
         }
@@ -297,10 +294,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 if (randomBoolean()) {
                     // swap to a different node
                     results.add(
-                        new PhaseResult(
-                            searchContextIdForNode.getSearchContextId(),
-                            new SearchShardTarget("otherNode", shardId, null)
-                        )
+                        new PhaseResult(searchContextIdForNode.getSearchContextId(), new SearchShardTarget("otherNode", shardId, null))
                     );
                     shardsWithSwappedNodes.add(shardId);
                 } else {
@@ -313,14 +307,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 }
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
-                    pointInTimeBuilder,
-                    results,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    TransportVersionUtils.randomCompatibleVersion(random())
+                pointInTimeBuilder,
+                results,
+                ShardSearchFailure.EMPTY_ARRAY,
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                TransportVersionUtils.randomCompatibleVersion(random())
             );
             assertNotSame(reEncodedId, pointInTimeBuilder.getEncodedId());
-            SearchContextId reEncodedPit = SearchContextId.decode(new NamedWriteableRegistry(ClusterModule.getNamedWriteables()), reEncodedId);
+            SearchContextId reEncodedPit = SearchContextId.decode(
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                reEncodedId
+            );
             assertEquals(originalShardIdMap.size(), reEncodedPit.shards().size());
             for (ShardId shardId : originalShardIdMap.keySet()) {
                 SearchContextIdForNode original = originalShardIdMap.get(shardId);
@@ -341,19 +338,19 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
                 SearchContextIdForNode searchContextIdForNode = originalShardIdMap.get(shardId);
                 if (randomBoolean()) {
                     results.add(
-                            new PhaseResult(
-                                    searchContextIdForNode.getSearchContextId(),
-                                    new SearchShardTarget(searchContextIdForNode.getNode(), shardId, null)
-                            )
+                        new PhaseResult(
+                            searchContextIdForNode.getSearchContextId(),
+                            new SearchShardTarget(searchContextIdForNode.getNode(), shardId, null)
+                        )
                     );
                 }
             }
             BytesReference reEncodedId = AbstractSearchAsyncAction.maybeReEncodeNodeIds(
-                    pointInTimeBuilder,
-                    results,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    TransportVersionUtils.randomCompatibleVersion(random())
+                pointInTimeBuilder,
+                results,
+                ShardSearchFailure.EMPTY_ARRAY,
+                new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
+                TransportVersionUtils.randomCompatibleVersion(random())
             );
             assertSame(reEncodedId, pointInTimeBuilder.getEncodedId());
         }
@@ -362,7 +359,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
     private ShardSearchContextId randomSearchShardId() {
         return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
     }
-
 
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(
         Set<ShardSearchContextId> contextIds,

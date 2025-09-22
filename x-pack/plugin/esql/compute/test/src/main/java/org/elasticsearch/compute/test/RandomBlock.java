@@ -89,6 +89,9 @@ public record RandomBlock(List<List<Object>> values, Block block) {
     ) {
         List<List<Object>> values = new ArrayList<>();
         Block.MvOrdering mvOrdering = Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
+        if (elementType == ElementType.EXPONENTIAL_HISTOGRAM) {
+            mvOrdering = Block.MvOrdering.UNORDERED; // histograms do not support ordering
+        }
         try (var builder = elementType.newBlockBuilder(positionCount, blockFactory)) {
             boolean bytesRefFromPoints = ESTestCase.randomBoolean();
             Supplier<Point> pointSupplier = ESTestCase.randomBoolean() ? GeometryTestUtils::randomPoint : ShapeTestUtils::randomPoint;
@@ -158,7 +161,6 @@ public record RandomBlock(List<List<Object>> values, Block block) {
                             valuesAtPosition.add(new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(min, max, sum, count));
                         }
                         case EXPONENTIAL_HISTOGRAM -> {
-                            mvOrdering = Block.MvOrdering.UNORDERED; // histograms do not support ordering
                             ExponentialHistogramBlockBuilder b = (ExponentialHistogramBlockBuilder) builder;
                             ExponentialHistogram histogram = BlockTestUtils.randomExponentialHistogram();
                             b.append(histogram);

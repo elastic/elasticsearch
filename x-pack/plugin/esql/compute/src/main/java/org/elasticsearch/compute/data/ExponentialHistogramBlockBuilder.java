@@ -74,6 +74,8 @@ public class ExponentialHistogramBlockBuilder implements Block.Builder {
 
     @Override
     public ExponentialHistogramBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
+        assert mvOrdering == Block.MvOrdering.UNORDERED
+            : "Exponential histograms don't have a natural order, so it doesn't make sense to call this";
         return this;
     }
 

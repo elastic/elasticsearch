@@ -41,6 +41,13 @@ public class BlockBuilderTests extends ESTestCase {
         return params;
     }
 
+    private static boolean supportsVectors(ElementType type) {
+        return switch (type) {
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM -> false;
+            default -> true;
+        };
+    }
+
     private final ElementType elementType;
 
     BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
@@ -184,7 +191,7 @@ public class BlockBuilderTests extends ESTestCase {
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
                         Vector vector = built.asVector();
-                        if (vector != null) { // some types don't support vectors, e.g. AggregateMetricDouble and ExponentialHistogram
+                        if (supportsVectors(elementType)) {
                             assertThat(vector.isConstant(), is(true));
                         }
                         assertThat(built, equalTo(random.block()));

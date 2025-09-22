@@ -165,19 +165,19 @@ also has that change, and knows about the patch backport ids and what they mean.
 ## Index version
 
 Index version is a single incrementing version number for the index data format,
-metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
-subsidiary version id, and patch number respectively.
+metadata, and associated mappings. It is declared with the pattern `M_NNN_S_PP`,
+for the major version, version id, subsidiary version id, and patch number
+respectively.
 
 Index version is stored in index metadata when an index is created,
 and it is used to determine the storage format and what functionality that index supports.
 The index version does not change once an index is created.
 
-In the same way as transport versions, when a change is needed to the index
-data format or metadata, or new mapping types are added, create a new version constant
-below the last one, incrementing the `NNN` version component.
+When a change is needed to the index data format or metadata, or new mapping
+types are added, create a new version constant below the last one, incrementing
+the `NNN` version component.
 
-Unlike transport version, version constants cannot be collapsed together,
+Index version constants cannot be collapsed together,
 as an index keeps its creation version id once it is created.
 Fortunately, new index versions are only created once a month or so,
 so we don’t have a large list of index versions that need managing.

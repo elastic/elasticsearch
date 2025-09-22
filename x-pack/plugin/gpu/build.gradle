@@ -25,6 +25,7 @@ dependencies {
   }
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))
+  yamlRestTestImplementation(project(xpackModule('gpu')))
   clusterModules project(xpackModule('gpu'))
 }
 

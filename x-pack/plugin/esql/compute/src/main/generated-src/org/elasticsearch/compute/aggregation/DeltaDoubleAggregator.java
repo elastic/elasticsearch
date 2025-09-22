@@ -132,7 +132,7 @@ public class DeltaDoubleAggregator {
             final long valuesSeen = timestamps.getLong(valuesSeenIdx);
             ensureCapacity(groupId);
             append(groupId, timestamps.getLong(firstTs), values.getDouble(firstIndex));
-            if (valueCount > 1) {
+            if (valueCount > 2) {
                 ensureCapacity(groupId);
                 append(groupId, timestamps.getLong(firstTs + 1), values.getDouble(firstIndex + 1));
             }

@@ -123,7 +123,7 @@ public class Delta$Type$Aggregator {
 
         void combine(int groupId, LongBlock timestamps, $Type$Block values, int otherPosition) {
             final int valueCount = timestamps.getValueCount(otherPosition);
-            if (valueCount == 0) {
+            if (valueCount <= 1) {
                 return;
             }
             final int valuesSeenIdx = timestamps.getFirstValueIndex(otherPosition);
@@ -132,7 +132,7 @@ public class Delta$Type$Aggregator {
             final long valuesSeen = timestamps.getLong(valuesSeenIdx);
             ensureCapacity(groupId);
             append(groupId, timestamps.getLong(firstTs), values.get$Type$(firstIndex));
-            if (valueCount > 1) {
+            if (valueCount > 2) {
                 ensureCapacity(groupId);
                 append(groupId, timestamps.getLong(firstTs + 1), values.get$Type$(firstIndex + 1));
             }

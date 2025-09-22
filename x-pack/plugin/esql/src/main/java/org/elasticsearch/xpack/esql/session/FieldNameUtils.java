@@ -238,7 +238,7 @@ public class FieldNameUtils {
         Set<String> fieldNames = referencesBuilder.get().build().names();
 
         if (hasEnriches) {
-            // we do not know names of the enrich policy match fields before hand. We need to resolve all fields in thisc ase
+            // we do not know names of the enrich policy match fields beforehand. We need to resolve all fields in this case
             return new PreAnalysisResult(IndexResolver.ALL_FIELDS, wildcardJoinIndices);
         } else if (fieldNames.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index

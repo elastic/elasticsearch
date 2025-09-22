@@ -192,7 +192,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
                 || t == DataType.PARTIAL_AGG
-                || t == DataType.AGGREGATE_METRIC_DOUBLE,
+                || t == DataType.AGGREGATE_METRIC_DOUBLE
+                || t == DataType.TSID_DATA_TYPE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType(), randomOriginalTypes());
@@ -283,7 +284,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                     floatBuilder.endPositionEntry();
                 }
-                case TSID_DATA_TYPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(ESTestCase.randomTsId().toBytesRef());
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();
@@ -1196,7 +1196,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT, TSID_DATA_TYPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {

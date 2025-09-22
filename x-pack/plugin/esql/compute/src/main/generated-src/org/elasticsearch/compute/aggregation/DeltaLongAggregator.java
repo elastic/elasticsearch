@@ -136,7 +136,10 @@ public class DeltaLongAggregator {
                 ensureCapacity(groupId);
                 append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1));
             }
-            states.get(groupId).valuesSeen = Math.max(valuesSeen, states.get(groupId).valuesSeen);
+            // We are merging the state from upstream, which means we have seen
+            // `valuesSeen` values, but we have already counted one or two of them,
+            // which is represented by `valueCount - 1`.
+            states.get(groupId).valuesSeen += valuesSeen - valueCount + 1;
         }
 
         @Override

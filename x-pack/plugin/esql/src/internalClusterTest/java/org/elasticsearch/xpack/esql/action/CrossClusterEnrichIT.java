@@ -502,6 +502,7 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             | LIMIT 2
             | eval ip= TO_STR(host)
             | MV_EXPAND host
+            | WHERE ip != ""
             | %s
             """, enrichHosts(Enrich.Mode.REMOTE));
         var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());

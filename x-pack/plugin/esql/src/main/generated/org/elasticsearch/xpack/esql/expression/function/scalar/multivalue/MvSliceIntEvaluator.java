@@ -101,8 +101,10 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        int end = endBlock.getInt(endBlock.getFirstValueIndex(p));
         try {
-          MvSlice.process(result, p, fieldBlock, startBlock.getInt(startBlock.getFirstValueIndex(p)), endBlock.getInt(endBlock.getFirstValueIndex(p)));
+          MvSlice.process(result, p, fieldBlock, start, end);
         } catch (InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

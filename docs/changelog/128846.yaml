@@ -1,0 +1,5 @@
+pr: 128846
+summary: Generate `IndexOrDocValuesQuery` for term queries in `IpFieldMapper`
+area: Search
+type: enhancement
+issues: []

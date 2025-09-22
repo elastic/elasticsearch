@@ -311,18 +311,21 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             // This method may be called multiple times on the same testcase when using @Repeat
             boolean alreadyConverted = Arrays.stream(indices).anyMatch(i -> i.trim().startsWith("*:"));
             if (alreadyConverted == false) {
-            if (Arrays.stream(indices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
-                // If the query contains lookup indices, use only remotes to avoid duplication
-                onlyRemotes = true;
+                if (Arrays.stream(indices).anyMatch(i -> LOOKUP_INDICES.contains(i.trim().toLowerCase(Locale.ROOT)))) {
+                    // If the query contains lookup indices, use only remotes to avoid duplication
+                    onlyRemotes = true;
+                }
+                final boolean onlyRemotesFinal = onlyRemotes;
+                final String remoteIndices = Arrays.stream(indices)
+                    .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
+                    .collect(Collectors.joining(","));
+                String newFirstCommand = command
+                    + " "
+                    + remoteIndices
+                    + " "
+                    + (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
+                testCase.query = newFirstCommand + query.substring(first.length());
             }
-            final boolean onlyRemotesFinal = onlyRemotes;
-            final String remoteIndices = Arrays.stream(indices)
-                .map(index -> unquoteAndRequoteAsRemote(index.trim(), onlyRemotesFinal))
-                .collect(Collectors.joining(","));
-            String newFirstCommand = command + " " + remoteIndices + " " +
-                (indexMetadataParts.length == 1 ? "" : "metadata " + indexMetadataParts[1]);
-            testCase.query = newFirstCommand + query.substring(first.length());
-        }
         }
 
         int offset = testCase.query.length() - query.length();

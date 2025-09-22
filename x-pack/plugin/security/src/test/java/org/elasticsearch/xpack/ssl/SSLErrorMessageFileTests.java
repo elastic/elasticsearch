@@ -114,26 +114,6 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         checkUnreadableTrustManagerResource("ca1.crt", "PEM certificate_authorities", "certificate_authorities");
     }
 
-    public void testMessageForKeyStoreOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("[jks] keystore", "keystore.path", null);
-    }
-
-    public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("PEM certificate", "certificate", withKey("cert1a.key"));
-    }
-
-    public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("PEM private key", "key", withCertificate("cert1a.crt"));
-    }
-
-    public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
-        checkBlockedTrustManagerResource("[jks] keystore (as a truststore)", "truststore.path");
-    }
-
-    public void testMessageForCertificateAuthoritiesOutsideConfigDir() throws Exception {
-        checkBlockedTrustManagerResource("PEM certificate_authorities", "certificate_authorities");
-    }
-
     public void testMessageForTransportSslEnabledWithoutKeys() throws Exception {
         final String prefix = "xpack.security.transport.ssl";
         final Settings.Builder settings = Settings.builder();

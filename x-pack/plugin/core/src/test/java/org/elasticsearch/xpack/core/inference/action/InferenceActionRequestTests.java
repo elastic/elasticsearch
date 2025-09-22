@@ -823,7 +823,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance,
                 getNamedWriteableRegistry(),
                 instanceReader(),
-                TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
+                BaseInferenceActionRequest.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED
             );
 
             assertEquals(instance, deserializedInstance);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -31,7 +30,7 @@ public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
 
     @SuppressWarnings("this-escape")
     public NodeFakeAvailabilityZoneMapper(Settings settings, ClusterSettings clusterSettings, DiscoveryNodes discoveryNodes) {
-        super(settings, clusterSettings, discoveryNodes);
+        super(discoveryNodes);
         updateNodesByAvailabilityZone();
     }
 
@@ -41,12 +40,11 @@ public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
      *         of nodes corresponding to the node ids. An empty map will be returned if there are no ML nodes in the
      *         cluster.
      */
-    public NodesByAvailabilityZone buildNodesByAvailabilityZone(DiscoveryNodes discoveryNodes) {
-        Collection<DiscoveryNode> nodes = discoveryNodes.getNodes().values();
-
+    @Override
+    protected NodesByAvailabilityZone buildNodesByAvailabilityZone(Collection<DiscoveryNode> discoveryNodes) {
         Map<List<String>, Collection<DiscoveryNode>> allNodesByAvailabilityZone = new HashMap<>();
         Map<List<String>, Collection<DiscoveryNode>> mlNodesByAvailabilityZone = new HashMap<>();
-        for (DiscoveryNode node : nodes) {
+        for (DiscoveryNode node : discoveryNodes) {
             List<String> nodeIdValues = List.of(node.getId());
             List<DiscoveryNode> nodeList = List.of(node);
             allNodesByAvailabilityZone.put(nodeIdValues, nodeList);
@@ -61,13 +59,13 @@ public class NodeFakeAvailabilityZoneMapper extends AbstractNodeAvailabilityZone
      * This is different to {@link #getMlNodesByAvailabilityZone()} in that the latter returns the ML nodes by (fake) availability zone
      * of the latest cluster state, while this method does the same for a specific cluster state.
      *
-     * @param clusterState The cluster state whose nodes will be used to detect ML nodes by fake availability zone.
+     * @param discoveryNodes The nodes used to detect ML nodes by fake availability zone.
      * @return A map whose keys are single item lists of node id values, and whose values are single item collections
      *         of nodes corresponding to the node ids. An empty map will be returned if there are no ML nodes in the
      *         cluster.
      */
     @Override
-    public Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(ClusterState clusterState) {
-        return buildNodesByAvailabilityZone(clusterState.nodes()).mlNodes();
+    public Map<List<String>, Collection<DiscoveryNode>> buildMlNodesByAvailabilityZone(List<DiscoveryNode> discoveryNodes) {
+        return buildNodesByAvailabilityZone(discoveryNodes).mlNodes();
     }
 }

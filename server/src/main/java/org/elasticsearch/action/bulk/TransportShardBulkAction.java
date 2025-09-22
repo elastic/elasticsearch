@@ -419,7 +419,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.routing(),
                 request.getDynamicTemplates(),
                 request.getIncludeSourceOnError(),
-                meteringParserDecorator
+                meteringParserDecorator,
+                request.tsid()
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -737,7 +738,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
-                    indexRequest.routing()
+                    indexRequest.routing(),
+                    Map.of(),
+                    true,
+                    XContentMeteringParserDecorator.NOOP,
+                    indexRequest.tsid()
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

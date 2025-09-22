@@ -100,7 +100,9 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        Split.process(result, strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch), this.scratch);
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef delim = delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch);
+        Split.process(result, str, delim, this.scratch);
       }
       return result.build();
     }
@@ -112,7 +114,9 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
       BytesRef strScratch = new BytesRef();
       BytesRef delimScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        Split.process(result, strVector.getBytesRef(p, strScratch), delimVector.getBytesRef(p, delimScratch), this.scratch);
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef delim = delimVector.getBytesRef(p, delimScratch);
+        Split.process(result, str, delim, this.scratch);
       }
       return result.build();
     }

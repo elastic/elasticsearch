@@ -436,6 +436,10 @@ public class TsdbDataStreamRestIT extends DisabledSecurityDataStreamTestCase {
             ObjectPath.evaluate(responseBody, "template.settings.index.routing_path"),
             containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*")
         );
+        assertThat(
+            ObjectPath.evaluate(responseBody, "template.settings.index.dimensions"),
+            containsInAnyOrder("metricset", "k8s.pod.uid", "pod.labels.*")
+        );
         assertThat(ObjectPath.evaluate(responseBody, "overlapping"), empty());
     }
 

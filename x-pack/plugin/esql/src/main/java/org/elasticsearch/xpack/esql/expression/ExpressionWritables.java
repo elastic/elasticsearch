@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsigne
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToVersion;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlDecode;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
@@ -231,6 +232,7 @@ public class ExpressionWritables {
         entries.add(WildcardLikeList.ENTRY);
         entries.add(Delay.ENTRY);
         entries.add(UrlEncode.ENTRY);
+        entries.add(UrlEncodeComponent.ENTRY);
         entries.add(UrlDecode.ENTRY);
         // mv functions
         entries.addAll(MvFunctionWritables.getNamedWriteables());

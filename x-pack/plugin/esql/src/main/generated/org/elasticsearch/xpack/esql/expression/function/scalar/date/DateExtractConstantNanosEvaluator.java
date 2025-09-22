@@ -80,7 +80,8 @@ public final class DateExtractConstantNanosEvaluator implements EvalOperator.Exp
           result.appendNull();
           continue position;
         }
-        result.appendLong(DateExtract.processNanos(valueBlock.getLong(valueBlock.getFirstValueIndex(p)), this.chronoField, this.zone));
+        long value = valueBlock.getLong(valueBlock.getFirstValueIndex(p));
+        result.appendLong(DateExtract.processNanos(value, this.chronoField, this.zone));
       }
       return result.build();
     }
@@ -89,7 +90,8 @@ public final class DateExtractConstantNanosEvaluator implements EvalOperator.Exp
   public LongVector eval(int positionCount, LongVector valueVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, DateExtract.processNanos(valueVector.getLong(p), this.chronoField, this.zone));
+        long value = valueVector.getLong(p);
+        result.appendLong(p, DateExtract.processNanos(value, this.chronoField, this.zone));
       }
       return result.build();
     }

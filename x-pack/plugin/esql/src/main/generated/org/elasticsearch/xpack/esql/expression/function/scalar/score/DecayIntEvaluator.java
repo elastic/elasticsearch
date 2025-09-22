@@ -90,7 +90,8 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.process(valueBlock.getInt(valueBlock.getFirstValueIndex(p)), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        int value = valueBlock.getInt(valueBlock.getFirstValueIndex(p));
+        result.appendDouble(Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -99,7 +100,8 @@ public final class DecayIntEvaluator implements EvalOperator.ExpressionEvaluator
   public DoubleVector eval(int positionCount, IntVector valueVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.process(valueVector.getInt(p), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        int value = valueVector.getInt(p);
+        result.appendDouble(p, Decay.process(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }

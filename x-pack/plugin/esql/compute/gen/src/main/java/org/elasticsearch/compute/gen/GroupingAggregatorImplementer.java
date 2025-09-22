@@ -19,6 +19,9 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationParameter;
 import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationState;
+import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.ArrayArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -93,6 +96,7 @@ public class GroupingAggregatorImplementer {
 
     public GroupingAggregatorImplementer(
         Elements elements,
+        javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions
@@ -114,11 +118,14 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
-        this.aggParams = combine.getParameters()
-            .stream()
-            .skip(aggState.declaredType().isPrimitive() ? 1 : 2)
-            .map(AggregationParameter::create)
-            .toList();
+        this.aggParams = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
+            Argument a = Argument.fromParameter(types, v);
+            return switch (a) {
+                case StandardArgument sa -> new AggregationParameter(sa.name(), sa.type(), false);
+                case ArrayArgument aa -> new AggregationParameter(aa.name(), aa.componentType(), true);
+                default -> throw new IllegalArgumentException("unsupported argument [" + a + "]");
+            };
+        }).toList();
 
         this.createParameters = init.getParameters()
             .stream()

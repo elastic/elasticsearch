@@ -95,7 +95,9 @@ public final class GreaterThanDoublesEvaluator implements EvalOperator.Expressio
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(GreaterThan.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
+        double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(GreaterThan.processDoubles(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class GreaterThanDoublesEvaluator implements EvalOperator.Expressio
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        double lhs = lhsVector.getDouble(p);
+        double rhs = rhsVector.getDouble(p);
+        result.appendBoolean(p, GreaterThan.processDoubles(lhs, rhs));
       }
       return result.build();
     }

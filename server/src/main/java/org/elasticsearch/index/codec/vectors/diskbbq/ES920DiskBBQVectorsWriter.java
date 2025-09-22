@@ -51,12 +51,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int centroidsPerParentCluster;
 
     public ES920DiskBBQVectorsWriter(
+        String rawVectorFormatName,
         SegmentWriteState state,
         FlatVectorsWriter rawVectorDelegate,
         int vectorPerCluster,
         int centroidsPerParentCluster
     ) throws IOException {
-        super(state, rawVectorDelegate);
+        super(state, rawVectorFormatName, rawVectorDelegate);
         this.vectorPerCluster = vectorPerCluster;
         this.centroidsPerParentCluster = centroidsPerParentCluster;
     }

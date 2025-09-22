@@ -638,6 +638,7 @@ public class ComputeService {
             LOGGER.debug("Received physical plan:\n{}", plan);
 
             var localPlan = PlannerUtils.localPlan(
+                physicalSettings,
                 context.flags(),
                 context.searchExecutionContexts(),
                 context.configuration(),

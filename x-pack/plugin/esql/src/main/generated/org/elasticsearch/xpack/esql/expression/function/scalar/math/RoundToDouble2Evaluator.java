@@ -78,7 +78,8 @@ public final class RoundToDouble2Evaluator implements EvalOperator.ExpressionEva
           result.appendNull();
           continue position;
         }
-        result.appendDouble(RoundToDouble.process(fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1));
+        double field = fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p));
+        result.appendDouble(RoundToDouble.process(field, this.p0, this.p1));
       }
       return result.build();
     }
@@ -87,7 +88,8 @@ public final class RoundToDouble2Evaluator implements EvalOperator.ExpressionEva
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, RoundToDouble.process(fieldVector.getDouble(p), this.p0, this.p1));
+        double field = fieldVector.getDouble(p);
+        result.appendDouble(p, RoundToDouble.process(field, this.p0, this.p1));
       }
       return result.build();
     }

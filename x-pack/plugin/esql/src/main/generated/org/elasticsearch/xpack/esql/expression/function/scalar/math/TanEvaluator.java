@@ -72,7 +72,8 @@ public final class TanEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Tan.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Tan.process(val));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class TanEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Tan.process(valVector.getDouble(p)));
+        double val = valVector.getDouble(p);
+        result.appendDouble(p, Tan.process(val));
       }
       return result.build();
     }

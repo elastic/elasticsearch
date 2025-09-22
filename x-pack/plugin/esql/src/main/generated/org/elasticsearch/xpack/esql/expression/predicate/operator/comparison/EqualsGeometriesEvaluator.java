@@ -98,7 +98,9 @@ public final class EqualsGeometriesEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(Equals.processGeometries(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch)));
+        BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
+        BytesRef rhs = rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch);
+        result.appendBoolean(Equals.processGeometries(lhs, rhs));
       }
       return result.build();
     }
@@ -109,7 +111,9 @@ public final class EqualsGeometriesEvaluator implements EvalOperator.ExpressionE
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, Equals.processGeometries(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        BytesRef lhs = lhsVector.getBytesRef(p, lhsScratch);
+        BytesRef rhs = rhsVector.getBytesRef(p, rhsScratch);
+        result.appendBoolean(p, Equals.processGeometries(lhs, rhs));
       }
       return result.build();
     }

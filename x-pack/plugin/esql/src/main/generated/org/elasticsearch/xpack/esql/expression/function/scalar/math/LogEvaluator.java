@@ -94,8 +94,10 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        double base = baseBlock.getDouble(baseBlock.getFirstValueIndex(p));
+        double value = valueBlock.getDouble(valueBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), valueBlock.getDouble(valueBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log.process(base, value));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,8 +110,10 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector valueVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double base = baseVector.getDouble(p);
+        double value = valueVector.getDouble(p);
         try {
-          result.appendDouble(Log.process(baseVector.getDouble(p), valueVector.getDouble(p)));
+          result.appendDouble(Log.process(base, value));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

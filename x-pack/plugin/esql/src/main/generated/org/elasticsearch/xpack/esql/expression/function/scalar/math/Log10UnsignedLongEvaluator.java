@@ -74,8 +74,9 @@ public final class Log10UnsignedLongEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Log10.processUnsignedLong(valBlock.getLong(valBlock.getFirstValueIndex(p))));
+          result.appendDouble(Log10.processUnsignedLong(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,8 +89,9 @@ public final class Log10UnsignedLongEvaluator implements EvalOperator.Expression
   public DoubleBlock eval(int positionCount, LongVector valVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long val = valVector.getLong(p);
         try {
-          result.appendDouble(Log10.processUnsignedLong(valVector.getLong(p)));
+          result.appendDouble(Log10.processUnsignedLong(val));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

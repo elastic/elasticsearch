@@ -81,7 +81,8 @@ public final class RoundToInt3Evaluator implements EvalOperator.ExpressionEvalua
           result.appendNull();
           continue position;
         }
-        result.appendInt(RoundToInt.process(fieldBlock.getInt(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2));
+        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2));
       }
       return result.build();
     }
@@ -90,7 +91,8 @@ public final class RoundToInt3Evaluator implements EvalOperator.ExpressionEvalua
   public IntVector eval(int positionCount, IntVector fieldVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, RoundToInt.process(fieldVector.getInt(p), this.p0, this.p1, this.p2));
+        int field = fieldVector.getInt(p);
+        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2));
       }
       return result.build();
     }

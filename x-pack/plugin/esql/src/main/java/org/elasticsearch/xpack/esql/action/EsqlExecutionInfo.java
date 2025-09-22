@@ -319,6 +319,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return clusterInfo.values().stream().filter(cluster -> cluster.getStatus() == status);
     }
 
+    public Stream<String> getRunningClusterAliases() {
+        return getClusterStates(Cluster.Status.RUNNING).map(Cluster::getClusterAlias);
+    }
+
     @Override
     public String toString() {
         return "EsqlExecutionInfo{"

@@ -52,7 +52,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -898,9 +897,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             @Override
             public int compare(ShardRouting lhs, ShardRouting rhs) {
-                assert Objects.equals(nodeId, lhs.currentNodeId()) && Objects.equals(nodeId, rhs.currentNodeId())
+                assert nodeId.equals(lhs.currentNodeId()) && nodeId.equals(rhs.currentNodeId())
                     : this.getClass().getSimpleName()
-                        + " is node-specific. Comparator node ID="
+                        + " is node-specific. comparator="
                         + nodeId
                         + ", lhs="
                         + lhs.currentNodeId()
@@ -910,9 +909,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
                     return 0;
                 }
-                // Otherwise, we prefer middle, high, then low write-load shards
-                double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), -1.0);
-                double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), -1.0);
+
+                double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
+                double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
 
                 if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
                     final var lhsOverThreshold = lhsWriteLoad >= threshold;

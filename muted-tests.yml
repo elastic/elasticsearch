@@ -621,9 +621,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on mapped geo_point field with no doc values}
   issue: https://github.com/elastic/elasticsearch/issues/135164
-- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
-  method: testBuiltInRolesSyncedOnClusterUpgrade
-  issue: https://github.com/elastic/elasticsearch/issues/135194
 - class: org.elasticsearch.compute.operator.topn.TopNOperatorTests
   method: testSimpleWithCranky
   issue: https://github.com/elastic/elasticsearch/issues/135224

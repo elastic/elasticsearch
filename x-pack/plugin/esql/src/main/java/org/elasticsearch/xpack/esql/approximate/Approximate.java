@@ -31,13 +31,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.random.Random;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -45,7 +45,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.session.Result;
 
@@ -90,33 +90,24 @@ public class Approximate {
         void run(LogicalPlan plan, ActionListener<Result> listener);
     }
 
+
     /**
-     * These commands preserve all rows, so can be swapped with {@code SAMPLE}.
+     * These commands preserve all rows, making it easy to predict the number of output rows.
      */
     private static final Set<Class<? extends LogicalPlan>> ROW_PRESERVING_COMMANDS = Set.of(
+        ChangePoint.class,
         Dissect.class,
         Drop.class,
+        Enrich.class,
         EsqlProject.class,
         Eval.class,
-        Filter.class,
-        Fork.class,
         Grok.class,
+        Insist.class,
         Keep.class,
         OrderBy.class,
         Project.class,
-        Rename.class,
-        Sample.class
+        Rename.class
     );
-
-    /**
-     * These commands keep or filter rows, so can be swapped with {@code SAMPLE}.
-     */
-    private static final Set<Class<? extends LogicalPlan>> ROW_FILTERING_COMMANDS = Set.of(Filter.class, Sample.class);
-
-    /**
-     * Commands that cannot be used anywhere in an approximated query.
-     */
-    private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(InlineStats.class, LookupJoin.class);
 
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 100000;
@@ -154,10 +145,12 @@ public class Approximate {
                 List.of(Failure.fail(logicalPlan.collectLeaves().getFirst(), "query without [STATS] cannot be approximated"))
             );
         }
+        // For now, only support unary plans.
+        // TODO: support binary plans (e.g. join) and n-ary plans (e.g. fork).
         logicalPlan.forEachUp(plan -> {
-            if (INCOMPATIBLE_COMMANDS.contains(plan.getClass())) {
+            if (plan instanceof LeafPlan == false && plan instanceof UnaryPlan == false) {
                 throw new VerificationException(
-                    List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] cannot be approximated"))
+                    List.of(Failure.fail(plan, "query with [" + plan.nodeName() + "] cannot be approximated"))
                 );
             }
         });
@@ -165,21 +158,12 @@ public class Approximate {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Holder<Boolean> hasFilters = new Holder<>(false);
         logicalPlan.transformUp(plan -> {
-            if (plan instanceof LeafPlan) {
-                encounteredStats.set(false);
-            } else if (encounteredStats.get() == false) {
+            if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate) {
                     encounteredStats.set(true);
-                } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false
-                    && ROW_FILTERING_COMMANDS.contains(plan.getClass()) == false) {
-                    hasFilters.set(true);  // TODO: fix
-
-//                        throw new VerificationException(
-//                            List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] before [STATS] cannot be approximated"))
-//                        );
-                    } else if (ROW_FILTERING_COMMANDS.contains(plan.getClass())) {
-                        hasFilters.set(true);
-                    }
+                } else if (ROW_PRESERVING_COMMANDS.contains(plan.getClass()) == false) {
+                    hasFilters.set(true);
+                }
             }
             return plan;
         });

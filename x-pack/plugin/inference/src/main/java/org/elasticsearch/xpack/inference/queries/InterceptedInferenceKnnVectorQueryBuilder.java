@@ -50,9 +50,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
     InterceptedInferenceKnnVectorQueryBuilder(
         InterceptedInferenceQueryBuilder<KnnVectorQueryBuilder> other,
-        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap);
+        super(other, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -114,8 +115,8 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap);
+    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
+        return new InterceptedInferenceKnnVectorQueryBuilder(this, inferenceResultsMap, ccsRequest);
     }
 
     @Override

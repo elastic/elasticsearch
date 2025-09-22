@@ -39,6 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.TransportVersions.INFERENCE_RESULTS_MAP_WITH_CLUSTER_ALIAS;
+import static org.elasticsearch.TransportVersions.SEMANTIC_SEARCH_CCS_SUPPORT;
 import static org.elasticsearch.index.IndexSettings.DEFAULT_FIELD_SETTING;
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 import static org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder.convertFromBwcInferenceResultsMap;
@@ -63,11 +64,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     protected final T originalQuery;
     protected final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
+    protected final boolean ccsRequest;
 
     protected InterceptedInferenceQueryBuilder(T originalQuery) {
         Objects.requireNonNull(originalQuery, "original query must not be null");
         this.originalQuery = originalQuery;
         this.inferenceResultsMap = null;
+        this.ccsRequest = false;
     }
 
     @SuppressWarnings("unchecked")
@@ -83,14 +86,21 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 in.readOptional(i1 -> i1.readImmutableMap(i2 -> i2.readNamedWriteable(InferenceResults.class)))
             );
         }
+        if (in.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            this.ccsRequest = in.readBoolean();
+        } else {
+            this.ccsRequest = false;
+        }
     }
 
     protected InterceptedInferenceQueryBuilder(
         InterceptedInferenceQueryBuilder<T> other,
-        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
         this.originalQuery = other.originalQuery;
         this.inferenceResultsMap = inferenceResultsMap;
+        this.ccsRequest = ccsRequest;
     }
 
     /**
@@ -130,9 +140,10 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
      * Generate a copy of {@code this} using the provided inference results map.
      *
      * @param inferenceResultsMap The inference results map
+     * @param ccsRequest Flag indicating if this is a CCS request
      * @return A copy of {@code this} with the provided inference results map
      */
-    protected abstract QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap);
+    protected abstract QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest);
 
     /**
      * Rewrite to a {@link QueryBuilder} appropriate for a specific index's mappings. The implementation can use
@@ -191,6 +202,19 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 o2.writeString(id.inferenceId());
             }, StreamOutput::writeNamedWriteable), inferenceResultsMap);
         }
+        if (out.getTransportVersion().supports(SEMANTIC_SEARCH_CCS_SUPPORT)) {
+            out.writeBoolean(ccsRequest);
+        } else if (ccsRequest) {
+            throw new IllegalArgumentException(
+                "One or more nodes does not support "
+                    + originalQuery.getName()
+                    + " query cross-cluster search when querying a ["
+                    + SemanticTextFieldMapper.CONTENT_TYPE
+                    + "] field. Please update all nodes to at least Elasticsearch "
+                    + SEMANTIC_SEARCH_CCS_SUPPORT.toReleaseVersion()
+                    + "."
+            );
+        }
     }
 
     @Override
@@ -205,12 +229,14 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
 
     @Override
     protected boolean doEquals(InterceptedInferenceQueryBuilder<T> other) {
-        return Objects.equals(originalQuery, other.originalQuery) && Objects.equals(inferenceResultsMap, other.inferenceResultsMap);
+        return Objects.equals(originalQuery, other.originalQuery)
+            && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
+            && Objects.equals(ccsRequest, other.ccsRequest);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(originalQuery, inferenceResultsMap);
+        return Objects.hash(originalQuery, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -273,13 +299,13 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
         // Validate early to prevent partial failures
         coordinatorNodeValidate(resolvedIndices);
 
-        // TODO: Check for supported CCS mode here (once we support CCS)
-        if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+        boolean ccsRequest = resolvedIndices.getRemoteClusterIndices().isEmpty() == false;
+        if (ccsRequest && queryRewriteContext.isCcsMinimizeRoundTrips() == false) {
             throw new IllegalArgumentException(
                 originalQuery.getName()
                     + " query does not support cross-cluster search when querying a ["
                     + SemanticTextFieldMapper.CONTENT_TYPE
-                    + "] field"
+                    + "] field when [ccs_minimize_roundtrips] is false"
             );
         }
 
@@ -304,7 +330,7 @@ public abstract class InterceptedInferenceQueryBuilder<T extends AbstractQueryBu
                 // The inference results map is fully populated, so we can perform error checking
                 inferenceResultsErrorCheck(modifiedInferenceResultsMap);
             } else {
-                rewritten = copy(modifiedInferenceResultsMap);
+                rewritten = copy(modifiedInferenceResultsMap, ccsRequest);
             }
         }
 

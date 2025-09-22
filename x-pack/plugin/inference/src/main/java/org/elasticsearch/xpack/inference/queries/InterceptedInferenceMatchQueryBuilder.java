@@ -37,9 +37,10 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
 
     InterceptedInferenceMatchQueryBuilder(
         InterceptedInferenceQueryBuilder<MatchQueryBuilder> other,
-        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
     ) {
-        super(other, inferenceResultsMap);
+        super(other, inferenceResultsMap, ccsRequest);
     }
 
     @Override
@@ -63,8 +64,8 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap) {
-        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap);
+    protected QueryBuilder copy(Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap, boolean ccsRequest) {
+        return new InterceptedInferenceMatchQueryBuilder(this, inferenceResultsMap, ccsRequest);
     }
 
     @Override

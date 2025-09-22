@@ -938,7 +938,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 // prefer the non-max write load if there is one
-                return rhsWriteLoad >= maxWriteLoadOnNode ? 1 : -1;
+                return Double.compare(rhsWriteLoad, lhsWriteLoad);
             }
         }
 

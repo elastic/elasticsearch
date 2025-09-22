@@ -1899,7 +1899,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert postRecoveryComplete == null;
         SubscribableListener<Void> subscribableListener = new SubscribableListener<>();
         postRecoveryComplete = subscribableListener;
-        final ActionListener<Void> intermediateListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
+        final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
+
         try {
             // Some engine implementations try to acquire the engine reset write lock during refresh: in case something else is holding the
             // engine read lock at the same time then the refresh is a no-op for those engines. Here we acquire the engine reset write lock
@@ -1924,7 +1925,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryState.setStage(RecoveryState.Stage.DONE);
             }
 
-            indexEventListener.afterIndexShardRecovery(this, intermediateListener.delegateFailureAndWrap((finalListener, unused) -> {
+            SubscribableListener.newForked(
+                (CheckedConsumer<ActionListener<Void>, Exception>) l -> indexEventListener.afterIndexShardRecovery(IndexShard.this, l)
+            ).andThenAccept(v -> {
                 synchronized (mutex) {
                     if (state == IndexShardState.CLOSED) {
                         throw new IndexShardClosedException(shardId);
@@ -1934,10 +1937,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                     changeState(IndexShardState.POST_RECOVERY, reason);
                 }
-                finalListener.onResponse(null);
-            }));
+            }).addListener(finalListener);
         } catch (Exception e) {
-            intermediateListener.onFailure(e);
+            finalListener.onFailure(e);
         }
     }
 

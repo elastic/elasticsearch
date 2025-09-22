@@ -21,7 +21,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -105,19 +104,6 @@ public class SamplingMetadata implements Metadata.ProjectCustom {
      */
     public static SamplingMetadata fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
-    }
-
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.startObject(INDEX_SAMPLING_CONFIG_MAP_FIELD_NAME);
-            for (Map.Entry<String, SamplingConfiguration> e : indexToSamplingConfigMap.entrySet()) {
-                builder.field(e.getKey(), e.getValue());
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
     }
 
     @Override

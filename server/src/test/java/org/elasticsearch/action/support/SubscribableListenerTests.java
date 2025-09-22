@@ -249,7 +249,7 @@ public class SubscribableListenerTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.testOnlyDaemonThreadFactory(executorThreadPrefix),
+            ESTestCase.testOnlyDaemonThreadFactory(executorThreadPrefix),
             threadContext
         );
 

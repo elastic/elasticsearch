@@ -90,7 +90,7 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
             "test",
             1,
             10,
-            EsExecutors.testOnlyDaemonThreadFactory("test"),
+            ESTestCase.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );

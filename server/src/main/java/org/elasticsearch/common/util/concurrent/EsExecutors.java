@@ -342,23 +342,8 @@ public class EsExecutors {
     }
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String executorName, boolean isSystemThread) {
-        assert nodeName != null && false == nodeName.isEmpty();
+        assert Strings.hasLength(nodeName);
         return new EsThreadFactory(nodeName, executorName, isSystemThread);
-    }
-
-    public static ThreadFactory testOnlyDaemonThreadFactory(String name) {
-        assert name != null && name.isEmpty() == false;
-        return new EsThreadFactory(null, name, false) {
-            @Override
-            String nextThreadName() {
-                return name + "[T#" + threadNumber.getAndIncrement() + "]";
-            }
-
-            @Override
-            String reportedExecutorName() {
-                return null;
-            }
-        };
     }
 
     private static class EsThreadFactory implements ThreadFactory {
@@ -378,17 +363,10 @@ public class EsExecutors {
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new EsThread(group, r, nextThreadName(), 0, reportedExecutorName(), isSystem);
-            t.setDaemon(true);
-            return t;
-        }
-
-        String reportedExecutorName() {
-            return executorName;
-        }
-
-        String nextThreadName() {
-            return threadNamePrefix(nodeName, executorName) + "[T#" + threadNumber.getAndIncrement() + "]";
+            String threadName = threadNamePrefix(nodeName, executorName) + "[T#" + threadNumber.getAndIncrement() + "]";
+            Thread thread = new EsThread(group, r, threadName, 0, executorName, isSystem);
+            thread.setDaemon(true);
+            return thread;
         }
 
         static String threadNamePrefix(String nodeName, String executorName) {

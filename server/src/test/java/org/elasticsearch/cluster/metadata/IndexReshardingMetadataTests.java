@@ -103,14 +103,8 @@ public class IndexReshardingMetadataTests extends ESTestCase {
 
         // When there is no resharding going on, the ReshardSplitShardCount is same as number of shards in the index
         for (int i = 0; i < numSourceShards; i++) {
-            assertThat(
-                indexMetadata.getReshardSplitShardCountForIndexing(i),
-                equalTo(numSourceShards)
-            );
-            assertThat(
-                indexMetadata.getReshardSplitShardCountForSearch(i),
-                equalTo(numSourceShards)
-            );
+            assertThat(indexMetadata.getReshardSplitShardCountForIndexing(i), equalTo(numSourceShards));
+            assertThat(indexMetadata.getReshardSplitShardCountForSearch(i), equalTo(numSourceShards));
         }
 
         // Now reshard-split from 2 shards to 4 shards
@@ -131,14 +125,8 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         for (int i = 0; i < numSourceShards; i++) {
             assertTrue(reshardingMetadata.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.CLONE));
 
-            assertThat(
-                IndexMetadataAfterReshard.getReshardSplitShardCountForIndexing(i),
-                equalTo(numSourceShards)
-            );
-            assertThat(
-                IndexMetadataAfterReshard.getReshardSplitShardCountForSearch(i),
-                equalTo(numSourceShards)
-            );
+            assertThat(IndexMetadataAfterReshard.getReshardSplitShardCountForIndexing(i), equalTo(numSourceShards));
+            assertThat(IndexMetadataAfterReshard.getReshardSplitShardCountForSearch(i), equalTo(numSourceShards));
         }
 
         IndexReshardingState.Split.Builder builder = new IndexReshardingState.Split.Builder(reshardingMetadata.getSplit());
@@ -156,14 +144,8 @@ public class IndexReshardingMetadataTests extends ESTestCase {
                 indexReshardingMetadataHandoff.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.HANDOFF)
             );
 
-            assertThat(
-                indexMetadataHandoff.getReshardSplitShardCountForIndexing(i),
-                equalTo(numShardsAfterReshard)
-            );
-            assertThat(
-                indexMetadataHandoff.getReshardSplitShardCountForSearch(i),
-                equalTo(numSourceShards)
-            );
+            assertThat(indexMetadataHandoff.getReshardSplitShardCountForIndexing(i), equalTo(numShardsAfterReshard));
+            assertThat(indexMetadataHandoff.getReshardSplitShardCountForSearch(i), equalTo(numSourceShards));
         }
 
         builder = new IndexReshardingState.Split.Builder(indexReshardingMetadataHandoff.getSplit());
@@ -179,14 +161,8 @@ public class IndexReshardingMetadataTests extends ESTestCase {
                 indexReshardingMetadataSplit.getSplit().allTargetStatesAtLeast(i, IndexReshardingState.Split.TargetShardState.SPLIT)
             );
 
-            assertThat(
-                indexMetadataSplit.getReshardSplitShardCountForIndexing(i),
-                equalTo(numShardsAfterReshard)
-            );
-            assertThat(
-                indexMetadataSplit.getReshardSplitShardCountForSearch(i),
-                equalTo(numShardsAfterReshard)
-            );
+            assertThat(indexMetadataSplit.getReshardSplitShardCountForIndexing(i), equalTo(numShardsAfterReshard));
+            assertThat(indexMetadataSplit.getReshardSplitShardCountForSearch(i), equalTo(numShardsAfterReshard));
         }
     }
 }

@@ -44,7 +44,7 @@ public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<Ph
                 }
             }
 
-            // This check applies only for general physical plans (isLocal == false)
+            // This check applies only for coordinator physical plans (isLocal == false)
             if (isLocal == false && p instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.REMOTE) {
                 failures.add(
                     fail(

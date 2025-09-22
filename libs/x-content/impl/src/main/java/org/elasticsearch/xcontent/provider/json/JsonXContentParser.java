@@ -143,15 +143,7 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public XContentString optimizedText() throws IOException {
-        if (currentToken().isValue() == false) {
-            throwOnNoText();
-        }
-        if (parser instanceof ESUTF8StreamJsonParser esParser) {
-            var bytesRef = esParser.getValueAsText();
-            if (bytesRef != null) {
-                return bytesRef;
-            }
-        }
+        // TODO: enable utf-8 parsing optimization once verified it is completely safe
         return new Text(text());
     }
 

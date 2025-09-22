@@ -297,7 +297,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         }
                     }
 
-
                     new BytesRef();
 
                     ((BytesRefBlock.Builder) builder).appendBytesRef(routingPathFields.buildHash().toBytesRef());
@@ -1274,11 +1273,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         routingPathFields.addString("dimStr", randomAlphaOfLength(randomIntBetween(3, 10)));
                         routingPathFields.addLong("dimLong", randomLongBetween(1, 1000));
 
-
-//                        BytesRef bytesRef = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-//                        return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
-
-
+                        // BytesRef bytesRef = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
+                        // return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
 
                         ((BytesRefBlock.Builder) builder).appendBytesRef(routingPathFields.buildHash().toBytesRef());
                     }

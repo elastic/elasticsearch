@@ -91,7 +91,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
-    public static final boolean INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats").isEnabled();
+    public static final boolean INLINE_STATS_FEATURE_FLAG = new FeatureFlag("esql_inline_stats").isEnabled();
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -278,6 +278,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ESQL_QUERYLOG_INCLUDE_USER_SETTING,
             PhysicalSettings.DEFAULT_DATA_PARTITIONING,
             PhysicalSettings.VALUES_LOADING_JUMBO_SIZE,
+            PhysicalSettings.LUCENE_TOPN_LIMIT,
             STORED_FIELDS_SEQUENTIAL_PROPORTION,
             EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
             EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD

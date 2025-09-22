@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -179,6 +180,97 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             .pointInTimeBuilder(new PointInTimeBuilder(pitId));
         SearchRequest searchRequestWithPit = new SearchRequest().source(searchSourceBuilderWithPit);
         assertCcsMinimizeRoundTripsFalseFailure.accept(searchRequestWithPit);
+    }
+
+    public void testMatchQuery() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+
+        final String commonInferenceId = "common-inference-id";
+        final String localInferenceId = "local-inference-id";
+        final String remoteInferenceId = "remote-inference-id";
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String variableInferenceIdField = "variable-inference-id-field";
+        final String mixedTypeField = "mixed-type-field";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings(), localInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                variableInferenceIdField,
+                semanticTextMapping(localInferenceId),
+                mixedTypeField,
+                semanticTextMapping(localInferenceId)
+            ),
+            Map.of(
+                "local_doc_1",
+                Map.of(commonInferenceIdField, "a"),
+                "local_doc_2",
+                Map.of(variableInferenceIdField, "b"),
+                "local_doc_3",
+                Map.of(mixedTypeField, "c")
+            )
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(
+                commonInferenceId,
+                textEmbeddingServiceSettings(256, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                remoteInferenceId,
+                textEmbeddingServiceSettings(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            ),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                variableInferenceIdField,
+                semanticTextMapping(remoteInferenceId),
+                mixedTypeField,
+                Map.of("type", "text")
+            ),
+            Map.of(
+                "remote_doc_1",
+                Map.of(commonInferenceIdField, "x"),
+                "remote_doc_2",
+                Map.of(variableInferenceIdField, "y"),
+                "remote_doc_3",
+                Map.of(mixedTypeField, "z")
+            )
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new MatchQueryBuilder(commonInferenceIdField, "a"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1")
+            )
+        );
+
+        // Query a field that has different inference ID values across clusters
+        assertSearchResponse(
+            new MatchQueryBuilder(variableInferenceIdField, "b"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2")
+            )
+        );
+
+        // Query a field that has mixed types across clusters
+        assertSearchResponse(
+            new MatchQueryBuilder(mixedTypeField, "z"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+            )
+        );
     }
 
     private void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {

@@ -681,7 +681,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void recordPhaseTookTime(String phaseName) {
         coordinatorSearchPhaseMetrics.onCoordinatorPhaseDone(
             phaseName,
-            timeProvider.relativeCurrentNanosProvider().getAsLong() - phaseStartTimeNanos);
+            timeProvider.relativeCurrentNanosProvider().getAsLong() - phaseStartTimeNanos
+        );
     }
 
     /**

@@ -856,8 +856,9 @@ class NodeConstruction {
         );
 
         CanMatchPhaseAPMMetrics canMatchMetrics = new CanMatchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
-        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics =
-            new CoordinatorSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry());
+        CoordinatorSearchPhaseAPMMetrics coordinatorSearchPhaseAPMMetrics = new CoordinatorSearchPhaseAPMMetrics(
+            telemetryProvider.getMeterRegistry()
+        );
 
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call

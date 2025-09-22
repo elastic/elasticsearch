@@ -48,6 +48,10 @@ public class TransportVersionResourcesPlugin implements Plugin<Project> {
                 Directory transportResources = project.getLayout().getProjectDirectory().dir("src/main/resources/" + resourceRoot);
                 spec.getParameters().getTransportResourcesDirectory().set(transportResources);
                 spec.getParameters().getRootDirectory().set(project.getLayout().getSettingsDirectory().getAsFile());
+                Object upstreamRef = project.findProperty("org.elasticsearch.transport.upstreamRef");
+                if (upstreamRef != null) {
+                    spec.getParameters().getUpstreamRefOverride().set(upstreamRef.toString());
+                }
             });
 
         var depsHandler = project.getDependencies();

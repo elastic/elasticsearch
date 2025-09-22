@@ -12,8 +12,10 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.Optional;
 import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
@@ -59,6 +61,9 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         DirectoryProperty getTransportResourcesDirectory();
 
         DirectoryProperty getRootDirectory();
+
+        @Optional
+        Property<String> getUpstreamRefOverride();
     }
 
     @Inject
@@ -79,6 +84,9 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     public TransportVersionResourcesService(Parameters params) {
         this.transportResourcesDir = params.getTransportResourcesDirectory().get().getAsFile().toPath();
         this.rootDir = params.getRootDirectory().get().getAsFile().toPath();
+        if (params.getUpstreamRefOverride().isPresent()) {
+            upstreamRefName.set(params.getUpstreamRefOverride().get());
+        }
     }
 
     /**

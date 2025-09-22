@@ -929,11 +929,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         return (int) Math.signum(lhsWriteLoad - rhsWriteLoad);
                     }
                 } else {
-                    // one of the shards is the max-write-load shard, prefer any present write load over it
+                    // one of the shards is the max-write-load shard
                     if (shardWriteLoads.containsKey(rhs.shardId()) ^ shardWriteLoads.containsKey(lhs.shardId())) {
+                        // prefer any known write-load over it
                         return shardWriteLoads.containsKey(rhs.shardId()) ? -1 : 1;
                     } else {
-                        return lhsWriteLoad == rhsWriteLoad ? 0 : (int) Math.signum(rhsWriteLoad - lhsWriteLoad);
+                        // prefer the lowest (non-max) write load
+                        return (int) Math.signum(rhsWriteLoad - lhsWriteLoad);
                     }
                 }
             }

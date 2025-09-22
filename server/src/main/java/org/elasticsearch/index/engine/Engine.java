@@ -1541,6 +1541,8 @@ public abstract class Engine implements Closeable {
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID)
         throws EngineException, IOException;
 
+    public abstract boolean forceMergeIsNoOp(int maxNumSegments) throws IOException;
+
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the
      * lucene index to make sure we have a "fresh" copy of the files to snapshot.

@@ -112,6 +112,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -2540,6 +2541,26 @@ public class InternalEngine extends Engine {
             throw e;
         } finally {
             optimizeLock.unlock();
+        }
+    }
+
+    @Override
+    public boolean forceMergeIsNoOp(int maxNumSegments) throws IOException {
+        // TODO: is there a way for us to determine no-op with no max num segments?
+        if (maxNumSegments <= 0) {
+            return false;
+        }
+        try (var reader = DirectoryReader.open(indexWriter)) {
+            final var segmentCommitInfos = SegmentInfos.readCommit(reader.directory(), reader.getIndexCommit().getSegmentsFileName());
+            final var segmentsToMerge = new HashMap<SegmentCommitInfo, Boolean>();
+            for (int i = 0; i < segmentCommitInfos.size(); i++) {
+                segmentsToMerge.put(segmentCommitInfos.info(i), Boolean.TRUE);
+            }
+
+            final var mergeSpecification = indexWriter.getConfig()
+                .getMergePolicy()
+                .findForcedMerges(segmentCommitInfos, maxNumSegments, segmentsToMerge, indexWriter);
+            return mergeSpecification == null || mergeSpecification.merges.isEmpty();
         }
     }
 

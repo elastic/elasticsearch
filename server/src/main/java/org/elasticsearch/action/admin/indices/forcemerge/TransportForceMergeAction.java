@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.forcemerge;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,6 +43,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeRequest,
     BroadcastResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
+
+    private static final Logger logger = LogManager.getLogger(TransportForceMergeAction.class);
 
     private final IndicesService indicesService;
     private final ThreadPool threadPool;
@@ -102,6 +106,15 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
                 .getShard(shardRouting.shardId().id());
             indexShard.ensureMutable(l.map(unused -> indexShard), false);
         }).<EmptyResult>andThen((l, indexShard) -> {
+            boolean forceMergeIsNoOp = indexShard.withEngineException(engine -> {
+                engine.flush();
+                return engine.forceMergeIsNoOp(request.maxNumSegments());
+            });
+            if (forceMergeIsNoOp) {
+                logger.info("---> skipping force merge for shard {} since it is a no-op", indexShard.shardId());
+                l.onResponse(EmptyResult.INSTANCE);
+                return;
+            }
             threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(ActionRunnable.supply(l, () -> {
                 indexShard.forceMerge(request);
                 return EmptyResult.INSTANCE;

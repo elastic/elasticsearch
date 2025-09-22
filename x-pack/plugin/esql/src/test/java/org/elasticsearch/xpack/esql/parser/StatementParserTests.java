@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
@@ -3242,12 +3241,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
         assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
 
-        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertThat(joinType.columns(), hasSize(numberOfOnFields));
+        assertThat(join.config().leftFields(), hasSize(numberOfOnFields));
         for (int i = 0; i < numberOfOnFields; i++) {
-            assertThat(as(joinType.columns().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
+            assertThat(as(join.config().leftFields().get(i), UnresolvedAttribute.class).name(), equalTo(existingIdentifiers.get(i)));
         }
-        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+        assertThat(join.config().type().joinName(), equalTo("LEFT OUTER"));
     }
 
     public void testExpressionJoinNonSnapshotBuild() {
@@ -4604,9 +4602,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin join = as(limit.child(), LookupJoin.class);
             UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
             assertEquals(ur.indexPattern().indexPattern(), "idx");
-            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-            assertEquals(joinType.columns(), List.of(attribute("f9")));
+            assertEquals(join.config().type().joinName(), "LEFT OUTER");
+            assertEquals(join.config().leftFields(), List.of(attribute("f9")));
             Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
             Grok grok = as(rename.child(), Grok.class);
@@ -4714,9 +4711,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             LookupJoin join = as(limit.child(), LookupJoin.class);
             UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
             assertEquals(ur.indexPattern().indexPattern(), "idx");
-            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-            assertEquals(joinType.columns(), List.of(attribute("f13.f14")));
+            assertEquals(join.config().type().joinName(), "LEFT OUTER");
+            assertEquals(join.config().leftFields(), List.of(attribute("f13.f14")));
             Rename rename = as(join.left(), Rename.class);
             assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
             Grok grok = as(rename.child(), Grok.class);
@@ -4965,9 +4961,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         LookupJoin join = as(plan, LookupJoin.class);
         UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
         assertEquals(ur.indexPattern().indexPattern(), "idx");
-        JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
-        assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
-        assertEquals(joinType.columns(), List.of(attribute("f5")));
+        assertEquals(join.config().type().joinName(), "LEFT OUTER");
+        assertEquals(join.config().leftFields(), List.of(attribute("f5")));
         Drop drop = as(join.left(), Drop.class);
         List<? extends NamedExpression> removals = drop.removals();
         assertEquals(removals.size(), 2);

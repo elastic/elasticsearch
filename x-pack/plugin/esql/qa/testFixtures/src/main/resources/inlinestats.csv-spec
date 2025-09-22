@@ -3904,7 +3904,7 @@ from employees
 | limit 3
 ;
 
-    emp_no:i   |     count:l   |   my_length:i   
+    emp_no:i   |     count:l   |   my_length:s   
 10001          |0              |null           
 10002          |0              |null           
 10003          |0              |null           

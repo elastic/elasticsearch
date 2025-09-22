@@ -101,13 +101,7 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
       if (valuesBlock.isNull(p)) {
         continue;
       }
-      int start = valuesBlock.getFirstValueIndex(p);
-      int end = start + valuesBlock.getValueCount(p);
-      int[] valuesArray = new int[end - start];
-      for (int i = start; i < end; i++) {
-        valuesArray[i-start] = valuesBlock.getInt(i);
-      }
-      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, valuesArray);
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
 
@@ -119,13 +113,7 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
       if (valuesBlock.isNull(p)) {
         continue;
       }
-      int start = valuesBlock.getFirstValueIndex(p);
-      int end = start + valuesBlock.getValueCount(p);
-      int[] valuesArray = new int[end - start];
-      for (int i = start; i < end; i++) {
-        valuesArray[i-start] = valuesBlock.getInt(i);
-      }
-      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, valuesArray);
+      SpatialExtentCartesianShapeDocValuesAggregator.combine(state, p, valuesBlock);
     }
   }
 

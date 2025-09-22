@@ -13,6 +13,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.gen.Types;
 
 import java.util.List;
@@ -41,6 +42,12 @@ public interface Argument {
                 Types.extendsSuper(types, v.asType(), "org.elasticsearch.core.Releasable")
             );
         }
+
+        Position position = v.getAnnotation(Position.class);
+        if (position != null) {
+            return new PositionArgument();
+        }
+
         if (type instanceof ClassName c
             && c.simpleName().equals("Builder")
             && c.enclosingClassName() != null

@@ -20,7 +20,8 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationParameter;
 import org.elasticsearch.compute.gen.AggregatorImplementer.AggregationState;
 import org.elasticsearch.compute.gen.argument.Argument;
-import org.elasticsearch.compute.gen.argument.ArrayArgument;
+import org.elasticsearch.compute.gen.argument.BlockArgument;
+import org.elasticsearch.compute.gen.argument.PositionArgument;
 import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
@@ -37,7 +38,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.gen.AggregatorImplementer.capitalize;
 import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
@@ -118,12 +118,13 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
-        this.aggParams = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).map(v -> {
+        this.aggParams = combine.getParameters().stream().skip(aggState.declaredType().isPrimitive() ? 1 : 2).flatMap(v -> {
             Argument a = Argument.fromParameter(types, v);
             return switch (a) {
-                case StandardArgument sa -> new AggregationParameter(sa.name(), sa.type(), false);
-                case ArrayArgument aa -> new AggregationParameter(aa.name(), aa.componentType(), true);
-                default -> throw new IllegalArgumentException("unsupported argument [" + a + "]");
+                case StandardArgument sa -> Stream.of(new AggregationParameter(sa.name(), sa.type(), false));
+                case BlockArgument ba -> Stream.of(new AggregationParameter(ba.name(), Types.elementType(ba.type()), true));
+                case PositionArgument pa -> Stream.of();
+                default -> throw new IllegalArgumentException("unsupported argument [" + declarationType + "][" + a + "]");
             };
         }).toList();
 
@@ -476,21 +477,14 @@ public class GroupingAggregatorImplementer {
                     if (aggParams.size() > 1) {
                         throw new IllegalArgumentException("array mode not supported for multiple args");
                     }
-                    String arrayType = aggParams.getFirst().type().toString().replace("[]", "");
-                    builder.addStatement("int valuesStart = $L.getFirstValueIndex(valuesPosition)", aggParams.getFirst().blockName());
-                    builder.addStatement(
-                        "int valuesEnd = valuesStart + $L.getValueCount(valuesPosition)",
-                        aggParams.getFirst().blockName()
+                    warningsBlock(
+                        builder,
+                        () -> builder.addStatement(
+                            "$T.combine(state, groupId, valuesPosition, $L)",
+                            declarationType,
+                            aggParams.getFirst().blockName()
+                        )
                     );
-                    builder.addStatement("$L[] valuesArray = new $L[valuesEnd - valuesStart]", arrayType, arrayType);
-                    builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
-                    builder.addStatement(
-                        "valuesArray[v-valuesStart] = $L.get$L(v)",
-                        aggParams.getFirst().blockName(),
-                        capitalize(aggParams.getFirst().arrayType())
-                    );
-                    builder.endControlFlow();
-                    combineRawInputForArray(builder, "valuesArray");
                 } else {
                     for (AggregationParameter p : aggParams) {
                         builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", p.startName(), p.blockName());
@@ -536,6 +530,9 @@ public class GroupingAggregatorImplementer {
             pattern.append("$T.combine(state, groupId");
             params.add(declarationType);
         }
+        if (aggParams.getFirst().isArray()) {
+            pattern.append(", p");
+        }
         for (AggregationParameter p : aggParams) {
             pattern.append(", $L");
             params.add(p.valueName());
@@ -545,10 +542,6 @@ public class GroupingAggregatorImplementer {
         }
         pattern.append(")");
         builder.addStatement(pattern.toString(), params.toArray());
-    }
-
-    private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
-        warningsBlock(builder, () -> builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable));
     }
 
     private boolean shouldWrapAddInput(boolean valuesAreVector) {

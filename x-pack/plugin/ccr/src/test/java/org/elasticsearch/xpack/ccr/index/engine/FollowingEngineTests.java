@@ -658,8 +658,7 @@ public class FollowingEngineTests extends ESTestCase {
             );
             try (InternalEngine leaderEngine = new InternalEngine(leaderConfig)) {
                 leaderEngine.skipTranslogRecovery();
-                Settings followerSettings = nodeIndexSettingsBuilder().put("index.xpack.ccr.following_index", true)
-                    .build();
+                Settings followerSettings = nodeIndexSettingsBuilder().put("index.xpack.ccr.following_index", true).build();
                 IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
                 IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, leaderSettings);
                 try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {

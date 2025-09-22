@@ -30,7 +30,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
     public static final class Builder {
         private final List<ResolvedIndexExpression> expressions = new ArrayList<>();
 
-        public void putLocalExpressions(
+        public void addLocalExpressions(
             String original,
             Set<String> localExpressions,
             ResolvedIndexExpression.LocalIndexResolutionResult resolutionResult

@@ -27,7 +27,7 @@ import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 
@@ -94,12 +94,12 @@ public class IndexAbstractionResolver {
                     if (indicesOptions.allowNoIndices() == false) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
-                    resolvedExpressionsBuilder.putLocalExpressions(index, Set.of(), SUCCESS);
+                    resolvedExpressionsBuilder.addLocalExpressions(index, new HashSet<>(), SUCCESS);
                 } else {
                     if (minus) {
                         resolvedExpressionsBuilder.excludeAll(resolvedIndices);
                     } else {
-                        resolvedExpressionsBuilder.putLocalExpressions(index, resolvedIndices, SUCCESS);
+                        resolvedExpressionsBuilder.addLocalExpressions(index, resolvedIndices, SUCCESS);
                     }
                 }
             } else {
@@ -113,7 +113,7 @@ public class IndexAbstractionResolver {
                         && existsAndVisible(indicesOptions, projectMetadata, includeDataStreams, indexAbstraction, selectorString);
 
                     LocalIndexResolutionResult result = authorized
-                        ? (visible ? SUCCESS : CONCRETE_RESOURCE_MISSING)
+                        ? (visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE)
                         : CONCRETE_RESOURCE_UNAUTHORIZED;
 
                     // Unauthorized names are considered unavailable, so if `ignoreUnavailable` is `true` they should be silently
@@ -121,7 +121,7 @@ public class IndexAbstractionResolver {
                     // handler, see: https://github.com/elastic/elasticsearch/issues/90215
                     boolean includeIndices = indicesOptions.ignoreUnavailable() == false || authorized;
                     Set<String> finalIndices = includeIndices ? resolvedIndices : Set.of();
-                    resolvedExpressionsBuilder.putLocalExpressions(index, finalIndices, result);
+                    resolvedExpressionsBuilder.addLocalExpressions(index, finalIndices, result);
                 }
             }
         }

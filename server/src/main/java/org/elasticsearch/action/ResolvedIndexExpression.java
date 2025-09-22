@@ -48,7 +48,7 @@ public record ResolvedIndexExpression(String original, LocalExpressions localExp
      */
     public enum LocalIndexResolutionResult {
         SUCCESS,
-        CONCRETE_RESOURCE_MISSING,
+        CONCRETE_RESOURCE_NOT_VISIBLE,
         CONCRETE_RESOURCE_UNAUTHORIZED,
     }
 

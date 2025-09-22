@@ -106,7 +106,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_MISSING;
+import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
@@ -713,10 +713,10 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(
             actual.expressions(),
             contains(
-                resolvedIndexExpression("-index10", Set.of("-index10"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_MISSING),
-                resolvedIndexExpression("-index11", Set.of("-index11"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_MISSING),
+                resolvedIndexExpression("-index10", Set.of("-index10"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
+                resolvedIndexExpression("-index11", Set.of("-index11"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
                 resolvedIndexExpression("--index11", Set.of("--index11"), CONCRETE_RESOURCE_UNAUTHORIZED),
-                resolvedIndexExpression("-index20", Set.of("-index20"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_MISSING)
+                resolvedIndexExpression("-index20", Set.of("-index20"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE)
             )
         );
     }
@@ -1071,7 +1071,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             actual.expressions(),
             contains(
                 resolvedIndexExpression("bar*", Set.of("bar"), SUCCESS),
-                resolvedIndexExpression("missing", Set.of("missing"), CONCRETE_RESOURCE_MISSING),
+                resolvedIndexExpression("missing", Set.of("missing"), CONCRETE_RESOURCE_NOT_VISIBLE),
                 resolvedIndexExpression("missing-and-unauthorized", Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED)
             )
         );
@@ -1138,7 +1138,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(
             actual.expressions(),
             contains(
-                resolvedIndexExpression("bar", Set.of("bar"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_MISSING),
+                resolvedIndexExpression("bar", Set.of("bar"), expandToOpenIndices ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE),
                 resolvedIndexExpression("bar2", Set.of(), CONCRETE_RESOURCE_UNAUTHORIZED)
             )
         );

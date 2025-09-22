@@ -56,13 +56,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase {
@@ -393,29 +394,19 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
 
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
-        KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(
-            mixedTypeField2,
-            new TextEmbeddingQueryVectorBuilder(null, "c"),
-            10,
-            100,
-            IVF_FORMAT.isEnabled() ? 10f : null,
-            null
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(
+                mixedTypeField2,
+                new TextEmbeddingQueryVectorBuilder(null, "c"),
+                10,
+                100,
+                IVF_FORMAT.isEnabled() ? 10f : null,
+                null
+            ),
+            queryIndices,
+            List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
+            Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
         );
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder);
-        SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
-        assertResponse(client().search(searchRequest), response -> {
-            SearchHit[] hits = response.getHits().getHits();
-            assertThat(hits.length, equalTo(1));
-            assertThat(hits[0].getId(), equalTo("local_doc_3"));
-
-            SearchResponse.Cluster remoteCluster = response.getClusters().getCluster(REMOTE_CLUSTER);
-            assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
-            assertThat(remoteCluster.getFailures().size(), equalTo(1));
-
-            Throwable cause = remoteCluster.getFailures().getFirst().getCause();
-            assertThat(cause, instanceOf(IllegalArgumentException.class));
-            assertThat(cause.getMessage(), equalTo("[model_id] must not be null."));
-        });
     }
 
     private void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
@@ -503,6 +494,15 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
     private void assertSearchResponse(QueryBuilder queryBuilder, String[] indices, List<SearchResult> expectedSearchResults)
         throws Exception {
+        assertSearchResponse(queryBuilder, indices, expectedSearchResults, null);
+    }
+
+    private void assertSearchResponse(
+        QueryBuilder queryBuilder,
+        String[] indices,
+        List<SearchResult> expectedSearchResults,
+        Set<FailureCause> expectedRemoteFailures
+    ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
         SearchRequest searchRequest = new SearchRequest(indices, searchSourceBuilder);
 
@@ -518,6 +518,24 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 assertThat(actualSearchResult.getClusterAlias(), equalTo(expectedSearchResult.clusterAlias()));
                 assertThat(actualSearchResult.getIndex(), equalTo(expectedSearchResult.index()));
                 assertThat(actualSearchResult.getId(), equalTo(expectedSearchResult.id()));
+            }
+
+            SearchResponse.Clusters clusters = response.getClusters();
+            assertThat(clusters.getCluster(LOCAL_CLUSTER).getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+            assertThat(clusters.getCluster(LOCAL_CLUSTER).getFailures().isEmpty(), is(true));
+
+            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+            if (expectedRemoteFailures != null && expectedRemoteFailures.isEmpty() == false) {
+                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SKIPPED));
+
+                Set<FailureCause> actualFailures = remoteCluster.getFailures()
+                    .stream()
+                    .map(f -> new FailureCause(f.getCause().getClass(), f.getCause().getMessage()))
+                    .collect(Collectors.toSet());
+                assertThat(actualFailures, equalTo(expectedRemoteFailures));
+            } else {
+                assertThat(remoteCluster.getStatus(), equalTo(SearchResponse.Cluster.Status.SUCCESSFUL));
+                assertThat(remoteCluster.getFailures().isEmpty(), is(true));
             }
         });
     }
@@ -597,4 +615,6 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     }
 
     private record SearchResult(String clusterAlias, String index, String id) {}
+
+    private record FailureCause(Class<? extends Throwable> causeClass, String message) {}
 }

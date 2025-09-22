@@ -86,6 +86,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     // Tragic event that causes the IndexWriter and ThreadPoolMergeScheduler to be closed
     private record TragicEvent(Throwable throwable, CountDownLatch latch) {}
+
     private volatile TragicEvent tragedy = null;
 
     /**

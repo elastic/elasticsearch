@@ -553,14 +553,21 @@ public class ResolveIndexTests extends ESTestCase {
         boolean frozen,
         IndexMode mode
     ) {
+        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name);
         Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put("index.hidden", hidden)
             .put("index.frozen", frozen)
             .put("index.mode", mode.toString());
 
-        IndexMetadata.Builder indexBuilder = IndexMetadata.builder(name)
-            .settings(settingsBuilder)
+        if (mode == IndexMode.TIME_SERIES) {
+            settingsBuilder.put(
+                randomBoolean() ? IndexMetadata.INDEX_DIMENSIONS.getKey() : IndexMetadata.INDEX_ROUTING_PATH.getKey(),
+                "dummy_value"
+            );
+        }
+
+        indexBuilder.settings(settingsBuilder)
             .state(closed ? IndexMetadata.State.CLOSE : IndexMetadata.State.OPEN)
             .system(system)
             .numberOfShards(1)

@@ -11,6 +11,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -22,12 +24,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.UrlCodecUtils;
 
 import java.io.IOException;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 public final class UrlEncode extends UnaryScalarFunction {
@@ -45,11 +47,15 @@ public final class UrlEncode extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
-        description = "URL encodes the input.",
+        description = "URL-encodes the input. All characters are percent-encoded except for alphanumerics, "
+            + "`.`, `-`, `_`, and `~`. Spaces are encoded as `+`.",
         examples = { @Example(file = "string", tag = "url_encode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
-    public UrlEncode(Source source, @Param(name = "string", type = { "keyword", "text" }, description = "URL to encode.") Expression str) {
+    public UrlEncode(
+        Source source,
+        @Param(name = "string", type = { "keyword", "text" }, description = "The URL to encode.") Expression str
+    ) {
         super(source, str);
     }
 
@@ -78,14 +84,16 @@ public final class UrlEncode extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new UrlEncodeEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return new UrlEncodeEvaluator.Factory(
+            source(),
+            toEvaluator.apply(field()),
+            context -> new BreakingBytesRefBuilder(context.breaker(), "url_encode")
+        );
     }
 
     @ConvertEvaluator()
-    static BytesRef process(final BytesRef val) {
-        String input = val.utf8ToString();
-        String encoded = URLEncoder.encode(input, StandardCharsets.UTF_8);
-        return new BytesRef(encoded);
+    static BytesRef process(final BytesRef val, @Fixed(includeInToString = false, scope = THREAD_LOCAL) BreakingBytesRefBuilder scratch) {
+        return UrlCodecUtils.urlEncode(val, scratch, true);
     }
 
 }

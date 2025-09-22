@@ -78,8 +78,9 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
           result.appendNull();
           continue position;
         }
+        long dateNanos = dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p));
         try {
-          result.appendLong(Sub.processDateNanos(dateNanosBlock.getLong(dateNanosBlock.getFirstValueIndex(p)), this.temporalAmount));
+          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -92,8 +93,9 @@ public final class SubDateNanosEvaluator implements EvalOperator.ExpressionEvalu
   public LongBlock eval(int positionCount, LongVector dateNanosVector) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long dateNanos = dateNanosVector.getLong(p);
         try {
-          result.appendLong(Sub.processDateNanos(dateNanosVector.getLong(p), this.temporalAmount));
+          result.appendLong(Sub.processDateNanos(dateNanos, this.temporalAmount));
         } catch (ArithmeticException | DateTimeException e) {
           warnings().registerException(e);
           result.appendNull();

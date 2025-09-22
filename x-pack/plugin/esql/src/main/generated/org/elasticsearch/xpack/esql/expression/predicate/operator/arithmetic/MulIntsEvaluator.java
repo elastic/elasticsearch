@@ -94,8 +94,10 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
           result.appendNull();
           continue position;
         }
+        int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
+        int rhs = rhsBlock.getInt(rhsBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(Mul.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+          result.appendInt(Mul.processInts(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,8 +110,10 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   public IntBlock eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        int lhs = lhsVector.getInt(p);
+        int rhs = rhsVector.getInt(p);
         try {
-          result.appendInt(Mul.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+          result.appendInt(Mul.processInts(lhs, rhs));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

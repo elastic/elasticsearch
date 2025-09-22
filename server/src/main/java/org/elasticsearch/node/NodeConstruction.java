@@ -118,7 +118,9 @@ import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
+import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.RootObjectMapperNamespaceValidator;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -698,6 +700,12 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
+        RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
+            RootObjectMapperNamespaceValidator.class,
+            () -> new DefaultRootObjectMapperNamespaceValidator()
+        );
+        modules.bindToInstance(RootObjectMapperNamespaceValidator.class, namespaceValidator);
+
         assert nodeEnvironment.nodeId() != null : "node ID must be set before constructing the Node";
         TaskManager taskManager = new TaskManager(
             settings,
@@ -814,7 +822,7 @@ class NodeConstruction {
             )::onNewInfo
         );
 
-        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
+        IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList(), namespaceValidator);
         modules.add(indicesModule);
 
         modules.add(new GatewayModule());

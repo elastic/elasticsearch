@@ -13,8 +13,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -23,23 +25,23 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DIMENSIONS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
 /**
@@ -49,6 +51,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PAT
  */
 public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
+    public static final boolean INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG = new FeatureFlag("index_dimensions_tsid_optimization")
+        .isEnabled();
     static final DateFormatter FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
@@ -122,13 +126,22 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(
+                        List<String> dimensions = new ArrayList<>();
+                        boolean matchesAllDimensions = findDimensionFields(
                             indexName,
                             indexTemplateAndCreateRequestSettings,
-                            combinedTemplateMappings
+                            combinedTemplateMappings,
+                            dimensions
                         );
-                        if (routingPaths.isEmpty() == false) {
-                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
+                        if (dimensions.isEmpty() == false) {
+                            if (matchesAllDimensions && INDEX_DIMENSIONS_TSID_OPTIMIZATION_FEATURE_FLAG) {
+                                // Only set index.dimensions if the paths in the dimensions list match all potential dimension fields.
+                                // This is not the case e.g. if a dynamic template matches by match_mapping_type instead of path_match
+                                additionalSettings.putList(INDEX_DIMENSIONS.getKey(), dimensions);
+                            }
+                            // always populate index.routing_path, so that routing works for older index versions
+                            // this applies to indices created during a rolling upgrade
+                            additionalSettings.putList(INDEX_ROUTING_PATH.getKey(), dimensions);
                         }
                     }
                 }
@@ -137,15 +150,60 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     }
 
     /**
-     * Find fields in mapping that are of type keyword and time_series_dimension enabled.
+     * This is called when mappings are updated, so that the {@link IndexMetadata#getTimeSeriesDimensions()}
+     * and {@link IndexMetadata#INDEX_ROUTING_PATH} settings are updated to match the new mappings.
+     * Updates {@link IndexMetadata#getTimeSeriesDimensions} if a new dimension field is added to the mappings,
+     * or sets {@link IndexMetadata#INDEX_ROUTING_PATH} if a new dimension field is added that doesn't allow for matching all
+     * dimension fields via a wildcard pattern.
+     */
+    @Override
+    public void onUpdateMappings(
+        IndexMetadata indexMetadata,
+        DocumentMapper documentMapper,
+        Settings.Builder additionalSettings,
+        BiConsumer<String, Map<String, String>> additionalCustomMetadata
+    ) {
+        List<String> indexDimensions = indexMetadata.getTimeSeriesDimensions();
+        if (indexDimensions.isEmpty()) {
+            return;
+        }
+        assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES;
+        List<String> newIndexDimensions = new ArrayList<>(indexDimensions.size());
+        boolean matchesAllDimensions = findDimensionFields(newIndexDimensions, documentMapper);
+        boolean hasChanges = indexDimensions.size() != newIndexDimensions.size()
+            && new HashSet<>(indexDimensions).equals(new HashSet<>(newIndexDimensions)) == false;
+        if (matchesAllDimensions == false) {
+            // If the new dimensions don't match all potential dimension fields, we need to unset index.dimensions
+            // so that index.routing_path is used instead.
+            // This can happen if a new dynamic template is added to an existing index that matches by mapping type instead of path_match.
+            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), List.of());
+        } else if (hasChanges) {
+            additionalSettings.putList(INDEX_DIMENSIONS.getKey(), newIndexDimensions);
+        }
+    }
+
+    /**
+     * Find fields in mapping that are time_series_dimension enabled.
      * Using MapperService here has an overhead, but allows the mappings from template to
      * be merged correctly and fetching the fields without manually parsing the mappings.
-     *
+     * <p>
      * Alternatively this method can instead parse mappings into map of maps and merge that and
      * iterate over all values to find the field that can serve as routing value. But this requires
      * mapping specific logic to exist here.
+     *
+     * @param indexName the name of the index for which the dimension fields are being found
+     * @param allSettings the settings of the index
+     * @param combinedTemplateMappings the combined mappings from index templates
+     *                                 (if any) that are applied to the index
+     * @param dimensions a list to which the found dimension fields will be added
+     * @return true if all potential dimension fields can be matched via the dimensions in the list, false otherwise
      */
-    private List<String> findRoutingPaths(String indexName, Settings allSettings, List<CompressedXContent> combinedTemplateMappings) {
+    private boolean findDimensionFields(
+        String indexName,
+        Settings allSettings,
+        List<CompressedXContent> combinedTemplateMappings,
+        List<String> dimensions
+    ) {
         var tmpIndexMetadata = IndexMetadata.builder(indexName);
 
         int dummyPartitionSize = IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(allSettings);
@@ -169,57 +227,61 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         // Create MapperService just to extract keyword dimension fields:
         try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata.build())) {
             mapperService.merge(MapperService.SINGLE_MAPPING_NAME, combinedTemplateMappings, MapperService.MergeReason.INDEX_TEMPLATE);
-            List<String> routingPaths = new ArrayList<>();
-            for (var fieldMapper : mapperService.documentMapper().mappers().fieldMappers()) {
-                extractPath(routingPaths, fieldMapper);
-            }
-            for (var objectMapper : mapperService.documentMapper().mappers().objectMappers().values()) {
-                if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
-                    if (passThroughObjectMapper.containsDimensions()) {
-                        routingPaths.add(passThroughObjectMapper.fullPath() + ".*");
-                    }
-                }
-            }
-            for (var template : mapperService.getAllDynamicTemplates()) {
-                if (template.pathMatch().isEmpty()) {
-                    continue;
-                }
-
-                var templateName = "__dynamic__" + template.name();
-                var mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
-                String mappingSnippetType = (String) mappingSnippet.get("type");
-                if (mappingSnippetType == null) {
-                    continue;
-                }
-
-                MappingParserContext parserContext = mapperService.parserContext();
-                for (Iterator<String> iterator = template.pathMatch().iterator(); iterator.hasNext();) {
-                    var mapper = parserContext.typeParser(mappingSnippetType)
-                        .parse(iterator.next(), mappingSnippet, parserContext)
-                        .build(MapperBuilderContext.root(false, false));
-                    extractPath(routingPaths, mapper);
-                    if (iterator.hasNext()) {
-                        // Since FieldMapper.parse modifies the Map passed in (removing entries for "type"), that means
-                        // that only the first pathMatch passed in gets recognized as a time_series_dimension.
-                        // To avoid this, each parsing call uses a new mapping snippet.
-                        // Note that a shallow copy of the mappingSnippet map is not enough if there are multi-fields.
-                        mappingSnippet = template.mappingForName(templateName, KeywordFieldMapper.CONTENT_TYPE);
-                    }
-                }
-            }
-            return routingPaths;
+            DocumentMapper documentMapper = mapperService.documentMapper();
+            return findDimensionFields(dimensions, documentMapper);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
     /**
-     * Helper method that adds the name of the mapper to the provided list if it is a keyword dimension field.
+     * Finds the dimension fields in the provided document mapper and adds them to the provided list.
+     *
+     * @param dimensions the list to which the found dimension fields will be added
+     * @param documentMapper the document mapper from which to extract the dimension fields
+     * @return true if all potential dimension fields can be matched via the dimensions in the list, false otherwise
      */
-    private static void extractPath(List<String> routingPaths, Mapper mapper) {
-        if (mapper instanceof KeywordFieldMapper keywordFieldMapper) {
-            if (keywordFieldMapper.fieldType().isDimension()) {
-                routingPaths.add(mapper.fullPath());
+    private static boolean findDimensionFields(List<String> dimensions, DocumentMapper documentMapper) {
+        for (var objectMapper : documentMapper.mappers().objectMappers().values()) {
+            if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+                if (passThroughObjectMapper.containsDimensions()) {
+                    dimensions.add(passThroughObjectMapper.fullPath() + ".*");
+                }
+            }
+        }
+        boolean matchesAllDimensions = true;
+        for (var template : documentMapper.mapping().getRoot().dynamicTemplates()) {
+            if (template.isTimeSeriesDimension() == false) {
+                continue;
+            }
+            if (template.isSimplePathMatch() == false) {
+                // If the template is not using a simple path match, the dimensions list can't match all potential dimensions.
+                // For example, if the dynamic template matches by mapping type (all strings are mapped as dimensions),
+                // the coordinating node can't rely on the dimensions list to match all dimensions.
+                // In this case, the index.routing_path setting will be used instead.
+                matchesAllDimensions = false;
+            }
+            if (template.pathMatch().isEmpty() == false) {
+                dimensions.addAll(template.pathMatch());
+            }
+        }
+
+        for (var fieldMapper : documentMapper.mappers().fieldMappers()) {
+            extractPath(dimensions, fieldMapper);
+        }
+        return matchesAllDimensions;
+    }
+
+    /**
+     * Helper method that adds the name of the mapper to the provided list.
+     */
+    private static void extractPath(List<String> dimensions, Mapper mapper) {
+        if (mapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isDimension()) {
+            String path = mapper.fullPath();
+            // don't add if the path already matches via a wildcard pattern in the list
+            // e.g. if "path.*" is already added, "path.foo" should not be added
+            if (Regex.simpleMatch(dimensions, path) == false) {
+                dimensions.add(path);
             }
         }
     }

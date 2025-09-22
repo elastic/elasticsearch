@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
@@ -22,6 +23,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
@@ -74,6 +76,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
     private static final TransportVersion PIPELINES_HAVE_RUN_FIELD_ADDED = TransportVersions.V_8_10_X;
+    private static final TransportVersion INDEX_REQUEST_INCLUDE_TSID = TransportVersion.fromName("index_request_include_tsid");
 
     private static final Supplier<String> ID_GENERATOR = UUIDs::base64UUID;
 
@@ -147,6 +150,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
+    private BytesRef tsid;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -224,6 +228,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             includeSourceOnError = in.readBoolean();
         } // else default value is true
+
+        if (in.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
+            tsid = in.readBytesRefOrNullIfEmpty();
+        }
     }
 
     public IndexRequest() {
@@ -361,6 +369,22 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public String routing() {
         return this.routing;
+    }
+
+    /**
+     * When {@link IndexMetadata#INDEX_DIMENSIONS} is populated,
+     * the coordinating node will calculate _tsid during routing and set it on the request.
+     * For time series indices where the setting is not populated, the _tsid will be created in the data node during document parsing.
+     * <p>
+     * The _tsid can not be directly set by a user, it is set by the coordinating node.
+     */
+    public IndexRequest tsid(BytesRef tsid) {
+        this.tsid = tsid;
+        return this;
+    }
+
+    public BytesRef tsid() {
+        return this.tsid;
     }
 
     /**
@@ -794,6 +818,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_REQUEST_INCLUDE_SOURCE_ON_ERROR)) {
             out.writeBoolean(includeSourceOnError);
         }
+        if (out.getTransportVersion().supports(INDEX_REQUEST_INCLUDE_TSID)) {
+            out.writeBytesRef(tsid);
+        }
     }
 
     @Override
@@ -896,7 +923,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, indexSource.contentType(), indexSource.bytes());
+        return indexRouting.indexShard(id, routing, tsid, indexSource.contentType(), indexSource.bytes());
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

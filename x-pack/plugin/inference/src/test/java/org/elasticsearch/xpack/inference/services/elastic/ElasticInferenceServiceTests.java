@@ -922,15 +922,15 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
+    public void testHideFromConfigurationApi_ThrowsUnsupported_WithNoAvailableModels() throws Exception {
         try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
 
-            assertTrue(service.hideFromConfigurationApi());
+            expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
 
-    public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
+    public void testHideFromConfigurationApi_ThrowsUnsupported_WithAvailableModels() throws Exception {
         try (
             var service = createServiceWithMockSender(
                 ElasticInferenceServiceAuthorizationModel.of(
@@ -947,11 +947,11 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         ) {
             ensureAuthorizationCallFinished(service);
 
-            assertFalse(service.hideFromConfigurationApi());
+            expectThrows(UnsupportedOperationException.class, service::hideFromConfigurationApi);
         }
     }
 
-    public void testGetConfiguration() throws Exception {
+    public void testCreateConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
                 ElasticInferenceServiceAuthorizationModel.of(
@@ -1010,7 +1010,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
             boolean humanReadable = true;
             BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
+                EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.TEXT_EMBEDDING)
+            );
             assertToXContentEquivalent(
                 originalBytes,
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
@@ -1065,7 +1067,9 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             );
             boolean humanReadable = true;
             BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            InferenceServiceConfiguration serviceConfiguration = ElasticInferenceService.createConfiguration(
+                EnumSet.noneOf(TaskType.class)
+            );
             assertToXContentEquivalent(
                 originalBytes,
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
@@ -1074,7 +1078,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testGetConfiguration_WithoutSupportedTaskTypes_WhenModelsReturnTaskOutsideOfImplementation() throws Exception {
+    public void testGetConfiguration_ThrowsUnsupported() throws Exception {
         try (
             var service = createServiceWithMockSender(
                 // this service doesn't yet support text embedding so we should still have no task types
@@ -1092,54 +1096,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         ) {
             ensureAuthorizationCallFinished(service);
 
-            String content = XContentHelper.stripWhitespace("""
-                {
-                       "service": "elastic",
-                       "name": "Elastic",
-                       "task_types": ["text_embedding"],
-                       "configurations": {
-                           "rate_limit.requests_per_minute": {
-                               "description": "Minimize the number of rate limit errors.",
-                               "label": "Rate Limit",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding" , "sparse_embedding", "rerank", "chat_completion"]
-                           },
-                           "model_id": {
-                               "description": "The name of the model to use for the inference task.",
-                               "label": "Model ID",
-                               "required": true,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "str",
-                               "supported_task_types": ["text_embedding" , "sparse_embedding", "rerank", "chat_completion"]
-                           },
-                           "max_input_tokens": {
-                               "description": "Allows you to specify the maximum number of tokens per input.",
-                               "label": "Maximum Input Tokens",
-                               "required": false,
-                               "sensitive": false,
-                               "updatable": false,
-                               "type": "int",
-                               "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
-                       }
-                   }
-                """);
-            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
-                new BytesArray(content),
-                XContentType.JSON
-            );
-            boolean humanReadable = true;
-            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
-            assertToXContentEquivalent(
-                originalBytes,
-                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
-                XContentType.JSON
-            );
+            expectThrows(UnsupportedOperationException.class, service::getConfiguration);
         }
     }
 
@@ -1241,7 +1198,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
             ensureAuthorizationCallFinished(service);
 
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertTrue(service.defaultConfigIds().isEmpty());
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
@@ -1268,7 +1225,7 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
             ensureAuthorizationCallFinished(service);
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertThat(
                 service.defaultConfigIds(),
                 is(

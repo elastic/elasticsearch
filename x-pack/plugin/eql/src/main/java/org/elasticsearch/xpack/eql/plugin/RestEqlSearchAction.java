@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -39,6 +40,11 @@ import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
 public class RestEqlSearchAction extends BaseRestHandler {
     private static final Logger LOGGER = LogManager.getLogger(RestEqlSearchAction.class);
     private static final String SEARCH_PATH = "/{index}/_eql/search";
+    private final Settings settings;
+
+    public RestEqlSearchAction(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public List<Route> routes() {
@@ -47,6 +53,10 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (settings != null && settings.getAsBoolean("serverless.cross_project.enabled", false)) {
+            // accept but drop project_routing param until fully supported
+            request.param("project_routing");
+        }
 
         EqlSearchRequest eqlRequest;
         String indices;

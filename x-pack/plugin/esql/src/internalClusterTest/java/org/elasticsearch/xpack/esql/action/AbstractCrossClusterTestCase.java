@@ -350,7 +350,11 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
         if (ccsMetadataInResponse != null) {
-            request.includeCCSMetadata(ccsMetadataInResponse);
+            if (randomBoolean()) {
+                request.includeExecutionMetadata(ccsMetadataInResponse);
+            } else {
+                request.includeCCSMetadata(ccsMetadataInResponse);
+            }
         }
         return runQuery(request);
     }

@@ -277,4 +277,21 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
             "[myserver/src/main/resources/transport/definitions/referable/existing_92.csv]"
         )
     }
+
+    def "primary id checks skipped on release branch"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('validateTransportVersionResources') {
+                currentUpperBoundName = '9.1'
+            }
+        """
+        referableAndReferencedTransportVersion("some_tv", "8125000")
+        transportVersionUpperBound("9.2", "some_tv", "8125000")
+
+        when:
+        def result = gradleRunner("validateTransportVersionResources").build()
+
+        then:
+        result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
+    }
 }

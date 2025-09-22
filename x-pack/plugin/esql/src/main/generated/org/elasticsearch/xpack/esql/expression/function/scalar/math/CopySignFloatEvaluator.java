@@ -95,7 +95,9 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendFloat(CopySign.processFloat(magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p)), signBlock.getDouble(signBlock.getFirstValueIndex(p))));
+        float magnitude = magnitudeBlock.getFloat(magnitudeBlock.getFirstValueIndex(p));
+        double sign = signBlock.getDouble(signBlock.getFirstValueIndex(p));
+        result.appendFloat(CopySign.processFloat(magnitude, sign));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class CopySignFloatEvaluator implements EvalOperator.ExpressionEval
   public FloatVector eval(int positionCount, FloatVector magnitudeVector, DoubleVector signVector) {
     try(FloatVector.FixedBuilder result = driverContext.blockFactory().newFloatVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendFloat(p, CopySign.processFloat(magnitudeVector.getFloat(p), signVector.getDouble(p)));
+        float magnitude = magnitudeVector.getFloat(p);
+        double sign = signVector.getDouble(p);
+        result.appendFloat(p, CopySign.processFloat(magnitude, sign));
       }
       return result.build();
     }

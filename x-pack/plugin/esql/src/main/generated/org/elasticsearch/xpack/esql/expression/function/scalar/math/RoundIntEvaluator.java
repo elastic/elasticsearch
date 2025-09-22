@@ -95,7 +95,9 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        result.appendInt(Round.process(valBlock.getInt(valBlock.getFirstValueIndex(p)), decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p))));
+        int val = valBlock.getInt(valBlock.getFirstValueIndex(p));
+        long decimals = decimalsBlock.getLong(decimalsBlock.getFirstValueIndex(p));
+        result.appendInt(Round.process(val, decimals));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   public IntVector eval(int positionCount, IntVector valVector, LongVector decimalsVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Round.process(valVector.getInt(p), decimalsVector.getLong(p)));
+        int val = valVector.getInt(p);
+        long decimals = decimalsVector.getLong(p);
+        result.appendInt(p, Round.process(val, decimals));
       }
       return result.build();
     }

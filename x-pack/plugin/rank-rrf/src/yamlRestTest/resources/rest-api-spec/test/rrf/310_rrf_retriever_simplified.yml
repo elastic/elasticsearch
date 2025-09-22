@@ -2,7 +2,7 @@ setup:
   - requires:
       cluster_features: [ "rrf_retriever.multi_fields_query_format_support" ]
       reason: "RRF retriever multi-fields query format support"
-      test_runner_features: [ "contains", "headers", "close_to" ]
+      test_runner_features: [ "contains" ]
 
   - do:
       inference.put:
@@ -224,8 +224,6 @@ setup:
       reason: "Simplified weighted fields syntax support"
 
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
@@ -238,13 +236,9 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "1" }
-  - gt: { hits.hits.0._score: 0.0 }
   - match: { hits.hits.1._id: "3" }
-  - gt: { hits.hits.1._score: 0.0 }
 
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
@@ -257,9 +251,7 @@ setup:
   - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "3" }
-  - gt: { hits.hits.0._score: 0.0 }
   - match: { hits.hits.1._id: "1" }
-  - gt: { hits.hits.1._score: 0.0 }
 
 ---
 "Semantic match per-field boosting using the simplified format":
@@ -272,8 +264,6 @@ setup:
   # services generate consistent vectors (i.e. same input -> same output) to demonstrate that per-field boosting on
   # a semantic_text field can change the result order.
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
@@ -282,19 +272,13 @@ setup:
               fields: [ "dense_inference", "sparse_inference" ]
               query: "distributed, RESTful, search engine"
 
-  # Semantic-only match, so max RRF score for rank 1 with default rank_constant (60) is 1/(60+1) = 0.01639
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 0.01639, error: 0.0001 } }
   - match: { hits.hits.1._id: "3" }
-  - lt: { hits.hits.1._score: 1.0 }
   - match: { hits.hits.2._id: "1" }
-  - lt: { hits.hits.2._score: 1.0 }
 
   - do:
-      headers:
-        Content-Type: application/json
       search:
         index: test-index
         body:
@@ -303,15 +287,11 @@ setup:
               fields: [ "dense_inference^3", "sparse_inference" ]
               query: "distributed, RESTful, search engine"
 
-  # Semantic-only match with boosted dense_inference field, so max RRF score for rank 1 is still 1/(60+1) = 0.01639
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._id: "3" }
-  - close_to: { hits.hits.0._score: { value: 0.01639, error: 0.0001 } }
   - match: { hits.hits.1._id: "2" }
-  - lt: { hits.hits.1._score: 1.0 }
   - match: { hits.hits.2._id: "1" }
-  - lt: { hits.hits.2._score: 1.0 }
 
 ---
 "Negative weight validation":
@@ -330,43 +310,6 @@ setup:
               query: "foo"
 
   - match: { error.root_cause.0.reason: "[rrf] per-field weights must be non-negative" }
-
----
-"Zero weight handling":
-  - requires:
-      cluster_features: ["rrf_retriever.simplified_weighted_support"]
-      reason: "Simplified weighted fields syntax support"
-
-  - do:
-      search:
-        index: test-index
-        body:
-          retriever:
-            rrf:
-              fields: ["text_1^0", "text_2^1"]
-              query: "foo"
-
-  - gte: { hits.total.value: 1 }
-
----
-"Basic per-field boosting using the simplified format":
-  - requires:
-      cluster_features: ["rrf_retriever.simplified_weighted_support"]
-      reason: "Simplified weighted fields syntax support"
-
-  - do:
-      search:
-        index: test-index
-        body:
-          retriever:
-            rrf:
-              fields: [ "text_1", "text_2^2" ]
-              query: "foo"
-
-  # With weighted fields, verify basic functionality
-  - gte: { hits.total.value: 1 }
-  - length: { hits.hits: 1 }
-  # Verify that text_2^2 affects ranking (basic smoke test)
 
 ---
 "Can query text fields":
@@ -619,25 +562,6 @@ setup:
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.2._id: "3" }
-
----
-"Semantic field weighting":
-  - requires:
-      cluster_features: ["rrf_retriever.simplified_weighted_support"]
-      reason: "Simplified weighted fields syntax support"
-
-  - do:
-      search:
-        index: test-index
-        body:
-          retriever:
-            rrf:
-              fields: ["dense_inference^2", "sparse_inference^1.5"]
-              query: "elasticsearch"
-
-  - match: { hits.total.value: 3 }
-  - length: { hits.hits: 3 }
-
 
 ---
 "Queries multiple indices using default_field":

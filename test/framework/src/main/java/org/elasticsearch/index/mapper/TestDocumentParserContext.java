@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -104,5 +105,10 @@ public class TestDocumentParserContext extends DocumentParserContext {
     @Override
     protected void addDoc(LuceneDocument doc) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public BytesRef getTsid() {
+        return null;
     }
 }

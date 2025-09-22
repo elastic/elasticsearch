@@ -94,8 +94,10 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        double base = baseBlock.getDouble(baseBlock.getFirstValueIndex(p));
+        double exponent = exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+          result.appendDouble(Pow.process(base, exponent));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -108,8 +110,10 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double base = baseVector.getDouble(p);
+        double exponent = exponentVector.getDouble(p);
         try {
-          result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
+          result.appendDouble(Pow.process(base, exponent));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

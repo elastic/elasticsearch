@@ -1201,6 +1201,11 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Support for INCREASE timeseries aggregation.
+         */
+        INCREASE,
+
+        /**
          * Extra field types in the k8s.csv dataset
          */
         K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
@@ -1352,7 +1357,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V3(Build.current().isSnapshot()),
+        FUSE_V4(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1454,6 +1459,11 @@ public class EsqlCapabilities {
          * URL encoding function.
          */
         URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
 
         /**
          * URL decoding function.

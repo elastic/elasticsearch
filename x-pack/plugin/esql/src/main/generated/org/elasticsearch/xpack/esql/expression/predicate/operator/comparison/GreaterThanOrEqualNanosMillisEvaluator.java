@@ -95,7 +95,9 @@ public final class GreaterThanOrEqualNanosMillisEvaluator implements EvalOperato
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(GreaterThanOrEqual.processNanosMillis(lhsBlock.getLong(lhsBlock.getFirstValueIndex(p)), rhsBlock.getLong(rhsBlock.getFirstValueIndex(p))));
+        long lhs = lhsBlock.getLong(lhsBlock.getFirstValueIndex(p));
+        long rhs = rhsBlock.getLong(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(GreaterThanOrEqual.processNanosMillis(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class GreaterThanOrEqualNanosMillisEvaluator implements EvalOperato
   public BooleanVector eval(int positionCount, LongVector lhsVector, LongVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, GreaterThanOrEqual.processNanosMillis(lhsVector.getLong(p), rhsVector.getLong(p)));
+        long lhs = lhsVector.getLong(p);
+        long rhs = rhsVector.getLong(p);
+        result.appendBoolean(p, GreaterThanOrEqual.processNanosMillis(lhs, rhs));
       }
       return result.build();
     }

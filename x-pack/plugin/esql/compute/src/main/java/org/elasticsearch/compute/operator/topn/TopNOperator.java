@@ -55,6 +55,8 @@ public class TopNOperator implements Operator, Accountable {
     static final class Row implements Accountable, Releasable {
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Row.class);
 
+        private final CircuitBreaker breaker;
+
         /**
          * The sort key.
          */
@@ -81,17 +83,11 @@ public class TopNOperator implements Operator, Accountable {
         @Nullable
         RefCounted shardRefCounter;
 
-        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
-            if (this.shardRefCounter != null) {
-                this.shardRefCounter.decRef();
-            }
-            this.shardRefCounter = shardRefCounter;
-            this.shardRefCounter.mustIncRef();
-        }
-
         Row(CircuitBreaker breaker, List<SortOrder> sortOrders, int preAllocatedKeysSize, int preAllocatedValueSize) {
+            this.breaker = breaker;
             boolean success = false;
             try {
+                breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
                 keys = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedKeysSize);
                 values = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedValueSize);
                 bytesOrder = new BytesOrder(sortOrders, breaker, "topn");
@@ -111,7 +107,7 @@ public class TopNOperator implements Operator, Accountable {
         @Override
         public void close() {
             clearRefCounters();
-            Releasables.closeExpectNoException(keys, values, bytesOrder);
+            Releasables.closeExpectNoException(() -> breaker.addWithoutBreaking(-SHALLOW_SIZE), keys, values, bytesOrder);
         }
 
         public void clearRefCounters() {
@@ -119,6 +115,14 @@ public class TopNOperator implements Operator, Accountable {
                 shardRefCounter.decRef();
             }
             shardRefCounter = null;
+        }
+
+        void setShardRefCountersAndShard(RefCounted shardRefCounter) {
+            if (this.shardRefCounter != null) {
+                this.shardRefCounter.decRef();
+            }
+            this.shardRefCounter = shardRefCounter;
+            this.shardRefCounter.mustIncRef();
         }
     }
 

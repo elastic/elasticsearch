@@ -193,6 +193,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_MANY_FIELDS = TransportVersion.fromName(
             "esql_lookup_join_on_many_fields"
         );
+        private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
@@ -263,7 +264,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
             }
             Expression joinOnConditions = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            if (in.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             TransportRequest result = new TransportRequest(
@@ -328,7 +329,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_PRE_JOIN_FILTER)) {
                 planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
+            if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_EXPRESSION)) {
                 planOut.writeOptionalNamedWriteable(joinOnConditions);
             } else {
                 if (joinOnConditions != null) {

@@ -98,7 +98,9 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(InsensitiveEquals.process(lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch)));
+        BytesRef lhs = lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch);
+        BytesRef rhs = rhsBlock.getBytesRef(rhsBlock.getFirstValueIndex(p), rhsScratch);
+        result.appendBoolean(InsensitiveEquals.process(lhs, rhs));
       }
       return result.build();
     }
@@ -109,7 +111,9 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
       BytesRef lhsScratch = new BytesRef();
       BytesRef rhsScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, InsensitiveEquals.process(lhsVector.getBytesRef(p, lhsScratch), rhsVector.getBytesRef(p, rhsScratch)));
+        BytesRef lhs = lhsVector.getBytesRef(p, lhsScratch);
+        BytesRef rhs = rhsVector.getBytesRef(p, rhsScratch);
+        result.appendBoolean(p, InsensitiveEquals.process(lhs, rhs));
       }
       return result.build();
     }

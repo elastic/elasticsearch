@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.mapper.LongScriptFieldTypeTests.createDocumentWithIgnoredSource;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;

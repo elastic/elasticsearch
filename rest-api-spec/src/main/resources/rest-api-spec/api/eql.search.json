@@ -80,6 +80,10 @@
         ],
         "default": "open",
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
     "body": {

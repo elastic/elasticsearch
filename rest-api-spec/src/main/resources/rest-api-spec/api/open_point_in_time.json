@@ -68,6 +68,10 @@
         "type": "number",
         "description": "The number of concurrent shard requests per node executed concurrently when opening this point-in-time. This value should be used to limit the impact of opening the point-in-time on the cluster",
         "default": 5
+      },
+      "project_routing": {
+        "type": "string",
+        "description": "A Lucene query using project metadata tags to limit which projects to search, such as _alias:_origin or _alias:*pr*. Only supported in serverless."
       }
     },
     "body": {

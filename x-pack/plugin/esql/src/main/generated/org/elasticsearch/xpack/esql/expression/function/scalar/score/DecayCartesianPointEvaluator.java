@@ -92,7 +92,8 @@ public final class DecayCartesianPointEvaluator implements EvalOperator.Expressi
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Decay.processCartesianPoint(valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        BytesRef value = valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch);
+        result.appendDouble(Decay.processCartesianPoint(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }
@@ -102,7 +103,8 @@ public final class DecayCartesianPointEvaluator implements EvalOperator.Expressi
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Decay.processCartesianPoint(valueVector.getBytesRef(p, valueScratch), this.origin, this.scale, this.offset, this.decay, this.decayFunction));
+        BytesRef value = valueVector.getBytesRef(p, valueScratch);
+        result.appendDouble(p, Decay.processCartesianPoint(value, this.origin, this.scale, this.offset, this.decay, this.decayFunction));
       }
       return result.build();
     }

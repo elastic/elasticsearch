@@ -4,7 +4,7 @@
 FROM employees
 | WHERE still_hired
 | KEEP emp_no, languages, salary, hire_date
-| EVAL tenure = DATE_DIFF("year", hire_date, now())
+| EVAL tenure = DATE_DIFF("year", hire_date, "2025-09-18T00:00:00")
 | DROP hire_date
 | INLINE STATS avg_salary = AVG(salary), count = count(*) BY languages, tenure
 ```

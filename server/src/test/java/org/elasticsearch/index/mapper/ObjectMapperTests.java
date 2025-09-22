@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -25,7 +26,6 @@ import org.hamcrest.core.IsInstanceOf;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -786,8 +786,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
@@ -795,8 +795,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenSubobjectsAuto() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.AUTO)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.AUTO)).add(
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
@@ -804,8 +804,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenSubobjectsFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.DISABLED)).add(
-            new ObjectMapper.Builder("child", Optional.empty()).add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()))
         ).add(new KeywordFieldMapper.Builder("keyword1", IndexVersion.current())).build(rootContext);
         List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
@@ -813,9 +813,8 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenDynamicIncompatible() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).add(
-            new ObjectMapper.Builder("child", Optional.empty()).dynamic(Dynamic.FALSE)
-        ).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE))
+            .build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -831,7 +830,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenEnabledFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.empty()).enabled(false).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").enabled(false).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -846,7 +845,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenExplicitSubobjectsTrue() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Optional.of(ObjectMapper.Subobjects.ENABLED)).build(rootContext);
+        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.ENABLED)).build(rootContext);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
@@ -862,18 +861,18 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testFindParentMapper() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
 
-        var rootBuilder = new RootObjectMapper.Builder("_doc", Optional.empty());
+        var rootBuilder = new RootObjectMapper.Builder("_doc");
         rootBuilder.add(new KeywordFieldMapper.Builder("keyword", IndexVersion.current()));
 
-        var child = new ObjectMapper.Builder("child", Optional.empty());
+        var child = new ObjectMapper.Builder("child");
         child.add(new KeywordFieldMapper.Builder("keyword2", IndexVersion.current()));
         child.add(new KeywordFieldMapper.Builder("keyword.with.dot", IndexVersion.current()));
-        var secondLevelChild = new ObjectMapper.Builder("child2", Optional.empty());
+        var secondLevelChild = new ObjectMapper.Builder("child2");
         secondLevelChild.add(new KeywordFieldMapper.Builder("keyword22", IndexVersion.current()));
         child.add(secondLevelChild);
         rootBuilder.add(child);
 
-        var childWithDot = new ObjectMapper.Builder("childwith.dot", Optional.empty());
+        var childWithDot = new ObjectMapper.Builder("childwith.dot");
         childWithDot.add(new KeywordFieldMapper.Builder("keyword3", IndexVersion.current()));
         childWithDot.add(new KeywordFieldMapper.Builder("keyword4.with.dot", IndexVersion.current()));
         rootBuilder.add(childWithDot);

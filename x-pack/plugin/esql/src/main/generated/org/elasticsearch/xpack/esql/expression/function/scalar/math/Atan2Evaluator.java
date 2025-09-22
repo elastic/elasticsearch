@@ -93,7 +93,9 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Atan2.process(yBlock.getDouble(yBlock.getFirstValueIndex(p)), xBlock.getDouble(xBlock.getFirstValueIndex(p))));
+        double y = yBlock.getDouble(yBlock.getFirstValueIndex(p));
+        double x = xBlock.getDouble(xBlock.getFirstValueIndex(p));
+        result.appendDouble(Atan2.process(y, x));
       }
       return result.build();
     }
@@ -102,7 +104,9 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleVector eval(int positionCount, DoubleVector yVector, DoubleVector xVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Atan2.process(yVector.getDouble(p), xVector.getDouble(p)));
+        double y = yVector.getDouble(p);
+        double x = xVector.getDouble(p);
+        result.appendDouble(p, Atan2.process(y, x));
       }
       return result.build();
     }

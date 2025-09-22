@@ -72,7 +72,8 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
+        double fieldVal = fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p));
+        result.appendDouble(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Abs.process(fieldValVector.getDouble(p)));
+        double fieldVal = fieldValVector.getDouble(p);
+        result.appendDouble(p, Abs.process(fieldVal));
       }
       return result.build();
     }

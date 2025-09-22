@@ -6,6 +6,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -14,6 +15,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
@@ -28,10 +30,13 @@ public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEv
 
   private final EvalOperator.ExpressionEvaluator val;
 
+  private final BreakingBytesRefBuilder scratch;
+
   public UrlEncodeEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
+      BreakingBytesRefBuilder scratch, DriverContext driverContext) {
     super(driverContext, source);
     this.val = val;
+    this.scratch = scratch;
   }
 
   @Override
@@ -61,7 +66,7 @@ public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEv
 
   private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return UrlEncode.process(value);
+    return UrlEncode.process(value, this.scratch);
   }
 
   @Override
@@ -97,7 +102,7 @@ public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEv
 
   private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return UrlEncode.process(value);
+    return UrlEncode.process(value, this.scratch);
   }
 
   private Block evalOrdinals(OrdinalBytesRefVector v) {
@@ -120,7 +125,7 @@ public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEv
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(val);
+    Releasables.closeExpectNoException(val, scratch);
   }
 
   @Override
@@ -135,14 +140,18 @@ public final class UrlEncodeEvaluator extends AbstractConvertFunction.AbstractEv
 
     private final EvalOperator.ExpressionEvaluator.Factory val;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val) {
+    private final Function<DriverContext, BreakingBytesRefBuilder> scratch;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory val,
+        Function<DriverContext, BreakingBytesRefBuilder> scratch) {
       this.source = source;
       this.val = val;
+      this.scratch = scratch;
     }
 
     @Override
     public UrlEncodeEvaluator get(DriverContext context) {
-      return new UrlEncodeEvaluator(source, val.get(context), context);
+      return new UrlEncodeEvaluator(source, val.get(context), scratch.apply(context), context);
     }
 
     @Override

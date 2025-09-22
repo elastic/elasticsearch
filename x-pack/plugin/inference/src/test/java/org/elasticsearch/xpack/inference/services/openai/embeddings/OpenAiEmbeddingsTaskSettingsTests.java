@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
@@ -16,6 +15,8 @@ import org.elasticsearch.xpack.inference.services.openai.OpenAiTaskSettingsTests
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings.INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS;
 
 public class OpenAiEmbeddingsTaskSettingsTests extends OpenAiTaskSettingsTests<OpenAiEmbeddingsTaskSettings> {
 
@@ -51,7 +52,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends OpenAiTaskSettingsTests<O
 
     @Override
     protected OpenAiEmbeddingsTaskSettings mutateInstanceForVersion(OpenAiEmbeddingsTaskSettings instance, TransportVersion version) {
-        if (version.onOrAfter(TransportVersions.INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
+        if (version.supports(INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
             return instance;
         }
 

@@ -78,8 +78,9 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        int number = numberBlock.getInt(numberBlock.getFirstValueIndex(p));
         try {
-          result.appendBytesRef(Space.process(this.scratch, numberBlock.getInt(numberBlock.getFirstValueIndex(p))));
+          result.appendBytesRef(Space.process(this.scratch, number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -92,8 +93,9 @@ public final class SpaceEvaluator implements EvalOperator.ExpressionEvaluator {
   public BytesRefBlock eval(int positionCount, IntVector numberVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        int number = numberVector.getInt(p);
         try {
-          result.appendBytesRef(Space.process(this.scratch, numberVector.getInt(p)));
+          result.appendBytesRef(Space.process(this.scratch, number));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

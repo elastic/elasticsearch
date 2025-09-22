@@ -27,6 +27,11 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
 
     public static final String NAME = "openai_embeddings_task_settings";
 
+    // default for testing
+    static final TransportVersion INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS = TransportVersion.fromName(
+        "inference_api_openai_embeddings_headers"
+    );
+
     public OpenAiEmbeddingsTaskSettings(Map<String, Object> map) {
         super(map);
     }
@@ -51,7 +56,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
 
         Map<String, String> headers;
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
+        if (in.getTransportVersion().supports(INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
             headers = in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString);
         } else {
             headers = null;
@@ -79,7 +84,7 @@ public class OpenAiEmbeddingsTaskSettings extends OpenAiTaskSettings<OpenAiEmbed
             out.writeOptionalString(user());
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
+        if (out.getTransportVersion().supports(INFERENCE_API_OPENAI_EMBEDDINGS_HEADERS)) {
             out.writeOptionalMap(headers(), StreamOutput::writeString, StreamOutput::writeString);
         }
     }

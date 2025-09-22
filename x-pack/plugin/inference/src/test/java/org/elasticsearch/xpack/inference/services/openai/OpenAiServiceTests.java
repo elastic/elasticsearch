@@ -270,7 +270,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var secretSettingsMap = getSecretSettingsMap("secret");
             secretSettingsMap.put("extra_key", "value");
 
-            var config = getRequestConfigMap(getServiceSettingsMap("model", "url", "org"), getOpenAiTaskSettingsMap("user"), secretSettingsMap);
+            var config = getRequestConfigMap(
+                getServiceSettingsMap("model", "url", "org"),
+                getOpenAiTaskSettingsMap("user"),
+                secretSettingsMap
+            );
 
             ActionListener<Model> modelVerificationListener = ActionListener.<Model>wrap((model) -> {
                 fail("Expected exception, but got model: " + model);
@@ -299,7 +303,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap("model", null, null), getOpenAiTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getOpenAiTaskSettingsMap(null),
+                    getSecretSettingsMap("secret")
+                ),
                 modelVerificationListener
             );
         }
@@ -402,7 +410,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(getServiceSettingsMap("model", null, null), getOpenAiTaskSettingsMap(null), getSecretSettingsMap("secret")),
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getOpenAiTaskSettingsMap(null),
+                    getSecretSettingsMap("secret")
+                ),
                 modelVerificationListener
             );
         }
@@ -630,7 +642,11 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             var serviceSettingsMap = getServiceSettingsMap("model", "url", "org", null, null, true);
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getOpenAiTaskSettingsMap("user"), getSecretSettingsMap("secret"));
+            var persistedConfig = getPersistedConfigMap(
+                serviceSettingsMap,
+                getOpenAiTaskSettingsMap("user"),
+                getSecretSettingsMap("secret")
+            );
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",

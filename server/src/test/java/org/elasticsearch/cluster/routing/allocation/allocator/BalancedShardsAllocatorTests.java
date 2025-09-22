@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -51,7 +52,9 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
+import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,6 +62,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -78,6 +82,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -86,6 +91,8 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
+    private static final RoutingChangesObserver NOOP = new RoutingChangesObserver() {
+    };
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
     public void testDecideShardAllocation() {
@@ -809,6 +816,112 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         applyStartedShardsUntilNoChange(clusterState, allocationService);
     }
 
+    public void testShardMovementPriorityComparator() {
+        final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
+        final double lowThreshold = maxWriteLoad * 0.5;
+        final int numAtMax = between(1, 2);
+        final int numBetweenLowAndMax = between(1, 50);
+        final int numBelowLow = between(1, 50);
+        final int numMissing = between(1, 50);
+        final int totalShards = numAtMax + numBetweenLowAndMax + numBelowLow + numMissing;
+
+        final var indices = new ArrayList<IndexMetadata.Builder>();
+        for (int i = 0; i < totalShards; i++) {
+            indices.add(anIndex("index-" + i).numberOfShards(1).numberOfReplicas(0));
+        }
+
+        final var nodeId = randomIdentifier();
+        final var stateWithIndices = createStateWithIndices(
+            List.of(nodeId),
+            shardId -> nodeId,
+            indices.toArray(IndexMetadata.Builder[]::new)
+        );
+
+        final var allShards = stateWithIndices.routingTable(ProjectId.DEFAULT).allShards().collect(toSet());
+        final var shardWriteLoads = new HashMap<ShardId, Double>();
+        addRandomWriteLoads(shardWriteLoads, allShards, numAtMax, () -> maxWriteLoad);
+        addRandomWriteLoads(shardWriteLoads, allShards, numBetweenLowAndMax, () -> randomDoubleBetween(lowThreshold, maxWriteLoad, true));
+        addRandomWriteLoads(shardWriteLoads, allShards, numBelowLow, () -> randomDoubleBetween(0, lowThreshold, true));
+        assertThat(allShards, hasSize(numMissing));
+
+        final var allocation = new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            stateWithIndices,
+            ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES.snapshotShardSizes(),
+            System.nanoTime()
+        );
+
+        // Assign all shards to node
+        final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
+        for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
+            logger.info("--> allocating shard [{}] to node [{}]", shardRouting, nodeId);
+            allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), NOOP);
+        }
+
+        final var comparator = new BalancedShardsAllocator.Balancer.ShardMovementPriorityComparator(
+            allocation,
+            allocatedRoutingNodes.node(nodeId)
+        );
+
+        logger.info("--> testing shard movement priority comparator, maxValue={}, threshold={}", maxWriteLoad, lowThreshold);
+        var sortedShards = allocatedRoutingNodes.getAssignedShards().values().stream().flatMap(List::stream).sorted(comparator).toList();
+
+        for (ShardRouting shardRouting : sortedShards) {
+            logger.info("--> {}: {}", shardRouting.shardId(), shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0));
+        }
+
+        double lastWriteLoad = 0.0;
+        int currentIndex = 0;
+        logger.info("--> expecting {} missing", numMissing);
+        for (int i = 0; i < numMissing; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++);
+            assertThat(shardWriteLoads, Matchers.not(Matchers.hasKey(currentShardId.shardId())));
+        }
+        logger.info("--> expecting {} at max", numAtMax);
+        for (int i = 0; i < numAtMax; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            assertThat(currentWriteLoad, equalTo(maxWriteLoad));
+        }
+        logger.info("--> expecting {} below low in ascending order", numBelowLow);
+        for (int i = 0; i < numBelowLow; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            if (i == 0) {
+                lastWriteLoad = currentWriteLoad;
+            } else {
+                assertThat(currentWriteLoad, greaterThanOrEqualTo(lastWriteLoad));
+            }
+        }
+        logger.info("--> expecting {} between low and max in descending order", numBetweenLowAndMax);
+        for (int i = 0; i < numBetweenLowAndMax; i++) {
+            final var currentShardId = sortedShards.get(currentIndex++).shardId();
+            assertThat(shardWriteLoads, Matchers.hasKey(currentShardId));
+            double currentWriteLoad = shardWriteLoads.get(currentShardId);
+            if (i == 0) {
+                lastWriteLoad = currentWriteLoad;
+            } else {
+                assertThat(currentWriteLoad, lessThanOrEqualTo(lastWriteLoad));
+            }
+        }
+    }
+
+    private void addRandomWriteLoads(
+        Map<ShardId, Double> shardWriteLoads,
+        Set<ShardRouting> shards,
+        int count,
+        DoubleSupplier writeLoadSupplier
+    ) {
+        for (int i = 0; i < count; i++) {
+            final var shardRouting = randomFrom(shards);
+            shardWriteLoads.put(shardRouting.shardId(), writeLoadSupplier.getAsDouble());
+            shards.remove(shardRouting);
+        }
+    }
+
     private Map<String, Integer> getTargetShardPerNodeCount(IndexRoutingTable indexRoutingTable) {
         var counts = new HashMap<String, Integer>();
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
@@ -850,7 +963,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private static ClusterState createStateWithIndices(
         List<String> nodeNames,
-        Function<ShardId, String> unbalancedAllocator,
+        Function<ShardId, String> shardAllocator,
         IndexMetadata.Builder... indexMetadataBuilders
     ) {
         var metadataBuilder = Metadata.builder();
@@ -873,9 +986,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 routingTableBuilder.add(
                     IndexRoutingTable.builder(indexMetadata.getIndex())
                         .addShard(
-                            shardRoutingBuilder(shardId, unbalancedAllocator.apply(shardId), true, ShardRoutingState.STARTED)
-                                .withAllocationId(AllocationId.newInitializing(inSyncId))
-                                .build()
+                            shardRoutingBuilder(shardId, shardAllocator.apply(shardId), true, ShardRoutingState.STARTED).withAllocationId(
+                                AllocationId.newInitializing(inSyncId)
+                            ).build()
                         )
                 );
             }

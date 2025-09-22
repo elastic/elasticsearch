@@ -864,47 +864,74 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
         }
 
-        private static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
+        /**
+         * Sorts shards by desirability to move, ranking goes (in descending priority order)
+         * <ol>
+         *     <li>Shards with write-load in {threshold} -> maximum write-load (exclusive)</li>
+         *     <li>Shards with write-load in {threshold} -> 0</li>
+         *     <li>Shards with maximum write-load</li>
+         *     <li>Shards with missing write-load</li>
+         * </ol>
+         */
+        // Visible for testing
+        static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
 
             private final Map<ShardId, Double> shardWriteLoads;
-            private final double lowThreshold;
-            private final double highThreshold;
+            private final double maxWriteLoadOnNode;
+            private final double threshold;
             private final String nodeId;
 
             ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
                 shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-                double maxWriteLoadOnNode = 0;
+                double maxWriteLoadOnNode = -1;
                 for (ShardRouting shardRouting : routingNode) {
                     maxWriteLoadOnNode = Math.max(maxWriteLoadOnNode, shardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0));
                 }
-                lowThreshold = maxWriteLoadOnNode * 0.5;
-                highThreshold = maxWriteLoadOnNode * 0.8;
+                this.maxWriteLoadOnNode = maxWriteLoadOnNode;
+                threshold = maxWriteLoadOnNode * 0.5;
                 nodeId = routingNode.nodeId();
             }
 
             @Override
-            public int compare(ShardRouting o1, ShardRouting o2) {
-                assert Objects.equals(nodeId, o1.currentNodeId()) && Objects.equals(nodeId, o2.currentNodeId())
-                    : "ShardMovementPriorityComparator is node-specific";
+            public int compare(ShardRouting lhs, ShardRouting rhs) {
+                assert Objects.equals(nodeId, lhs.currentNodeId()) && Objects.equals(nodeId, rhs.currentNodeId())
+                    : this.getClass().getSimpleName()
+                        + " is node-specific. Comparator node ID="
+                        + nodeId
+                        + ", lhs="
+                        + lhs.currentNodeId()
+                        + ", rhs="
+                        + rhs.currentNodeId();
                 // If we have no shard write-load data, shortcut
-                if (highThreshold == 0) {
+                if (maxWriteLoadOnNode == -1) {
                     return 0;
                 }
                 // Otherwise, we prefer middle, high, then low write-load shards
-                return Integer.compare(
-                    getWriteLoadLevel(shardWriteLoads.getOrDefault(o1.shardId(), 0.0)),
-                    getWriteLoadLevel(shardWriteLoads.getOrDefault(o2.shardId(), 0.0))
-                );
-            }
+                double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), -1.0);
+                double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), -1.0);
 
-            private int getWriteLoadLevel(double writeLoad) {
-                if (writeLoad < lowThreshold) {
-                    return 2;
+                if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
+                    if (lhsWriteLoad >= threshold && rhsWriteLoad >= threshold) {
+                        // Both values between threshold and maximum, prefer lowest
+                        return (int) Math.signum(rhsWriteLoad - lhsWriteLoad);
+                    } else if (lhsWriteLoad >= threshold && rhsWriteLoad < threshold) {
+                        // lhs between threshold and maximum, rhs below threshold, prefer lhs
+                        return 1;
+                    } else if (lhsWriteLoad < threshold && rhsWriteLoad >= threshold) {
+                        // lhs below threshold, rhs between threshold and maximum, prefer rhs
+                        return -1;
+                    } else {
+                        // Both values below the threshold, prefer highest
+                        return (int) Math.signum(lhsWriteLoad - rhsWriteLoad);
+                    }
+                } else {
+                    // one of the shards is the max-write-load shard, prefer any present write load over it
+                    if (shardWriteLoads.containsKey(rhs.shardId()) ^ shardWriteLoads.containsKey(lhs.shardId())) {
+                        return shardWriteLoads.containsKey(rhs.shardId()) ? -1 : 1;
+                    } else {
+                        return lhsWriteLoad == rhsWriteLoad ? 0 : (int) Math.signum(rhsWriteLoad - lhsWriteLoad);
+                    }
                 }
-                if (writeLoad < highThreshold) {
-                    return 0;
-                }
-                return 1;
             }
         }
 

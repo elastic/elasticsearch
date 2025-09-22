@@ -128,11 +128,14 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
             return model;
         }
 
-        var requestTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
-        if (requestTaskSettings.isEmpty() || model.getTaskSettings().equals(requestTaskSettings)) {
+        var newTaskSettings = GoogleVertexAiChatCompletionTaskSettings.fromMap(taskSettingsMap);
+        if (newTaskSettings.isEmpty()
+            && Objects.equals(newTaskSettings.maxTokens(), GoogleVertexAiChatCompletionTaskSettings.DEFAULT_MAX_TOKENS)
+            || model.getTaskSettings().equals(newTaskSettings)) {
             return model;
         }
-        var combinedTaskSettings = GoogleVertexAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
+
+        var combinedTaskSettings = GoogleVertexAiChatCompletionTaskSettings.of(model.getTaskSettings(), newTaskSettings);
         return new GoogleVertexAiChatCompletionModel(model, combinedTaskSettings);
     }
 

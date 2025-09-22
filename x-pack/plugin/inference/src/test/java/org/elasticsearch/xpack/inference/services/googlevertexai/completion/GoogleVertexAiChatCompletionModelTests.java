@@ -161,7 +161,8 @@ public class GoogleVertexAiChatCompletionModelTests extends ESTestCase {
             null,
             123
         );
-        Map<String, Object> taskSettings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>()));
+        // 1024 is the default max_tokens value, so this should not override the original value of 123
+        Map<String, Object> taskSettings = new HashMap<>(Map.of(THINKING_CONFIG_FIELD, new HashMap<>(), "max_tokens", 1024));
         var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
 
         assertThat(overriddenModel.getServiceSettings().modelId(), is(DEFAULT_MODEL_ID));

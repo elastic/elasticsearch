@@ -43,7 +43,7 @@ public class Absent extends AggregateFunction implements SurrogateExpression {
         description = "Returns true if the input expression yields no non-null values within the current aggregation context. "
             + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
-        appliesTo = {  @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0")},
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = {
             @Example(file = "absent", tag = "absent"),
             @Example(

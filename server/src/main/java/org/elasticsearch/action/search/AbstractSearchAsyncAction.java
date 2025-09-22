@@ -618,20 +618,32 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // only (re-)build a search context id if we have a point in time
         if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
             // we want to change node ids in the PIT id if any shards and its PIT context have moved
-            return maybeUpdateAndEncode(source.pointInTimeBuilder(), failures);
+            return maybeReEncodeNodeIds(
+                source.pointInTimeBuilder(),
+                results.getAtomicArray().asList(),
+                failures,
+                namedWriteableRegistry,
+                mintransportVersion
+            );
         } else {
             return null;
         }
     }
 
-    private BytesReference maybeUpdateAndEncode(PointInTimeBuilder originalPit, ShardSearchFailure[] failures) {
+    static <Result extends SearchPhaseResult> BytesReference maybeReEncodeNodeIds(
+        PointInTimeBuilder originalPit,
+        List<Result> results,
+        ShardSearchFailure[] failures,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportVersion mintransportVersion
+    ) {
         SearchContextId original = originalPit.getSearchContextId(namedWriteableRegistry);
-        Map<ShardId, SearchContextIdForNode> shardMapCopy = new HashMap<>(original.shards());
-        boolean idChanges = false;
-        for (Result result : results.getAtomicArray().asList()) {
+        boolean idChanged = false;
+        Map<ShardId, SearchContextIdForNode> updatedShardMap = null;  // only create this if we detect a change
+        for (Result result : results) {
             SearchShardTarget searchShardTarget = result.getSearchShardTarget();
             ShardId shardId = searchShardTarget.getShardId();
-            SearchContextIdForNode originalShard = shardMapCopy.get(shardId);
+            SearchContextIdForNode originalShard = original.shards().get(shardId);
             if (originalShard != null
                 && Objects.equals(originalShard.getClusterAlias(), searchShardTarget.getClusterAlias())
                 && Objects.equals(originalShard.getSearchContextId(), result.getContextId())) {
@@ -639,7 +651,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 String originalNode = originalShard.getNode();
                 if (originalNode != null && originalNode.equals(searchShardTarget.getNodeId()) == false) {
                     // the target node for this shard entry in the PIT has changed, we need to update it
-                    shardMapCopy.put(
+                    idChanged = true;
+                    if (updatedShardMap == null) {
+                        updatedShardMap = new HashMap<>(original.shards().size());
+                    }
+                    updatedShardMap.put(
                         shardId,
                         new SearchContextIdForNode(
                             originalShard.getClusterAlias(),
@@ -647,15 +663,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             originalShard.getSearchContextId()
                         )
                     );
-                    idChanges = true;
                 }
             }
         }
-        if (idChanges) {
-            logger.debug("Changing PIT id to reflect node changes: [{}]", shardMapCopy);
-            return SearchContextId.encode(shardMapCopy, original.aliasFilter(), mintransportVersion, failures);
+        if (idChanged) {
+            // we also need to add shard that are not in the results for some reason (e.g. query rewrote to match none) but that
+            // were part of the original PIT
+            for (ShardId shardId : original.shards().keySet()) {
+                if (updatedShardMap.containsKey(shardId) == false) {
+                    updatedShardMap.put(shardId, original.shards().get(shardId));
+                }
+            }
+            return SearchContextId.encode(updatedShardMap, original.aliasFilter(), mintransportVersion, failures);
         } else {
-            logger.debug("Keeping original PIT id");
             return originalPit.getEncodedId();
         }
     }

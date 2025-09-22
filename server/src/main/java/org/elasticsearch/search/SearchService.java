@@ -1282,7 +1282,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searcherSupplier.close();
                     throw e;
                 }
-                // we are in a PIT context, so we set singleSession to false so that the context isn't cleared after the search finishes
+                // we are using a PIT here so set singleSession to false to prevent clearing after the search finishes
                 ReaderContext readerContext = createAndPutReaderContext(
                     contextId,
                     request,
@@ -1292,7 +1292,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     false,
                     keepAliveInMillis
                 );
-                logger.debug("Recreating reader context [{}]", readerContext.id());
+                logger.debug("Recreated reader context [{}]", readerContext.id());
                 return readerContext;
             }
         }

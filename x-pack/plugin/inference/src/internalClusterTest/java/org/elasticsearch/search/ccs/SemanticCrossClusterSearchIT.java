@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -41,6 +42,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -426,6 +428,96 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
     }
 
+    public void testSparseVectorQuery() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+
+        final String commonInferenceId = "common-inference-id";
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String mixedTypeField1 = "mixed-type-field-1";
+        final String mixedTypeField2 = "mixed-type-field-2";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                sparseVectorMapping(),
+                mixedTypeField2,
+                semanticTextMapping(commonInferenceId)
+            ),
+            Map.of(
+                "local_doc_1",
+                Map.of(commonInferenceIdField, "a"),
+                "local_doc_2",
+                Map.of(mixedTypeField1, generateSparseVectorFieldValue()),
+                "local_doc_3",
+                Map.of(mixedTypeField2, "c")
+            )
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField2,
+                sparseVectorMapping()
+            ),
+            Map.of(
+                "remote_doc_1",
+                Map.of(commonInferenceIdField, "x"),
+                "remote_doc_2",
+                Map.of(mixedTypeField1, "y"),
+                "remote_doc_3",
+                Map.of(mixedTypeField2, generateSparseVectorFieldValue())
+            )
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Query a field has the same inference ID value across clusters, but with different backing inference services
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(commonInferenceIdField, null, "a"),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_1"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_1")
+            )
+        );
+
+        // Query a field that has mixed types across clusters
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(mixedTypeField1, commonInferenceId, "b"),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2")
+            )
+        );
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(mixedTypeField2, commonInferenceId, "c"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+            )
+        );
+
+        // Check that omitting the inference ID when querying a remote sparse vector field leads to the expected partial failure
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(mixedTypeField2, null, "c"),
+            queryIndices,
+            List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
+            Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string"))
+        );
+    }
+
     private void setupTwoClusters(TestIndexInfo localIndexInfo, TestIndexInfo remoteIndexInfo) throws IOException {
         setupCluster(LOCAL_CLUSTER, localIndexInfo);
         setupCluster(REMOTE_CLUSTER, remoteIndexInfo);
@@ -577,6 +669,10 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         return Map.of("type", DenseVectorFieldMapper.CONTENT_TYPE, "dims", dimensions);
     }
 
+    private static Map<String, Object> sparseVectorMapping() {
+        return Map.of("type", SparseVectorFieldMapper.CONTENT_TYPE);
+    }
+
     private static String fullyQualifiedIndexName(String clusterAlias, String indexName) {
         return clusterAlias + ":" + indexName;
     }
@@ -594,6 +690,12 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         }
 
         return vector;
+    }
+
+    private static Map<String, Float> generateSparseVectorFieldValue() {
+        // Generate values that have the same recall behavior as those produced by TestSparseInferenceServiceExtension. Use a constant token
+        // weight so that relevance is consistent.
+        return Map.of("feature_0", 1.0f);
     }
 
     public static class FakeMlPlugin extends Plugin implements ActionPlugin, SearchPlugin {

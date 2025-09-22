@@ -819,10 +819,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     public void testShardMovementPriorityComparator() {
         final double maxWriteLoad = randomDoubleBetween(0.0, 100.0, true);
         final double lowThreshold = maxWriteLoad * 0.5;
-        final int numAtMax = between(1, 2);
-        final int numBetweenLowAndMax = between(1, 50);
-        final int numBelowLow = between(1, 50);
-        final int numMissing = between(1, 50);
+        final int numAtMax = between(1, 5);
+        final int numBetweenLowAndMax = between(0, 50);
+        final int numBelowLow = between(0, 50);
+        final int numMissing = between(0, 50);
         final int totalShards = numAtMax + numBetweenLowAndMax + numBelowLow + numMissing;
 
         final var indices = new ArrayList<IndexMetadata.Builder>();

@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -395,7 +397,6 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2")
             )
         );
-
         assertSearchResponse(
             new KnnVectorQueryBuilder(
                 mixedTypeField2,
@@ -409,6 +410,25 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             List.of(
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+            )
+        );
+
+        // Query a field that has mixed types across clusters using a query vector
+        final VectorData queryVector = new VectorData(generateDenseVectorFieldValue(384, DenseVectorFieldMapper.ElementType.FLOAT));
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(mixedTypeField1, queryVector, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2")
+            )
+        );
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(mixedTypeField2, queryVector, 10, 100, IVF_FORMAT.isEnabled() ? 10f : null, null, null),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")
             )
         );
 
@@ -502,6 +522,28 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         );
         assertSearchResponse(
             new SparseVectorQueryBuilder(mixedTypeField2, commonInferenceId, "c"),
+            queryIndices,
+            List.of(
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+            )
+        );
+
+        // Query a field that has mixed types across clusters using a query vector
+        final List<WeightedToken> queryVector = generateSparseVectorFieldValue().entrySet()
+            .stream()
+            .map(e -> new WeightedToken(e.getKey(), e.getValue()))
+            .toList();
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(mixedTypeField1, queryVector, null, null, null, null),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_2"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_2")
+            )
+        );
+        assertSearchResponse(
+            new SparseVectorQueryBuilder(mixedTypeField2, queryVector, null, null, null, null),
             queryIndices,
             List.of(
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),

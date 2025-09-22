@@ -71,7 +71,7 @@ public class MockSearchService extends SearchService {
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
     static void addActiveContext(ReaderContext context) {
-        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format("%s : %s",context.toString(), context.id())));
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format("%s : %s", context.toString(), context.id())));
     }
 
     /**

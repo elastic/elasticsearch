@@ -225,8 +225,7 @@ public class Approximate {
             } else if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate aggregate) {
                     encounteredStats.set(true);
-                    Expression sampleProbabilityExpr = new Literal(Source.EMPTY, sampleProbability, DataType.DOUBLE);
-                    Sample sample = new Sample(Source.EMPTY, sampleProbabilityExpr, aggregate.child());
+                    Sample sample = new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), aggregate.child());
                     plan = new Aggregate(
                         Source.EMPTY,
                         sample,
@@ -296,78 +295,78 @@ public class Approximate {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
-                encounteredStats.set(false);
-            } else if (encounteredStats.get() == false) {
-                if (plan instanceof Aggregate aggregate) {
-                    encounteredStats.set(true);
-                    Expression sampleProbabilityExpr = new Literal(Source.EMPTY, sampleProbability, DataType.DOUBLE);
-                    Expression bucketProbabilityExpr = new Literal(Source.EMPTY, sampleProbability / BUCKET_COUNT, DataType.DOUBLE);
-                    Sample sample = new Sample(Source.EMPTY, sampleProbabilityExpr, aggregate.child());
-                    Alias sampleId = new Alias(
+                return new Sample(Source.EMPTY, Literal.fromDouble(Source.EMPTY, sampleProbability), plan);
+            } else if (encounteredStats.get() == false && plan instanceof Aggregate aggregate) {
+                encounteredStats.set(true);
+                Alias sampleId = new Alias(
+                    Source.EMPTY,
+                    ".sample_id",
+                    new MvAppend(
                         Source.EMPTY,
-                        ".sample_id",
-                        new MvAppend(
-                            Source.EMPTY,
-                            new Literal(Source.EMPTY, -1, DataType.INTEGER),
-                            new Random(Source.EMPTY, new Literal(Source.EMPTY, BUCKET_COUNT, DataType.INTEGER))
-                        )
-                    );
-                    Eval addSampleId = new Eval(Source.EMPTY, sample, List.of(sampleId));
-                    List<NamedExpression> aggregates = new ArrayList<>();
-                    for (NamedExpression aggr : aggregate.aggregates()) {
-                        if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                            aggregates.add(new Alias(Source.EMPTY, ".sampled-" + alias.name(), alias.child()));
-                        } else {
-                            aggregates.add(aggr);
-                        }
+                        Literal.integer(Source.EMPTY, -1),
+                        new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT))
+                    )
+                );
+                Eval addSampleId = new Eval(Source.EMPTY, aggregate.child(), List.of(sampleId));
+                List<NamedExpression> aggregates = new ArrayList<>();
+                for (NamedExpression aggr : aggregate.aggregates()) {
+                    if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction) {
+                        aggregates.add(new Alias(Source.EMPTY, ".sampled-" + alias.name(), alias.child()));
+                    } else {
+                        aggregates.add(aggr);
                     }
-                    List<Expression> groupings = new ArrayList<>(aggregate.groupings());
-                    groupings.add(sampleId.toAttribute());
-                    aggregates.add(sampleId.toAttribute());
-                    Aggregate aggregateWithSampledId = (Aggregate) aggregate.with(addSampleId, groupings, aggregates)
-                        .transformExpressionsOnlyUp(
-                            expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(
-                                new Case(Source.EMPTY,
-                                    new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                                    List.of(sampleProbabilityExpr, bucketProbabilityExpr))) : expr);
-                    aggregates = new ArrayList<>();
-                    for (int i = 0; i < aggregate.aggregates().size(); i++) {
-                        NamedExpression aggr = aggregate.aggregates().get(i);
-                        NamedExpression sampledAggr = aggregateWithSampledId.aggregates().get(i);
-                        if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
-                            // TODO: probably filter low non-empty bucket counts. They're inaccurate and for skew, you need >=3.
-                            aggregates.add(
-                                alias.replaceChild(
-                                    new ConfidenceInterval( // TODO: move confidence level to the end
-                                        Source.EMPTY,
-                                        new Min(
-                                            Source.EMPTY,
-                                            sampledAggr.toAttribute(),
-                                            new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1))
-                                        ),
-                                        new Top(
-                                            Source.EMPTY,
-                                            sampledAggr.toAttribute(),
-                                            new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
-                                            Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                                            Literal.keyword(Source.EMPTY, "ASC")
-                                        ),
-                                        Literal.integer(Source.EMPTY, BUCKET_COUNT),
-                                        Literal.fromDouble(Source.EMPTY, aggFn instanceof NeedsSampleCorrection ? 0.0 : Double.NaN)
-                                    )
-                                )
-                            );
-                        } else {
-                            aggregates.add(aggr);
-                        }
-                    }
-                    plan = new Aggregate(
-                        Source.EMPTY,
-                        aggregateWithSampledId,
-                        aggregate.groupings().stream().map(e -> e instanceof Alias a ? a.toAttribute() : e).toList(),
-                        aggregates
-                    );
                 }
+                List<Expression> groupings = new ArrayList<>(aggregate.groupings());
+                groupings.add(sampleId.toAttribute());
+                aggregates.add(sampleId.toAttribute());
+                Aggregate aggregateWithSampledId = (Aggregate) aggregate.with(addSampleId, groupings, aggregates)
+                    .transformExpressionsOnlyUp(
+                        expr -> expr instanceof NeedsSampleCorrection nsc ? nsc.sampleCorrection(
+                            new Case(Source.EMPTY,
+                                new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                List.of(
+                                    Literal.fromDouble(Source.EMPTY, sampleProbability),
+                                    Literal.fromDouble(Source.EMPTY, sampleProbability / BUCKET_COUNT)
+                                )
+                            )
+                        ) : expr);
+                aggregates = new ArrayList<>();
+                for (int i = 0; i < aggregate.aggregates().size(); i++) {
+                    NamedExpression aggr = aggregate.aggregates().get(i);
+                    NamedExpression sampledAggr = aggregateWithSampledId.aggregates().get(i);
+                    if (aggr instanceof Alias alias && alias.child() instanceof AggregateFunction aggFn) {
+                        // TODO: probably filter low non-empty bucket counts. They're inaccurate and for skew, you need >=3.
+                        aggregates.add(
+                            alias.replaceChild(
+                                new ConfidenceInterval( // TODO: move confidence level to the end
+                                    Source.EMPTY,
+                                    new Min(
+                                        Source.EMPTY,
+                                        sampledAggr.toAttribute(),
+                                        new Equals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1))
+                                    ),
+                                    new Top(
+                                        Source.EMPTY,
+                                        sampledAggr.toAttribute(),
+                                        new NotEquals(Source.EMPTY, sampleId.toAttribute(), Literal.integer(Source.EMPTY, -1)),
+                                        Literal.integer(Source.EMPTY, BUCKET_COUNT),
+                                        Literal.keyword(Source.EMPTY, "ASC")
+                                    ),
+                                    Literal.integer(Source.EMPTY, BUCKET_COUNT),
+                                    Literal.fromDouble(Source.EMPTY, aggFn instanceof NeedsSampleCorrection ? 0.0 : Double.NaN)
+                                )
+                            )
+                        );
+                    } else {
+                        aggregates.add(aggr);
+                    }
+                }
+                plan = new Aggregate(
+                    Source.EMPTY,
+                    aggregateWithSampledId,
+                    aggregate.groupings().stream().map(e -> e instanceof Alias a ? a.toAttribute() : e).toList(),
+                    aggregates
+                );
             }
             return plan;
         });

@@ -51,6 +51,7 @@ import static org.apache.lucene.store.MMapDirectory.SHARED_ARENA_MAX_PERMITS_SYS
 
 public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
+    private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
     private static final int sharedArenaMaxPermits;
     static {
         String prop = System.getProperty(SHARED_ARENA_MAX_PERMITS_SYSPROP);
@@ -59,17 +60,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             try {
                 value = Integer.parseInt(prop); // ensure it's a valid integer
             } catch (NumberFormatException e) {
-                Logger logger = LogManager.getLogger(FsDirectoryFactory.class);
-                logger.warn(
-                    () -> "unable to parse system property [" + SHARED_ARENA_MAX_PERMITS_SYSPROP + "] with value [" + prop + "]",
-                    e
-                );
+                Log.warn(() -> "unable to parse system property [" + SHARED_ARENA_MAX_PERMITS_SYSPROP + "] with value [" + prop + "]", e);
             }
         }
         sharedArenaMaxPermits = value; // default to 1
     }
 
-    private static final Logger Log = LogManager.getLogger(FsDirectoryFactory.class);
     private static final FeatureFlag MADV_RANDOM_FEATURE_FLAG = new FeatureFlag("madv_random");
 
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {

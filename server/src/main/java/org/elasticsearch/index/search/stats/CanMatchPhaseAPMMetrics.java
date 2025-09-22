@@ -18,7 +18,12 @@ public class CanMatchPhaseAPMMetrics extends SearchPhaseAPMMetrics {
     public static final String CAN_MATCH_SEARCH_PHASE_COORDINATING_NODE_METRIC =
         "es.search.coordinating_node.phases.can_match.duration.histogram";
 
-    public static final CanMatchPhaseAPMMetrics NOOP = new CanMatchPhaseAPMMetrics(MeterRegistry.NOOP);
+    public static final CanMatchPhaseAPMMetrics NOOP = new CanMatchPhaseAPMMetrics(MeterRegistry.NOOP) {
+        @Override
+        protected void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
+            // noop
+        }
+    };
 
     private final LongHistogram canMatchPhasePerShardMetric;
     private final LongHistogram canMatchPhaseCoordinatingNodeMetric;

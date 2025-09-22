@@ -22,7 +22,12 @@ import java.util.Map;
 public class CoordinatorSearchPhaseAPMMetrics extends SearchPhaseAPMMetrics {
 
     private static final String metricNameFormat = "es.search.coordinator.phases.%s.duration.histogram";
-    public static final CoordinatorSearchPhaseAPMMetrics NOOP = new CoordinatorSearchPhaseAPMMetrics(MeterRegistry.NOOP);
+    public static final CoordinatorSearchPhaseAPMMetrics NOOP = new CoordinatorSearchPhaseAPMMetrics(MeterRegistry.NOOP) {
+        @Override
+        protected void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
+            // noop
+        }
+    };
 
     private final Map<String, LongHistogram> histogramsCache = ConcurrentCollections.newConcurrentMap();
     private final MeterRegistry meterRegistry;

@@ -21,9 +21,15 @@ public class SearchPhaseAPMMetrics {
     // Avoid allocating objects in the search path and multithreading clashes
     private static final ThreadLocal<Map<String, Object>> THREAD_LOCAL_ATTRS = ThreadLocal.withInitial(() -> new HashMap<>(1));
 
-    protected static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
+    protected void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
         Map<String, Object> attrs = SearchPhaseAPMMetrics.THREAD_LOCAL_ATTRS.get();
-        boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
+        boolean isSystem;
+        if (Thread.currentThread() instanceof EsExecutors.EsThread) {
+            isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
+        } else {
+            // In tests we sometimes run searches in non-EsThreads
+            isSystem = false;
+        }
         attrs.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
         histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attrs);
     }

@@ -62,7 +62,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             new SearchRequest(),
             ActionListener.noop(),
             List.of(),
-            null,
+            new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0L),
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
             new ArraySearchPhaseResults<>(numShards),

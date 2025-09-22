@@ -95,7 +95,9 @@ public final class LessThanDoublesEvaluator implements EvalOperator.ExpressionEv
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(LessThan.processDoubles(lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p)), rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p))));
+        double lhs = lhsBlock.getDouble(lhsBlock.getFirstValueIndex(p));
+        double rhs = rhsBlock.getDouble(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(LessThan.processDoubles(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class LessThanDoublesEvaluator implements EvalOperator.ExpressionEv
   public BooleanVector eval(int positionCount, DoubleVector lhsVector, DoubleVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, LessThan.processDoubles(lhsVector.getDouble(p), rhsVector.getDouble(p)));
+        double lhs = lhsVector.getDouble(p);
+        double rhs = rhsVector.getDouble(p);
+        result.appendBoolean(p, LessThan.processDoubles(lhs, rhs));
       }
       return result.build();
     }

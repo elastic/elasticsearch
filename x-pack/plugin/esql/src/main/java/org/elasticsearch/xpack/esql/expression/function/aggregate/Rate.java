@@ -118,9 +118,9 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier();
-            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier();
-            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier();
+            case COUNTER_LONG -> new RateLongGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_INTEGER -> new RateIntGroupingAggregatorFunction.FunctionSupplier(true);
+            case COUNTER_DOUBLE -> new RateDoubleGroupingAggregatorFunction.FunctionSupplier(true);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -137,5 +137,10 @@ public class Rate extends TimeSeriesAggregateFunction implements OptionalArgumen
 
     Expression timestamp() {
         return timestamp;
+    }
+
+    @Override
+    public boolean requiredTimeSeriesSource() {
+        return true;
     }
 }

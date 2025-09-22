@@ -51,10 +51,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     private final List<FieldWriter> fieldWriters = new ArrayList<>();
     private final IndexOutput ivfCentroids, ivfClusters;
     private final IndexOutput ivfMeta;
+    private final String rawVectorFormatName;
     private final FlatVectorsWriter rawVectorDelegate;
 
     @SuppressWarnings("this-escape")
-    protected IVFVectorsWriter(SegmentWriteState state, FlatVectorsWriter rawVectorDelegate) throws IOException {
+    protected IVFVectorsWriter(SegmentWriteState state, String rawVectorFormatName, FlatVectorsWriter rawVectorDelegate)
+        throws IOException {
+        this.rawVectorFormatName = rawVectorFormatName;
         this.rawVectorDelegate = rawVectorDelegate;
         final String metaFileName = IndexFileNames.segmentFileName(
             state.segmentInfo.name,
@@ -116,6 +119,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             @SuppressWarnings("unchecked")
             final FlatFieldVectorsWriter<float[]> floatWriter = (FlatFieldVectorsWriter<float[]>) rawVectorDelegate;
             fieldWriters.add(new FieldWriter(fieldInfo, floatWriter));
+        } else {
+            // we simply write information that the field is present but we don't do anything with it.
+            fieldWriters.add(new FieldWriter(fieldInfo, null));
         }
         return rawVectorDelegate;
     }
@@ -165,6 +171,11 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     public final void flush(int maxDoc, Sorter.DocMap sortMap) throws IOException {
         rawVectorDelegate.flush(maxDoc, sortMap);
         for (FieldWriter fieldWriter : fieldWriters) {
+            if (fieldWriter.delegate == null) {
+                // field is not float, we just write meta information
+                writeMeta(fieldWriter.fieldInfo, 0, 0, 0, 0, 0, null);
+                continue;
+            }
             final float[] globalCentroid = new float[fieldWriter.fieldInfo.getVectorDimension()];
             // build a float vector values with random access
             final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldWriter.fieldInfo, fieldWriter.delegate, maxDoc);
@@ -248,6 +259,9 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
     public final void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         if (fieldInfo.getVectorEncoding().equals(VectorEncoding.FLOAT32)) {
             mergeOneFieldIVF(fieldInfo, mergeState);
+        } else {
+            // we simply write information that the field is present but we don't do anything with it.
+            writeMeta(fieldInfo, 0, 0, 0, 0, 0, null);
         }
         // we merge the vectors at the end so we only have two copies of the vectors on disk at the same time.
         rawVectorDelegate.mergeOneField(fieldInfo, mergeState);
@@ -476,6 +490,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException {
         ivfMeta.writeInt(field.number);
+        ivfMeta.writeString(rawVectorFormatName);
         ivfMeta.writeInt(field.getVectorEncoding().ordinal());
         ivfMeta.writeInt(distFuncToOrd(field.getVectorSimilarityFunction()));
         ivfMeta.writeInt(numCentroids);

@@ -314,6 +314,15 @@
                 },
                 "retry_until": {
                   "type": "date"
+                },
+                "reason": {
+                  "type":"text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
                 }
               }
             }

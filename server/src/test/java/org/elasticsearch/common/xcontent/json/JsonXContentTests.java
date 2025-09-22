@@ -41,4 +41,21 @@ public class JsonXContentTests extends BaseXContentTestCase {
             assertThrows(XContentParseException.class, () -> parser.text());
         }
     }
+
+    public void testOptimizedTextHasBytes() throws Exception {
+        XContentBuilder builder = builder().startObject().field("text", new Text("foo")).endObject();
+        XContentParserConfiguration parserConfig = parserConfig();
+        if (randomBoolean()) {
+            parserConfig = parserConfig.withFiltering(null, Set.of("*"), null, true);
+        }
+        try (XContentParser parser = createParser(parserConfig, xcontentType().xContent(), BytesReference.bytes(builder))) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertTrue(parser.nextToken().isValue());
+            Text text = (Text) parser.optimizedText();
+            // TODO: uncomment after utf8 optimized parsing has been enabled again:
+            // assertTrue(text.hasBytes());
+            assertThat(text.string(), equalTo("foo"));
+        }
+    }
 }

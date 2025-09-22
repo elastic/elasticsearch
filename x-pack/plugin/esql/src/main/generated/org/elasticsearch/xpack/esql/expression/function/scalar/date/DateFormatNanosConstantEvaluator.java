@@ -78,7 +78,8 @@ public final class DateFormatNanosConstantEvaluator implements EvalOperator.Expr
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(DateFormat.processNanos(valBlock.getLong(valBlock.getFirstValueIndex(p)), this.formatter));
+        long val = valBlock.getLong(valBlock.getFirstValueIndex(p));
+        result.appendBytesRef(DateFormat.processNanos(val, this.formatter));
       }
       return result.build();
     }
@@ -87,7 +88,8 @@ public final class DateFormatNanosConstantEvaluator implements EvalOperator.Expr
   public BytesRefVector eval(int positionCount, LongVector valVector) {
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(DateFormat.processNanos(valVector.getLong(p), this.formatter));
+        long val = valVector.getLong(p);
+        result.appendBytesRef(DateFormat.processNanos(val, this.formatter));
       }
       return result.build();
     }

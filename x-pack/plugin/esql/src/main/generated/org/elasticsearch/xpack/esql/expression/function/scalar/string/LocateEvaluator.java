@@ -121,7 +121,10 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        result.appendInt(Locate.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch), startBlock.getInt(startBlock.getFirstValueIndex(p))));
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
+        BytesRef substr = substrBlock.getBytesRef(substrBlock.getFirstValueIndex(p), substrScratch);
+        int start = startBlock.getInt(startBlock.getFirstValueIndex(p));
+        result.appendInt(Locate.process(str, substr, start));
       }
       return result.build();
     }
@@ -133,7 +136,10 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
       BytesRef strScratch = new BytesRef();
       BytesRef substrScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, Locate.process(strVector.getBytesRef(p, strScratch), substrVector.getBytesRef(p, substrScratch), startVector.getInt(p)));
+        BytesRef str = strVector.getBytesRef(p, strScratch);
+        BytesRef substr = substrVector.getBytesRef(p, substrScratch);
+        int start = startVector.getInt(p);
+        result.appendInt(p, Locate.process(str, substr, start));
       }
       return result.build();
     }

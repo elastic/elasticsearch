@@ -1258,6 +1258,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
+                ShardSearchContextId shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), 0, null);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
                     new ShardSearchFailure(
                         new ParsingException(0, 0, "Parsing g", null),
@@ -1267,10 +1268,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         new RepositoryException("repository_g", "Repo"),
                         new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)
                     ),
-                    new ShardSearchFailure(
-                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)),
-                        null
-                    ) };
+                    new ShardSearchFailure(new SearchContextMissingException(shardSearchContextId), null) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
                 expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=node_closed_exception, " + "reason=node closed " + node + "]"
@@ -1293,7 +1291,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 );
                 expected.addSuppressed(
                     new ElasticsearchException(
-                        "Elasticsearch exception [type=search_context_missing_exception, " + "reason=No search context found for id [0]]"
+                        "Elasticsearch exception [type=search_context_missing_exception, "
+                            + "reason=No search context found for id ["
+                            + shardSearchContextId
+                            + "]]"
                     )
                 );
             }

@@ -44,13 +44,13 @@ public final class UrlDecode extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "keyword",
         preview = true,
-        description = "URL decodes the input.",
+        description = "URL-decodes the input, or returns `null` and adds a warning header to the response if the input cannot be decoded.",
         examples = { @Example(file = "string", tag = "url_decode") },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
     )
     public UrlDecode(
         Source source,
-        @Param(name = "string", type = { "keyword", "text" }, description = "URL encoded string to decode.") Expression str
+        @Param(name = "string", type = { "keyword", "text" }, description = "The URL-encoded string to decode.") Expression str
     ) {
         super(source, str);
     }
@@ -83,7 +83,7 @@ public final class UrlDecode extends UnaryScalarFunction {
         return new UrlDecodeEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
-    @ConvertEvaluator()
+    @ConvertEvaluator(warnExceptions = { IllegalArgumentException.class })
     static BytesRef process(final BytesRef val) {
         String input = val.utf8ToString();
         String decoded = URLDecoder.decode(input, StandardCharsets.UTF_8);

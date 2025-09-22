@@ -17,8 +17,10 @@ import static org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSync
 public class SecurityFeatures implements FeatureSpecification {
     public static final NodeFeature CERTIFICATE_IDENTITY_FIELD_FEATURE = new NodeFeature("certificate_identity_field");
 
+    public static final NodeFeature SECURITY_STATS_ENDPOINT = new NodeFeature("security_stats_endpoint");
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE, CERTIFICATE_IDENTITY_FIELD_FEATURE);
+        return Set.of(QUERYABLE_BUILT_IN_ROLES_FEATURE, CERTIFICATE_IDENTITY_FIELD_FEATURE, SECURITY_STATS_ENDPOINT);
     }
 }

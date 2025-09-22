@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware {
     private final Attribute score;
     private final Attribute discriminator;
-    private final List<NamedExpression> groupings;
+    private final List<NamedExpression> keys;
     private final FuseType fuseType;
     private final MapExpression options;
 
@@ -43,14 +43,14 @@ public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerif
         LogicalPlan child,
         Attribute score,
         Attribute discriminator,
-        List<NamedExpression> groupings,
+        List<NamedExpression> keys,
         FuseType fuseType,
         MapExpression options
     ) {
         super(source, child);
         this.score = score;
         this.discriminator = discriminator;
-        this.groupings = groupings;
+        this.keys = keys;
         this.fuseType = fuseType;
         this.options = options;
     }
@@ -67,16 +67,16 @@ public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerif
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Fuse::new, child(), score, discriminator, groupings, fuseType, options);
+        return NodeInfo.create(this, Fuse::new, child(), score, discriminator, keys, fuseType, options);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Fuse(source(), newChild, score, discriminator, groupings, fuseType, options);
+        return new Fuse(source(), newChild, score, discriminator, keys, fuseType, options);
     }
 
-    public List<NamedExpression> groupings() {
-        return groupings;
+    public List<NamedExpression> keys() {
+        return keys;
     }
 
     public Attribute discriminator() {
@@ -97,7 +97,7 @@ public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerif
 
     @Override
     public boolean expressionsResolved() {
-        return score.resolved() && discriminator.resolved() && groupings.stream().allMatch(Expression::resolved);
+        return score.resolved() && discriminator.resolved() && keys.stream().allMatch(Expression::resolved);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class Fuse extends UnaryPlan implements TelemetryAware, PostAnalysisVerif
             );
         }
 
-        for (NamedExpression grouping : groupings) {
+        for (NamedExpression grouping : keys) {
             if (DataType.isString(grouping.dataType()) == false) {
                 failures.add(
                     fail(grouping, "expected KEY BY field [{}] to be KEYWORD or TEXT, not {}", grouping.name(), grouping.dataType())

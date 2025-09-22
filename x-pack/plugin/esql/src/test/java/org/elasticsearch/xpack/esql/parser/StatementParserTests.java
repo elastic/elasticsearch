@@ -4229,11 +4229,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
 
         var fuse = as(plan, Fuse.class);
-        assertThat(fuse.groupings().size(), equalTo(2));
-        assertThat(fuse.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.groupings().get(0).name(), equalTo("_id"));
-        assertThat(fuse.groupings().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.groupings().get(1).name(), equalTo("_index"));
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("_id"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("_index"));
         assertThat(fuse.discriminator().name(), equalTo("_fork"));
         assertThat(fuse.score().name(), equalTo("_score"));
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
@@ -4278,6 +4278,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(((MapExpression) options.get("weights")).get("fork1"), equalTo(Literal.fromDouble(null, 0.33)));
 
         assertThat(fuse.child(), instanceOf(Fork.class));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE SCORE BY my_score KEY BY my_key1,my_key2 GROUP BY my_group
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("my_group"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
     }
 
     public void testInvalidFuse() {

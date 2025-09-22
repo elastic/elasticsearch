@@ -1026,7 +1026,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
             }
 
-            List<NamedExpression> groupings = fuse.groupings()
+            List<NamedExpression> keys = fuse.keys()
                 .stream()
                 .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
                 .toList();
@@ -1037,8 +1037,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 || (score.resolved() && score.dataType() != DOUBLE)
                 || discriminator instanceof UnresolvedAttribute
                 || (discriminator.resolved() && DataType.isString(discriminator.dataType()) == false)
-                || groupings.stream().allMatch(attr -> attr.resolved() && DataType.isString(attr.dataType())) == false) {
-                return new Fuse(fuse.source(), fuse.child(), score, discriminator, groupings, fuse.fuseType(), fuse.options());
+                || keys.stream().allMatch(attr -> attr.resolved() && DataType.isString(attr.dataType())) == false) {
+                return new Fuse(fuse.source(), fuse.child(), score, discriminator, keys, fuse.fuseType(), fuse.options());
             }
 
             LogicalPlan scoreEval = new FuseScoreEval(source, fuse.child(), score, discriminator, fuse.fuseType(), fuse.options());
@@ -1056,7 +1056,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 aggregates.add(new Alias(source, attr.name(), new Values(source, attr, aggFilter)));
             }
 
-            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(groupings), aggregates), childrenOutput);
+            return resolveAggregate(new Aggregate(source, scoreEval, new ArrayList<>(keys), aggregates), childrenOutput);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

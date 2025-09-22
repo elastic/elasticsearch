@@ -90,6 +90,9 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertUpperBound("9.2", "new_tv,8124000")
     }
 
+    /*
+    temporarily muted, see https://github.com/elastic/elasticsearch/pull/135226
+
     def "invalid changes to a upper bounds should be reverted"() {
         given:
         transportVersionUpperBound("9.2", "modification", "9000000")
@@ -144,7 +147,7 @@ class TransportVersionGenerationFuncTest extends AbstractTransportVersionFuncTes
         assertReferableDefinitionDoesNotExist("test_tv")
         assertUpperBound("9.2", "existing_92,8123000")
         assertUpperBound("9.1", "existing_92,8012001")
-    }
+    }*/
 
     def "a reference can be renamed"() {
         given:

@@ -37,7 +37,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -178,8 +178,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         final ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
-                        SnapshotsService.ensureRepositoryExists(repositoryName, projectMetadata);
-                        SnapshotsService.ensureNotReadOnly(projectMetadata, repositoryName);
+                        SnapshotsServiceUtils.ensureRepositoryExists(repositoryName, projectMetadata);
+                        SnapshotsServiceUtils.ensureNotReadOnly(projectMetadata, repositoryName);
                         // Repository cleanup is intentionally cluster wide exclusive
                         final RepositoryCleanupInProgress repositoryCleanupInProgress = RepositoryCleanupInProgress.get(currentState);
                         if (repositoryCleanupInProgress.hasCleanupInProgress()) {

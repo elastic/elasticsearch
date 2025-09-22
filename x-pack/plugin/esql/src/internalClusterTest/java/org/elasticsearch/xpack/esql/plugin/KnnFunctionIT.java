@@ -7,17 +7,26 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -30,42 +39,75 @@ import java.util.Map;
 
 import static org.elasticsearch.index.IndexMode.LOOKUP;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT.ALL_DENSE_VECTOR_INDEX_TYPES;
+import static org.elasticsearch.xpack.esql.DenseVectorFieldTypeIT.NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
-    private final Map<Integer, List<Float>> indexedVectors = new HashMap<>();
+    private final Map<Integer, List<Number>> indexedVectors = new HashMap<>();
     private int numDocs;
     private int numDims;
 
+    private final DenseVectorFieldMapper.ElementType elementType;
+    private final String indexType;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws Exception {
+        List<Object[]> params = new ArrayList<>();
+        for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+        }
+        for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BIT, indexType });
+        }
+
+        // Remove flat index types, as knn does not do a top k for flat
+        params.removeIf(param -> param[1] != null && ((String) param[1]).contains("flat"));
+        return params;
+    }
+
+    public KnnFunctionIT(@Name("elementType") DenseVectorFieldMapper.ElementType elementType, @Name("indexType") String indexType) {
+        this.elementType = elementType;
+        this.indexType = indexType;
+    }
+
     public void testKnnDefaults() {
         float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 1.0f);
+        Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 10)
-            | KEEP id, floats, _score, vector
+            | WHERE knn(vector, %s)
+            | KEEP id, _score, vector
             | SORT _score DESC
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(Math.min(indexedVectors.size(), 10), valuesList.size());
-            for (int i = 0; i < valuesList.size(); i++) {
-                List<Object> row = valuesList.get(i);
-                // Vectors should be in order of ID, as they're less similar than the query vector as the ID increases
-                assertEquals(i, row.getFirst());
+            double previousScore = Float.MAX_VALUE;
+            for (List<Object> row : valuesList) {
+                // Vectors should be in score order
+                double currentScore = (Double) row.get(1);
+                assertThat(currentScore, lessThanOrEqualTo(previousScore));
+                previousScore = currentScore;
                 @SuppressWarnings("unchecked")
                 // Vectors should be the same
-                List<Double> floats = (List<Double>) row.get(1);
-                for (int j = 0; j < floats.size(); j++) {
-                    assertEquals(floats.get(j).floatValue(), indexedVectors.get(i).get(j), 0f);
+                List<Number> actualVector = (List<Number>) row.get(2);
+                List<Number> expectedVector = indexedVectors.get(row.get(0));
+                for (int j = 0; j < actualVector.size(); j++) {
+                    float expected = expectedVector.get(j).floatValue();
+                    float actual = actualVector.get(j).floatValue();
+                    assertEquals(expected, actual, 0f);
                 }
-                var score = (Double) row.get(2);
+                var score = (Double) row.get(1);
                 assertNotNull(score);
                 assertTrue(score > 0.0);
             }
@@ -74,18 +116,46 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testKnnOptions() {
         float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 1.0f);
+        Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5)
-            | KEEP id, floats, _score, vector
+            | WHERE knn(vector, %s)
+            | KEEP id, _score, vector
             | SORT _score DESC
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
+    public void testDenseVectorQueryParams() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0);
+        EsqlQueryRequest queryRequest = new EsqlQueryRequest();
+        QueryParams queryParams = new QueryParams(
+            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.VALUE))
+        );
+
+        queryRequest.params(queryParams);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s) OR id > 100
+            | KEEP id, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(5, valuesList.size());
@@ -94,42 +164,41 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testKnnNonPushedDown() {
         float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 1.0f);
+        Arrays.fill(queryVector, 0.0f);
 
-        // TODO we need to decide what to do when / if user uses k for limit, as no more than k results will be returned from knn query
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5) OR id > 10
-            | KEEP id, floats, _score, vector
-            | SORT _score DESC
-            """, Arrays.toString(queryVector));
-
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
-
-            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
-            // K = 5, 1 more for every id > 10
-            assertEquals(5 + Math.max(0, numDocs - 10 - 1), valuesList.size());
-        }
-    }
-
-    public void testKnnWithPrefilters() {
-        float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 1.0f);
-
-        // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
-        var query = String.format(Locale.ROOT, """
-            FROM test METADATA _score
-            | WHERE knn(vector, %s, 5) AND id > 5
-            | KEEP id, floats, _score, vector
+            | WHERE knn(vector, %s) OR id > 100
+            | KEEP id, _score, vector
             | SORT _score DESC
             | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("id", "floats", "_score", "vector"));
-            assertColumnTypes(resp.columns(), List.of("integer", "double", "double", "dense_vector"));
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
+    public void testKnnWithPrefilters() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0.0f);
+
+        // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s) AND id > 5 AND id <= 10
+            | KEEP id, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
 
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             // K = 5, 1 more for every id > 10
@@ -139,12 +208,13 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     public void testKnnWithLookupJoin() {
         float[] queryVector = new float[numDims];
-        Arrays.fill(queryVector, 1.0f);
+        Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE KNN(lookup_vector, %s, 5) OR id > 10
+            | WHERE KNN(lookup_vector, %s) OR id > 100
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         var error = expectThrows(VerificationException.class, () -> run(query));
@@ -159,7 +229,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
 
         var indexName = "test";
         var client = client().admin().indices();
@@ -171,10 +241,14 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             .endObject()
             .startObject("vector")
             .field("type", "dense_vector")
-            .field("similarity", "l2_norm")
+            .field(
+                "similarity",
+                // Let's not use others to avoid vector normalization
+                randomFrom("l2_norm", "max_inner_product")
+            )
+            .startObject("index_options")
+            .field("type", indexType)
             .endObject()
-            .startObject("floats")
-            .field("type", "float")
             .endObject()
             .endObject()
             .endObject();
@@ -186,16 +260,19 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var createRequest = client.prepareCreate(indexName).setMapping(mapping).setSettings(settingsBuilder.build());
         assertAcked(createRequest);
 
-        numDocs = randomIntBetween(15, 25);
-        numDims = randomIntBetween(3, 10);
+        numDocs = randomIntBetween(20, 35);
+        numDims = 64 + randomIntBetween(1, 10) * 2;
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
-        float value = 0.0f;
         for (int i = 0; i < numDocs; i++) {
-            List<Float> vector = new ArrayList<>(numDims);
+            List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
-                vector.add(value++);
+                switch (elementType) {
+                    case FLOAT -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                    default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                }
             }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "floats", vector, "vector", vector);
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", String.valueOf(i), "vector", vector);
             indexedVectors.put(i, vector);
         }
 

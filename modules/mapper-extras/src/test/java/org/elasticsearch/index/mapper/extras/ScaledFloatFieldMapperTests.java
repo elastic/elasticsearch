@@ -78,6 +78,11 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
     }
 
+    @Override
+    protected boolean supportsBulkDoubleBlockReading() {
+        return true;
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);

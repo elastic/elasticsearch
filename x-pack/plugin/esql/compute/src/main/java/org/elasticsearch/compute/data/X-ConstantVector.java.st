@@ -174,6 +174,11 @@ $endif$
         return true;
     }
 
+    @Override
+    public $Type$Vector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstant$Type$Vector(value, getPositionCount());
+    }
+
 $if(BytesRef)$
     public static long ramBytesUsed(BytesRef value) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);

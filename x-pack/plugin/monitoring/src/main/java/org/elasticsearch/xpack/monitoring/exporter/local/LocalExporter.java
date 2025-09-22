@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -395,7 +397,8 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
         boolean shouldSetUpWatcher = state.get() == State.RUNNING && clusterStateChange == false;
         if (canUseWatcher()) {
             if (shouldSetUpWatcher) {
-                final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
+                @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+                final IndexRoutingTable watches = clusterState.routingTable(ProjectId.DEFAULT).index(Watch.INDEX);
                 final boolean indexExists = watches != null && watches.allPrimaryShardsActive();
 
                 // we cannot do anything with watches until the index is allocated, so we wait until it's ready
@@ -434,7 +437,8 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
     ) {
         if (canUseWatcher()) {
             if (state.get() != State.TERMINATED) {
-                final IndexRoutingTable watches = clusterState.routingTable().index(Watch.INDEX);
+                @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+                final IndexRoutingTable watches = clusterState.routingTable(ProjectId.DEFAULT).index(Watch.INDEX);
                 final boolean indexExists = watches != null && watches.allPrimaryShardsActive();
 
                 // we cannot do anything with watches until the index is allocated, so we wait until it's ready
@@ -472,7 +476,9 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
     }
 
     private static boolean hasTemplate(final ClusterState clusterState, final String templateName) {
-        final IndexTemplateMetadata template = clusterState.getMetadata().getProject().templates().get(templateName);
+        @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+        final var project = clusterState.metadata().getProject(ProjectId.DEFAULT);
+        final IndexTemplateMetadata template = project.templates().get(templateName);
 
         return template != null && hasValidVersion(template.getVersion(), MonitoringTemplateRegistry.REGISTRY_VERSION);
     }
@@ -633,7 +639,9 @@ public final class LocalExporter extends Exporter implements ClusterStateListene
             currents.add(MonitoringTemplateRegistry.ALERTS_INDEX_TEMPLATE_NAME);
 
             Set<String> indices = new HashSet<>();
-            for (var index : clusterState.getMetadata().getProject().indices().entrySet()) {
+            @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+            final var project = clusterState.metadata().getProject(ProjectId.DEFAULT);
+            for (var index : project.indices().entrySet()) {
                 String indexName = index.getKey();
 
                 if (Regex.simpleMatch(indexPatterns, indexName)) {

@@ -37,6 +37,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -588,6 +589,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * @param shardId        id of the shard being searched
      * @param taskId         id of the task being executed
      * @param threadPool     with context where to write the new header
+     * @param lifecycle      the lifecycle of the service that wraps the listener.
+     *                       If the service is stopped or closed it will always log as debug
      * @return the wrapped action listener
      */
     static <T> ActionListener<T> wrapListenerForErrorHandling(
@@ -596,7 +599,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         String nodeId,
         ShardId shardId,
         long taskId,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Lifecycle lifecycle
     ) {
         final boolean header;
         if (version.onOrAfter(ERROR_TRACE_IN_TRANSPORT_HEADER) && threadPool.getThreadContext() != null) {
@@ -611,8 +615,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 shardId,
                 taskId
             );
-            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse
-            if (ExceptionsHelper.status(e).getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
+            // Keep this logic aligned with that of SUPPRESSED_ERROR_LOGGER in RestResponse.
+            // Besides, log at DEBUG level when the service is stopped or closed, as at that point the HttpServerTransport
+            // will already be closed and thus any error will not be reported or seen by the REST layer
+            if (ExceptionsHelper.status(e).getStatus() < 500
+                || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)
+                || lifecycle.stoppedOrClosed()) {
                 logger.debug(messageSupplier, e);
             } else {
                 logger.warn(messageSupplier, e);
@@ -643,7 +651,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             clusterService.localNode().getId(),
             request.shardId(),
             task.getId(),
-            threadPool
+            threadPool,
+            lifecycle
         );
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
@@ -705,7 +714,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 clusterService.localNode().getId(),
                 request.shardId(),
                 task.getId(),
-                threadPool
+                threadPool,
+                lifecycle
             ).delegateFailure((l, orig) -> {
                 // check if we can shortcut the query phase entirely.
                 if (orig.canReturnNullResponseIfMatchNoDocs()) {
@@ -908,6 +918,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
             if (request.numberOfShards() == 1 && (request.source() == null || request.source().rankBuilder() == null)) {
                 // we already have query results, but we can run fetch at the same time
+                // in this case we reuse the search context across search and fetch phase, hence we need to clear the cancellation
+                // checks that were applied by the query phase before running fetch. Note that the timeout checks are not applied
+                // to the fetch phase, while the cancellation checks are.
+                context.searcher().clearQueryCancellations();
+                if (context.lowLevelCancellation()) {
+                    context.searcher().addQueryCancellation(() -> {
+                        if (task != null) {
+                            task.ensureNotCancelled();
+                        }
+                    });
+                }
                 context.addFetchResult();
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
@@ -942,7 +963,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             clusterService.localNode().getId(),
             shardSearchRequest.shardId(),
             task.getId(),
-            threadPool
+            threadPool,
+            lifecycle
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         runAsync(getExecutor(readerContext.indexShard()), () -> {
@@ -999,7 +1021,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             clusterService.localNode().getId(),
             readerContext.indexShard().shardId(),
             task.getId(),
-            threadPool
+            threadPool,
+            lifecycle
         );
         final Releasable markAsUsed;
         try {
@@ -1061,7 +1084,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             clusterService.localNode().getId(),
             shardSearchRequest.shardId(),
             task.getId(),
-            threadPool
+            threadPool,
+            lifecycle
         );
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
         rewriteAndFetchShardRequest(readerContext.indexShard(), shardSearchRequest, listener.delegateFailure((l, rewritten) -> {
@@ -2116,8 +2140,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+    public QueryRewriteContext getRewriteContext(
+        LongSupplier nowInMillis,
+        TransportVersion minTransportVersion,
+        String clusterAlias,
+        ResolvedIndices resolvedIndices,
+        PointInTimeBuilder pit,
+        final Boolean ccsMinimizeRoundTrips
+    ) {
+        return getRewriteContext(nowInMillis, minTransportVersion, clusterAlias, resolvedIndices, pit, ccsMinimizeRoundTrips, false);
     }
 
     /**
@@ -2125,11 +2156,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(
         LongSupplier nowInMillis,
+        TransportVersion minTransportVersion,
+        String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
+        final Boolean ccsMinimizeRoundTrips,
         final boolean isExplain
     ) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain);
+        return indicesService.getRewriteContext(
+            nowInMillis,
+            minTransportVersion,
+            clusterAlias,
+            resolvedIndices,
+            pit,
+            ccsMinimizeRoundTrips,
+            isExplain
+        );
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

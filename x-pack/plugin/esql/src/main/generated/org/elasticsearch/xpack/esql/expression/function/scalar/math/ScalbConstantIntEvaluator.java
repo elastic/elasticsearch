@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ScalbConstantIntEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator d;
@@ -52,6 +55,13 @@ public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionE
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += d.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock dBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -66,8 +76,9 @@ public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionE
           result.appendNull();
           continue position;
         }
+        double d = dBlock.getDouble(dBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Scalb.processConstantInt(dBlock.getDouble(dBlock.getFirstValueIndex(p)), this.scaleFactor));
+          result.appendDouble(Scalb.processConstantInt(d, this.scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -80,8 +91,9 @@ public final class ScalbConstantIntEvaluator implements EvalOperator.ExpressionE
   public DoubleBlock eval(int positionCount, DoubleVector dVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double d = dVector.getDouble(p);
         try {
-          result.appendDouble(Scalb.processConstantInt(dVector.getDouble(p), this.scaleFactor));
+          result.appendDouble(Scalb.processConstantInt(d, this.scaleFactor));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -130,19 +130,15 @@ class TrainedModelAssignmentRebalancer {
         return finalPlanBuilder.build();
     }
 
-    private static void copyAssignments(
-        AssignmentPlan source,
-        AssignmentPlan.Builder dest,
-        Map<String, AssignmentPlan.Node> originalNodeById
-    ) {
-        for (AssignmentPlan.Deployment m : source.deployments()) {
-            Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
-            for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
-                AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
-                dest.assignModelToNode(m, originalNode, assignment.getValue());
-                // As the node has all its available memory we need to manually account memory of models with
-                // current allocations.
-                dest.accountMemory(m, originalNode);
+    /**
+     *  Transfers assignments from the source AssignmentPlan to the destination AssignmentPlan.Builder.
+     */
+    static void copyAssignments(AssignmentPlan source, AssignmentPlan.Builder dest, Map<String, AssignmentPlan.Node> originalNodeById) {
+        for (AssignmentPlan.Deployment deployment : source.deployments()) {
+            Map<AssignmentPlan.Node, Integer> sourceNodeAssignments = source.assignments(deployment).orElse(Map.of());
+            for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
+                AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
+                dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
             }
         }
     }
@@ -302,9 +298,7 @@ class TrainedModelAssignmentRebalancer {
                         nodes.add(
                             new AssignmentPlan.Node(
                                 discoveryNode.getId(),
-                                // We subtract native inference memory as the planner expects available memory for
-                                // native inference including current assignments.
-                                getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(load),
+                                load.getFreeMemoryExcludingPerNodeOverhead(),
                                 MlProcessors.get(discoveryNode, allocatedProcessorsScale).roundUp()
                             )
                         );
@@ -319,10 +313,6 @@ class TrainedModelAssignmentRebalancer {
             }
             return nodes;
         }));
-    }
-
-    private static long getNodeFreeMemoryExcludingPerNodeOverheadAndNativeInference(NodeLoad load) {
-        return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
     }
 
     private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {
@@ -410,7 +400,28 @@ class TrainedModelAssignmentRebalancer {
             return Optional.of(load.getError());
         }
 
-        if (deployment.memoryBytes() > assignmentPlan.getRemainingNodeMemory(node.getId())) {
+        // Find how many allocations already exist on this node
+        // We need to search by node ID as assignmentPlan.assignments() returns a map
+        // of AssignmentPlan.Node and the argument node of the DiscoveryNode
+        int existingAllocationsOnNode = assignmentPlan.assignments(deployment)
+            .map(
+                assignments -> assignments.getOrDefault(
+                    assignments.keySet().stream().filter(n -> n.id().equals(node.getId())).findFirst().orElse(null),
+                    0
+                )
+            )
+            .orElse(0);
+
+        // Calculate how many allocations remain to be assigned
+        int unassignedAllocations = deployment.allocations() - assignmentPlan.totalAllocations(deployment);
+
+        // Check if there's enough memory for additional allocations
+        long additionalMemory = deployment.estimateAdditionalMemoryUsageBytes(
+            existingAllocationsOnNode,
+            existingAllocationsOnNode + unassignedAllocations
+        );
+        long availableMemory = assignmentPlan.getRemainingNodeMemory(node.getId());
+        if (additionalMemory > availableMemory) {
             // If any ML processes are running on a node we require some space to load the shared libraries.
             // So if none are currently running then this per-node overhead must be added to the requirement.
             // From node load we know if we had any jobs or models assigned before the rebalance.

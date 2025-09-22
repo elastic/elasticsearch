@@ -41,7 +41,7 @@ public class RecursiveChunker implements Chunker {
                 input,
                 new ChunkOffset(0, input.length()),
                 recursiveChunkingSettings.getSeparators(),
-                recursiveChunkingSettings.getMaxChunkSize(),
+                recursiveChunkingSettings.maxChunkSize(),
                 0
             );
         } else {

@@ -49,7 +49,6 @@ import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertTrue;
 
 public class SnapshotsServiceTests extends ESTestCase {
 
@@ -640,7 +639,7 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
 
         assertThat(
-            SnapshotsService.snapshottingIndices(
+            SnapshotsServiceUtils.snapshottingIndices(
                 clusterState.projectState(),
                 singleton(clusterState.metadata().getProject().index(indexName).getIndex())
             ),

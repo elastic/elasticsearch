@@ -5,7 +5,7 @@
   "description" : "Calculates the dot product between two dense_vectors.",
   "signatures" : [ ],
   "examples" : [
-    null
+    " from colors\n | eval similarity = v_dot_product(rgb_vector, [0, 255, 255])\n | sort similarity desc, color asc"
   ],
   "preview" : true,
   "snapshot_only" : true

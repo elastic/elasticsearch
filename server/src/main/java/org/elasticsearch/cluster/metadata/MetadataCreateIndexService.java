@@ -45,6 +45,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -561,7 +562,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getSettings(),
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
-                    temporaryIndexMeta.isSystem()
+                    temporaryIndexMeta.isSystem(),
+                    temporaryIndexMeta.getCustomData()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -608,7 +610,8 @@ public class MetadataCreateIndexService {
     private IndexMetadata buildAndValidateTemporaryIndexMetadata(
         final Settings aggregatedIndexSettings,
         final CreateIndexClusterStateUpdateRequest request,
-        final int routingNumShards
+        final int routingNumShards,
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder
     ) {
 
         final boolean isHiddenAfterTemplates = IndexMetadata.INDEX_HIDDEN_SETTING.get(aggregatedIndexSettings);
@@ -623,6 +626,7 @@ public class MetadataCreateIndexService {
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
         tmpImdBuilder.system(isSystem);
+        tmpImdBuilder.putCustom(customMetadataBuilder.build());
 
         // Set up everything, now locally create the index to see that things are ok, and apply
         IndexMetadata tempMetadata = tmpImdBuilder.build();
@@ -662,6 +666,7 @@ public class MetadataCreateIndexService {
         final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -675,10 +680,16 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            customMetadataBuilder
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(
+            aggregatedIndexSettings,
+            request,
+            routingNumShards,
+            customMetadataBuilder
+        );
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -755,6 +766,7 @@ public class MetadataCreateIndexService {
             xContentRegistry,
             request.index()
         );
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -768,10 +780,16 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            customMetadataBuilder
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(
+            aggregatedIndexSettings,
+            request,
+            routingNumShards,
+            customMetadataBuilder
+        );
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -810,6 +828,7 @@ public class MetadataCreateIndexService {
         final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -823,10 +842,16 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            customMetadataBuilder
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(
+            aggregatedIndexSettings,
+            request,
+            routingNumShards,
+            customMetadataBuilder
+        );
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -877,6 +902,7 @@ public class MetadataCreateIndexService {
         final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -890,10 +916,16 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            customMetadataBuilder
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
-        final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(
+            aggregatedIndexSettings,
+            request,
+            routingNumShards,
+            customMetadataBuilder
+        );
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -986,6 +1018,7 @@ public class MetadataCreateIndexService {
         final ProjectMetadata projectMetadata = metadata.getProject(request.projectId());
         final RoutingTable routingTable = currentState.routingTable(request.projectId());
 
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder = ImmutableOpenMap.builder();
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             metadata,
             projectMetadata,
@@ -999,10 +1032,16 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders
+            indexSettingProviders,
+            customMetadataBuilder
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
-        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+        IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(
+            aggregatedIndexSettings,
+            request,
+            routingNumShards,
+            customMetadataBuilder
+        );
 
         return applyCreateIndexWithTemporaryService(
             currentState,
@@ -1089,7 +1128,8 @@ public class MetadataCreateIndexService {
         Settings settings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
-        Set<IndexSettingProvider> indexSettingProviders
+        Set<IndexSettingProvider> indexSettingProviders,
+        ImmutableOpenMap.Builder<String, Map<String, String>> customMetadataBuilder
     ) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
 
@@ -1115,15 +1155,19 @@ public class MetadataCreateIndexService {
             final var resolvedAt = Instant.ofEpochMilli(request.getNameResolvedAt());
             Set<String> overrulingSettings = new HashSet<>();
             for (IndexSettingProvider provider : indexSettingProviders) {
-                var newAdditionalSettings = provider.getAdditionalIndexSettings(
+                Settings.Builder builder = Settings.builder();
+                provider.provideAdditionalMetadata(
                     request.index(),
                     request.dataStreamName(),
                     templateIndexMode,
                     projectMetadata,
                     resolvedAt,
                     templateAndRequestSettings,
-                    combinedTemplateMappings
+                    combinedTemplateMappings,
+                    builder,
+                    customMetadataBuilder::put
                 );
+                var newAdditionalSettings = builder.build();
                 validateAdditionalSettings(provider, newAdditionalSettings, additionalIndexSettings);
                 additionalIndexSettings.put(newAdditionalSettings);
                 if (provider.overrulesTemplateAndRequestSettings()) {
@@ -1459,7 +1503,8 @@ public class MetadataCreateIndexService {
         Settings indexSettings,
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
-        boolean isSystem
+        boolean isSystem,
+        Map<String, DiffableStringMap> customData
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
@@ -1482,6 +1527,7 @@ public class MetadataCreateIndexService {
         }
 
         indexMetadataBuilder.state(IndexMetadata.State.OPEN);
+        indexMetadataBuilder.putCustom(customData);
         return indexMetadataBuilder.build();
     }
 
@@ -1561,12 +1607,12 @@ public class MetadataCreateIndexService {
 
     private void validate(CreateIndexClusterStateUpdateRequest request, ProjectMetadata projectMetadata, RoutingTable routingTable) {
         validateIndexName(request.index(), projectMetadata, routingTable);
-        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings);
+        validateIndexSettings(request.index(), request.settings(), forbidPrivateIndexSettings && request.settingsSystemProvided() == false);
     }
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, null, forbidPrivateIndexSettings);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1575,25 +1621,41 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        @Nullable Settings systemProvided,
+        final boolean forbidPrivateIndexSettings
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
-            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+            validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, systemProvided, indexScopedSettings));
         }
         return validationErrors;
     }
 
-    private static List<String> validatePrivateSettingsNotExplicitlySet(Settings settings, IndexScopedSettings indexScopedSettings) {
+    private static List<String> validatePrivateSettingsNotExplicitlySet(
+        Settings settings,
+        @Nullable Settings systemProvided,
+        IndexScopedSettings indexScopedSettings
+    ) {
         List<String> validationErrors = new ArrayList<>();
         for (final String key : settings.keySet()) {
             final Setting<?> setting = indexScopedSettings.get(key);
             if (setting == null) {
                 assert indexScopedSettings.isPrivateSetting(key) : "expected [" + key + "] to be private but it was not";
-            } else if (setting.isPrivateIndex()) {
+            } else if (setting.isPrivateIndex() && isSystemProvided(key, settings, systemProvided) == false) {
                 validationErrors.add("private index setting [" + key + "] can not be set explicitly");
             }
         }
         return validationErrors;
+    }
+
+    /*
+     * System-provided settings are always allowed to configure private settings.
+     * These are typically coming from an IndexSettingProvider.
+     */
+    private static boolean isSystemProvided(String key, Settings settings, @Nullable Settings systemProvided) {
+        return systemProvided != null && settings.get(key).equals(systemProvided.get(key));
     }
 
     /**

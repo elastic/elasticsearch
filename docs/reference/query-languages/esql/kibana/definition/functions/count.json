@@ -32,7 +32,31 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "cartesian_shape",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "date",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
           "optional" : true,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }
@@ -57,6 +81,54 @@
         {
           "name" : "field",
           "type" : "geo_point",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geo_shape",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohash",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geohex",
+          "optional" : true,
+          "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "long"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "geotile",
           "optional" : true,
           "description" : "Expression that outputs values to be counted. If omitted, equivalent to `COUNT(*)` (the number of rows)."
         }

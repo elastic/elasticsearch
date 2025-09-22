@@ -8,6 +8,7 @@ import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(PowEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator base;
@@ -58,6 +61,14 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += base.baseRamBytesUsed();
+    baseRamBytesUsed += exponent.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public DoubleBlock eval(int positionCount, DoubleBlock baseBlock, DoubleBlock exponentBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
@@ -83,8 +94,10 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
+        double base = baseBlock.getDouble(baseBlock.getFirstValueIndex(p));
+        double exponent = exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p));
         try {
-          result.appendDouble(Pow.process(baseBlock.getDouble(baseBlock.getFirstValueIndex(p)), exponentBlock.getDouble(exponentBlock.getFirstValueIndex(p))));
+          result.appendDouble(Pow.process(base, exponent));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -97,8 +110,10 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   public DoubleBlock eval(int positionCount, DoubleVector baseVector, DoubleVector exponentVector) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        double base = baseVector.getDouble(p);
+        double exponent = exponentVector.getDouble(p);
         try {
-          result.appendDouble(Pow.process(baseVector.getDouble(p), exponentVector.getDouble(p)));
+          result.appendDouble(Pow.process(base, exponent));
         } catch (ArithmeticException e) {
           warnings().registerException(e);
           result.appendNull();

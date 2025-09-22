@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.saml;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.set.Sets;
@@ -139,6 +140,56 @@ public class SamlRealmSettings {
         key -> Setting.positiveTimeSetting(key, TimeValue.timeValueMinutes(3), Setting.Property.NodeScope)
     );
 
+    /**
+     * The names of attributes that should be treated as private and never populated as part of the user's metadata
+     * (even when {@code #POPULATE_USER_METADATA} is configured).
+     */
+    public static final Function<String, Setting.AffixSetting<List<String>>> PRIVATE_ATTRIBUTES = (type) -> Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(type),
+        "private_attributes",
+        (namespace, key) -> Setting.stringListSetting(key, new Setting.Validator<>() {
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = List.of(
+                    PRINCIPAL_ATTRIBUTE.apply(type).getAttribute().getConcreteSettingForNamespace(namespace),
+                    GROUPS_ATTRIBUTE.apply(type).getAttributeSetting().getAttribute().getConcreteSettingForNamespace(namespace),
+                    DN_ATTRIBUTE.apply(type).getAttribute().getConcreteSettingForNamespace(namespace),
+                    NAME_ATTRIBUTE.apply(type).getAttribute().getConcreteSettingForNamespace(namespace),
+                    MAIL_ATTRIBUTE.apply(type).getAttribute().getConcreteSettingForNamespace(namespace)
+                );
+                return settings.iterator();
+            }
+
+            @Override
+            public void validate(List<String> attributes) {
+                verifyNonNullNotEmpty(key, attributes);
+            }
+
+            @Override
+            public void validate(List<String> privateAttributes, Map<Setting<?>, Object> settings) {
+                if (false == privateAttributes.isEmpty()) {
+                    final Set<String> privateAttributesSet = Set.copyOf(privateAttributes);
+                    this.settings().forEachRemaining(attributeSetting -> {
+                        String attributeName = (String) settings.get(attributeSetting);
+
+                        if (false == Strings.isNullOrBlank(attributeName) && privateAttributesSet.contains(attributeName)) {
+                            throw new SettingsException(
+                                "SAML Attribute ["
+                                    + attributeName
+                                    + "] cannot be both configured for ["
+                                    + key
+                                    + "] and ["
+                                    + attributeSetting.getKey()
+                                    + "] settings."
+                            );
+                        }
+                    });
+                }
+            }
+        }, Setting.Property.NodeScope)
+    );
+
     public static final Function<String, Setting.AffixSetting<List<String>>> EXCLUDE_ROLES = (type) -> Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(type),
         "exclude_roles",
@@ -201,7 +252,8 @@ public class SamlRealmSettings {
             ENCRYPTION_KEY_ALIAS.apply(type),
             SIGNING_KEY_ALIAS.apply(type),
             SIGNING_MESSAGE_TYPES.apply(type),
-            REQUESTED_AUTHN_CONTEXT_CLASS_REF.apply(type)
+            REQUESTED_AUTHN_CONTEXT_CLASS_REF.apply(type),
+            PRIVATE_ATTRIBUTES.apply(type)
         );
 
         set.addAll(X509KeyPairSettings.affix(RealmSettings.realmSettingPrefix(type), ENCRYPTION_SETTING_KEY, false));

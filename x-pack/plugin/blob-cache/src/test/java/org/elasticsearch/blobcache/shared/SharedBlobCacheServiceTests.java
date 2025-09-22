@@ -34,12 +34,18 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,6 +54,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +65,7 @@ import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -88,6 +97,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<>(
@@ -95,7 +106,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                metrics
             )
         ) {
             final var cacheKey = generateCacheKey();
@@ -114,9 +125,17 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(tryEvict(region1));
             }
             assertEquals(3, cacheService.freeRegionCount());
+            // one eviction should be reflected in the telemetry for total count of evicted regions
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL)
+                    .size(),
+                is(1)
+            );
             synchronized (cacheService) {
                 assertFalse(tryEvict(region1));
             }
+
             assertEquals(3, cacheService.freeRegionCount());
             final var bytesReadFuture = new PlainActionFuture<Integer>();
             region0.populateAndRead(
@@ -144,9 +163,89 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertTrue(tryEvict(region2));
             }
             assertEquals(5, cacheService.freeRegionCount());
+            // another 2 evictions should bump our total evictions telemetry at 3
+            assertThat(
+                recordingMeterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_COUNTER, BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL)
+                    .size(),
+                is(3)
+            );
+
             assertTrue(bytesReadFuture.isDone());
             assertEquals(Integer.valueOf(1), bytesReadFuture.actionGet());
         }
+    }
+
+    public void testCacheMissOnPopulate() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(50)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(10)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
+        ExecutorService ioExecutor = Executors.newCachedThreadPool();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<>(environment, settings, taskQueue.getThreadPool(), ioExecutor, metrics)
+        ) {
+            ByteRange rangeRead = ByteRange.of(0L, 1L);
+            ByteRange rangeWrite = ByteRange.of(0L, 1L);
+            Path tempFile = createTempFile("test", "other");
+            String resourceDescription = tempFile.toAbsolutePath().toString();
+            final var cacheKey = generateCacheKey();
+            SharedBlobCacheService<Object>.CacheFile cacheFile = cacheService.getCacheFile(cacheKey, 1L);
+
+            ByteBuffer writeBuffer = ByteBuffer.allocate(1);
+
+            final int bytesRead = cacheFile.populateAndRead(
+                rangeRead,
+                rangeWrite,
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    try (var in = Files.newInputStream(tempFile)) {
+                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer.clear());
+                    }
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                resourceDescription
+            );
+            assertThat(bytesRead, is(1));
+            List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.miss_that_triggered_read.total");
+            Measurement first = measurements.getFirst();
+            assertThat(first.attributes().get("file_extension"), is("other"));
+            assertThat(first.value(), is(1L));
+
+            Path tempFile2 = createTempFile("test", "cfs");
+            resourceDescription = tempFile2.toAbsolutePath().toString();
+            cacheFile = cacheService.getCacheFile(generateCacheKey(), 1L);
+
+            ByteBuffer writeBuffer2 = ByteBuffer.allocate(1);
+
+            final int bytesRead2 = cacheFile.populateAndRead(
+                rangeRead,
+                rangeWrite,
+                (channel, pos, relativePos, len) -> len,
+                (channel, channelPos, streamFactory, relativePos, len, progressUpdater, completionListener) -> {
+                    try (var in = Files.newInputStream(tempFile2)) {
+                        SharedBytes.copyToCacheFileAligned(channel, in, channelPos, progressUpdater, writeBuffer2.clear());
+                    }
+                    ActionListener.completeWith(completionListener, () -> null);
+                },
+                resourceDescription
+            );
+            assertThat(bytesRead2, is(1));
+
+            measurements = recordingMeterRegistry.getRecorder()
+                .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.miss_that_triggered_read.total");
+            Measurement measurement = measurements.get(1);
+            assertThat(measurement.attributes().get("file_extension"), is("cfs"));
+            assertThat(measurement.value(), is(1L));
+        }
+        ioExecutor.shutdown();
     }
 
     private static boolean tryEvict(SharedBlobCacheService.CacheFileRegion<Object> region1) {
@@ -311,6 +410,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     public void testDecay() throws IOException {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
         // we have 8 regions
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -326,7 +427,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                metrics
             )
         ) {
             assertEquals(4, cacheService.freeRegionCount());
@@ -354,6 +455,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertThat(taskQueue.hasRunnableTasks(), is(true));
                 taskQueue.runAllRunnableTasks();
                 assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
+                long epochs = recordedEpochs(recordingMeterRegistry);
+                assertEquals(cacheService.epoch(), epochs);
             };
 
             triggerDecay.run();
@@ -414,11 +517,22 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         }
     }
 
+    private static long recordedEpochs(RecordingMeterRegistry recordingMeterRegistry) {
+        long epochs = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.blob_cache.epoch.total")
+            .stream()
+            .mapToLong(Measurement::getLong)
+            .sum();
+        return epochs;
+    }
+
     /**
      * Test when many objects need to decay, in particular useful to measure how long the decay task takes.
      * For 1M objects (with no assertions) it took 26ms locally.
      */
     public void testMassiveDecay() throws IOException {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
         int regions = 1024; // to measure decay time, increase to 1024*1024 and disable assertions.
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
@@ -434,7 +548,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                metrics
             )
         ) {
             Runnable decay = () -> {
@@ -475,6 +589,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 }
             }
             assertThat(freqs.get(4), equalTo(regions - maxRounds + 1));
+
+            long epochs = recordedEpochs(recordingMeterRegistry);
+            assertEquals(cacheService.epoch(), epochs);
         }
     }
 

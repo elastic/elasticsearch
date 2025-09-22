@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResponse> implements ToXContentFragment {
@@ -181,7 +182,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     public record RemoteClusterStats(
         String clusterUUID,
         String mode,
-        boolean skipUnavailable,
+        Optional<Boolean> skipUnavailable,
         String transportCompress,
         Set<String> versions,
         String status,
@@ -192,7 +193,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         long heapBytes,
         long memBytes
     ) implements ToXContentFragment {
-        public RemoteClusterStats(String mode, boolean skipUnavailable, String transportCompress) {
+        public RemoteClusterStats(String mode, Optional<Boolean> skipUnavailable, String transportCompress) {
             this(
                 "unavailable",
                 mode,
@@ -231,7 +232,9 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.startObject();
             builder.field("cluster_uuid", clusterUUID);
             builder.field("mode", mode);
-            builder.field("skip_unavailable", skipUnavailable);
+            if (skipUnavailable.isPresent()) {
+                builder.field("skip_unavailable", skipUnavailable.get());
+            }
             builder.field("transport.compress", transportCompress);
             builder.field("status", status);
             builder.field("version", versions);

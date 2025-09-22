@@ -12,7 +12,11 @@ package org.elasticsearch.action.admin.indices.resolve;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Request;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
+import java.util.Arrays;
+import java.util.EnumSet;
 
 public class ResolveIndexRequestTests extends AbstractWireSerializingTestCase<Request> {
 
@@ -35,7 +39,12 @@ public class ResolveIndexRequestTests extends AbstractWireSerializingTestCase<Re
             randomBoolean(),
             randomBoolean()
         );
-        return new Request(names, indicesOptions);
+        if (randomBoolean()) {
+            return new Request(names, indicesOptions);
+        } else {
+            EnumSet<IndexMode> randomModes = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(IndexMode.values())));
+            return new Request(names, indicesOptions, randomBoolean() ? null : randomModes);
+        }
     }
 
     @Override

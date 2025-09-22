@@ -7,12 +7,16 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -55,7 +59,15 @@ public class TestPlannerOptimizer {
         return physical;
     }
 
+    public PhysicalPlan plan(String query, SearchStats stats, EsqlFlags esqlFlags) {
+        return optimizedPlan(physicalPlan(query, analyzer), stats, esqlFlags);
+    }
+
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats) {
+        return optimizedPlan(plan, searchStats, new EsqlFlags(true));
+    }
+
+    private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats, EsqlFlags esqlFlags) {
         // System.out.println("* Physical Before\n" + plan);
         var physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
         // System.out.println("* Physical After\n" + physicalPlan);
@@ -66,8 +78,9 @@ public class TestPlannerOptimizer {
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
             new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
+        var physicalSettings = new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1), 10_000);
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(new EsqlFlags(true), config, FoldContext.small(), searchStats),
+            new LocalPhysicalOptimizerContext(physicalSettings, esqlFlags, config, FoldContext.small(), searchStats),
             true
         );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
@@ -80,9 +93,9 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
-        var logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
+        LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement(query, EsqlTestUtils.TEST_CFG)));
         // System.out.println("Logical\n" + logical);
-        var physical = mapper.map(logical);
+        PhysicalPlan physical = mapper.map(logical);
         return physical;
     }
 }

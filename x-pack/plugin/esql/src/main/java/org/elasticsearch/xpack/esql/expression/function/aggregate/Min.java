@@ -47,6 +47,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.BOOLEAN, MinBooleanAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, MinLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, MinLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, MinLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, MinLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.INTEGER, MinIntAggregatorFunctionSupplier::new),
@@ -58,7 +59,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "date_nanos", "ip", "keyword", "unsigned_long", "version" },
         description = "The minimum value of a field.",
         type = FunctionType.AGGREGATE,
         examples = {
@@ -86,7 +87,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
                 "ip",
                 "keyword",
                 "text",
-                "long",
+                "unsigned_long",
                 "version" }
         ) Expression field
     ) {
@@ -128,7 +129,13 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
             dt -> SUPPLIERS.containsKey(dt) || dt == DataType.AGGREGATE_METRIC_DOUBLE,
             sourceText(),
             DEFAULT,
-            "representable except unsigned_long and spatial types"
+            "boolean",
+            "date",
+            "ip",
+            "string",
+            "version",
+            "aggregate_metric_double",
+            "numeric except counter types"
         );
     }
 
@@ -153,7 +160,11 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public Expression surrogate() {
         if (field().dataType() == DataType.AGGREGATE_METRIC_DOUBLE) {
-            return new Min(source(), FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN));
+            return new Min(
+                source(),
+                FromAggregateMetricDouble.withMetric(source(), field(), AggregateMetricDoubleBlockBuilder.Metric.MIN),
+                filter()
+            );
         }
         return field().foldable() ? new MvMin(source(), field()) : null;
     }

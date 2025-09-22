@@ -44,7 +44,12 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * enforced by the Limit in the surrogate plan.
  */
 @SupportsObservabilityTier(tier = COMPLETE)
-public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware, LicenseAware {
+public class ChangePoint extends UnaryPlan
+    implements
+        SurrogateLogicalPlan,
+        PostAnalysisVerificationAware,
+        LicenseAware,
+        ExecutesOn.Coordinator {
 
     private final Attribute value;
     private final Attribute key;

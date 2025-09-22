@@ -937,7 +937,7 @@ public class AuthenticationTests extends ESTestCase {
         // pick a version before that of the authentication instance to force a rewrite
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
+            TransportVersion.minimumCompatible(),
             TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
         );
 

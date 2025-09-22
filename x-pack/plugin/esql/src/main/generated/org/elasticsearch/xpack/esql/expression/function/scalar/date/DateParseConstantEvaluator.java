@@ -8,6 +8,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateParseConstantEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateParseConstantEvaluator.class);
+
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator val;
@@ -54,6 +57,13 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += val.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public LongBlock eval(int positionCount, BytesRefBlock valBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
@@ -69,8 +79,9 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
           result.appendNull();
           continue position;
         }
+        BytesRef val = valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch);
         try {
-          result.appendLong(DateParse.process(valBlock.getBytesRef(valBlock.getFirstValueIndex(p), valScratch), this.formatter));
+          result.appendLong(DateParse.process(val, this.formatter));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -84,8 +95,9 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       BytesRef valScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef val = valVector.getBytesRef(p, valScratch);
         try {
-          result.appendLong(DateParse.process(valVector.getBytesRef(p, valScratch), this.formatter));
+          result.appendLong(DateParse.process(val, this.formatter));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

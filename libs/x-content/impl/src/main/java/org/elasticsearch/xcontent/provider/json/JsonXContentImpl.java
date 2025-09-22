@@ -28,6 +28,8 @@ import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
 
+import static org.elasticsearch.xcontent.provider.json.JsonXContentParser.handleParserException;
+
 /**
  * A JSON based content implementation using Jackson.
  */
@@ -95,21 +97,37 @@ public class JsonXContentImpl implements XContent {
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return createParser(config, jsonFactory.createParser(content));
+        try {
+            return createParser(config, jsonFactory.createParser(content));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return createParser(config, jsonFactory.createParser(is));
+        try {
+            return createParser(config, jsonFactory.createParser(is));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return createParser(config, jsonFactory.createParser(data, offset, length));
+        try {
+            return createParser(config, jsonFactory.createParser(data, offset, length));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return createParser(config, jsonFactory.createParser(reader));
+        try {
+            return createParser(config, jsonFactory.createParser(reader));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 }

@@ -111,7 +111,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -159,6 +159,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
@@ -524,30 +525,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         String[] value();
     }
 
-    @BeforeClass
-    public static void setupEntitlementsForClass() {
-        boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
-        boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
-        EntitledTestPackages entitledPackages = getTestClass().getAnnotation(EntitledTestPackages.class);
-
-        if (TestEntitlementBootstrap.isEnabledForTest()) {
-            TestEntitlementBootstrap.setActive(false == withoutEntitlements);
-            TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
-            if (entitledPackages != null) {
-                assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
-                TestEntitlementBootstrap.setEntitledTestPackages(entitledPackages.value());
-            }
-        } else if (withEntitlementsOnTestCode) {
-            throw new AssertionError(
-                "Cannot use @WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
-            );
-        }
-    }
-
-    @AfterClass
-    public static void resetEntitlements() {
-        TestEntitlementBootstrap.reset();
-    }
+    @ClassRule
+    public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -716,6 +695,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        filtered.add(
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release. See the breaking changes documentation for the next major version."
+        );
         return filtered;
     }
 
@@ -1182,6 +1165,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return result;
     }
 
+    public static Double randomOptionalDouble() {
+        return randomFrom(randomDouble(), null);
+    }
+
     public static long randomLong() {
         return random().nextLong();
     }
@@ -1437,6 +1424,18 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static TimeValue randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
+    }
+
+    /**
+     * Generate a random TimeValue that is greater than the provided timeValue.
+     * Chooses a random TimeUnit, adds between 1 and 1000 of that unit to {@code timeValue}, and returns a TimeValue in that unit.
+     */
+    public static TimeValue randomTimeValueGreaterThan(TimeValue lowerBound) {
+        final TimeUnit randomUnit = randomFrom(TimeUnit.values());
+        // This conversion might round down, but that's fine since we add at least 1 below, ensuring we still satisfy the "greater than".
+        final long lowerBoundDuration = randomUnit.convert(lowerBound.duration(), lowerBound.timeUnit());
+        final long duration = lowerBoundDuration + randomLongBetween(1, 1000);
+        return new TimeValue(duration, randomUnit);
     }
 
     /**

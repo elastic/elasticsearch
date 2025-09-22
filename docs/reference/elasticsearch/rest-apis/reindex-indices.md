@@ -35,6 +35,11 @@ You can learn how to:
 - [Reindex with an ingest pipeline](#reindex-with-an-ingest-pipeline)
 - [Reindex from remote](#reindex-from-remote)
 
+**Troubleshooting**
+- [Monitor reindex tasks](#monitor-reindex-tasks)
+- [Diagnose node failures](#diagnose-node-failures)
+- [Version conflicts](#version-conflicts)
+
 ## Basic reindexing example
 
 Use the Reindex API to copy all documents from one index to another.
@@ -592,7 +597,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200",
+      "host": "<OTHER_HOST_URL>:9200",
       "username": "user",
       "password": "pass"
     },
@@ -625,7 +630,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200",
+      "host": "<OTHER_HOST_URL>:9200",
       "headers": {
         "Authorization": "ApiKey API_KEY_VALUE"
       }
@@ -674,7 +679,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200",
+      "host": "<OTHER_HOST_URL>:9200",
       ...
     },
     "index": "source",
@@ -704,7 +709,7 @@ POST _reindex
 {
   "source": {
     "remote": {
-      "host": "http://otherhost:9200",
+      "host": "<OTHER_HOST_URL>:9200",
       ...,
       "socket_timeout": "1m",
       "connect_timeout": "10s"
@@ -732,3 +737,49 @@ Reindex from remote supports configurable SSL settings.
 These must be specified in the `elasticsearch.yml` file, with the exception of the secure settings, which you add in the {{es}} keystore.
 It is not possible to configure SSL in the body of the reindex API request.
 Refer to [Reindex settings](/reference/elasticsearch/configuration-reference/index-management-settings.md#reindex-settings).
+
+## Monitor reindex tasks [monitor-reindex-tasks]
+
+When run asynchronously with `wait_for_completion=false`, a reindex task can be monitored with the task management API:
+```console
+GET _tasks/r1A2WoRbTwKZ516z6NEs5A:36619
+```
+% TEST[catch:missing]
+
+To view all currently running reindex tasks:
+```console
+GET _tasks?actions=*reindex
+```
+
+You can also cancel a running reindex task:
+```console
+POST _tasks/r1A2WoRbTwKZ516z6NEs5A:36619/_cancel
+```
+
+## Diagnose node failures [diagnose-node-failures]
+
+Node crashes can sometimes be caused by insufficient disk space. To check disk allocation across your cluster:
+```console
+GET _cat/allocation?v
+```
+
+## Version conflicts [version-conflicts]
+
+By default, version conflicts abort the reindexing process.
+To continue reindexing in the case of conflicts, set `conflicts` to `proceed`.
+This may be necessary when retrying a failed reindex operation, as the destination index could be left in a partial state.
+
+```console
+POST _reindex
+{
+  "source": {
+    "index": "my-index-000001"
+  },
+  "dest": {
+    "index": "my-new-index-000001",
+    "op_type": "create"
+  },
+  "conflicts": "proceed"
+}
+```
+% TEST[setup:my_index]

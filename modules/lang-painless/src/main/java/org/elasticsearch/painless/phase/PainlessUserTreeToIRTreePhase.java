@@ -12,6 +12,7 @@ package org.elasticsearch.painless.phase;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.PainlessError;
 import org.elasticsearch.painless.PainlessExplainError;
+import org.elasticsearch.painless.PainlessWrappedException;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 import org.elasticsearch.painless.ir.BinaryImplNode;
@@ -415,6 +416,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             for (Class<? extends Throwable> throwable : List.of(
                 PainlessError.class,
+                PainlessWrappedException.class,
                 LinkageError.class,
                 OutOfMemoryError.class,
                 StackOverflowError.class,

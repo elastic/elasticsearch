@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -51,7 +52,7 @@ public class KnnTests extends AbstractFunctionTestCase {
 
     @Before
     public void checkCapability() {
-        assumeTrue("KNN is not enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+        assumeTrue("KNN is not enabled", EsqlCapabilities.Cap.KNN_FUNCTION_V5.isEnabled());
     }
 
     private static List<TestCaseSupplier> testCaseSuppliers() {
@@ -66,7 +67,7 @@ public class KnnTests extends AbstractFunctionTestCase {
                             new FieldAttribute(
                                 Source.EMPTY,
                                 randomIdentifier(),
-                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false)
+                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
                             ),
                             DENSE_VECTOR,
                             "dense_vector field"
@@ -120,7 +121,7 @@ public class KnnTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Knn knn = new Knn(source, args.get(0), args.get(1), args.get(2), args.size() > 3 ? args.get(3) : null);
+        Knn knn = new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
@@ -143,5 +144,22 @@ public class KnnTests extends AbstractFunctionTestCase {
         );
         // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
         return newExpression.replaceChildren(expression.children());
+    }
+
+    public void testSerializationOfSimple() {
+        // do nothing
+        assumeTrue("can't serialize function", canSerialize());
+        Expression expression = buildFieldExpression(testCase);
+        if (expression instanceof Knn knn) {
+            // The K parameter is not serialized, so we need to remove it from the children
+            // before we compare the serialization results
+            List<Expression> newChildren = knn.children();
+            newChildren.set(2, null); // remove the k parameter
+            Expression knnWithoutK = knn.replaceChildren(newChildren);
+            assertSerialization(knnWithoutK, testCase.getConfiguration());
+        } else {
+            // If not a Knn instance we fail the test as it is supposed to be a Knn function
+            fail("Expression is not Knn");
+        }
     }
 }

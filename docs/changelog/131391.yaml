@@ -1,6 +1,0 @@
-pr: 131391
-summary: Fix bug in point in time response
-area: Search
-type: bug
-issues:
- - 131026

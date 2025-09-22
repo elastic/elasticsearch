@@ -12,12 +12,10 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ObjectPath;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -26,7 +24,6 @@ import static org.elasticsearch.upgrades.SnapshotBasedRecoveryIT.indexDocs;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
@@ -45,6 +42,13 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().get("name").toString()));
         assertThat(nodeIdToNodeNames.values(), containsInAnyOrder("test-cluster-0", "test-cluster-1", "test-cluster-2"));
 
+        final var lastUpgradeNodeId = nodeIdToNodeNames.entrySet()
+            .stream()
+            .filter(entry -> "test-cluster-2".equals(entry.getValue()))
+            .map(Map.Entry::getKey)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("node id not found in " + nodeIdToNodeNames));
+
         if (isOldCluster()) {
             registerRepository(repositoryName, "fs", randomBoolean(), Settings.builder().put("location", "backup").build());
             // create an index to have one shard per node
@@ -54,54 +58,41 @@ public class RunningSnapshotIT extends AbstractRollingUpgradeTestCase {
                 indexDocs(indexName, between(10, 50));
             }
             flush(indexName, true);
-            // Signal shutdown to prevent snapshot from being completed
-            putShutdownMetadata(nodeIdToNodeNames.keySet());
+            // Signal shutdown for the last node to upgrade to prevent snapshot from being completed during the upgrade process
+            putShutdownMetadata(lastUpgradeNodeId);
             createSnapshot(repositoryName, snapshotName, false);
             assertRunningSnapshot(repositoryName, snapshotName);
         } else {
             if (isUpgradedCluster()) {
-                deleteShutdownMetadata(nodeIdToNodeNames.keySet());
-                assertNoShutdownMetadata(nodeIdToNodeNames.keySet());
+                deleteShutdownMetadata(lastUpgradeNodeId);
+                assertNoShutdownMetadata(lastUpgradeNodeId);
                 ensureGreen(indexName);
                 assertBusy(() -> assertCompletedSnapshot(repositoryName, snapshotName));
             } else {
-                if (isFirstMixedCluster()) {
-                    final var upgradedNodeIds = nodeIdToNodeNames.entrySet()
-                        .stream()
-                        .filter(entry -> "test-cluster-0".equals(entry.getValue()))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toUnmodifiableSet());
-                    assertThat(upgradedNodeIds, hasSize(1));
-                    deleteShutdownMetadata(upgradedNodeIds);
-                }
                 assertRunningSnapshot(repositoryName, snapshotName);
             }
         }
     }
 
-    private void putShutdownMetadata(Collection<String> nodeIds) throws IOException {
-        for (String nodeId : nodeIds) {
-            final Request putShutdownRequest = new Request("PUT", "/_nodes/" + nodeId + "/shutdown");
-            putShutdownRequest.setJsonEntity("""
-                {
-                  "type": "remove",
-                  "reason": "test"
-                }""");
-            client().performRequest(putShutdownRequest);
-        }
+    private void putShutdownMetadata(String nodeId) throws IOException {
+        final Request putShutdownRequest = new Request("PUT", "/_nodes/" + nodeId + "/shutdown");
+        putShutdownRequest.setJsonEntity("""
+            {
+              "type": "remove",
+              "reason": "test"
+            }""");
+        client().performRequest(putShutdownRequest);
     }
 
-    private void deleteShutdownMetadata(Collection<String> nodeIds) throws IOException {
-        for (String nodeId : nodeIds) {
-            final Request request = new Request("DELETE", "/_nodes/" + nodeId + "/shutdown");
-            request.addParameter(IGNORE_RESPONSE_CODES_PARAM, "404");
-            client().performRequest(request);
-        }
+    private void deleteShutdownMetadata(String nodeId) throws IOException {
+        final Request request = new Request("DELETE", "/_nodes/" + nodeId + "/shutdown");
+        request.addParameter(IGNORE_RESPONSE_CODES_PARAM, "404");
+        client().performRequest(request);
     }
 
-    private void assertNoShutdownMetadata(Collection<String> nodeIds) throws IOException {
+    private void assertNoShutdownMetadata(String nodeId) throws IOException {
         final ObjectPath responsePath = assertOKAndCreateObjectPath(
-            client().performRequest(new Request("GET", "/_nodes/" + Strings.collectionToCommaDelimitedString(nodeIds) + "/shutdown"))
+            client().performRequest(new Request("GET", "/_nodes/" + nodeId + "/shutdown"))
         );
         assertThat(responsePath.evaluate("nodes"), empty());
     }

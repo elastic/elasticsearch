@@ -12,11 +12,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -26,6 +28,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
+import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -93,7 +96,7 @@ public final class DocumentParser {
                 )
             )
         ) {
-            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser);
+            context = new RootDocumentParserContext(mappingLookup, mappingParserContext, source, parser, source.tsid());
             validateStart(context.parser());
             MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(metadataFieldsMappers, context);
@@ -171,6 +174,7 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
+            fieldName -> context.mappingLookup().getMapper(fieldName) == null,
             (ft, lookup, fto) -> ft.fielddataBuilder(
                 new FieldDataContext(
                     context.indexSettings().getIndex().getName(),
@@ -180,7 +184,8 @@ public final class DocumentParser {
                     fto
                 )
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source())
+            (ctx, doc) -> Source.fromBytes(context.sourceToParse().source()),
+            LeafFieldLookupProvider.fromStoredFields()
         );
         // field scripts can be called both by the loop at the end of this method and via
         // the document reader, so to ensure that we don't run them multiple times we
@@ -702,8 +707,6 @@ public final class DocumentParser {
         boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets();
         String fullPath = context.path().pathAsText(arrayFieldName);
 
-        // Check if we need to record the array source. This only applies to synthetic source.
-        boolean canRemoveSingleLeafElement = false;
         if (context.canAddIgnoredField() && supportStoringArrayOffsets == false) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
@@ -720,13 +723,6 @@ public final class DocumentParser {
                 fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
             }
             boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-
-            canRemoveSingleLeafElement = mapper instanceof FieldMapper
-                && mode == Mapper.SourceKeepMode.ARRAYS
-                && context.inArrayScope() == false
-                && mapper.leafName().equals(NOOP_FIELD_MAPPER_NAME) == false
-                && fieldWithFallbackSyntheticSource == false
-                && copyToFieldHasValuesInDocument == false;
 
             if (objectWithFallbackSyntheticSource
                 || fieldWithFallbackSyntheticSource
@@ -776,9 +772,6 @@ public final class DocumentParser {
             && context.isImmediateParentAnArray()) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
-        if (elements <= 1 && canRemoveSingleLeafElement) {
-            context.removeLastIgnoredField(fullPath);
-        }
         postProcessDynamicArrayMapping(context, lastFieldName);
     }
 
@@ -806,7 +799,7 @@ public final class DocumentParser {
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                 fieldName,
                 context.indexSettings().getIndexVersionCreated(),
-                IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(context.indexSettings().getSettings())
+                IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings())
             );
             builder.dimensions(mappers.size());
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
@@ -1057,7 +1050,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Optional.empty(), Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Defaults.SUBOBJECTS, Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
         }
 
         @Override
@@ -1078,12 +1071,14 @@ public final class DocumentParser {
         private final long maxAllowedNumNestedDocs;
         private long numNestedDocs;
         private boolean docsReversed = false;
+        private final BytesRef tsid;
 
         RootDocumentParserContext(
             MappingLookup mappingLookup,
             MappingParserContext mappingParserContext,
             SourceToParse source,
-            XContentParser parser
+            XContentParser parser,
+            BytesRef tsid
         ) throws IOException {
             super(
                 mappingLookup,
@@ -1092,6 +1087,9 @@ public final class DocumentParser {
                 mappingLookup.getMapping().getRoot(),
                 ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
             );
+            this.tsid = tsid;
+            assert tsid == null || mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES
+                : "tsid should only be set for time series indices";
             if (mappingLookup.getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.ENABLED) {
                 this.parser = DotExpandingXContentParser.expandDots(parser, this.path);
             } else {
@@ -1147,6 +1145,11 @@ public final class DocumentParser {
                 );
             }
             this.documents.add(doc);
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return this.tsid;
         }
 
         @Override

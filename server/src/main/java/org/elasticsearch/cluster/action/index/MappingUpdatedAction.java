@@ -111,6 +111,7 @@ public class MappingUpdatedAction {
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.masterNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.ackTimeout(TimeValue.ZERO);
+        putMappingRequest.origin("bulk");
         client.execute(
             TransportAutoPutMappingAction.TYPE,
             putMappingRequest,

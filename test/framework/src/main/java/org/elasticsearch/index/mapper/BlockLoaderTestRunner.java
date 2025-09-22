@@ -67,7 +67,8 @@ public class BlockLoaderTestRunner {
                 null,
                 Map.of(),
                 true,
-                XContentMeteringParserDecorator.NOOP
+                XContentMeteringParserDecorator.NOOP,
+                null
             );
             LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
 
@@ -113,7 +114,7 @@ public class BlockLoaderTestRunner {
                 }
             }
             BlockLoader.Docs docs = TestBlock.docs(docArray);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset);
+            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset, false);
             assertThat(block.size(), equalTo(docArray.length - offset));
             return block.get(0);
         }

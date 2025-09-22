@@ -36,6 +36,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -184,7 +185,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
@@ -195,7 +197,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    buildBlobPath(metadata.settings())
+                    buildBlobPath(metadata.settings()),
+                    snapshotMetrics
                 )
             );
         }
@@ -225,9 +228,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {

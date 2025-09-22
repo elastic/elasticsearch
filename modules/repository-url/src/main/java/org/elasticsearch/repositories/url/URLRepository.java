@@ -25,9 +25,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.URIPattern;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -93,16 +95,17 @@ public class URLRepository extends BlobStoreRepository {
      * Constructs a read-only URL-based repository
      */
     public URLRepository(
-        ProjectId projectId,
+        @Nullable ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        URLHttpClient.Factory httpClientFactory
+        URLHttpClient.Factory httpClientFactory,
+        SnapshotMetrics snapshotMetrics
     ) {
-        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY, snapshotMetrics);
 
         if (URL_SETTING.exists(metadata.settings()) == false && REPOSITORIES_URL_SETTING.exists(environment.settings()) == false) {
             throw new RepositoryException(metadata.name(), "missing url");

@@ -8,15 +8,21 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
@@ -40,6 +46,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -258,6 +265,90 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
         } finally {
             scriptPermits.drainPermits();
         }
+    }
+
+    public void testUpdateKeepAlive() throws Exception {
+        long nowInMillis = System.currentTimeMillis();
+        TimeValue keepAlive = timeValueSeconds(between(30, 60));
+        var request = EsqlQueryRequestBuilder.newAsyncEsqlQueryRequestBuilder(client())
+            .query("from test | stats sum(pause_me)")
+            .pragmas(queryPragmas())
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(between(1, 10)))
+            .keepOnCompletion(randomBoolean())
+            .keepAlive(keepAlive);
+        final String asyncId;
+        long currentExpiration;
+        try {
+            try (EsqlQueryResponse initialResponse = request.execute().actionGet(60, TimeUnit.SECONDS)) {
+                assertThat(initialResponse.isRunning(), is(true));
+                assertTrue(initialResponse.asyncExecutionId().isPresent());
+                asyncId = initialResponse.asyncExecutionId().get();
+            }
+            currentExpiration = getExpirationFromTask(asyncId);
+            assertThat(currentExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+            // update the expiration while the task is still running
+            int iters = iterations(1, 5);
+            for (int i = 0; i < iters; i++) {
+                long extraKeepAlive = randomIntBetween(30, 60);
+                keepAlive = TimeValue.timeValueSeconds(keepAlive.seconds() + extraKeepAlive);
+                GetAsyncResultRequest getRequest = new GetAsyncResultRequest(asyncId).setKeepAlive(keepAlive);
+                try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                    assertThat(resp.asyncExecutionId(), isPresent());
+                    assertThat(resp.asyncExecutionId().get(), equalTo(asyncId));
+                    assertTrue(resp.isRunning());
+                }
+                long updatedExpiration = getExpirationFromTask(asyncId);
+                assertThat(updatedExpiration, greaterThanOrEqualTo(currentExpiration + extraKeepAlive));
+                assertThat(updatedExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+                currentExpiration = updatedExpiration;
+            }
+        } finally {
+            scriptPermits.release(numberOfDocs());
+        }
+        // allow the query to complete, then update the expiration with the result is being stored in the async index
+        assertBusy(() -> {
+            GetAsyncResultRequest getRequest = new GetAsyncResultRequest(asyncId);
+            try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                assertThat(resp.isRunning(), is(false));
+            }
+        });
+        // update the keepAlive after the query has completed
+        int iters = between(1, 5);
+        for (int i = 0; i < iters; i++) {
+            long extraKeepAlive = randomIntBetween(30, 60);
+            keepAlive = TimeValue.timeValueSeconds(keepAlive.seconds() + extraKeepAlive);
+            GetAsyncResultRequest getRequest = new GetAsyncResultRequest(asyncId).setKeepAlive(keepAlive);
+            try (var resp = client().execute(EsqlAsyncGetResultAction.INSTANCE, getRequest).actionGet()) {
+                assertThat(resp.isRunning(), is(false));
+            }
+            long updatedExpiration = getExpirationFromDoc(asyncId);
+            assertThat(updatedExpiration, greaterThanOrEqualTo(currentExpiration + extraKeepAlive));
+            assertThat(updatedExpiration, greaterThanOrEqualTo(nowInMillis + keepAlive.getMillis()));
+            currentExpiration = updatedExpiration;
+        }
+    }
+
+    private static long getExpirationFromTask(String asyncId) {
+        List<EsqlQueryTask> tasks = new ArrayList<>();
+        for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
+            for (CancellableTask task : ts.getTaskManager().getCancellableTasks().values()) {
+                if (task instanceof EsqlQueryTask queryTask) {
+                    EsqlQueryResponse result = queryTask.getCurrentResult();
+                    if (result.isAsync() && result.asyncExecutionId().get().equals(asyncId)) {
+                        tasks.add(queryTask);
+                    }
+                }
+            }
+        }
+        assertThat(tasks, hasSize(1));
+        return tasks.getFirst().getExpirationTimeMillis();
+    }
+
+    private static long getExpirationFromDoc(String asyncId) {
+        String docId = AsyncExecutionId.decode(asyncId).getDocId();
+        GetResponse doc = client().prepareGet().setIndex(XPackPlugin.ASYNC_RESULTS_INDEX).setId(docId).get();
+        assertTrue(doc.isExists());
+        return ((Number) doc.getSource().get(AsyncTaskIndexService.EXPIRATION_TIME_FIELD)).longValue();
     }
 
     private List<TaskInfo> getEsqlQueryTasks() throws Exception {

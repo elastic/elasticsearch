@@ -375,7 +375,6 @@ count:long  |  client_ip:ip
 
 statsUnionAggInline
 required_capability: union_types
-required_capability: inlinestats
 
 FROM sample_data, sample_data_str
 | STATS
@@ -1397,62 +1396,23 @@ event_duration:long | _index:keyword       | ts:date                   | ts_str:
 8268153             | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z  | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
-
-inlineStatsUnionGroup-Ignore
-required_capability: union_types
-required_capability: inlinestats
-
-FROM sample_data, sample_data_ts_long
-| INLINESTATS count = COUNT(*)
-           BY @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
-| SORT client_ip ASC, @timestamp ASC
-| LIMIT 4
+multiIndexInlinestatsOfMultiTypedField
+required_capability: inline_stats
+required_capability: fork_union_types
+// https://github.com/elastic/elasticsearch/issues/133973
+FROM apps, apps_short
+| INLINE STATS s = sum(id::integer)
+| SORT name, version
+| LIMIT 5
 ;
 
-client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
-  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
-  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
+id:unsupported | name:keyword | version:version | s:long       
+null           | aaaaa        | 1               | 210
+null           | aaaaa        | 1               | 210
+null           | aaaaa        | 1.2.3.4         | 210
+null           | aaaaa        | 1.2.3.4         | 210
+null           | bbbbb        | 2.1             | 210
 ;
-
-inlineStatsUnionGroupWithEval-Ignore
-required_capability: union_types
-required_capability: inlinestats
-
-FROM sample_data, sample_data_ts_long
-| EVAL @timestamp = SUBSTRING(TO_STRING(@timestamp), 0, 7)
-| INLINESTATS count = COUNT(*) BY @timestamp
-| SORT client_ip ASC, @timestamp ASC
-| LIMIT 4
-;
-
-client_ip:ip | event_duration:long |    message:keyword    | @timestamp:keyword | count:long
-  172.21.0.5 |             1232382 | Disconnected          |            1698068 | 1
-  172.21.0.5 |             1232382 | Disconnected          |            2023-10 | 7
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            1698064 | 1
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 |            2023-10 | 7
-;
-
-inlineStatsUnionGroupTogether-Ignore
-required_capability: union_types
-required_capability: inlinestats
-
-FROM sample_data, sample_data_ts_long
-| INLINESTATS count = COUNT(*)
-           BY @timestamp = TO_STRING(TO_DATETIME(@timestamp))
-| SORT client_ip ASC, @timestamp ASC
-| LIMIT 4
-;
-
-client_ip:ip | event_duration:long |    message:keyword    |    @timestamp:keyword    | count:long
-  172.21.0.5 |             1232382 | Disconnected          | 2023-10-23T13:33:34.937Z | 2
-  172.21.0.5 |             1232382 | Disconnected          | 2023-10-23T13:33:34.937Z | 2
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 2023-10-23T12:27:28.948Z | 2
-172.21.2.113 |             2764889 | Connected to 10.1.0.2 | 2023-10-23T12:27:28.948Z | 2
-;
-
-# Once INLINESTATS supports expressions in agg functions and groups, convert the group in the inlinestats
 
 multiIndexIndirectUseOfUnionTypesInSort
 required_capability: union_types
@@ -1628,18 +1588,6 @@ foo:long | client_ip:ip
  8268153 | 172.21.3.15
 ;
 
-multiIndexIndirectUseOfUnionTypesInInlineStats-Ignore
-required_capability: union_types
-required_capability: inlinestats
-FROM sample_data, sample_data_ts_long
-| INLINESTATS foo = max(event_duration)
-| SORT client_ip ASC
-| LIMIT 1
-;
-
-@timestamp:unsupported | client_ip:ip | event_duration:long | message:keyword | foo:long
-           null        | 172.21.0.5   |             1232382 | Disconnected    |  8268153
-;
 
 multiIndexIndirectUseOfUnionTypesInLookup-Ignore
 required_capability: union_types
@@ -1718,6 +1666,35 @@ id:integer | name:keyword | count:long
 12         | aaaaa        | 2
 13         | lllll        | 2
 14         | mmmmm        | 2
+;
+
+shortIntegerWideningFork
+required_capability: union_types
+required_capability: fork_union_types
+required_capability: casting_operator
+required_capability: union_types_numeric_widening
+required_capability: fork_v9
+
+FROM apps, apps_short
+| EVAL x = id::integer
+| FORK (WHERE true) (WHERE true)
+| DROP _fork
+| SORT x ASC, name ASC, version ASC
+| EVAL x = x + 1
+| LIMIT 10
+;
+
+id:unsupported | name:keyword | version:version | x:integer
+null           | aaaaa        | 1               | 2
+null           | aaaaa        | 1               | 2
+null           | aaaaa        | 1               | 2
+null           | aaaaa        | 1               | 2
+null           | bbbbb        | 2.1             | 3
+null           | bbbbb        | 2.1             | 3
+null           | bbbbb        | 2.1             | 3
+null           | bbbbb        | 2.1             | 3
+null           | ccccc        | 2.3.4           | 4
+null           | ccccc        | 2.3.4           | 4
 ;
 
 ImplicitCastingMultiTypedFieldsKeepSort
@@ -2523,4 +2500,51 @@ c:long | b:date_nanos             | yr:date_nanos
 30     | 1988-01-01T00:00:00.000Z | 1987-01-01T00:00:00.000Z
 22     | 1987-01-01T00:00:00.000Z | 1986-01-01T00:00:00.000Z
 22     | 1986-01-01T00:00:00.000Z | 1985-01-01T00:00:00.000Z
+;
+
+multiIndexTBucketGroupingAndAggregation
+required_capability: date_nanos_type
+required_capability: implicit_casting_date_and_date_nanos
+required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
+
+FROM sample_data_ts_nanos, sample_data
+| stats x = 1 day + tbucket(1 hour) by b1d = tbucket(1 hour)
+;
+ignoreOrder:true
+
+x:date_nanos             | b1d:date_nanos
+2023-10-24T13:00:00.000Z | 2023-10-23T13:00:00.000Z
+2023-10-24T12:00:00.000Z | 2023-10-23T12:00:00.000Z
+;
+
+multiIndexAggregationUsingPresent
+required_capability: date_nanos_type
+required_capability: fn_present
+
+FROM employees, employees_incompatible
+| WHERE hire_date > DATE_PARSE("yyyy-MM-dd", "1989-01-01") and hire_date < DATE_PARSE("yyyy-MM-dd", "1991-01-01")
+| STATS is_present = present(birth_date) BY b = BUCKET(hire_date, 1 month)
+| SORT b DESC, is_present
+;
+ignoreOrder:true
+
+is_present:boolean | b:date_nanos
+false              | 1989-03-01T00:00:00.000Z
+false              | 1990-10-01T00:00:00.000Z
+true               | 1989-02-01T00:00:00.000Z
+true               | 1989-04-01T00:00:00.000Z
+true               | 1989-06-01T00:00:00.000Z
+true               | 1989-07-01T00:00:00.000Z
+true               | 1989-08-01T00:00:00.000Z
+true               | 1989-09-01T00:00:00.000Z
+true               | 1989-11-01T00:00:00.000Z
+true               | 1989-12-01T00:00:00.000Z
+true               | 1990-01-01T00:00:00.000Z
+true               | 1990-02-01T00:00:00.000Z
+true               | 1990-03-01T00:00:00.000Z
+true               | 1990-06-01T00:00:00.000Z
+true               | 1990-08-01T00:00:00.000Z
+true               | 1990-09-01T00:00:00.000Z
+true               | 1990-12-01T00:00:00.000Z
 ;

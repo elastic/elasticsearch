@@ -56,7 +56,7 @@ public class StdDevLongAggregator {
         state.combine(groupId, mean, m2, count);
     }
 
-    public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.evaluateFinal(selected, driverContext);
+    public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateFinal(selected, ctx.driverContext());
     }
 }

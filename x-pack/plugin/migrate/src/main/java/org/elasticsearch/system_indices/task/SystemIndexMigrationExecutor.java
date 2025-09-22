@@ -11,6 +11,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -41,6 +42,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     private final SystemIndices systemIndices;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
 
     public SystemIndexMigrationExecutor(
         Client client,
@@ -55,6 +57,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         this.systemIndices = systemIndices;
         this.indexScopedSettings = indexScopedSettings;
         this.threadPool = threadPool;
+        this.projectResolver = client.projectResolver();
     }
 
     @Override
@@ -83,7 +86,8 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
             clusterService,
             systemIndices,
             indexScopedSettings,
-            threadPool
+            threadPool,
+            projectResolver.getProjectId()
         );
     }
 

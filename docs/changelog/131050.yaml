@@ -1,6 +1,0 @@
-pr: 131050
-summary: Upgrade AWS Java SDK to 2.31.78
-area: "Snapshot/Restore"
-type: upgrade
-issues: []
-

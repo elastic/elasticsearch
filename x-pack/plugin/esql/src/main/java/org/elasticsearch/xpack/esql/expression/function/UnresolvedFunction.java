@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -24,6 +25,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * An unresolved function call. We build these while walking the syntax
+ * tree and then resolve them into other {@link Function} subclasses during
+ * {@link Analyzer analysis}.
+ */
 public class UnresolvedFunction extends Function implements Unresolvable {
 
     private final String name;

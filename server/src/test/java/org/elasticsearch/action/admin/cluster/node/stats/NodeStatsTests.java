@@ -78,6 +78,7 @@ import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportActionStats;
@@ -468,11 +469,13 @@ public class NodeStatsTests extends ESTestCase {
                     assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
 
-                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
-                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
-                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
-                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
-
+                RepositoriesStats repoSnapshotStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoSnapshotStats.getRepositorySnapshotStats().containsKey("test-repository"));
+                RepositoriesStats.SnapshotStats expectedSnapshotStats = nodeStats.getRepositoriesStats()
+                    .getRepositorySnapshotStats()
+                    .get("test-repository");
+                RepositoriesStats.SnapshotStats actualSnapshotStats = repoSnapshotStats.getRepositorySnapshotStats().get("test-repository");
+                assertEquals(XContentTestUtils.convertToMap(expectedSnapshotStats), XContentTestUtils.convertToMap(actualSnapshotStats));
             }
         }
     }
@@ -1069,7 +1072,20 @@ public class NodeStatsTests extends ESTestCase {
             );
         }
         RepositoriesStats repositoriesStats = new RepositoriesStats(
-            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+            Map.of(
+                "test-repository",
+                new RepositoriesStats.SnapshotStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            )
         );
         NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
             randomIntBetween(0, 10000),

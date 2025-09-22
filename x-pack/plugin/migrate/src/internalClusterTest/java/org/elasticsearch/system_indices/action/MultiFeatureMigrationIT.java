@@ -10,9 +10,8 @@ package org.elasticsearch.system_indices.action;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersions;
@@ -32,7 +31,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -91,7 +90,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         SetOnce<Boolean> secondPluginPreMigrationHookCalled = new SetOnce<>();
         SetOnce<Boolean> secondPluginPostMigrationHookCalled = new SetOnce<>();
 
-        getPlugin(TestPlugin.class).preMigrationHook.set(clusterState -> {
+        getPlugin(TestPlugin.class).preMigrationHook.set(project -> {
             // None of the other hooks should have been called yet.
             assertThat(postMigrationHookCalled.get(), nullValue());
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -100,7 +99,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             metadata.put("stringKey", "first plugin value");
 
             // We shouldn't have any results in the cluster state given no features have finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, nullValue());
 
             preMigrationHookCalled.set(true);
@@ -108,7 +107,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        getPlugin(TestPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(TestPlugin.class).postMigrationHook.set(metadata -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
@@ -117,14 +116,15 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(metadata, hasEntry("stringKey", "first plugin value"));
 
             // We shouldn't have any results in the cluster state given no features have finished yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
+            final var project = clusterService().state().metadata().getProject(ProjectId.DEFAULT);
+            FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, nullValue());
 
             postMigrationHookCalled.set(true);
             hooksCalled.countDown();
         });
 
-        getPlugin(SecondPlugin.class).preMigrationHook.set(clusterState -> {
+        getPlugin(SecondPlugin.class).preMigrationHook.set(project -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(postMigrationHookCalled.get(), is(true));
@@ -134,7 +134,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             metadata.put("stringKey", "second plugin value");
 
             // But now, we should have results, as we're in a new feature!
-            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
+            FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
@@ -146,7 +146,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             return metadata;
         });
 
-        getPlugin(SecondPlugin.class).postMigrationHook.set((clusterState, metadata) -> {
+        getPlugin(SecondPlugin.class).postMigrationHook.set(metadata -> {
             // Check that the hooks have been called or not as expected.
             assertThat(preMigrationHookCalled.get(), is(true));
             assertThat(postMigrationHookCalled.get(), is(true));
@@ -155,7 +155,8 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             assertThat(metadata, hasEntry("stringKey", "second plugin value"));
 
             // And here, the results should be the same, as we haven't updated the state with this feature's status yet.
-            FeatureMigrationResults currentResults = clusterState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
+            final var project = clusterService().state().metadata().getProject(ProjectId.DEFAULT);
+            FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
             assertThat(currentResults, notNullValue());
             assertThat(currentResults.getFeatureStatuses(), allOf(aMapWithSize(1), hasKey(FEATURE_NAME)));
             assertThat(currentResults.getFeatureStatuses().get(FEATURE_NAME).succeeded(), is(true));
@@ -193,7 +194,11 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the second plugin's pre-migration hook wasn't actually called", secondPluginPreMigrationHookCalled.get());
         assertTrue("the second plugin's post-migration hook wasn't actually called", secondPluginPostMigrationHookCalled.get());
 
-        ProjectMetadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().getProject();
+        ProjectMetadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject(ProjectId.DEFAULT);
         // Check that the results metadata is what we expect
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -263,8 +268,8 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
     public static class SecondPlugin extends Plugin implements SystemIndexPlugin {
 
-        private final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
-        private final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+        private final AtomicReference<Function<ProjectMetadata, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
+        private final AtomicReference<Consumer<Map<String, Object>>> postMigrationHook = new AtomicReference<>();
 
         public SecondPlugin() {}
 
@@ -284,18 +289,13 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         }
 
         @Override
-        public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-            listener.onResponse(preMigrationHook.get().apply(clusterService.state()));
+        public void prepareForIndicesMigration(ProjectMetadata project, Client client, ActionListener<Map<String, Object>> listener) {
+            listener.onResponse(preMigrationHook.get().apply(project));
         }
 
         @Override
-        public void indicesMigrationComplete(
-            Map<String, Object> preUpgradeMetadata,
-            ClusterService clusterService,
-            Client client,
-            ActionListener<Boolean> listener
-        ) {
-            postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
+        public void indicesMigrationComplete(Map<String, Object> preUpgradeMetadata, Client client, ActionListener<Boolean> listener) {
+            postMigrationHook.get().accept(preUpgradeMetadata);
             listener.onResponse(true);
         }
     }

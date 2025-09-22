@@ -80,8 +80,13 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
      * @param isAggregatable Whether this field can be aggregated on.
      * @param isDimension Whether this field can be used as dimension
      * @param metricType If this field is a metric field, returns the metric's type or null for non-metrics fields
-     * @param indices The list of indices where this field name is defined as {@code type},
-     *                or null if all indices have the same {@code type} for the field.
+     * @param indices The list of indices where this field name is defined as {@code type}.
+     *                When {@code includeIndices} is set to {@code false}, this list is only
+     *                present if there is a mapping conflict (e.g. the same field has different
+     *                types across indices).
+     *                When {@code includeIndices} is set to {@code true}, this list is always
+     *                present and contains all indices where the field exists, regardless of
+     *                mapping conflicts.
      * @param nonSearchableIndices The list of indices where this field is not searchable,
      *                             or null if the field is searchable in all indices.
      * @param nonAggregatableIndices The list of indices where this field is not aggregatable,

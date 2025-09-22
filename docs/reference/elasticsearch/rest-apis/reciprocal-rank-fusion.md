@@ -114,7 +114,7 @@ The `rrf` retriever does not currently support:
 
 * [scroll](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-scroll-query-param)
 * [sort](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-sort-param)
-* [rescore](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore)
+* [rescore](/reference/elasticsearch/rest-apis/rescore-search-results.md#rescore)
 
 Using unsupported features as part of a search with an `rrf` retriever results in an exception.
 
@@ -758,7 +758,7 @@ Highlighting on vector fields, using either the `knn` retriever or a `knn` query
 ::::
 
 
-A more specific example of highlighting in RRF can also be found in the [retrievers examples](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-highlighting-retriever-results) page.
+A more specific example of highlighting in RRF can also be found in the [retrievers examples](retrievers/retrievers-examples.md#retrievers-examples-highlighting-retriever-results) page.
 
 
 ## Inner hits in RRF [_inner_hits_in_rrf]

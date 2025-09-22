@@ -17,10 +17,13 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +31,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MinTests extends AbstractAggregationTestCase {
@@ -51,6 +55,17 @@ public class MinTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(MinTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
+        FunctionAppliesTo unsignedLongAppliesTo = appliesTo(FunctionAppliesToLifecycle.GA, "9.2.0", "", true);
+        for (TestCaseSupplier.TypedDataSupplier supplier : MultiRowTestCaseSupplier.ulongCases(
+            1,
+            1000,
+            BigInteger.ZERO,
+            UNSIGNED_LONG_MAX,
+            true
+        )) {
+            suppliers.add(makeSupplier(supplier.withAppliesTo(unsignedLongAppliesTo)));
+        }
+
         suppliers.addAll(
             List.of(
                 // Folding
@@ -58,7 +73,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     List.of(DataType.INTEGER),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200), DataType.INTEGER, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.INTEGER),
                         DataType.INTEGER,
                         equalTo(200)
                     )
@@ -67,16 +82,28 @@ public class MinTests extends AbstractAggregationTestCase {
                     List.of(DataType.LONG),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.LONG, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.LONG),
                         DataType.LONG,
                         equalTo(200L)
+                    )
+                ),
+                new TestCaseSupplier(
+                    List.of(DataType.UNSIGNED_LONG),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            TestCaseSupplier.TypedData.multiRow(List.of(new BigInteger("200")), DataType.UNSIGNED_LONG, "field")
+                                .withAppliesTo(unsignedLongAppliesTo)
+                        ),
+                        standardAggregatorName("Min", DataType.UNSIGNED_LONG),
+                        DataType.UNSIGNED_LONG,
+                        equalTo(new BigInteger("200"))
                     )
                 ),
                 new TestCaseSupplier(
                     List.of(DataType.DOUBLE),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200.), DataType.DOUBLE, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.DOUBLE),
                         DataType.DOUBLE,
                         equalTo(200.)
                     )
@@ -85,7 +112,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     List.of(DataType.DATETIME),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.DATETIME, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.DATETIME),
                         DataType.DATETIME,
                         equalTo(200L)
                     )
@@ -94,7 +121,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     List.of(DataType.DATE_NANOS),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.DATE_NANOS, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.DATE_NANOS),
                         DataType.DATE_NANOS,
                         equalTo(200L)
                     )
@@ -103,7 +130,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     List.of(DataType.BOOLEAN),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(true), DataType.BOOLEAN, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.BOOLEAN),
                         DataType.BOOLEAN,
                         equalTo(true)
                     )
@@ -118,7 +145,7 @@ public class MinTests extends AbstractAggregationTestCase {
                                 "field"
                             )
                         ),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.IP),
                         DataType.IP,
                         equalTo(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1"))))
                     )
@@ -127,7 +154,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.KEYWORD, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.KEYWORD),
                         DataType.KEYWORD,
                         equalTo(value)
                     );
@@ -136,7 +163,7 @@ public class MinTests extends AbstractAggregationTestCase {
                     var value = new BytesRef(randomAlphaOfLengthBetween(0, 50));
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.TEXT, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.TEXT),
                         DataType.KEYWORD,
                         equalTo(value)
                     );
@@ -148,7 +175,7 @@ public class MinTests extends AbstractAggregationTestCase {
                             .toBytesRef();
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.VERSION, "field")),
-                        "Min[field=Attribute[channel=0]]",
+                        standardAggregatorName("Min", DataType.VERSION),
                         DataType.VERSION,
                         equalTo(value)
                     );
@@ -176,7 +203,7 @@ public class MinTests extends AbstractAggregationTestCase {
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "Min[field=Attribute[channel=0]]",
+                standardAggregatorName("Min", fieldSupplier.type()),
                 fieldSupplier.type(),
                 equalTo(expected)
             );

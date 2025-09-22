@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,13 @@ public class MappingParserTests extends MapperServiceTestCase {
     }
 
     private static MappingParser createMappingParser(Settings settings, IndexVersion version, TransportVersion transportVersion) {
-        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
+        ScriptService scriptService = new ScriptService(
+            settings,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         IndexSettings indexSettings = createIndexSettings(version, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());

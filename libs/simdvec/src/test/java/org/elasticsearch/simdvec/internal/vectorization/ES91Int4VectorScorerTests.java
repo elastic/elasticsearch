@@ -20,7 +20,9 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 
-import static org.hamcrest.Matchers.lessThan;
+import java.io.IOException;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
 
@@ -130,31 +132,61 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
         // only even dimensions are supported
         final int dimensions = random().nextInt(1, 1000) * 2;
         final int numVectors = random().nextInt(1, 10) * ES91Int4VectorsScorer.BULK_SIZE;
-        final byte[] vector = new byte[ES91Int4VectorsScorer.BULK_SIZE * dimensions];
-        final byte[] corrections = new byte[ES91Int4VectorsScorer.BULK_SIZE * 14];
+        final float[][] vectors = new float[numVectors][dimensions];
+        final int[] quantizedScratch = new int[dimensions];
+        final byte[] quantizeVector = new byte[dimensions];
+        final float[] centroid = new float[dimensions];
+        VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
+        for (int i = 0; i < dimensions; i++) {
+            centroid[i] = random().nextFloat();
+        }
+        if (similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
+            VectorUtil.l2normalize(centroid);
+        }
+
+        OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
+        float[] scratch = new float[dimensions];
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
+                OptimizedScalarQuantizer.QuantizationResult[] results =
+                    new OptimizedScalarQuantizer.QuantizationResult[ES91Int4VectorsScorer.BULK_SIZE];
                 for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
-                    for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE * dimensions; j++) {
-                        vector[j] = (byte) random().nextInt(16); // 4-bit quantization
+                    for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
+                        for (int k = 0; k < dimensions; k++) {
+                            vectors[i + j][k] = random().nextFloat();
+                        }
+                        if (similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
+                            VectorUtil.l2normalize(vectors[i + j]);
+                        }
+                        results[j] = quantizer.scalarQuantize(vectors[i + j], scratch, quantizedScratch, (byte) 4, centroid);
+                        for (int k = 0; k < dimensions; k++) {
+                            quantizeVector[k] = (byte) quantizedScratch[k];
+                        }
+                        out.writeBytes(quantizeVector, 0, dimensions);
                     }
-                    out.writeBytes(vector, 0, vector.length);
-                    random().nextBytes(corrections);
-                    out.writeBytes(corrections, 0, corrections.length);
+                    writeCorrections(results, out);
                 }
             }
-            final byte[] query = new byte[dimensions];
+            final float[] query = new float[dimensions];
+            final byte[] quantizeQuery = new byte[dimensions];
             for (int j = 0; j < dimensions; j++) {
-                query[j] = (byte) random().nextInt(16); // 4-bit quantization
+                query[j] = random().nextFloat();
             }
-            OptimizedScalarQuantizer.QuantizationResult queryCorrections = new OptimizedScalarQuantizer.QuantizationResult(
-                random().nextFloat(),
-                random().nextFloat(),
-                random().nextFloat(),
-                Short.toUnsignedInt((short) random().nextInt())
+            if (similarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
+                VectorUtil.l2normalize(query);
+            }
+            OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
+                query,
+                new float[dimensions],
+                quantizedScratch,
+                (byte) 4,
+                centroid
             );
-            float centroidDp = random().nextFloat();
-            VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
+            for (int j = 0; j < dimensions; j++) {
+                quantizeQuery[j] = (byte) quantizedScratch[j];
+            }
+            float centroidDp = VectorUtil.dotProduct(centroid, centroid);
+
             try (IndexInput in = dir.openInput("tests.bin", IOContext.DEFAULT)) {
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
@@ -166,7 +198,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                 float[] scoresPanama = new float[ES91Int4VectorsScorer.BULK_SIZE];
                 for (int i = 0; i < numVectors; i += ES91Int4VectorsScorer.BULK_SIZE) {
                     defaultScorer.scoreBulk(
-                        query,
+                        quantizeQuery,
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
@@ -176,7 +208,7 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                         scoresDefault
                     );
                     panamaScorer.scoreBulk(
-                        query,
+                        quantizeQuery,
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
                         queryCorrections.quantizedComponentSum(),
@@ -186,29 +218,34 @@ public class ES91Int4VectorScorerTests extends BaseVectorizationTests {
                         scoresPanama
                     );
                     for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                        if (scoresDefault[j] == scoresPanama[j]) {
-                            continue;
-                        }
-                        if (scoresDefault[j] > (1000 * Byte.MAX_VALUE)) {
-                            float diff = Math.abs(scoresDefault[j] - scoresPanama[j]);
-                            assertThat(
-                                "defaultScores: " + scoresDefault[j] + " bulkScores: " + scoresPanama[j],
-                                diff / scoresDefault[j],
-                                lessThan(1e-5f)
-                            );
-                            assertThat(
-                                "defaultScores: " + scoresDefault[j] + " bulkScores: " + scoresPanama[j],
-                                diff / scoresPanama[j],
-                                lessThan(1e-5f)
-                            );
-                        } else {
-                            assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
-                        }
+                        assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
+                        float realSimilarity = similarityFunction.compare(vectors[i + j], query);
+                        float accuracy = realSimilarity > scoresDefault[j]
+                            ? scoresDefault[j] / realSimilarity
+                            : realSimilarity / scoresDefault[j];
+                        assertThat(accuracy, greaterThan(0.90f));
                     }
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
                 }
                 assertEquals((long) (dimensions + 14) * numVectors, in.getFilePointer());
             }
+        }
+    }
+
+    private static void writeCorrections(OptimizedScalarQuantizer.QuantizationResult[] corrections, IndexOutput out) throws IOException {
+        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+            out.writeInt(Float.floatToIntBits(correction.lowerInterval()));
+        }
+        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+            out.writeInt(Float.floatToIntBits(correction.upperInterval()));
+        }
+        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+            int targetComponentSum = correction.quantizedComponentSum();
+            assert targetComponentSum >= 0 && targetComponentSum <= 0xffff;
+            out.writeShort((short) targetComponentSum);
+        }
+        for (OptimizedScalarQuantizer.QuantizationResult correction : corrections) {
+            out.writeInt(Float.floatToIntBits(correction.additionalCorrection()));
         }
     }
 }

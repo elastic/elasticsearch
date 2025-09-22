@@ -64,6 +64,17 @@ sample_boolean:boolean | sample_datetime:datetime                               
 [false, true, true]    | [1985-11-21T00:00:00.000Z, 1986-06-26T00:00:00.000Z, 1986-08-28T00:00:00.000Z] | [1.83, 2.03, 2.08]   | [10001, 10002, 10003]  | [Bezalel, Georgi, Parto] | [2, 4, 5] 
 ;
 
+sample unsigned_long
+required_capability: agg_values_sample_unsigned_long
+
+FROM ul_logs
+| STATS v = MV_SLICE(MV_SORT(SAMPLE(bytes_in, 200)), 3, 5)
+;
+
+v:ul
+[0, 74330435873664882, 154551962150890561]
+;
+
 
 multivalued
 required_capability: agg_sample

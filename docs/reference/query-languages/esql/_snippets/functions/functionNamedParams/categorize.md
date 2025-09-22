@@ -3,10 +3,10 @@
 **Supported function named parameters**
 
 `output_format`
-:   (boolean) The output format of the categories. Defaults to regex.
+:   (keyword) The output format of the categories. Defaults to regex.
 
 `similarity_threshold`
-:   (boolean) The minimum percentage of token weight that must match for text to be added to the category bucket. Must be between 1 and 100. The larger the value the narrower the categories. Larger values will increase memory usage and create narrower categories. Defaults to 70.
+:   (integer) The minimum percentage of token weight that must match for text to be added to the category bucket. Must be between 1 and 100. The larger the value the narrower the categories. Larger values will increase memory usage and create narrower categories. Defaults to 70.
 
 `analyzer`
 :   (keyword) Analyzer used to convert the field into tokens for text categorization.

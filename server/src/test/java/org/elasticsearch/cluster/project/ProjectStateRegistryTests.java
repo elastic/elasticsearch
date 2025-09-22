@@ -46,6 +46,11 @@ public class ProjectStateRegistryTests extends ESTestCase {
         var unknownProjectId = randomUniqueProjectId();
         var throwingBuilder = ProjectStateRegistry.builder(projectStateRegistry).markProjectForDeletion(unknownProjectId);
         assertThrows(IllegalArgumentException.class, throwingBuilder::build);
+
+        var projectToRemove = randomFrom(projectStateRegistry.knownProjects());
+        projectStateRegistry = ProjectStateRegistry.builder(projectStateRegistry).removeProject(projectToRemove).build();
+        assertFalse(projectStateRegistry.hasProject(projectToRemove));
+        assertFalse(projectStateRegistry.isProjectMarkedForDeletion(projectToRemove));
     }
 
     public void testDiff() {

@@ -223,7 +223,8 @@ public enum IndexMode {
                 // If the source already has a _tsid field, we don't need to extract routing from the source.
                 return RoutingFields.Noop.INSTANCE;
             }
-            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            IndexRouting.ExtractFromSource.ForRoutingPath routing = (IndexRouting.ExtractFromSource.ForRoutingPath) settings
+                .getIndexRouting();
             return new RoutingPathFields(routing.builder());
         }
 

@@ -183,12 +183,6 @@ public final class ExponentialHistogramArrayBlock extends AbstractNonThreadSafeR
 
     @Override
     public int hashCode() {
-        if (encodedHistograms.areAllValuesNull()) {
-            // ensure consistent hash code for all-null blocks
-            try (Block nullBlock = blockFactory().newConstantNullBlock(getPositionCount())) {
-                return nullBlock.hashCode();
-            }
-        }
         return encodedHistograms.hashCode();
     }
 

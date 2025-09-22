@@ -4302,7 +4302,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 FROM foo* METADATA _id, _index, _score
                 | FORK ( WHERE a:"baz" )
                        ( WHERE b:"bar" )
-                | FUSE KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 } GROUP BY my_group
+                | FUSE GROUP BY my_group KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
             """);
 
         fuse = as(plan, Fuse.class);

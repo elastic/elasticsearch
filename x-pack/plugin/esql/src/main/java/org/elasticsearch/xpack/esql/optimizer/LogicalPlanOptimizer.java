@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplificatio
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineDisjunctions;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineLimitTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
@@ -218,7 +219,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new ReplaceLimitAndSortAsTopN(),
             new HoistRemoteEnrichTopN(local),
             new ReplaceRowAsLocalRelation(),
-            new PropgateUnmappedFields()
+            new PropgateUnmappedFields(),
+            new CombineLimitTopN()
         );
     }
 }

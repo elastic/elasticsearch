@@ -7044,16 +7044,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | EVAL employee_id = to_str(emp_no)
                 | ENRICH _remote:departments
                 | LIMIT 10""", testData, false);
-            // FIXME: Needs adjustment
-            // var finalLimit = as(plan, LimitExec.class);
-            // var exchange = as(finalLimit.child(), ExchangeExec.class);
-            // var fragment = as(exchange.child(), FragmentExec.class);
-            // var enrich = as(fragment.fragment(), Enrich.class);
-            // assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-            // assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-            // var evalFragment = as(enrich.child(), Eval.class);
-            // var partialLimit = as(evalFragment.child(), Limit.class);
-            // as(partialLimit.child(), EsRelation.class);
+            var finalLimit = as(plan, LimitExec.class);
+            var exchange = as(finalLimit.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var enrich = as(fragment.fragment(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialLimit = as(evalFragment.child(), Limit.class);
+            as(partialLimit.child(), EsRelation.class);
         }
     }
 
@@ -7101,16 +7100,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | EVAL employee_id = to_str(emp_no)
             | ENRICH _remote:departments
             """, testData, false);
-        // FIXME: Needs adjustment
-        // var finalLimit = as(plan, LimitExec.class);
-        // var exchange = as(finalLimit.child(), ExchangeExec.class);
-        // var fragment = as(exchange.child(), FragmentExec.class);
-        // var enrich = as(fragment.fragment(), Enrich.class);
-        // assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-        // assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-        // var evalFragment = as(enrich.child(), Eval.class);
-        // var partialLimit = as(evalFragment.child(), Limit.class);
-        // as(partialLimit.child(), EsRelation.class);
+        var finalLimit = as(plan, LimitExec.class);
+        var exchange = as(finalLimit.child(), ExchangeExec.class);
+        var fragment = as(exchange.child(), FragmentExec.class);
+        var enrich = as(fragment.fragment(), Enrich.class);
+        assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+        assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+        var evalFragment = as(enrich.child(), Eval.class);
+        var partialLimit = as(evalFragment.child(), Limit.class);
+        as(partialLimit.child(), EsRelation.class);
     }
 
     public void testEnrichBeforeTopN() {
@@ -7190,6 +7188,27 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 | SORT emp_no
                 | LIMIT 10
                 | EVAL employee_id = to_str(emp_no)
+                | ENRICH _remote:departments
+                """, testData, false);
+            var topN = as(plan, TopNExec.class);
+            var exchange = as(topN.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var dupTopN = as(fragment.fragment(), TopN.class);
+            assertThat(dupTopN.limit().toString(), equalTo("10"));
+            var enrich = as(dupTopN.child(), Enrich.class);
+            assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
+            assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
+            var evalFragment = as(enrich.child(), Eval.class);
+            var partialTopN = as(evalFragment.child(), TopN.class);
+            assertThat(partialTopN.limit().toString(), equalTo("10"));
+            as(partialTopN.child(), EsRelation.class);
+        }
+        {
+            var plan = physicalPlan("""
+                FROM test
+                | SORT emp_no
+                | LIMIT 10
+                | EVAL employee_id = to_str(emp_no)
                 | ENRICH _any:departments
                 """, testData, false);
             var enrich = as(plan, EnrichExec.class);
@@ -7219,27 +7238,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             var fragment = as(exchange.child(), FragmentExec.class);
             var partialTopN = as(fragment.fragment(), TopN.class);
             as(partialTopN.child(), EsRelation.class);
-        }
-        {
-            var plan = physicalPlan("""
-                FROM test
-                | SORT emp_no
-                | LIMIT 10
-                | EVAL employee_id = to_str(emp_no)
-                | ENRICH _remote:departments
-                """, testData, false);
-            // FIXME: Needs adjustment
-            // var topN = as(plan, TopNExec.class);
-            // var exchange = as(topN.child(), ExchangeExec.class);
-            // var fragment = as(exchange.child(), FragmentExec.class);
-            // var limit = as(fragment.fragment(), LimitExec.class);
-            // assertThat(limit.limit(), equalTo(10));
-            // var enrich = as(limit.child(), Enrich.class);
-            // assertThat(enrich.mode(), equalTo(Enrich.Mode.REMOTE));
-            // assertThat(enrich.concreteIndices(), equalTo(Map.of("cluster_1", ".enrich-departments-2")));
-            // var evalFragment = as(enrich.child(), Eval.class);
-            // var partialTopN = as(evalFragment.child(), TopN.class);
-            // as(partialTopN.child(), EsRelation.class);
         }
     }
 

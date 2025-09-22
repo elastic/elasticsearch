@@ -4,14 +4,12 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-match-query.html
 ---
 
-See also the {ref}/indices/analyze.html[Analyze API] and
-{ref}/analysis.html[Text analysis concepts].
-
-
 # Match query [query-dsl-match-query]
 
-
 Returns documents that match a provided text, number, date or boolean value. The provided text is analyzed before matching.
+
+See also the {ref}/indices/analyze.html[Analyze API] and
+{ref}/analysis.html[Text analysis concepts].
 
 The `match` query is the standard query for performing a full-text search, including options for fuzzy matching.
 

@@ -37,6 +37,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -92,10 +93,11 @@ import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -106,6 +108,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -2284,7 +2287,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         .map(e -> e.getId())
                         .toList();
                     insertedDocs.addAll(randomSubsetOf(validIds));
-                    logger.info("Inserted {} valid docs: {}", validIds.size(), String.join(", ", validIds));
                     switch (randomInt(2)) {
                         case 0:
                             try {
@@ -2397,6 +2399,51 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             logger.info("exiting");
         }, "Update"));
 
+        final var repos = "test-repo";
+        final var snapshotBaseName = "test-snap-";
+        final var snapshotNumber = new AtomicLong(1L);
+        createRepository(repos, "fs");
+        threads.add(new Thread(() -> {
+            while (stopThreads.get() == false) {
+                safeSleep(randomLongBetween(0, 100));
+                final var snapshotName = snapshotBaseName + snapshotNumber.getAndIncrement();
+                logger.info("--> creating snapshot [{}]", snapshotName);
+
+                final CreateSnapshotResponse response = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repos, snapshotName)
+                    .setIndices(indexName)
+                    .setWaitForCompletion(true)
+                    .setFeatureStates(org.elasticsearch.common.Strings.EMPTY_ARRAY)
+                    .get();
+
+                final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
+                assertThat(snapshotInfo.state(), Matchers.oneOf(SnapshotState.SUCCESS, SnapshotState.PARTIAL));
+                if (snapshotInfo.state() == SnapshotState.SUCCESS) {
+                    assertThat(snapshotInfo.successfulShards(), equalTo(numOfShards));
+                    assertThat(snapshotInfo.failedShards(), equalTo(0));
+                } else {
+                    // Shards can fail snapshotting if the RelocDriver thread above relocates them
+                    assertThat(snapshotInfo.successfulShards(), Matchers.lessThanOrEqualTo(numOfShards));
+                    assertThat(snapshotInfo.failedShards(), equalTo(numOfShards - snapshotInfo.successfulShards()));
+                    snapshotInfo.shardFailures().forEach(failure -> {
+                        // At the moment of the test inception, the snapshot could fail only because the shard is relocating/closed
+                        // and the snapshot is aborted or has some relevant exception from the following. Feel free to adjust
+                        // excepted exceptions if they ever change, as long as the general spirit is preserved, i.e., that the
+                        // snapshot is not done due to the relocation/closure of the shard rather than, e.g., some missing file.
+                        final var reason = failure.reason();
+                        assertThat(
+                            reason,
+                            either(containsString("aborted")).or(containsString("ShardNotFoundException"))
+                                .or(containsString("IndexShardSnapshotFailedException"))
+                        );
+                        if (reason.contains("IndexShardSnapshotFailedException")) {
+                            assertThat(reason, either(containsString("relocating")).or(containsString("closed")));
+                        }
+                    });
+                }
+            }
+            logger.info("exiting");
+        }, "Snapshot"));
+
         for (Thread thread : threads) {
             thread.start();
         }
@@ -2435,13 +2482,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         doTestStress(false, false);
     }
 
-    @TestLogging(
-        value = "co.elastic.elasticsearch.stateless.commits.HollowShardsService:trace,"
-            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:trace,"
-            + "org.elasticsearch.index.shard.IndexShard:trace,"
-            + "org.elasticsearch.index.engine.InternalEngine:trace",
-        reason = "https://github.com/elastic/elasticsearch-serverless/issues/4349"
-    )
     public void testStressWithRelocationFailures() throws Exception {
         doTestStress(true, false);
     }

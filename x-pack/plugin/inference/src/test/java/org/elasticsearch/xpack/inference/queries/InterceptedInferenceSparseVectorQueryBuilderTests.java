@@ -63,7 +63,8 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
     ) {
         return new InterceptedInferenceSparseVectorQueryBuilder(
             new InterceptedInferenceSparseVectorQueryBuilder(originalQuery),
-            inferenceResultsMap
+            inferenceResultsMap,
+            false
         );
     }
 

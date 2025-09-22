@@ -69,7 +69,8 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     ) {
         return new InterceptedInferenceKnnVectorQueryBuilder(
             new InterceptedInferenceKnnVectorQueryBuilder(originalQuery),
-            inferenceResultsMap
+            inferenceResultsMap,
+            false
         );
     }
 

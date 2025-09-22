@@ -285,17 +285,6 @@ public class Enrich extends UnaryPlan
         });
     }
 
-    private void checkMvExpandAfterLimit(Failures failures) {
-        this.forEachDown(MvExpand.class, u -> {
-            u.forEachDown(p -> {
-                if (p instanceof Limit || p instanceof TopN) {
-                    failures.add(fail(this, "MV_EXPAND after LIMIT is incompatible with remote ENRICH"));
-                }
-            });
-        });
-
-    }
-
     @Override
     public void postAnalysisVerification(Failures failures) {
         if (this.mode == Mode.REMOTE) {
@@ -323,14 +312,6 @@ public class Enrich extends UnaryPlan
                 }
             });
         });
-
-    }
-
-    @Override
-    public void postAnalysisVerification(Failures failures) {
-        if (this.mode == Mode.REMOTE) {
-            checkMvExpandAfterLimit(failures);
-        }
 
     }
 

@@ -308,9 +308,11 @@ public enum DataType {
 
     AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES)),
 
-    EXPONENTIAL_HISTOGRAM(builder().esType("exponential_histogram")
-        .estimatedSize(16 * 180) // guess 180 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
-        .docValues()),
+    EXPONENTIAL_HISTOGRAM(
+        builder().esType("exponential_histogram")
+            .estimatedSize(16 * 180) // guess 180 buckets (OTEL default for positive values only histograms) with 16 bytes per bucket
+            .docValues()
+    ),
 
     /**
      * Fields with this type are dense vectors, represented as an array of double values.

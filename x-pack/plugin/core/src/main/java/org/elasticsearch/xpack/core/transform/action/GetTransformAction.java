@@ -41,6 +41,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
     public static final GetTransformAction INSTANCE = new GetTransformAction();
     public static final String NAME = "cluster:monitor/transform/get";
 
+    static final TransportVersion DANGLING_TASKS = TransportVersion.fromName("transform_check_for_dangling_tasks");
+
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetTransformAction.class);
 
     private GetTransformAction() {
@@ -67,16 +69,14 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            // TODO Fix before checkin after TransportVersion code gets ported over to the new logic
-            this.checkForDanglingTasks = (in.getTransportVersion().onOrAfter(TransportVersion.current()) == false) || in.readBoolean();
-            this.timeout = in.getTransportVersion().onOrAfter(TransportVersion.current()) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
+            this.checkForDanglingTasks = (in.getTransportVersion().onOrAfter(DANGLING_TASKS) == false) || in.readBoolean();
+            this.timeout = in.getTransportVersion().onOrAfter(DANGLING_TASKS) ? in.readTimeValue() : LEGACY_TIMEOUT_VALUE;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            // TODO Fix before checkin after TransportVersion code gets ported over to the new logic
-            if (out.getTransportVersion().onOrAfter(TransportVersion.current())) {
+            if (out.getTransportVersion().onOrAfter(DANGLING_TASKS)) {
                 out.writeBoolean(checkForDanglingTasks);
                 out.writeTimeValue(timeout);
             }
@@ -114,6 +114,20 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public String getResourceIdField() {
             return TransformField.ID.getPreferredName();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj
+                || (obj instanceof Request other
+                    && super.equals(obj)
+                    && Objects.equals(checkForDanglingTasks, other.checkForDanglingTasks)
+                    && Objects.equals(timeout, other.timeout));
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), checkForDanglingTasks, timeout);
         }
     }
 

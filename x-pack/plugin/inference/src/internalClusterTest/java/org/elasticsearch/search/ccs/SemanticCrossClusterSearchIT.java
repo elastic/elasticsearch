@@ -201,7 +201,8 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         final String commonInferenceIdField = "common-inference-id-field";
         final String variableInferenceIdField = "variable-inference-id-field";
-        final String mixedTypeField = "mixed-type-field";
+        final String mixedTypeField1 = "mixed-type-field-1";
+        final String mixedTypeField2 = "mixed-type-field-2";
 
         final TestIndexInfo localIndexInfo = new TestIndexInfo(
             localIndexName,
@@ -211,7 +212,9 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 semanticTextMapping(commonInferenceId),
                 variableInferenceIdField,
                 semanticTextMapping(localInferenceId),
-                mixedTypeField,
+                mixedTypeField1,
+                semanticTextMapping(localInferenceId),
+                mixedTypeField2,
                 Map.of("type", "text")
             ),
             Map.of(
@@ -220,7 +223,9 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 "local_doc_2",
                 Map.of(variableInferenceIdField, "b"),
                 "local_doc_3",
-                Map.of(mixedTypeField, "c")
+                Map.of(mixedTypeField1, "c"),
+                "local_doc_4",
+                Map.of(mixedTypeField2, "d")
             )
         );
         final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
@@ -236,16 +241,20 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 semanticTextMapping(commonInferenceId),
                 variableInferenceIdField,
                 semanticTextMapping(remoteInferenceId),
-                mixedTypeField,
+                mixedTypeField1,
+                Map.of("type", "text"),
+                mixedTypeField2,
                 semanticTextMapping(remoteInferenceId)
             ),
             Map.of(
                 "remote_doc_1",
-                Map.of(commonInferenceIdField, "x"),
+                Map.of(commonInferenceIdField, "w"),
                 "remote_doc_2",
-                Map.of(variableInferenceIdField, "y"),
+                Map.of(variableInferenceIdField, "x"),
                 "remote_doc_3",
-                Map.of(mixedTypeField, "z")
+                Map.of(mixedTypeField1, "y"),
+                "remote_doc_4",
+                Map.of(mixedTypeField2, "z")
             )
         );
         setupTwoClusters(localIndexInfo, remoteIndexInfo);
@@ -272,11 +281,19 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         // Query a field that has mixed types across clusters
         assertSearchResponse(
-            new MatchQueryBuilder(mixedTypeField, "c"),
+            new MatchQueryBuilder(mixedTypeField1, "y"),
             queryIndices,
             List.of(
-                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3"),
-                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_3")
+            )
+        );
+        assertSearchResponse(
+            new MatchQueryBuilder(mixedTypeField2, "d"),
+            queryIndices,
+            List.of(
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_4"),
+                new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_4")
             )
         );
     }

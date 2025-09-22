@@ -27,7 +27,7 @@ public class TopN extends UnaryPlan implements PipelineBreaker {
     private final List<Order> order;
     private final Expression limit;
     /**
-     * Local limit is not a pipeline breaker, and is applied only to the local node's data.
+     * Local topn is not a pipeline breaker, and is applied only to the local node's data.
      * It should always end up inside a fragment.
      */
     private final transient boolean local;

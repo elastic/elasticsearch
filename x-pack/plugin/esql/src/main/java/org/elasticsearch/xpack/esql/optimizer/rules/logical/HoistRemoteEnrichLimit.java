@@ -15,8 +15,10 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Set;
 
 /**
@@ -36,7 +38,7 @@ public final class HoistRemoteEnrichLimit extends OptimizerRules.ParameterizedOp
     @Override
     protected LogicalPlan rule(Enrich en, LogicalOptimizerContext ctx) {
         if (en.mode() == Enrich.Mode.REMOTE) {
-            Set<Limit> seenLimits = new HashSet<>();
+            Set<Limit> seenLimits = Collections.newSetFromMap(new IdentityHashMap<>());
             en.child().forEachDownMayReturnEarly((p, stop) -> {
                 if (p instanceof Limit l && l.isLocal() == false) {
                     seenLimits.add(l);

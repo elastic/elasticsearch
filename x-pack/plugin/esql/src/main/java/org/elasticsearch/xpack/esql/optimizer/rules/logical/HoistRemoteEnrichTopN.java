@@ -57,8 +57,11 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                         // \_Eval[[ip{r}#3 AS $$ip$temp_name$21#22]]
                         if (pushPlan instanceof Project proj) {
                             // We needed renaming - deconstruct the plan from above and extract the relevant parts
-                            assert proj.child() instanceof OrderBy o && o.child() instanceof Enrich e && e.child() instanceof Eval
-                                : "Unexpected pushed plan structure: " + pushPlan;
+                            if ((proj.child() instanceof OrderBy o
+                                && o.child() instanceof Enrich e
+                                && e.child() instanceof Eval) == false) {
+                                throw new IllegalStateException("Unexpected pushed plan structure: " + pushPlan);
+                            }
                             OrderBy order = (OrderBy) proj.child();
                             Enrich enrich = (Enrich) order.child();
                             Eval eval = (Eval) enrich.child();
@@ -77,6 +80,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.ParameterizedOpt
                     }
                 }
                 if ((plan instanceof ExecutesOn ex && ex.executesOn() == ExecutesOn.ExecuteLocation.COORDINATOR)
+                    // This is essentially another remote Enrich, it can handle its own limits
                     || (plan instanceof Enrich e && e.mode() != Enrich.Mode.ANY)
                     || plan instanceof PipelineBreaker) {
                     break;

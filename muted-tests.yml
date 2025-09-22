@@ -591,24 +591,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:fork.ForkWithStats}
   issue: https://github.com/elastic/elasticsearch/issues/135116
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
-  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
-  issue: https://github.com/elastic/elasticsearch/issues/135117
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
-  issue: https://github.com/elastic/elasticsearch/issues/135119
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
-  issue: https://github.com/elastic/elasticsearch/issues/135118
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
-  issue: https://github.com/elastic/elasticsearch/issues/135118
-- class: org.elasticsearch.xpack.esql.CsvTests
-  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
-  issue: https://github.com/elastic/elasticsearch/issues/135120
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:inlinestats.DocsMultiAggsMultiGroupings}
-  issue: https://github.com/elastic/elasticsearch/issues/135121
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/135122
@@ -648,6 +630,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   method: test {p0=search/160_exists_query/Test exists query on mapped geo_point field with no doc values}
   issue: https://github.com/elastic/elasticsearch/issues/135164
+- class: org.elasticsearch.upgrades.QueryableBuiltInRolesUpgradeIT
+  method: testBuiltInRolesSyncedOnClusterUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/135194
 
 # Examples:
 #

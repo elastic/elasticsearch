@@ -875,6 +875,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         // Visible for testing
         static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
 
+            private static final double THRESHOLD_RATIO = 0.5;
             private static final double MISSING_WRITE_LOAD = -1;
             private final Map<ShardId, Double> shardWriteLoads;
             private final double maxWriteLoadOnNode;
@@ -891,7 +892,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     );
                 }
                 this.maxWriteLoadOnNode = maxWriteLoadOnNode;
-                threshold = maxWriteLoadOnNode * 0.5;
+                threshold = maxWriteLoadOnNode * THRESHOLD_RATIO;
                 nodeId = routingNode.nodeId();
             }
 

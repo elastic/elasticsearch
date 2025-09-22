@@ -15,7 +15,12 @@ import org.elasticsearch.nativeaccess.lib.JavaLibrary;
 class JdkJavaLibrary implements JavaLibrary {
 
     @Override
-    public CloseableByteBuffer newBuffer(int len, boolean shared) {
-        return new JdkCloseableByteBuffer(len, shared);
+    public CloseableByteBuffer newSharedBuffer(int len) {
+        return JdkCloseableByteBuffer.ofShared(len);
+    }
+
+    @Override
+    public CloseableByteBuffer newConfinedBuffer(int len) {
+        return JdkCloseableByteBuffer.ofConfined(len);
     }
 }

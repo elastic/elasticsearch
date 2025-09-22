@@ -2682,9 +2682,34 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testNoMetricInStatsByClause() {
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)", tsdb),
+            equalTo(
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation; "
+                    + "only dimensions and the special fields [_tsid] and [tbucket] are allowed. "
+                    + "If you want to group by a metric field, use a regular "
+                    + "aggregation with the FROM command instead of the TS command."
+            )
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in", tsdb),
+            equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
+        );
+        assertThat(
+            error("TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)", tsdb),
+            equalTo(
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation; "
+                    + "only dimensions and the special fields [_tsid] and [tbucket] are allowed. "
+                    + "If you want to group by a metric field, use a regular "
+                    + "aggregation with the FROM command instead of the TS command."
+            )
+        );
+    }
+
     public void testSortInTimeSeries() {
         assertThat(
-            error("TS test | SORT host | STATS avg(last_over_time(network.connections))", tsdb),
+            error("TS test | SORT host | STATS avg(last_over_time(network.connections)) BY tbucket=", tsdb),
             equalTo(
                 "1:11: sorting [SORT host] between the time-series source "
                     + "and the first aggregation [STATS avg(last_over_time(network.connections))] is not allowed"

@@ -65,7 +65,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
@@ -85,7 +85,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext()
         );
         try {
@@ -99,7 +99,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionErrorOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
             "test",
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );
@@ -174,7 +174,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             "test",
             1,
             1,
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
         );
@@ -194,7 +194,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             randomBoolean(),
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext()
         );
         try {
@@ -208,7 +208,7 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
             "test",
-            EsExecutors.daemonThreadFactory("test"),
+            EsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );

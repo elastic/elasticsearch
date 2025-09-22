@@ -306,7 +306,7 @@ public class MockTransportService extends TransportService {
             30,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory("mock-transport"),
+            EsExecutors.testOnlyDaemonThreadFactory("mock-transport"),
             threadPool.getThreadContext()
         );
     }

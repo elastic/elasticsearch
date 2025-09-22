@@ -110,7 +110,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                     "test",
                     threads,
                     0,
-                    EsExecutors.daemonThreadFactory("test"),
+                    EsExecutors.testOnlyDaemonThreadFactory("test"),
                     threadContext,
                     EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 );

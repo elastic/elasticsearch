@@ -18,11 +18,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -219,7 +221,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 mixedTypeField1,
                 semanticTextMapping(localInferenceId),
                 mixedTypeField2,
-                Map.of("type", "text")
+                textMapping()
             ),
             Map.of(
                 "local_doc_1",
@@ -246,7 +248,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 variableInferenceIdField,
                 semanticTextMapping(remoteInferenceId),
                 mixedTypeField1,
-                Map.of("type", "text"),
+                textMapping(),
                 mixedTypeField2,
                 semanticTextMapping(remoteInferenceId)
             ),
@@ -299,6 +301,98 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                 new SearchResult(REMOTE_CLUSTER, remoteIndexName, "remote_doc_4"),
                 new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_4")
             )
+        );
+    }
+
+    public void testMatchQueryWithCcMinimizeRoundTripsFalse() throws Exception {
+        final String localIndexName = "local-index";
+        final String remoteIndexName = "remote-index";
+        final String[] queryIndices = new String[] { localIndexName, fullyQualifiedIndexName(REMOTE_CLUSTER, remoteIndexName) };
+        final Consumer<QueryBuilder> assertCcsMinimizeRoundTripsFalseFailure = q -> {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(q);
+            SearchRequest searchRequest = new SearchRequest(queryIndices, searchSourceBuilder);
+            searchRequest.setCcsMinimizeRoundtrips(false);
+
+            IllegalArgumentException e = assertThrows(
+                IllegalArgumentException.class,
+                () -> client().search(searchRequest).actionGet(TEST_REQUEST_TIMEOUT)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "match query does not support cross-cluster search when querying a [semantic_text] field when "
+                        + "[ccs_minimize_roundtrips] is false"
+                )
+            );
+        };
+
+        final String commonInferenceId = "common-inference-id";
+
+        final String commonInferenceIdField = "common-inference-id-field";
+        final String mixedTypeField1 = "mixed-type-field-1";
+        final String mixedTypeField2 = "mixed-type-field-2";
+        final String textField = "text-field";
+
+        final TestIndexInfo localIndexInfo = new TestIndexInfo(
+            localIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField2,
+                textMapping(),
+                textField,
+                textMapping()
+            ),
+            Map.of(mixedTypeField2 + "_doc", Map.of(mixedTypeField2, "a"), textField + "_doc", Map.of(textField, "b b b"))
+        );
+        final TestIndexInfo remoteIndexInfo = new TestIndexInfo(
+            remoteIndexName,
+            Map.of(commonInferenceId, sparseEmbeddingServiceSettings()),
+            Map.of(
+                commonInferenceIdField,
+                semanticTextMapping(commonInferenceId),
+                mixedTypeField1,
+                textMapping(),
+                mixedTypeField2,
+                semanticTextMapping(commonInferenceId),
+                textField,
+                textMapping()
+            ),
+            Map.of(textField + "_doc", Map.of(textField, "b"))
+        );
+        setupTwoClusters(localIndexInfo, remoteIndexInfo);
+
+        // Validate that expected cases fail
+        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(commonInferenceIdField, randomAlphaOfLength(5)));
+        assertCcsMinimizeRoundTripsFalseFailure.accept(new MatchQueryBuilder(mixedTypeField1, randomAlphaOfLength(5)));
+
+        // Validate the expected ccs_minimize_roundtrips=false detection gap and failure mode when querying non-inference fields locally
+        assertSearchResponse(
+            new MatchQueryBuilder(mixedTypeField2, "a"),
+            queryIndices,
+            List.of(new SearchResult(null, localIndexName, mixedTypeField2 + "_doc")),
+            Set.of(
+                new FailureCause(
+                    QueryShardException.class,
+                    "failed to create query: Field [mixed-type-field-2] of type [semantic_text] does not support match queries"
+                )
+            ),
+            s -> s.setCcsMinimizeRoundtrips(false)
+        );
+
+        // Validate that a CCS match query functions when only text fields are queried
+        assertSearchResponse(
+            new MatchQueryBuilder(textField, "b"),
+            queryIndices,
+            List.of(
+                new SearchResult(null, localIndexName, textField + "_doc"),
+                new SearchResult(REMOTE_CLUSTER, remoteIndexName, textField + "_doc")
+            ),
+            Set.of(),
+            s -> s.setCcsMinimizeRoundtrips(false)
         );
     }
 
@@ -444,7 +538,8 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             ),
             queryIndices,
             List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
-            Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+            Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null.")),
+            null
         );
     }
 
@@ -556,7 +651,8 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             new SparseVectorQueryBuilder(mixedTypeField2, null, "c"),
             queryIndices,
             List.of(new SearchResult(LOCAL_CLUSTER, localIndexName, "local_doc_3")),
-            Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string"))
+            Set.of(new FailureCause(IllegalArgumentException.class, "inference_id required to perform vector search on query string")),
+            null
         );
     }
 
@@ -645,17 +741,21 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
     private void assertSearchResponse(QueryBuilder queryBuilder, String[] indices, List<SearchResult> expectedSearchResults)
         throws Exception {
-        assertSearchResponse(queryBuilder, indices, expectedSearchResults, null);
+        assertSearchResponse(queryBuilder, indices, expectedSearchResults, null, null);
     }
 
     private void assertSearchResponse(
         QueryBuilder queryBuilder,
         String[] indices,
         List<SearchResult> expectedSearchResults,
-        Set<FailureCause> expectedRemoteFailures
+        Set<FailureCause> expectedRemoteFailures,
+        Consumer<SearchRequest> searchRequestModifier
     ) throws Exception {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder).size(expectedSearchResults.size());
         SearchRequest searchRequest = new SearchRequest(indices, searchSourceBuilder);
+        if (searchRequestModifier != null) {
+            searchRequestModifier.accept(searchRequest);
+        }
 
         assertResponse(client().search(searchRequest), response -> {
             SearchHit[] hits = response.getHits().getHits();
@@ -705,6 +805,10 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
     private static Map<String, Object> semanticTextMapping(String inferenceId) {
         return Map.of("type", SemanticTextFieldMapper.CONTENT_TYPE, "inference_id", inferenceId);
+    }
+
+    private static Map<String, Object> textMapping() {
+        return Map.of("type", "text");
     }
 
     private static Map<String, Object> denseVectorMapping(int dimensions) {
@@ -775,7 +879,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         }
     }
 
-    private record SearchResult(String clusterAlias, String index, String id) {}
+    private record SearchResult(@Nullable String clusterAlias, String index, String id) {}
 
     private record FailureCause(Class<? extends Throwable> causeClass, String message) {}
 }

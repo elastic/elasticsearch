@@ -44,7 +44,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -284,24 +283,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     }
                     floatBuilder.endPositionEntry();
                 }
-                case TSID_DATA_TYPE -> {
-                    RoutingPathFields routingPathFields = new RoutingPathFields(null);
-
-                    int numDimensions = randomIntBetween(1, 4);
-                    for (int i = 0; i < numDimensions; i++) {
-                        String fieldName = "dim" + i;
-                        if (randomBoolean()) {
-                            routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
-                        } else {
-                            routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
-                        }
-                    }
-
-
-                    new BytesRef();
-
-                    ((BytesRefBlock.Builder) builder).appendBytesRef(routingPathFields.buildHash().toBytesRef());
-                }
+                case TSID_DATA_TYPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(ESTestCase.randomTsId().toBytesRef());
                 // default -> throw new UnsupportedOperationException("unsupported data type [" + c + "]");
             }
             return builder.build();
@@ -1214,7 +1196,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                     case LONG, COUNTER_LONG -> ((LongBlock.Builder) builder).appendLong(((Number) value).longValue());
                     case INTEGER, COUNTER_INTEGER -> ((IntBlock.Builder) builder).appendInt(((Number) value).intValue());
                     case DOUBLE, COUNTER_DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((Number) value).doubleValue());
-                    case KEYWORD, TEXT -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
+                    case KEYWORD, TEXT, TSID_DATA_TYPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(new BytesRef(value.toString()));
                     case UNSUPPORTED -> ((BytesRefBlock.Builder) builder).appendNull();
                     case IP -> ((BytesRefBlock.Builder) builder).appendBytesRef(stringToIP(value.toString()));
                     case DATETIME -> {
@@ -1268,19 +1250,6 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             }
                         }
                         floatBuilder.endPositionEntry();
-                    }
-                    case TSID_DATA_TYPE -> {
-                        RoutingPathFields routingPathFields = new RoutingPathFields(null);
-                        routingPathFields.addString("dimStr", randomAlphaOfLength(randomIntBetween(3, 10)));
-                        routingPathFields.addLong("dimLong", randomLongBetween(1, 1000));
-
-
-//                        BytesRef bytesRef = ((BytesRefBlock) block).getBytesRef(valueIndex, scratch);
-//                        return builder.value(TimeSeriesIdFieldMapper.encodeTsid(bytesRef));
-
-
-
-                        ((BytesRefBlock.Builder) builder).appendBytesRef(routingPathFields.buildHash().toBytesRef());
                     }
                 }
             }

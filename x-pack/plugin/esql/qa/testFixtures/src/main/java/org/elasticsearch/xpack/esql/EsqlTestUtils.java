@@ -888,21 +888,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case TSID_DATA_TYPE -> {
-                RoutingPathFields routingPathFields = new RoutingPathFields(null);
-
-                int numDimensions = randomIntBetween(1, 4);
-                for (int i = 0; i < numDimensions; i++) {
-                    String fieldName = "dim" + i;
-                    if (randomBoolean()) {
-                        routingPathFields.addString(fieldName, randomAlphaOfLength(randomIntBetween(3, 10)));
-                    } else {
-                        routingPathFields.addLong(fieldName, randomLongBetween(1, 1000));
-                    }
-                }
-
-                yield routingPathFields.buildHash().toBytesRef();
-            }
+            case TSID_DATA_TYPE -> ESTestCase.randomTsId().toBytesRef();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
             case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
                 "can't make random values for [" + type.typeName() + "]"

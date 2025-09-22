@@ -207,6 +207,10 @@ public class ApiKeyBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testCertificateIdentityBackwardsCompatibility() throws Exception {
+        assumeTrue(
+            "certificate identity backwards compatibility only relevant when upgrading from pre-9.2.0",
+            UPGRADE_FROM_VERSION.before(Version.V_9_2_0)
+        );
         switch (CLUSTER_TYPE) {
             case OLD -> {
                 var exception = expectThrows(Exception.class, () -> createCrossClusterApiKeyWithCertIdentity("CN=test-.*"));

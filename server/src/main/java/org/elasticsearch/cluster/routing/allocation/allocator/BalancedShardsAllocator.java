@@ -849,7 +849,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
             sourceNode.removeShard(index, shardRouting);
-            Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
+            final Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(
                 shardRouting,
                 targetNode.getNodeId(),
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
@@ -905,6 +905,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         + lhs.currentNodeId()
                         + ", rhs="
                         + rhs.currentNodeId();
+
                 // If we have no shard write-load data, shortcut
                 if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
                     return 0;
@@ -954,7 +955,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#getNodeDecisions} will have a non-null value.
          */
-        public MoveDecision decideMove(ProjectIndex index, ShardRouting shardRouting) {
+        public MoveDecision decideMove(final ProjectIndex index, final ShardRouting shardRouting) {
             // This is when we're not calling in a loop, so we don't need to keep track of "best non-preferred" shards
             return decideMove(index, shardRouting, Map.of(), Map.of());
         }
@@ -981,7 +982,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return MoveDecision.remain(canRemain);
             }
 
-            // Investigate whether it's potentially a better move to make than the one we've discovered already
+            // Investigate whether it's a better move to make than one we've discovered already
             if (canRemain.type() == Type.NOT_PREFERRED && bestNonPreferredShardsByNode.containsKey(shardRouting.currentNodeId())) {
                 int compare = comparatorCache.computeIfAbsent(
                     shardRouting.currentNodeId(),

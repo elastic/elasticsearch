@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Set;
 

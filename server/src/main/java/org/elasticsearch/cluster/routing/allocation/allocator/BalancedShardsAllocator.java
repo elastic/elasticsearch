@@ -910,8 +910,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     return 0;
                 }
 
-                double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
-                double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
+                final double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
+                final double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
 
                 // prefer any known write-load over any unknown write-load
                 final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;

@@ -18,6 +18,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.name;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
@@ -77,6 +78,34 @@ public final class TypeResolutions {
      */
     public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
+    }
+
+    public static TypeResolution isRepresentableExceptCountersAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
+        return isType(
+            e,
+            (t) -> t != AGGREGATE_METRIC_DOUBLE && DataType.isRepresentable(t),
+            operationName,
+            paramOrd,
+            "any type except counter types and aggregate metric double"
+        );
+    }
+
+    public static TypeResolution isRepresentableExceptCountersAndSpatialAndAggregateMetricDouble(
+        Expression e,
+        String operationName,
+        ParamOrdinal paramOrd
+    ) {
+        return isType(
+            e,
+            (t) -> t != AGGREGATE_METRIC_DOUBLE && isSpatialOrGrid(t) == false && DataType.isRepresentable(t),
+            operationName,
+            paramOrd,
+            "any type except counter and spatial types and aggregate metric double"
+        );
     }
 
     public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {

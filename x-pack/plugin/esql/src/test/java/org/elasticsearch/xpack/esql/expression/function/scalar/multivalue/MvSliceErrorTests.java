@@ -32,6 +32,11 @@ public class MvSliceErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.get(0) == DataType.AGGREGATE_METRIC_DOUBLE) {
+            return equalTo(
+                typeErrorMessage(true, validPerPosition, signature, (v, p) -> "any type except counter types and aggregate metric double")
+            );
+        }
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 1, 2 -> "integer";
             default -> throw new UnsupportedOperationException();

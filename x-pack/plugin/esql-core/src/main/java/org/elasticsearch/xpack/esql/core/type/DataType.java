@@ -349,7 +349,6 @@ public enum DataType implements Writeable {
      * </ul>
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
         Map.entry(DENSE_VECTOR, EsqlCorePlugin.DENSE_VECTOR_FEATURE_FLAG)
     );
 

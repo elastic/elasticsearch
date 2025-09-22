@@ -32,6 +32,11 @@ public class MvLastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.contains(DataType.AGGREGATE_METRIC_DOUBLE)) {
+            return equalTo(
+                typeErrorMessage(false, validPerPosition, signature, (v, p) -> "any type except counter types and aggregate metric double")
+            );
+        }
         return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> {
             /*
              * In general MvLast should support all signatures. While building a
@@ -47,6 +52,6 @@ public class MvLastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
          * In general MvLast should support all signatures. While building a
          * new type you may we to temporarily relax this.
          */
-        assertThat("all signatures should be supported", checked, equalTo(0));
+        assertThat("all signatures except aggregate metric double should be supported", checked, equalTo(1));
     }
 }

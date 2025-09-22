@@ -32,6 +32,12 @@ public class MvContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        if (signature.get(0) == DataType.AGGREGATE_METRIC_DOUBLE
+            || (signature.get(0) == DataType.NULL && signature.get(1) == DataType.AGGREGATE_METRIC_DOUBLE)) {
+            return equalTo(
+                typeErrorMessage(true, validPerPosition, signature, (v, p) -> "any type except counter types and aggregate metric double")
+            );
+        }
         return equalTo(
             "second argument of ["
                 + sourceForSignature(signature)

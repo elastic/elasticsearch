@@ -26,7 +26,7 @@ public final class SearchUsage {
     private final Set<String> rescorers = new HashSet<>();
     private final Set<String> sections = new HashSet<>();
     private final Set<String> retrievers = new HashSet<>();
-    private final Map<String, Map<String,Set<String>>> extendedData = new HashMap<>();
+    private final ExtendedUsageTracker extendedUsage = new ExtendedUsageTracker();
 
     /**
      * Track the usage of the provided query
@@ -51,19 +51,14 @@ public final class SearchUsage {
 
     public void trackRetrieverUsage(String retriever) {
         retrievers.add(retriever);
-        extendedData
-            .computeIfAbsent(RETRIEVERS_NAME, k -> new HashMap<>())
-            .put(retriever, new HashSet<>());
+        extendedUsage.initialize(RETRIEVERS_NAME, retriever);
     }
 
     /**
      * Track the usage of extended data for a specific category
      */
     private void trackExtendedDataUsage(String category, String name, Set<String> values) {
-        extendedData
-            .computeIfAbsent(RETRIEVERS_NAME, k -> new HashMap<String, Set<String>>())
-            .computeIfAbsent(name, k -> new HashSet<>())
-            .addAll(values);
+        extendedUsage.track(category, name, values);
     }
 
     public void trackRetrieverExtendedDataUsage(String name, Set<String> values) {
@@ -103,6 +98,42 @@ public final class SearchUsage {
      * Returns the extended data that has been tracked for the search request
      */
     public Map<String, Map<String,Set<String>>> getExtendedDataUsage() {
-        return Collections.unmodifiableMap(extendedData);
+        return extendedUsage.getUsage();
+    }
+
+    private static final class ExtendedUsageTracker {
+
+        /**
+         * A map of categories to extended data. Categories correspond to a high-level search usage statistic,
+         * e.g. `queries`, `rescorers`, `sections`, `retrievers`.
+         *
+         * Extended data is further segmented by name, for example collecting specific statistics for certain retrievers only.
+         * Finally we keep track of the set of values we are tracking for each category and name.
+         */
+        private final Map<String, Map<String, Set<String>>> categoriesToExtendedUsage = new HashMap<>();
+
+        public void initialize(String category, String name) {
+            categoriesToExtendedUsage
+                .computeIfAbsent(category, k -> new HashMap<>())
+                .computeIfAbsent(name, k -> new HashSet<>());
+        }
+
+        public void track(String category, String name, String value) {
+            categoriesToExtendedUsage
+                .computeIfAbsent(category, k -> new HashMap<>())
+                .computeIfAbsent(name, k -> new HashSet<>())
+                .add(value);
+        }
+
+        public void track(String category, String name, Set<String> values) {
+            categoriesToExtendedUsage
+                .computeIfAbsent(category, k -> new HashMap<>())
+                .computeIfAbsent(name, k -> new HashSet<>())
+                .addAll(values);
+        }
+
+        public Map<String, Map<String, Set<String>>> getUsage() {
+            return Collections.unmodifiableMap(categoriesToExtendedUsage);
+        }
     }
 }

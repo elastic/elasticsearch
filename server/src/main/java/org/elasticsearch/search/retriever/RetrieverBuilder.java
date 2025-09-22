@@ -133,8 +133,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
         }
 
-        context.trackRetrieverUsage(retrieverName);
-        context.trackRetrieverExtendedDataUsage(retrieverName, retrieverBuilder.getExtendedFields());
+        context.trackRetrieverUsage(retrieverBuilder);
 
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(
@@ -245,7 +244,13 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         return validationException;
     }
 
-    public Set<String> getExtendedFields() {
+    /**
+     * @return Additional fields associated with this retriever that we want to track in
+     * {@link org.elasticsearch.action.admin.cluster.stats.SearchUsageStats}.
+     *
+     * Individual retrievers should override this to add their own specific custom fields.
+     */
+    public Set<String> getExtendedUsageFields() {
         return Set.of();
     }
 

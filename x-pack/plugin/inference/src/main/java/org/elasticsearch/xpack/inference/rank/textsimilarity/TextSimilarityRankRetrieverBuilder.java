@@ -91,8 +91,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     static {
         PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
             RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
-            c.trackRetrieverExtendedDataUsage(innerRetriever.retrieverName(), innerRetriever.getExtendedFields());
+            c.trackRetrieverUsage(innerRetriever);
             return innerRetriever;
         }, RETRIEVER_FIELD);
         PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
@@ -231,7 +230,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
-    public Set<String> getExtendedFields() {
+    public Set<String> getExtendedUsageFields() {
         Set<String> extendedFields = new HashSet<>();
 
         if (chunkScorerConfig != null) {

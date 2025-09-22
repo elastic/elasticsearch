@@ -913,6 +913,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 double lhsWriteLoad = shardWriteLoads.getOrDefault(lhs.shardId(), MISSING_WRITE_LOAD);
                 double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), MISSING_WRITE_LOAD);
 
+                // prefer any known write-load over any unknown write-load
+                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
+                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
+                if (rhsIsMissing ^ lhsIsMissing) {
+                    return lhsIsMissing ? -1 : 1;
+                }
+
                 if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
                     final var lhsOverThreshold = lhsWriteLoad >= threshold;
                     final var rhsOverThreshold = rhsWriteLoad >= threshold;
@@ -930,16 +937,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     return Double.compare(lhsWriteLoad, rhsWriteLoad);
                 }
 
-                // at least one of the shards is the max-write-load shard
-                final var rhsIsMissing = rhsWriteLoad == MISSING_WRITE_LOAD;
-                final var lhsIsMissing = lhsWriteLoad == MISSING_WRITE_LOAD;
-                if (rhsIsMissing ^ lhsIsMissing) {
-                    // prefer any known write-load over it
-                    return lhsIsMissing ? -1 : 1;
-                } else {
-                    // prefer the lowest (non-max) write load
-                    return Double.compare(rhsWriteLoad, lhsWriteLoad);
-                }
+                // prefer the non-max write load if there is one
+                return rhsWriteLoad >= maxWriteLoadOnNode ? 1 : -1;
             }
         }
 

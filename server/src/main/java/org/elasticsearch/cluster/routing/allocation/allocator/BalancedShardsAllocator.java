@@ -792,7 +792,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         /**
-         * Move started shards that can not be allocated to a node anymore
+         * Move started shards that cannot be allocated to a node anymore, or are in a non-preferred allocation
          *
          * For each shard to be moved this function executes a move operation
          * to the minimal eligible node with respect to the

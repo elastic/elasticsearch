@@ -2,7 +2,6 @@
 
 ## `PRESENT` [esql-present]
 ```{applies_to}
-serverless: ga
 stack: ga 9.2.0
 ```
 

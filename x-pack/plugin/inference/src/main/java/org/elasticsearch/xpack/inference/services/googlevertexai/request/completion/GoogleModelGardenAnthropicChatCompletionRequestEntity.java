@@ -34,6 +34,8 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
 public class GoogleModelGardenAnthropicChatCompletionRequestEntity implements ToXContentObject {
 
     private static final String ANTHROPIC_VERSION = "anthropic_version";
+    // Anthropic requires this specific version for Google Model Garden according to their documentation.
+    // https://console.cloud.google.com/vertex-ai/publishers/anthropic/model-garden/claude-3-5-haiku
     private static final String VERTEX_2023_10_16 = "vertex-2023-10-16";
     private static final String STREAM_FIELD = "stream";
     private static final String INPUT_SCHEMA_FIELD = "input_schema";

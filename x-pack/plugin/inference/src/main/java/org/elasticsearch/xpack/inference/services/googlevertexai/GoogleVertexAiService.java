@@ -70,9 +70,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROVIDER_SETTING_NAME;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.STREAMING_URL_SETTING_NAME;
-import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.URL_SETTING_NAME;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.COMPLETION_ERROR_PREFIX;
 
 public class GoogleVertexAiService extends SenderService implements RerankingInferenceService {
@@ -447,7 +444,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                     MODEL_ID,
                     new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
-                        .setRequired(false)
+                        .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -462,7 +459,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                                 + "For more information, refer to the {geminiVertexAIDocs}."
                         )
                         .setLabel("GCP Region")
-                        .setRequired(false)
+                        .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -476,44 +473,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
                             + "on the URL, refer to the {geminiVertexAIDocs}."
                     )
                         .setLabel("GCP Project")
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-
-                configurationMap.put(
-                    URL_SETTING_NAME,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                        "The Non-Streaming URL endpoint to use for the requests."
-                    )
-                        .setLabel("Non-Streaming URL")
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-
-                configurationMap.put(
-                    STREAMING_URL_SETTING_NAME,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                        "The Streaming URL endpoint to use for the requests."
-                    )
-                        .setLabel("Streaming URL")
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-
-                configurationMap.put(
-                    PROVIDER_SETTING_NAME,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The Google Model Garden Provider ID.")
-                        .setLabel("Provider")
-                        .setRequired(false)
+                        .setRequired(true)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

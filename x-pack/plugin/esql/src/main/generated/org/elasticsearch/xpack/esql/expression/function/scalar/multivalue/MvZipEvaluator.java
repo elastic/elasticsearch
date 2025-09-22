@@ -94,7 +94,8 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
           result.appendNull();
           continue position;
         }
-        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch));
+        BytesRef delim = delimBlock.getBytesRef(delimBlock.getFirstValueIndex(p), delimScratch);
+        MvZip.process(result, p, leftFieldBlock, rightFieldBlock, delim);
       }
       return result.build();
     }

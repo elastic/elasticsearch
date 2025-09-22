@@ -964,7 +964,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // Assign all shards to node
         final var allocatedRoutingNodes = allocation.routingNodes().mutableCopy();
         for (ShardRouting shardRouting : allocatedRoutingNodes.unassigned()) {
-            logger.info("--> allocating shard [{}] to node [{}]", shardRouting, nodeId);
             allocatedRoutingNodes.initializeShard(shardRouting, nodeId, null, randomNonNegativeLong(), NOOP);
         }
 

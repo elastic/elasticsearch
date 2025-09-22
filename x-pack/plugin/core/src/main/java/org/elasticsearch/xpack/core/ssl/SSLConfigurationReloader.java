@@ -45,7 +45,7 @@ public final class SSLConfigurationReloader {
         }
     };
 
-    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, SSLService.LoadedConfiguration sslConfiguration) {
+    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, SSLService.LoadedSslConfigurations sslConfiguration) {
         startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfiguration);
     }
 
@@ -53,7 +53,7 @@ public final class SSLConfigurationReloader {
     SSLConfigurationReloader(
         Consumer<SslConfiguration> reloadConsumer,
         ResourceWatcherService resourceWatcherService,
-        SSLService.LoadedConfiguration sslConfiguration
+        SSLService.LoadedSslConfigurations sslConfiguration
     ) {
         startWatching(reloadConsumer, resourceWatcherService, sslConfiguration);
     }
@@ -84,7 +84,7 @@ public final class SSLConfigurationReloader {
     private static void startWatching(
         Consumer<SslConfiguration> reloadConsumer,
         ResourceWatcherService resourceWatcherService,
-        SSLService.LoadedConfiguration sslConfigurations
+        SSLService.LoadedSslConfigurations sslConfigurations
     ) {
         Map<Path, List<SslConfiguration>> pathToConfigurationsMap = new HashMap<>();
         for (SslConfiguration sslConfiguration : sslConfigurations.configurations()) {

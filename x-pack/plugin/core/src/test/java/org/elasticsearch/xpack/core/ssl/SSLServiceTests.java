@@ -1014,7 +1014,7 @@ public class SSLServiceTests extends ESTestCase {
         });
 
         env = newEnvironment(settings.build());
-        final SSLService.LoadedConfiguration loadedConfiguration = SSLService.getSSLConfigurations(env, extensions);
+        final SSLService.LoadedSslConfigurations loadedConfiguration = SSLService.getSSLConfigurations(env, extensions);
 
         assertThat(loadedConfiguration.extensions().keySet(), equalTo(allExtensionsPrefixes.keySet()));
         for (var ext : extensions) {

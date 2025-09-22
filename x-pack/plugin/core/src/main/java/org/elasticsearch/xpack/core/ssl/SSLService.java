@@ -129,7 +129,7 @@ public class SSLService {
     /**
      *  Used for sharing internal configuration information between {@link SSLService} and {@link SSLConfigurationReloader}
      */
-    public static class LoadedConfiguration {
+    public static class LoadedSslConfigurations {
         /**
          * This is a mapping from "context name" (in general use, the name of a setting key)
          * to a configuration.
@@ -145,7 +145,7 @@ public class SSLService {
          */
         private final Map<String, SslProfileExtension> extensions;
 
-        public LoadedConfiguration(Map<String, SslConfiguration> configurations, Map<String, SslProfileExtension> extensions) {
+        public LoadedSslConfigurations(Map<String, SslConfiguration> configurations, Map<String, SslProfileExtension> extensions) {
             this.configurations = configurations;
             this.extensions = extensions;
             extensions.keySet().forEach(extKey -> {
@@ -175,7 +175,7 @@ public class SSLService {
     private final Settings settings;
     private final boolean diagnoseTrustExceptions;
 
-    private final LoadedConfiguration loadedConfiguration;
+    private final LoadedSslConfigurations loadedConfiguration;
 
     /**
      * A mapping from an SslConfiguration to a pre-built context.
@@ -198,7 +198,7 @@ public class SSLService {
      * contexts created from these configurations will be cached.
      */
     @SuppressWarnings("this-escape")
-    public SSLService(Environment environment, LoadedConfiguration loadedConfiguration) {
+    public SSLService(Environment environment, LoadedSslConfigurations loadedConfiguration) {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
@@ -218,7 +218,7 @@ public class SSLService {
 
     private SSLService(
         Environment environment,
-        LoadedConfiguration loadedConfiguration,
+        LoadedSslConfigurations loadedConfiguration,
         Map<SslConfiguration, SSLContextHolder> sslContexts
     ) {
         this.env = environment;
@@ -237,7 +237,7 @@ public class SSLService {
         return new SSLService(env, loadedConfiguration, sslContexts) {
 
             @Override
-            Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(LoadedConfiguration unused) {
+            Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(LoadedSslConfigurations unused) {
                 // we don't need to load anything...
                 return Collections.emptyMap();
             }
@@ -475,16 +475,16 @@ public class SSLService {
         return trustManager;
     }
 
-    public static LoadedConfiguration getSSLConfigurations(Environment env, List<SslProfileExtension> extensions) {
+    public static LoadedSslConfigurations getSSLConfigurations(Environment env, List<SslProfileExtension> extensions) {
         return getSSLConfigurations(env, env.settings(), extensions);
     }
 
     @Deprecated
-    private static LoadedConfiguration getSSLConfigurations(Environment env, Settings settings) {
+    private static LoadedSslConfigurations getSSLConfigurations(Environment env, Settings settings) {
         return getSSLConfigurations(env, settings, List.of());
     }
 
-    private static LoadedConfiguration getSSLConfigurations(Environment env, Settings settings, List<SslProfileExtension> extensions) {
+    private static LoadedSslConfigurations getSSLConfigurations(Environment env, Settings settings, List<SslProfileExtension> extensions) {
         final Map<String, SslProfileExtension> extensionContexts = getSettingPrefixes(extensions);
 
         final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings, extensionContexts.keySet());
@@ -500,7 +500,7 @@ public class SSLService {
                 throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
             }
         });
-        return new LoadedConfiguration(sslConfigurationMap, extensionContexts);
+        return new LoadedSslConfigurations(sslConfigurationMap, extensionContexts);
     }
 
     private static Map<String, SslProfileExtension> getSettingPrefixes(List<SslProfileExtension> extensions) {
@@ -577,7 +577,7 @@ public class SSLService {
     /**
      * Parses the settings to load all SslConfiguration objects that will be used.
      */
-    Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(LoadedConfiguration loadedConfiguration) {
+    Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(LoadedSslConfigurations loadedConfiguration) {
         final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(
             loadedConfiguration.configurations.size()
         );

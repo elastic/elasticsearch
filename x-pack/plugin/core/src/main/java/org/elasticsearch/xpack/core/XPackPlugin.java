@@ -500,7 +500,7 @@ public class XPackPlugin extends XPackClientPlugin
      * of SSLContexts when configuration files change on disk.
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
-        final SSLService.LoadedConfiguration sslConfigurations = SSLService.getSSLConfigurations(environment, this.sslExtensions);
+        final SSLService.LoadedSslConfigurations sslConfigurations = SSLService.getSSLConfigurations(environment, this.sslExtensions);
         // Must construct the reloader before the SSL service so that we don't miss any config changes, see #54867
         final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations);
         final SSLService sslService = new SSLService(environment, sslConfigurations);

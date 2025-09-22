@@ -104,21 +104,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
                     mMapDirectory = adjustSharedArenaGrouping(mMapDirectory);
-                    Directory dir = new HybridDirectory(lockFactory, setMMapFunctions(mMapDirectory, preLoadExtensions));
-                    if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                        dir = disableRandomAdvice(dir);
-                    }
-                    return dir;
+                    return new HybridDirectory(lockFactory, setMMapFunctions(mMapDirectory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
                 MMapDirectory mMapDirectory = adjustSharedArenaGrouping(new MMapDirectory(location, lockFactory));
-                Directory dir = setMMapFunctions(mMapDirectory, preLoadExtensions);
-                if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                    dir = disableRandomAdvice(dir);
-                }
-                return dir;
+                return setMMapFunctions(mMapDirectory, preLoadExtensions);
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -159,7 +151,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
-            return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+            Optional<ReadAdvice> advice = MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
+            return MADV_RANDOM_FEATURE_FLAG.isEnabled() ? advice : advice.map(r -> r == ReadAdvice.RANDOM ? ReadAdvice.NORMAL : r);  // avoid
+                                                                                                                                     // RANDOM
+                                                                                                                                     // regardless
         };
     }
 

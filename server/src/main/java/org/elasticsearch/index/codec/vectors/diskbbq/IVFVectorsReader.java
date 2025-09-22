@@ -347,7 +347,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        var raw = rawVectorsReader.getOffHeapByteSize(fieldInfo);
+        var raw = getReaderForField(fieldInfo.name).getOffHeapByteSize(fieldInfo);
         FieldEntry fe = fields.get(fieldInfo.number);
         if (fe == null) {
             assert fieldInfo.getVectorEncoding() == VectorEncoding.BYTE;

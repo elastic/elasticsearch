@@ -817,7 +817,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardsByNode.put(shardRouting.currentNodeId(), shardRouting);
                     } else {
-                        executeMove(shardRouting, index, moveDecision);
+                        executeMove(shardRouting, index, moveDecision, "move");
                         shardMoved = true;
                         if (completeEarlyOnShardAssignmentChange) {
                             return true;
@@ -835,7 +835,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // Have to re-check move decision in case we made a move that invalidated our existing assessment
                 final MoveDecision moveDecision = decideMove(index, shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
-                    executeMove(entry.getValue(), index, moveDecision);
+                    executeMove(entry.getValue(), index, moveDecision, "move-non-preferred");
                     // We only ever move a single non-preferred shard at a time
                     return true;
                 } else {
@@ -846,7 +846,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shardMoved;
         }
 
-        private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision) {
+        private void executeMove(ShardRouting shardRouting, ProjectIndex index, MoveDecision moveDecision, String reason) {
             final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
             final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
             sourceNode.removeShard(index, shardRouting);
@@ -854,7 +854,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 shardRouting,
                 targetNode.getNodeId(),
                 allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
-                "move",
+                reason,
                 allocation.changes()
             );
             final ShardRouting shard = relocatingShards.v2();

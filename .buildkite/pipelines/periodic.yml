@@ -344,8 +344,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.18.7 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.18.7#bwcTest
+      - label: 8.18.8 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.18.8#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -354,7 +354,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.18.7
+          BWC_VERSION: 8.18.8
         retry:
           automatic:
             - exit_status: "-1"
@@ -363,8 +363,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.19.4 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.4#bwcTest
+      - label: 8.19.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -373,7 +373,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.19.4
+          BWC_VERSION: 8.19.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -382,8 +382,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.0.7 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.7#bwcTest
+      - label: 9.0.8 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.8#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -392,7 +392,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.0.7
+          BWC_VERSION: 9.0.8
         retry:
           automatic:
             - exit_status: "-1"
@@ -401,8 +401,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.1.4 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.1.4#bwcTest
+      - label: 9.1.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.1.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -411,7 +411,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.1.4
+          BWC_VERSION: 9.1.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -506,7 +506,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.18.7", "8.19.4", "9.0.7", "9.1.4", "9.2.0"]
+            BWC_VERSION: ["8.18.8", "8.19.5", "9.0.8", "9.1.5", "9.2.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404
@@ -550,7 +550,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.18.7", "8.19.4", "9.0.7", "9.1.4", "9.2.0"]
+            BWC_VERSION: ["8.18.8", "8.19.5", "9.0.8", "9.1.5", "9.2.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

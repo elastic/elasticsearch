@@ -716,15 +716,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitLookupCommand(EsqlBaseParser.LookupCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    */
-  void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  void enterInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#inlinestatsCommand}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#inlineStatsCommand}.
    * @param ctx the parse tree
    */
-  void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx);
+  void exitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#insistCommand}.
    * @param ctx the parse tree
@@ -1287,14 +1287,4 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitJoinCondition(EsqlBaseParser.JoinConditionContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   */
-  void enterJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#joinPredicate}.
-   * @param ctx the parse tree
-   */
-  void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
 }

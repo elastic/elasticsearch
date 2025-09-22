@@ -1000,10 +1000,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
              * This is not guaranteed to be balanced after this operation we still try best effort to
              * allocate on the minimal eligible node.
              */
-            BiFunction<ShardRouting, RoutingNode, Decision> decider = canRemain.type() == Type.NOT_PREFERRED
+            final BiFunction<ShardRouting, RoutingNode, Decision> decider = canRemain.type() == Type.NOT_PREFERRED
                 ? this::decideCanAllocatePreferredOnly
                 : this::decideCanAllocate;
-            MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, decider);
+            final MoveDecision moveDecision = decideMove(sorter, shardRouting, sourceNode, canRemain, decider);
             if (moveDecision.getCanRemainDecision().type() == Type.NO
                 && moveDecision.canRemain() == false
                 && moveDecision.forceMove() == false) {
@@ -1058,7 +1058,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         private Decision decideCanAllocatePreferredOnly(ShardRouting shardRouting, RoutingNode target) {
-            Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
+            final Decision decision = allocation.deciders().canAllocate(shardRouting, target, allocation);
             // not-preferred means no here
             if (decision.type() == Type.NOT_PREFERRED) {
                 return Decision.NO;

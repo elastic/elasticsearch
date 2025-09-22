@@ -45,7 +45,7 @@ public class MockSearchService extends SearchService {
 
     private static final Logger logger = LogManager.getLogger(MockSearchService.class);
 
-    private static final Map<ShardSearchContextId, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
+    private static final Map<ReaderContext, Throwable> ACTIVE_SEARCH_CONTEXTS = new ConcurrentHashMap<>();
 
     private Consumer<ReaderContext> onPutContext = context -> {};
     private Consumer<ReaderContext> onRemoveContext = context -> {};
@@ -56,7 +56,7 @@ public class MockSearchService extends SearchService {
 
     /** Throw an {@link AssertionError} if there are still in-flight contexts. */
     public static void assertNoInFlightContext() {
-        final Map<ShardSearchContextId, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
+        final Map<ReaderContext, Throwable> copy = new HashMap<>(ACTIVE_SEARCH_CONTEXTS);
         if (copy.isEmpty() == false) {
             throw new AssertionError(
                 "There are still ["
@@ -70,15 +70,15 @@ public class MockSearchService extends SearchService {
     /**
      * Add an active search context to the list of tracked contexts. Package private for testing.
      */
-    static void addActiveContext(ShardSearchContextId contextId) {
-        ACTIVE_SEARCH_CONTEXTS.put(contextId, new RuntimeException(contextId.toString()));
+    static void addActiveContext(ReaderContext context) {
+        ACTIVE_SEARCH_CONTEXTS.put(context, new RuntimeException(String.format("%s : %s",context.toString(), context.id())));
     }
 
     /**
      * Clear an active search context from the list of tracked contexts. Package private for testing.
      */
-    static void removeActiveContext(ShardSearchContextId contextId) {
-        ACTIVE_SEARCH_CONTEXTS.remove(contextId);
+    static void removeActiveContext(ReaderContext context) {
+        ACTIVE_SEARCH_CONTEXTS.remove(context);
     }
 
     public MockSearchService(
@@ -110,7 +110,7 @@ public class MockSearchService extends SearchService {
     @Override
     protected void putReaderContext(ReaderContext context) {
         onPutContext.accept(context);
-        addActiveContext(context.id());
+        addActiveContext(context);
         super.putReaderContext(context);
     }
 
@@ -119,7 +119,7 @@ public class MockSearchService extends SearchService {
         final ReaderContext removed = super.removeReaderContext(id);
         if (removed != null) {
             onRemoveContext.accept(removed);
-            removeActiveContext(removed.id());
+            removeActiveContext(removed);
         }
         return removed;
     }

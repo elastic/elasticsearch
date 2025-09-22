@@ -9,14 +9,15 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.mockito.Mockito.mock;
 
 public class MockSearchServiceTests extends ESTestCase {
 
     public void testAssertNoInFlightContext() {
-        ShardSearchContextId reader = new ShardSearchContextId("abc", 1L, null);
-
+        ReaderContext reader = mock(ReaderContext.class);
         MockSearchService.addActiveContext(reader);
         try {
             Throwable e = expectThrows(AssertionError.class, () -> MockSearchService.assertNoInFlightContext());

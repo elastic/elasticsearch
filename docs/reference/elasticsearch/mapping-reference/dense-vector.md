@@ -274,7 +274,7 @@ The following mapping parameters are accepted:
 $$$dense-vector-element-type$$$
 
 `element_type`
-:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and bit.
+:   (Optional, string) The data type used to encode vectors. The supported data types are `float` (default), `byte`, and `bit`.
 
 ::::{dropdown} Valid values for element_type
 `float`

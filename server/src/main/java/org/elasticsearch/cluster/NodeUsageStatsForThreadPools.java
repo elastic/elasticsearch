@@ -27,7 +27,7 @@ import java.util.Objects;
 public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap) implements Writeable {
 
     public NodeUsageStatsForThreadPools(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(ThreadPoolUsageStats::new));
+        this(in.readString(), in.readImmutableMap(ThreadPoolUsageStats::new));
     }
 
     @Override
@@ -89,33 +89,5 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
             out.writeFloat(this.averageThreadPoolUtilization);
             out.writeVLong(this.maxThreadPoolQueueLatencyMillis);
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalThreadPoolThreads, averageThreadPoolUtilization, maxThreadPoolQueueLatencyMillis);
-        }
-
-        @Override
-        public String toString() {
-            return "[totalThreadPoolThreads="
-                + totalThreadPoolThreads
-                + ", averageThreadPoolUtilization="
-                + averageThreadPoolUtilization
-                + ", maxThreadPoolQueueLatencyMillis="
-                + maxThreadPoolQueueLatencyMillis
-                + "]";
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ThreadPoolUsageStats other = (ThreadPoolUsageStats) o;
-            return totalThreadPoolThreads == other.totalThreadPoolThreads
-                && averageThreadPoolUtilization == other.averageThreadPoolUtilization
-                && maxThreadPoolQueueLatencyMillis == other.maxThreadPoolQueueLatencyMillis;
-        }
-
-    } // ThreadPoolUsageStats
-
+    }
 }

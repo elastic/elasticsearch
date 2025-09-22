@@ -1,6 +1,0 @@
-pr: 133021
-summary: Fix update expiration for async query
-area: ES|QL
-type: bug
-issues:
- - 130619

@@ -18,6 +18,9 @@ import com.squareup.javapoet.TypeSpec;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.gen.Methods.TypeMatcher;
+import org.elasticsearch.compute.gen.argument.Argument;
+import org.elasticsearch.compute.gen.argument.ArrayArgument;
+import org.elasticsearch.compute.gen.argument.StandardArgument;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,8 +33,6 @@ import java.util.stream.Stream;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
@@ -87,6 +88,7 @@ public class AggregatorImplementer {
 
     public AggregatorImplementer(
         Elements elements,
+        javax.lang.model.util.Types types,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
         List<TypeMirror> warnExceptions
@@ -108,7 +110,14 @@ public class AggregatorImplementer {
             requireName("combine"),
             requireArgsStartsWith(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
         );
-        this.aggParams = combine.getParameters().stream().skip(1).map(AggregationParameter::create).toList();
+        this.aggParams = combine.getParameters().stream().skip(1).map(v -> {
+            Argument a = Argument.fromParameter(types, v);
+            return switch (a) {
+                case StandardArgument sa -> new AggregationParameter(sa.name(), sa.type(), false);
+                case ArrayArgument aa -> new AggregationParameter(aa.name(), aa.componentType(), true);
+                default -> throw new IllegalArgumentException("unsupported argument [" + a + "]");
+            };
+        }).toList();
 
         this.createParameters = init.getParameters()
             .stream()
@@ -768,14 +777,6 @@ public class AggregatorImplementer {
     }
 
     public record AggregationParameter(String name, TypeName type, boolean isArray) {
-        public static AggregationParameter create(VariableElement v) {
-            return new AggregationParameter(
-                v.getSimpleName().toString(),
-                TypeName.get(v.asType()),
-                Objects.equals(v.asType().getKind(), TypeKind.ARRAY)
-            );
-        }
-
         public String blockName() {
             return name + "Block";
         }

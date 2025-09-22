@@ -106,7 +106,7 @@ Use the `elasticsearch-plugin` command line tool to install, list, and remove pl
 
 Run the following command to get usage instructions:
 
-``` 
+```
 sudo bin/elasticsearch-plugin -h
 ```
 

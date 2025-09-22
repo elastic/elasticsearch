@@ -95,7 +95,9 @@ public final class NotEqualsIntsEvaluator implements EvalOperator.ExpressionEval
           result.appendNull();
           continue position;
         }
-        result.appendBoolean(NotEquals.processInts(lhsBlock.getInt(lhsBlock.getFirstValueIndex(p)), rhsBlock.getInt(rhsBlock.getFirstValueIndex(p))));
+        int lhs = lhsBlock.getInt(lhsBlock.getFirstValueIndex(p));
+        int rhs = rhsBlock.getInt(rhsBlock.getFirstValueIndex(p));
+        result.appendBoolean(NotEquals.processInts(lhs, rhs));
       }
       return result.build();
     }
@@ -104,7 +106,9 @@ public final class NotEqualsIntsEvaluator implements EvalOperator.ExpressionEval
   public BooleanVector eval(int positionCount, IntVector lhsVector, IntVector rhsVector) {
     try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(p, NotEquals.processInts(lhsVector.getInt(p), rhsVector.getInt(p)));
+        int lhs = lhsVector.getInt(p);
+        int rhs = rhsVector.getInt(p);
+        result.appendBoolean(p, NotEquals.processInts(lhs, rhs));
       }
       return result.build();
     }

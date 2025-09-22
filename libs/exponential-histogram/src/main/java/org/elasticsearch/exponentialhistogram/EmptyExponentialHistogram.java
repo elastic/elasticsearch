@@ -23,7 +23,7 @@ package org.elasticsearch.exponentialhistogram;
 
 import java.util.OptionalLong;
 
-class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
+class EmptyExponentialHistogram extends AbstractExponentialHistogram implements ReleasableExponentialHistogram {
 
     static final EmptyExponentialHistogram INSTANCE = new EmptyExponentialHistogram();
 
@@ -80,6 +80,16 @@ class EmptyExponentialHistogram implements ReleasableExponentialHistogram {
     @Override
     public double sum() {
         return 0;
+    }
+
+    @Override
+    public double min() {
+        return Double.NaN;
+    }
+
+    @Override
+    public double max() {
+        return Double.NaN;
     }
 
     @Override

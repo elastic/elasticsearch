@@ -66,10 +66,20 @@ public interface BlockLoader {
          * Attempts to read the values of all documents in {@code docs}
          * Returns {@code null} if unable to load the values.
          *
-         * @param toDouble a function to convert long values to double, or null if no conversion is needed/supported
+         * @param nullsFiltered if {@code true}, then target docs are guaranteed to have a value for the field.
+         *                      see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
+         * @param toDouble      a function to convert long values to double, or null if no conversion is needed/supported
+         * @param toInt         whether to convert to int in case int block / vector is needed
          */
         @Nullable
-        BlockLoader.Block tryRead(BlockFactory factory, Docs docs, int offset, BlockDocValuesReader.ToDouble toDouble) throws IOException;
+        BlockLoader.Block tryRead(
+            BlockFactory factory,
+            Docs docs,
+            int offset,
+            boolean nullsFiltered,
+            BlockDocValuesReader.ToDouble toDouble,
+            boolean toInt
+        ) throws IOException;
     }
 
     interface RowStrideReader extends Reader {
@@ -438,6 +448,17 @@ public interface BlockLoader {
         SingletonLongBuilder singletonLongs(int expectedCount);
 
         /**
+         * Build a specialized builder for singleton dense int based fields with the following constraints:
+         * <ul>
+         *     <li>Only one value per document can be collected</li>
+         *     <li>No more than expectedCount values can be collected</li>
+         * </ul>
+         *
+         * @param expectedCount The maximum number of values to be collected.
+         */
+        SingletonIntBuilder singletonInts(int expectedCount);
+
+        /**
          * Build a specialized builder for singleton dense double based fields with the following constraints:
          * <ul>
          *     <li>Only one value per document can be collected</li>
@@ -559,9 +580,14 @@ public interface BlockLoader {
      * Specialized builder for collecting dense arrays of double values.
      */
     interface SingletonDoubleBuilder extends Builder {
-        SingletonDoubleBuilder appendDouble(double value);
+        SingletonDoubleBuilder appendLongs(BlockDocValuesReader.ToDouble toDouble, long[] values, int from, int length);
+    }
 
-        SingletonDoubleBuilder appendDoubles(double[] values, int from, int length);
+    /**
+     * Specialized builder for collecting dense arrays of double values.
+     */
+    interface SingletonIntBuilder extends Builder {
+        SingletonIntBuilder appendLongs(long[] values, int from, int length);
     }
 
     interface LongBuilder extends Builder {

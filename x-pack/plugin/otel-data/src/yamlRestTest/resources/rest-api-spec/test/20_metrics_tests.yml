@@ -10,8 +10,6 @@ setup:
           template:
             settings:
               index:
-                routing_path: [unit, attributes.*, resource.attributes.*]
-                mode: time_series
                 time_series:
                   start_time: 2024-07-01T13:03:08.138Z
 ---
@@ -325,3 +323,31 @@ Metrics with different metric name hashes are not duplicates:
               bar: 42
             _metric_names_hash: 76b77d1a
   - is_false: errors
+---
+host.name pass-through:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: foo
+            resource:
+              attributes:
+                host.name: localhost
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          query:
+            term:
+              host.name: localhost
+          fields: [ "*" ]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0.fields.resource\.attributes\.host\.name: [ "localhost" ] }
+  - match: { hits.hits.0.fields.host\.name: [ "localhost" ] }

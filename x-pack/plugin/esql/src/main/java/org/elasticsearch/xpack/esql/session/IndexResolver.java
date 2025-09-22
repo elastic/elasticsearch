@@ -81,8 +81,8 @@ public class IndexResolver {
         String indexWildcard,
         Set<String> fieldNames,
         QueryBuilder requestFilter,
-        ActionListener<IndexResolution> listener,
-        boolean includeAllDimensions
+        boolean includeAllDimensions,
+        ActionListener<IndexResolution> listener
     ) {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
@@ -225,7 +225,7 @@ public class IndexResolver {
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
         DataType type = EsqlDataTypeRegistry.INSTANCE.fromEs(first.type(), first.metricType());
         boolean aggregatable = first.isAggregatable();
-        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.UNKNOWN;
+        EsField.TimeSeriesFieldType timeSeriesFieldType = EsField.TimeSeriesFieldType.fromIndexFieldCapabilities(first);
         if (rest.isEmpty() == false) {
             for (IndexFieldCapabilities fc : rest) {
                 if (first.metricType() != fc.metricType()) {

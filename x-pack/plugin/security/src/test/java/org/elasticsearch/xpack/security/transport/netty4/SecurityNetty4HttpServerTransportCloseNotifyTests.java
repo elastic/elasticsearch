@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.security.cert.CertificateException;
@@ -108,7 +109,7 @@ public class SecurityNetty4HttpServerTransportCloseNotifyTests extends AbstractH
             randomClusterSettings(),
             new SharedGroupFactory(settings),
             TelemetryProvider.NOOP,
-            new TLSConfig(sslService.getHttpTransportSSLConfiguration(), sslService::createSSLEngine),
+            new TLSConfig(sslService.profile(XPackSettings.HTTP_SSL_PREFIX)::engine),
             null,
             randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
         );

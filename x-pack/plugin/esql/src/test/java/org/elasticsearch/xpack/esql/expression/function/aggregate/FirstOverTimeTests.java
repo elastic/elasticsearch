@@ -85,7 +85,7 @@ public class FirstOverTimeTests extends AbstractAggregationTestCase {
             }
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, timestampsField),
-                "FirstOverTime[field=Attribute[channel=0],timestamp=Attribute[channel=1]]",
+                standardAggregatorName("First", fieldSupplier.type()) + "ByTimestamp",
                 type,
                 equalTo(expected)
             );

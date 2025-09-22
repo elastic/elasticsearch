@@ -311,6 +311,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                     Collections.addAll(resources, untrackedOutput.split("\n")); // git always outputs LF
                 }
 
+                logger.lifecycle("Changed transport resources: " + System.lineSeparator() + String.join(System.lineSeparator(), resources));
                 changedResources.set(resources);
             }
         }

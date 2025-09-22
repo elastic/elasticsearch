@@ -9,7 +9,10 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,6 +21,9 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class JsonXContentTests extends BaseXContentTestCase {
 

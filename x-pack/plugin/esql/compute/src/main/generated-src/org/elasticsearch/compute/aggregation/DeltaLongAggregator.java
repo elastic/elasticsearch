@@ -65,14 +65,14 @@ public class DeltaLongAggregator {
         long firstTimestamp = Long.MAX_VALUE;
         long lastValue;
         long firstValue;
-        int valuesSeen;
+        long valuesSeen;
 
         LongDeltaState(long seenTs, long seenValue) {
             this.lastTimestamp = seenTs;
             this.lastValue = seenValue;
             this.firstTimestamp = seenTs;
             this.firstValue = seenValue;
-            this.valuesSeen = 1;
+            this.valuesSeen = 1L;
         }
 
         long bytesUsed() {
@@ -126,14 +126,17 @@ public class DeltaLongAggregator {
             if (valueCount == 0) {
                 return;
             }
-            final int firstTs = timestamps.getFirstValueIndex(otherPosition);
+            final int valuesSeenIdx = timestamps.getFirstValueIndex(otherPosition);
+            final int firstTs = valuesSeenIdx + 1;
             final int firstIndex = values.getFirstValueIndex(otherPosition);
+            final long valuesSeen = timestamps.getLong(valuesSeenIdx);
             ensureCapacity(groupId);
             append(groupId, timestamps.getLong(firstTs), values.getLong(firstIndex));
             if (valueCount > 1) {
                 ensureCapacity(groupId);
                 append(groupId, timestamps.getLong(firstTs + 1), values.getLong(firstIndex + 1));
             }
+            states.get(groupId).valuesSeen = valuesSeen;
         }
 
         @Override
@@ -160,6 +163,9 @@ public class DeltaLongAggregator {
                     final var state = groupId < states.size() ? states.get(groupId) : null;
                     if (state != null) {
                         timestamps.beginPositionEntry();
+                        // We store the count of values seen in the first position
+                        // for timestamps, so that we can reconstruct the state.
+                        timestamps.appendLong(state.valuesSeen);
                         timestamps.appendLong(state.lastTimestamp);
                         if (state.valuesSeen > 1) {
                             timestamps.appendLong(state.firstTimestamp);

@@ -876,6 +876,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         // Visible for testing
         static class ShardMovementPriorityComparator implements Comparator<ShardRouting> {
 
+            private static final double MISSING_WRITE_LOAD = -1;
             private final Map<ShardId, Double> shardWriteLoads;
             private final double maxWriteLoadOnNode;
             private final double threshold;
@@ -883,9 +884,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             ShardMovementPriorityComparator(RoutingAllocation allocation, RoutingNode routingNode) {
                 shardWriteLoads = allocation.clusterInfo().getShardWriteLoads();
-                double maxWriteLoadOnNode = -1;
+                double maxWriteLoadOnNode = MISSING_WRITE_LOAD;
                 for (ShardRouting shardRouting : routingNode) {
-                    maxWriteLoadOnNode = Math.max(maxWriteLoadOnNode, shardWriteLoads.getOrDefault(shardRouting.shardId(), 0.0));
+                    maxWriteLoadOnNode = Math.max(
+                        maxWriteLoadOnNode,
+                        shardWriteLoads.getOrDefault(shardRouting.shardId(), MISSING_WRITE_LOAD)
+                    );
                 }
                 this.maxWriteLoadOnNode = maxWriteLoadOnNode;
                 threshold = maxWriteLoadOnNode * 0.5;
@@ -903,7 +907,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         + ", rhs="
                         + rhs.currentNodeId();
                 // If we have no shard write-load data, shortcut
-                if (maxWriteLoadOnNode == -1) {
+                if (maxWriteLoadOnNode == MISSING_WRITE_LOAD) {
                     return 0;
                 }
                 // Otherwise, we prefer middle, high, then low write-load shards

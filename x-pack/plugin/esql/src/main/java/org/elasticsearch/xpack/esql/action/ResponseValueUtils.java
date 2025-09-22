@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -39,7 +40,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.spatialToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 /**
  * Collection of static utility methods for helping transform response data between pages and values.

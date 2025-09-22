@@ -177,7 +177,7 @@ class FlattenedFieldParser {
             fields.add(new SortedSetDocValuesField(rootFieldFullPath, bytesValue));
             fields.add(new SortedSetDocValuesField(keyedFieldFullPath, bytesKeyedValue));
 
-            if (fieldType.isDimension() == false) {
+            if (fieldType.isDimension() == false || context.documentParserContext().getRoutingFields().isNoop()) {
                 return;
             }
 

@@ -51,7 +51,7 @@
     },
     "body": {
       "description": "The watch",
-      "required": false
+      "required": true
     }
   }
 }

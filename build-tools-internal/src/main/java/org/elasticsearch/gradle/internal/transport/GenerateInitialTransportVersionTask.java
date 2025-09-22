@@ -52,16 +52,16 @@ public abstract class GenerateInitialTransportVersionTask extends DefaultTask {
         // minors increment by 1000 to create a unique base, patches increment by 1 as other patches do
         int increment = releaseVersion.getRevision() == 0 ? 1000 : 1;
         var id = TransportVersionId.fromInt(upstreamUpperBound.definitionId().complete() + increment);
-        var definition = new TransportVersionDefinition(initialDefinitionName, List.of(id));
-        resources.writeUnreferableDefinition(definition);
+        var definition = new TransportVersionDefinition(initialDefinitionName, List.of(id), false);
+        resources.writeDefinition(definition);
         var newUpperBound = new TransportVersionUpperBound(upperBoundName, initialDefinitionName, id);
-        resources.writeUpperBound(newUpperBound);
+        resources.writeUpperBound(newUpperBound, false);
 
         if (releaseVersion.getRevision() == 0) {
             Version currentVersion = getCurrentVersion().get();
             String currentUpperBoundName = getUpperBoundName(currentVersion);
             var currentUpperBound = new TransportVersionUpperBound(currentUpperBoundName, initialDefinitionName, id);
-            resources.writeUpperBound(currentUpperBound);
+            resources.writeUpperBound(currentUpperBound, false);
         }
     }
 

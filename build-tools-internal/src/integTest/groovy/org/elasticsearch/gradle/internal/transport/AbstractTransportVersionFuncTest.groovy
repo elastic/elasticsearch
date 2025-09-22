@@ -122,12 +122,16 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
             apply plugin: 'elasticsearch.transport-version-references'
             apply plugin: 'elasticsearch.transport-version-resources'
 
-            tasks.named('generateTransportVersionDefinition') {
+            tasks.named('generateTransportVersion') {
+                currentUpperBoundName = '9.2'
+            }
+            tasks.named('validateTransportVersionResources') {
                 currentUpperBoundName = '9.2'
             }
         """
-        referableTransportVersion("existing_91", "8012000")
-        referableTransportVersion("existing_92", "8123000,8012001")
+        referableAndReferencedTransportVersion("existing_91", "8012000")
+        referableAndReferencedTransportVersion("older_92", "8122000")
+        referableAndReferencedTransportVersion("existing_92", "8123000,8012001")
         unreferableTransportVersion("initial_9.0.0", "8000000")
         unreferableTransportVersion("initial_8.19.7", "7123001")
         transportVersionUpperBound("9.2", "existing_92", "8123000")
@@ -140,10 +144,6 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
                 return null;
             }
         """)
-        javaSource("myserver", "org.elasticsearch", "Dummy", "", """
-            static final TransportVersion existing91 = TransportVersion.fromName("existing_91");
-            static final TransportVersion existing92 = TransportVersion.fromName("existing_92");
-        """)
 
         file("myplugin/build.gradle") << """
             apply plugin: 'java-library'
@@ -155,7 +155,11 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         """
 
         setupLocalGitRepo()
-        execute("git checkout -b main")
+        String currentBranch = execute("git branch --show-current")
+        if (currentBranch.strip().equals("main") == false) {
+            // make sure a main branch exists, some CI doesn't have main set as the default branch
+            execute("git checkout -b main")
+        }
         execute("git checkout -b test")
     }
 

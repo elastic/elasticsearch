@@ -241,7 +241,7 @@ public class EsqlSession {
         EsqlQueryRequest request,
         ActionListener<Result> listener
     ) {
-        var subPlan = firstSubPlan(optimizedPlan);
+        var subPlan = firstSubPlan(optimizedPlan, null);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -295,7 +295,7 @@ public class EsqlSession {
                 newLogicalPlan.setOptimized();
                 LOGGER.debug("Plan after previous subplan execution:\n{}", newLogicalPlan);
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newLogicalPlan);
+                var newSubPlan = firstSubPlan(newLogicalPlan, resultWrapper);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();

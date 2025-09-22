@@ -3874,3 +3874,39 @@ city:keyword|c:long
 Raleigh     |1
 ;
 
+inlinestatsOptimizedAsLocalRelation_before_EsqlSession1
+required_capability: inline_stats
+
+from employees 
+| keep first_name, emp_no 
+| eval my_length = length(concat(first_name, null)) 
+| inline stats count = count(my_length) where my_length > 0 
+| sort first_name 
+| limit 5
+;
+
+  first_name:s |    emp_no:i   |   my_length:i |     count:l     
+Alejandro      |10059          |null           |0              
+Amabile        |10091          |null           |0              
+Anneke         |10006          |null           |0              
+Anoosh         |10062          |null           |0              
+Arumugam       |10094          |null           |0              
+;
+
+inlinestatsOptimizedAsLocalRelation_before_EsqlSession2
+required_capability: inline_stats
+
+from employees 
+| eval my_length = concat(first_name, null) 
+| inline stats count = count(my_length) where my_length is not null 
+| keep emp_no, count, my_length 
+| sort emp_no 
+| limit 3
+;
+
+    emp_no:i   |     count:l   |   my_length:i   
+10001          |0              |null           
+10002          |0              |null           
+10003          |0              |null           
+;
+

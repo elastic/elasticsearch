@@ -12,7 +12,6 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.MergePolicy;
@@ -154,11 +153,6 @@ public class MergeWithFailureIT extends ESIntegTestCase {
                                             @Override
                                             public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
                                                 return in.getSortedSet(field);
-                                            }
-
-                                            @Override
-                                            public DocValuesSkipper getSkipper(FieldInfo fieldInfo) throws IOException {
-                                                return in.getSkipper(fieldInfo);
                                             }
 
                                             @Override

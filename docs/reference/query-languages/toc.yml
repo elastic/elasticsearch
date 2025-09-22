@@ -107,6 +107,7 @@ toc:
                   - file: esql/commands/eval.md
                   - file: esql/commands/fork.md
                   - file: esql/commands/grok.md
+                  - file: esql/commands/inlinestats-by.md
                   - file: esql/commands/keep.md
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md

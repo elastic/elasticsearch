@@ -3,7 +3,8 @@
 ### TO GEOHEX
 Converts an input value to a `geohex` value.
 A string will only be successfully converted if it respects the
-`geohex` format.
+`geohex` format, as described for the
+[geohex grid aggregation](https://www.elastic.co/docs/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation).
 
 ```esql
 ROW string = "841f059ffffffff"

@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
@@ -73,7 +74,8 @@ public class VectorNestedIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setKnnSearch(
                 List.of(
-                    new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, 10f, null, null).innerHit(new InnerHitBuilder())
+                    new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, IVF_FORMAT.isEnabled() ? 10f : null, null, null)
+                        .innerHit(new InnerHitBuilder())
                 )
             ).setAllowPartialSearchResults(false),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
@@ -155,7 +157,15 @@ public class VectorNestedIT extends ESIntegTestCase {
         waitForRelocation(ClusterHealthStatus.GREEN);
         refresh();
 
-        var knn = new KnnSearchBuilder("nested.vector", new float[] { -0.5f, 90.0f, -10f, 14.8f, -156.0f }, 2, 3, 10f, null, null);
+        var knn = new KnnSearchBuilder(
+            "nested.vector",
+            new float[] { -0.5f, 90.0f, -10f, 14.8f, -156.0f },
+            2,
+            3,
+            IVF_FORMAT.isEnabled() ? 10f : null,
+            null,
+            null
+        );
         var request = prepareSearch("test").addFetchField("name").setKnnSearch(List.of(knn));
         assertNoFailuresAndResponse(request, response -> {
             assertHitCount(response, 2);

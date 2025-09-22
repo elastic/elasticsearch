@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -384,7 +385,7 @@ public class ComputeService {
                 cancelQueryOnFailure,
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
-                    execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
+                    execInfo.markEndQuery();
                     l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
                 })
             )
@@ -401,7 +402,7 @@ public class ComputeService {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
                                     var tookTime = execInfo.tookSoFar();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
-                                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                                    if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
                                         // Set the local cluster status (including the final driver) to partial if the query was stopped
                                         // or encountered resolution or execution failures.
@@ -533,8 +534,8 @@ public class ComputeService {
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
-        execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-        if (execInfo.isCrossClusterSearch()) {
+        execInfo.markEndQuery();
+        if (execInfo.isCrossClusterSearch() && execInfo.isMainPlan()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
@@ -658,31 +659,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
-            ActionListener<Void> driverListener = listener.map(ignored -> {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug(
-                        "finished {}",
-                        DriverCompletionInfo.includingProfiles(
-                            drivers,
-                            context.description(),
-                            clusterService.getClusterName().value(),
-                            transportService.getLocalNode().getName(),
-                            localPlan.toString()
-                        )
-                    );
-                }
-                if (context.configuration().profile()) {
-                    return DriverCompletionInfo.includingProfiles(
-                        drivers,
-                        context.description(),
-                        clusterService.getClusterName().value(),
-                        transportService.getLocalNode().getName(),
-                        localPlan.toString()
-                    );
-                } else {
-                    return DriverCompletionInfo.excludingProfiles(drivers);
-                }
-            });
+            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan);
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -692,6 +669,50 @@ public class ComputeService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    ActionListener<Void> addCompletionInfo(
+        ActionListener<DriverCompletionInfo> listener,
+        List<Driver> drivers,
+        ComputeContext context,
+        PhysicalPlan localPlan
+    ) {
+        /*
+         * We *really* don't want to close over the localPlan because it can
+         * be quite large, and it isn't tracked.
+         */
+        boolean needPlanString = LOGGER.isDebugEnabled() || context.configuration().profile();
+        String planString = needPlanString ? localPlan.toString() : null;
+        return listener.map(ignored -> {
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug(
+                    "finished {}",
+                    DriverCompletionInfo.includingProfiles(
+                        drivers,
+                        context.description(),
+                        clusterService.getClusterName().value(),
+                        transportService.getLocalNode().getName(),
+                        planString
+                    )
+                );
+                /*
+                 * planString *might* be null if we *just* set DEBUG to *after*
+                 * we built the listener but before we got here. That's something
+                 * we can live with.
+                 */
+            }
+            if (context.configuration().profile()) {
+                return DriverCompletionInfo.includingProfiles(
+                    drivers,
+                    context.description(),
+                    clusterService.getClusterName().value(),
+                    transportService.getLocalNode().getName(),
+                    planString
+                );
+            } else {
+                return DriverCompletionInfo.excludingProfiles(drivers);
+            }
+        });
     }
 
     static PhysicalPlan reductionPlan(ExchangeSinkExec plan, boolean enable) {

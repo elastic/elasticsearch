@@ -51,6 +51,14 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     public static final ProjectStateRegistry EMPTY = new ProjectStateRegistry(Collections.emptyMap(), Collections.emptySet(), 0);
     private static final Entry EMPTY_ENTRY = new Entry(Settings.EMPTY, ImmutableOpenMap.of());
 
+    private static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = TransportVersion.fromName(
+        "project_state_registry_records_deletions"
+    );
+    private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
+    private static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = TransportVersion.fromName(
+        "project_reserved_state_move_to_registry"
+    );
+
     public static final DiffableUtils.DiffableValueReader<String, ReservedStateMetadata> RESERVED_DIFF_VALUE_READER =
         new DiffableUtils.DiffableValueReader<>(ReservedStateMetadata::readFrom, ReservedStateMetadata::readDiffFrom);
 
@@ -65,7 +73,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     }
 
     public ProjectStateRegistry(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
+        if (in.getTransportVersion().supports(PROJECT_STATE_REGISTRY_ENTRY)) {
             projectsEntries = in.readMap(ProjectId::readFrom, Entry::readFrom);
         } else {
             Map<ProjectId, Settings> settingsMap = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
@@ -73,7 +81,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> new Entry(e.getValue(), ImmutableOpenMap.of())));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (in.getTransportVersion().supports(PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
             projectsMarkedForDeletionGeneration = in.readVLong();
         } else {
@@ -147,7 +155,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
+        if (in.getTransportVersion().supports(PROJECT_STATE_REGISTRY_ENTRY)) {
             return new ProjectStateRegistryDiff(in);
         }
         return readDiffFrom(Custom.class, TYPE, in);
@@ -173,7 +181,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_ENTRY)) {
+        if (out.getTransportVersion().supports(PROJECT_STATE_REGISTRY_ENTRY)) {
             out.writeMap(projectsEntries);
         } else {
             Map<ProjectId, Settings> settingsMap = projectsEntries.entrySet()
@@ -181,7 +189,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().settings()));
             out.writeMap(settingsMap);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
+        if (out.getTransportVersion().supports(PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             out.writeCollection(projectsMarkedForDeletion);
             out.writeVLong(projectsMarkedForDeletionGeneration);
         } else {
@@ -199,8 +207,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         return projectsMarkedForDeletionGeneration;
     }
 
-    // visible for testing
-    Set<ProjectId> knownProjects() {
+    public Set<ProjectId> knownProjects() {
         return projectsEntries.keySet();
     }
 
@@ -250,6 +257,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             Entry.EntryDiff::readFrom
         );
 
+        private static final TransportVersion PROJECT_STATE_REGISTRY_ENTRY = TransportVersion.fromName("project_state_registry_entry");
+
         private final DiffableUtils.MapDiff<ProjectId, Entry, Map<ProjectId, Entry>> projectsEntriesDiff;
         private final Set<ProjectId> projectsMarkedForDeletion;
         private final long projectsMarkedForDeletionGeneration;
@@ -273,7 +282,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.PROJECT_STATE_REGISTRY_ENTRY;
+            return PROJECT_STATE_REGISTRY_ENTRY;
         }
 
         @Override
@@ -377,7 +386,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             Settings settings = Settings.readSettingsFromStream(in);
 
             ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadata;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+            if (in.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
                 int reservedStateSize = in.readVInt();
                 ImmutableOpenMap.Builder<String, ReservedStateMetadata> builder = ImmutableOpenMap.builder(reservedStateSize);
                 for (int i = 0; i < reservedStateSize; i++) {
@@ -406,7 +415,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeWriteable(settings);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+            if (out.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
                 out.writeCollection(reservedStateMetadata.values());
             }
         }
@@ -446,7 +455,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 Diff<Settings> settingsDiff = Settings.readSettingsDiffFromStream(in);
 
                 DiffableUtils.MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata;
-                if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+                if (in.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
                     reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
                         in,
                         DiffableUtils.getStringKeySerializer(),
@@ -467,7 +476,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeWriteable(settingsDiff);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
+                if (out.getTransportVersion().supports(PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
                     reservedStateMetadata.writeTo(out);
                 }
             }

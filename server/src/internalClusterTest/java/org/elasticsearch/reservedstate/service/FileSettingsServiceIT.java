@@ -188,7 +188,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         return new Tuple<>(savedClusterState, metadataVersion);
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, long version) {
+    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, long fileSettingsVersion) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
         AtomicLong metadataVersion = new AtomicLong(-1);
@@ -196,10 +196,15 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-                if (reservedState != null && reservedState.version() == version) {
+                if (reservedState != null && reservedState.version() == fileSettingsVersion) {
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
+                    logger.info(
+                        "done waiting for file settings [version: {}, metadata version: {}]",
+                        event.state().version(),
+                        event.state().metadata().version()
+                    );
                 }
             }
         });
@@ -265,15 +270,16 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
 
         assertFalse(dataFileSettingsService.watching());
-        var savedClusterState = setupClusterStateListener(dataNode, versionCounter.incrementAndGet());
+        long expectedVersion = versionCounter.incrementAndGet();
 
         // In internal cluster tests, the nodes share the config directory, so when we write with the data node path
         // the master will pick it up on start
-        writeJSONFile(dataNode, testJSON, logger, versionCounter.get());
+        writeJSONFile(dataNode, testJSON, logger, expectedVersion);
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
         awaitMasterNode(internalCluster().getNonMasterNodeName(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode, expectedVersion);
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 

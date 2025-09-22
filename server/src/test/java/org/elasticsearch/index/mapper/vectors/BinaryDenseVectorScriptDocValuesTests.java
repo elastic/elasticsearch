@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.BinaryDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVectorDocValuesField;
@@ -240,11 +241,12 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         if (elementType == ElementType.BIT) {
             dims *= Byte.SIZE;
         }
+        Element element = Element.getElement(elementType);
         int numBytes = indexVersion.onOrAfter(DenseVectorFieldMapper.MAGNITUDE_STORED_INDEX_VERSION)
-            ? elementType.getNumBytes(dims) + DenseVectorFieldMapper.MAGNITUDE_BYTES
-            : elementType.getNumBytes(dims);
+            ? element.getNumBytes(dims) + DenseVectorFieldMapper.MAGNITUDE_BYTES
+            : element.getNumBytes(dims);
         double dotProduct = 0f;
-        ByteBuffer byteBuffer = elementType.createByteBuffer(indexVersion, numBytes);
+        ByteBuffer byteBuffer = element.createByteBuffer(indexVersion, numBytes);
         for (float value : values) {
             if (elementType == ElementType.FLOAT) {
                 byteBuffer.putFloat(value);

@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.IVF_FORMAT;
 import static org.elasticsearch.index.query.InnerHitBuilderTests.randomNestedInnerHits;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -270,7 +271,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             new float[] { 1.0f, 2.0f, 3.0f },
             null,
             1,
-            10f,
+            IVF_FORMAT.isEnabled() ? 10f : null,
             null,
             null
         );

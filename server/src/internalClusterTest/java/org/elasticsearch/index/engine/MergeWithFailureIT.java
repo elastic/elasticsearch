@@ -10,19 +10,23 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.DocValuesProducer;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -38,7 +42,6 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
-import org.elasticsearch.index.codec.FilterDocValuesProducer;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -122,14 +125,50 @@ public class MergeWithFailureIT extends ESIntegTestCase {
 
                                     @Override
                                     public DocValuesProducer getDocValuesReader() {
-                                        return new FilterDocValuesProducer(super.getDocValuesReader()) {
+                                        final var in = super.getDocValuesReader();
+                                        return new DocValuesProducer() {
                                             @Override
                                             public NumericDocValues getNumeric(FieldInfo field) throws IOException {
                                                 safeAwait(runMerges, TimeValue.ONE_MINUTE);
                                                 if (failOnce.compareAndSet(false, true)) {
                                                     throw new IOException(FAILING_MERGE_ON_PURPOSE);
                                                 }
-                                                return super.getNumeric(field);
+                                                return in.getNumeric(field);
+                                            }
+
+                                            @Override
+                                            public BinaryDocValues getBinary(FieldInfo field) throws IOException {
+                                                return in.getBinary(field);
+                                            }
+
+                                            @Override
+                                            public SortedDocValues getSorted(FieldInfo fieldInfo) throws IOException {
+                                                return in.getSorted(fieldInfo);
+                                            }
+
+                                            @Override
+                                            public SortedNumericDocValues getSortedNumeric(FieldInfo fieldInfo) throws IOException {
+                                                return in.getSortedNumeric(fieldInfo);
+                                            }
+
+                                            @Override
+                                            public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
+                                                return in.getSortedSet(field);
+                                            }
+
+                                            @Override
+                                            public DocValuesSkipper getSkipper(FieldInfo fieldInfo) throws IOException {
+                                                return in.getSkipper(fieldInfo);
+                                            }
+
+                                            @Override
+                                            public void checkIntegrity() throws IOException {
+                                                in.checkIntegrity();
+                                            }
+
+                                            @Override
+                                            public void close() throws IOException {
+                                                in.close();
                                             }
                                         };
                                     }
@@ -151,11 +190,10 @@ public class MergeWithFailureIT extends ESIntegTestCase {
             protected ElasticsearchMergeScheduler createMergeScheduler(
                 ShardId shardId,
                 IndexSettings indexSettings,
-                ThreadPoolMergeExecutorService executor,
-                MergeMetrics metrics
+                ThreadPoolMergeExecutorService executor
             ) {
                 threadPoolMergeExecutorServiceReference.set(Objects.requireNonNull(executor));
-                return new ThreadPoolMergeScheduler(shardId, indexSettings, executor, merge -> 0L, metrics) {
+                return new ThreadPoolMergeScheduler(shardId, indexSettings, executor, merge -> 0L) {
 
                     @Override
                     public void merge(MergeSource mergeSource, MergeTrigger trigger) {
@@ -337,7 +375,7 @@ public class MergeWithFailureIT extends ESIntegTestCase {
         }
 
         // check the state of the shard
-        var routingTable = internalCluster().clusterService(dataNode).state().routingTable(ProjectId.DEFAULT);
+        var routingTable = internalCluster().clusterService(dataNode).state().routingTable();
         var indexRoutingTable = routingTable.index(shardId.getIndex());
         var primary = asInstanceOf(IndexShardRoutingTable.class, indexRoutingTable.shard(shardId.id())).primaryShard();
         assertThat(primary.state(), equalTo(ShardRoutingState.UNASSIGNED));

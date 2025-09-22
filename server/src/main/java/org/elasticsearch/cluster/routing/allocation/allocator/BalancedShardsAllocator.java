@@ -915,18 +915,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 double rhsWriteLoad = shardWriteLoads.getOrDefault(rhs.shardId(), -1.0);
 
                 if (lhsWriteLoad < maxWriteLoadOnNode && rhsWriteLoad < maxWriteLoadOnNode) {
-                    if (lhsWriteLoad >= threshold && rhsWriteLoad >= threshold) {
+                    final var lhsOverThreshold = lhsWriteLoad >= threshold;
+                    final var rhsOverThreshold = rhsWriteLoad >= threshold;
+                    if (lhsOverThreshold && rhsOverThreshold) {
                         // Both values between threshold and maximum, prefer lowest
-                        return (int) Math.signum(rhsWriteLoad - lhsWriteLoad);
-                    } else if (lhsWriteLoad >= threshold && rhsWriteLoad < threshold) {
+                        return Double.compare(rhsWriteLoad, lhsWriteLoad);
+                    } else if (lhsOverThreshold) {
                         // lhs between threshold and maximum, rhs below threshold, prefer lhs
                         return 1;
-                    } else if (lhsWriteLoad < threshold && rhsWriteLoad >= threshold) {
+                    } else if (rhsOverThreshold) {
                         // lhs below threshold, rhs between threshold and maximum, prefer rhs
                         return -1;
                     } else {
                         // Both values below the threshold, prefer highest
-                        return (int) Math.signum(lhsWriteLoad - rhsWriteLoad);
+                        return Double.compare(lhsWriteLoad, rhsWriteLoad);
                     }
                 } else {
                     // one of the shards is the max-write-load shard
@@ -937,7 +939,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                         return lhsIsMissing ? -1 : 1;
                     } else {
                         // prefer the lowest (non-max) write load
-                        return (int) Math.signum(rhsWriteLoad - lhsWriteLoad);
+                        return Double.compare(rhsWriteLoad, lhsWriteLoad);
                     }
                 }
             }

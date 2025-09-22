@@ -58,6 +58,9 @@ Authorization::
 Infra/Core::
 * Return unique deprecation for old indices with incompatible date formats {es-pull}124597[#124597]
 
+Infra/Plugins::
+* Add Reason field to elastic-agent upgrade details metadata {es-pull}134711[#134711]
+
 Network::
 * Add human-readable HTTP client stats {es-pull}134296[#134296]
 

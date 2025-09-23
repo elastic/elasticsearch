@@ -186,9 +186,11 @@ public class Delta$Type$Aggregator {
                         }
                         values.endPositionEntry();
                     } else {
+                        samples.appendLong(0L);
                         timestamps.appendNull();
                         values.appendNull();
-                    }
+
+                    }}
                 }
                 blocks[offset] = samples.build();
                 blocks[offset + 1] = timestamps.build();

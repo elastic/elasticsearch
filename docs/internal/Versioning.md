@@ -122,9 +122,9 @@ the latter will have a merge conflict with `main`.
 
 In the event of a conflict, merge `main` into your branch. You will have
 conflict(s) with transport version internal state files. Run the following
-generate task to resolve the conflict(s):
+task to resolve the conflict(s):
 
-    ./gradlew generateTransportVersion --resolve-conflict
+    ./gradlew resolveTransportVersionConflict
 
 This command will regenerate your transport version and stage the updated
 state files in git. You can then proceed with your merge as usual.
@@ -175,19 +175,19 @@ a no-op.
 ## Index version
 
 Index version is a single incrementing version number for the index data format,
-metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
-subsidiary version id, and patch number respectively.
+metadata, and associated mappings. It is declared with the pattern `M_NNN_S_PP`,
+for the major version, version id, subsidiary version id, and patch number
+respectively.
 
 Index version is stored in index metadata when an index is created,
 and it is used to determine the storage format and what functionality that index supports.
 The index version does not change once an index is created.
 
-In the same way as transport versions, when a change is needed to the index
-data format or metadata, or new mapping types are added, create a new version constant
-below the last one, incrementing the `NNN` version component.
+When a change is needed to the index data format or metadata, or new mapping
+types are added, create a new version constant below the last one, incrementing
+the `NNN` version component.
 
-Unlike transport version, version constants cannot be collapsed together,
+Index version constants cannot be collapsed together,
 as an index keeps its creation version id once it is created.
 Fortunately, new index versions are only created once a month or so,
 so we don’t have a large list of index versions that need managing.

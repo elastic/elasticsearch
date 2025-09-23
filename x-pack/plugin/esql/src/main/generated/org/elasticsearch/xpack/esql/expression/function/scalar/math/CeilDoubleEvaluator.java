@@ -72,7 +72,8 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
           result.appendNull();
           continue position;
         }
-        result.appendDouble(Ceil.process(valBlock.getDouble(valBlock.getFirstValueIndex(p))));
+        double val = valBlock.getDouble(valBlock.getFirstValueIndex(p));
+        result.appendDouble(Ceil.process(val));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   public DoubleVector eval(int positionCount, DoubleVector valVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Ceil.process(valVector.getDouble(p)));
+        double val = valVector.getDouble(p);
+        result.appendDouble(p, Ceil.process(val));
       }
       return result.build();
     }

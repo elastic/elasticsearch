@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| _tsid | boolean |
 | boolean | boolean |
 | cartesian_point | boolean |
 | cartesian_shape | boolean |

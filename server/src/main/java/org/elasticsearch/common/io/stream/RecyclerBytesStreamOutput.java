@@ -51,7 +51,8 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         this.recycler = recycler;
         this.pageSize = recycler.pageSize();
         this.currentPageOffset = pageSize;
-        // Always start with a page
+        // Always start with a page. This is because if we don't have a page, one of the hot write paths would be forced to go through
+        // a slow path. We prefer to only execute that path if we need to expand.
         ensureCapacityFromPosition(1);
         nextPage();
     }
@@ -98,6 +99,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         if (length > pageSize - currentPageOffset) {
             writeMultiplePages(b, offset, length);
         } else {
+            // Add a hot path that can be easily optimized at call sites where the bytes fit in the page.
             final BytesRef currentPage = currentBytesRef;
             final byte[] bytes = currentPage.bytes;
             final int destOffset = currentPage.offset + currentPageOffset;

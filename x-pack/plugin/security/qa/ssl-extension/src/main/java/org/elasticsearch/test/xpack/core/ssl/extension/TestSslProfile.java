@@ -25,6 +25,6 @@ public class TestSslProfile implements SslProfileExtension {
 
     @Override
     public void applyProfile(String prefix, SslProfile profile) {
-        profile.addReloadListener(p -> logger.info("TEST SSL PROFILE RELOADED [{}] [{}]", prefix, prefix));
+        profile.addReloadListener(p -> logger.info("TEST SSL PROFILE RELOADED [{}] [{}]", prefix, p));
     }
 }

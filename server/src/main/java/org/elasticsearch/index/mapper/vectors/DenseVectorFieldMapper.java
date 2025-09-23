@@ -2065,7 +2065,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
             if (directRawVectorReads) {
-                builder.field("disable_offheap_cache_rescoring", true);
+                builder.field("direct_raw_vector_reads", true);
             }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
@@ -2148,13 +2148,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class BBQIVFIndexOptions extends QuantizedIndexOptions {
         final int clusterSize;
         final double defaultVisitPercentage;
-        final boolean directRawDiskReads;
+        final boolean directRawVectorReads;
 
-        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector, boolean directRawDiskReads) {
+        BBQIVFIndexOptions(int clusterSize, double defaultVisitPercentage, RescoreVector rescoreVector, boolean directRawVectorReads) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
-            this.directRawDiskReads = directRawDiskReads;
+            this.directRawVectorReads = directRawVectorReads;
         }
 
         @Override
@@ -2163,7 +2163,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return new ES920DiskBBQVectorsFormat(
                 clusterSize,
                 ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                directRawDiskReads
+                directRawVectorReads
             );
         }
 
@@ -2177,12 +2177,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             BBQIVFIndexOptions that = (BBQIVFIndexOptions) other;
             return clusterSize == that.clusterSize
                 && defaultVisitPercentage == that.defaultVisitPercentage
-                && Objects.equals(rescoreVector, that.rescoreVector);
+                && Objects.equals(rescoreVector, that.rescoreVector)
+                && directRawVectorReads == that.directRawVectorReads;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector);
+            return Objects.hash(clusterSize, defaultVisitPercentage, rescoreVector, directRawVectorReads);
         }
 
         @Override
@@ -2196,6 +2197,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("cluster_size", clusterSize);
             builder.field("default_visit_percentage", defaultVisitPercentage);
+            if (directRawVectorReads) {
+                builder.field("direct_raw_vector_reads", true);
+            }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }

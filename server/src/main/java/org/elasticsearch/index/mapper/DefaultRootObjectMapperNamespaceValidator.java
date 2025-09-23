@@ -7,17 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.codec.vectors.reflect;
-
-import org.apache.lucene.index.FieldInfo;
-
-import java.util.Map;
+package org.elasticsearch.index.mapper;
 
 /**
- * Common interface to unify offHeapByteSize in ES' KnnVectorsReader implementations.
- * Remove once KnnVectorsReaders::getOffHeapByteSize is available.
+ * No-op Default of RootObjectMapperNamespaceValidator used in non-serverless Elasticsearch envs.
  */
-public interface OffHeapStats {
-
-    Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo);
+public class DefaultRootObjectMapperNamespaceValidator implements RootObjectMapperNamespaceValidator {
+    @Override
+    public void validateNamespace(ObjectMapper.Subobjects subobjects, String name) {}
 }

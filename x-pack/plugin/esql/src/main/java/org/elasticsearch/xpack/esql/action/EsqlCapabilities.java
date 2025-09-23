@@ -670,6 +670,11 @@ public class EsqlCapabilities {
         ASYNC_QUERY_STATUS_HEADERS,
 
         /**
+         * Fix async headers not being sent on "get" requests
+         */
+        ASYNC_QUERY_STATUS_HEADERS_FIX,
+
+        /**
          * Consider the upper bound when computing the interval in BUCKET auto mode.
          */
         BUCKET_INCLUSIVE_UPPER_BOUND,
@@ -1357,7 +1362,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V3(Build.current().isSnapshot()),
+        FUSE_V4(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1459,6 +1464,11 @@ public class EsqlCapabilities {
          * URL encoding function.
          */
         URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
 
         /**
          * URL decoding function.

@@ -44,7 +44,7 @@ public class Present extends AggregateFunction implements ToAggregator {
         description = "Returns true if the input expression yields any non-null values within the current aggregation context. "
             + "Otherwise it returns false.",
         type = FunctionType.AGGREGATE,
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING) },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.2.0") },
         examples = {
             @Example(file = "present", tag = "present"),
             @Example(

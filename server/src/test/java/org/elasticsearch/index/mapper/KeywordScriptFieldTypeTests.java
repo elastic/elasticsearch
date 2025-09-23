@@ -29,6 +29,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
@@ -44,6 +45,7 @@ import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,6 +55,8 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
 
@@ -419,6 +423,105 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 );
             }
         }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeField() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"cat\"]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [\"dog\"]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                KeywordScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+                assertThat(loader, instanceOf(KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader.class));
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(rowStrideReader, instanceOf(KeywordScriptBlockDocValuesReader.class));
+
+                var catBytes = new BytesRef("cat");
+                var dogBytes = new BytesRef("dog");
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(catBytes, dogBytes)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(dogBytes)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(catBytes, dogBytes)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+
+            var document1 = createDocumentWithIgnoredSource("[\"cat\"]");
+            var document2 = createDocumentWithIgnoredSource("[\"dog\"]");
+
+            iw.addDocuments(List.of(document1, document2));
+            try (DirectoryReader reader = iw.getReader()) {
+                KeywordScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, nullValue());
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(
+                    rowStrideReader.getClass().getName(),
+                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                );
+
+                // Assert values:
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true),
+                    equalTo(List.of(new BytesRef("cat"), new BytesRef("dog")))
+                );
+            }
+        }
+    }
+
+    private KeywordScriptFieldType simpleSourceOnlyMappedFieldType() {
+        Script script = new Script(ScriptType.INLINE, "test", "", emptyMap());
+        StringFieldScript.Factory factory = new StringFieldScript.Factory() {
+            @Override
+            public StringFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
+                return ctx -> new StringFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
+                    @Override
+                    @SuppressWarnings("unchecked")
+                    public void execute() {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object foo : (List<?>) source.get("test")) {
+                            emit((String) foo);
+                        }
+                    }
+                };
+            }
+
+            @Override
+            public boolean isParsedFromSource() {
+                return true;
+            }
+        };
+        return new KeywordScriptFieldType("test", factory, script, emptyMap(), OnScriptError.FAIL);
     }
 
     @Override

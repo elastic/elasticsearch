@@ -627,6 +627,9 @@ tests:
 - class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
   method: testUsage {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/135316
+- class: org.elasticsearch.upgrades.NoLogsUsageRollingUpgradeIT
+  method: testUsage {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/135319
 
 # Examples:
 #

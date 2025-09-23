@@ -27,10 +27,10 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
     implements

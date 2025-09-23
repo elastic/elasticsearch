@@ -19,7 +19,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -29,6 +28,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.LOCATION;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
@@ -66,9 +66,9 @@ public class GoogleVertexAiChatCompletionServiceSettings extends FilteredXConten
         ValidationException validationException = new ValidationException();
 
         // Extract required fields
-        String projectId = ServiceUtils.extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String location = ServiceUtils.extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String location = extractRequiredString(map, LOCATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
         // Extract rate limit settings
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(

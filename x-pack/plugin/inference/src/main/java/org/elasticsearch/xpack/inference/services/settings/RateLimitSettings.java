@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 

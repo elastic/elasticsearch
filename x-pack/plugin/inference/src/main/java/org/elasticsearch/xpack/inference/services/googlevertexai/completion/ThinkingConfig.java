@@ -15,12 +15,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 
 /**
@@ -52,7 +52,7 @@ public class ThinkingConfig implements Writeable, ToXContentFragment {
 
     public static ThinkingConfig fromMap(Map<String, Object> map, ValidationException validationException) {
         Map<String, Object> thinkingConfigSettings = removeFromMapOrDefaultEmpty(map, THINKING_CONFIG_FIELD);
-        Integer thinkingBudget = ServiceUtils.extractOptionalInteger(
+        Integer thinkingBudget = extractOptionalInteger(
             thinkingConfigSettings,
             THINKING_BUDGET_FIELD,
             ModelConfigurations.TASK_SETTINGS,

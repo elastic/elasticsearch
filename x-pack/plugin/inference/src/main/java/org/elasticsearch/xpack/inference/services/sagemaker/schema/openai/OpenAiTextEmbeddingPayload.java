@@ -39,7 +39,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
 
 public class OpenAiTextEmbeddingPayload implements SageMakerSchemaPayload {
 

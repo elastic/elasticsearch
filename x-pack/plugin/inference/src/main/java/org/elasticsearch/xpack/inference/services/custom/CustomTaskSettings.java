@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalMapRemoveNulls;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.validateMapValues;
 
 public class CustomTaskSettings implements TaskSettings {
     public static final String NAME = "custom_task_settings";

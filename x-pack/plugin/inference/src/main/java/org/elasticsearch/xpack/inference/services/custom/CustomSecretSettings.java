@@ -22,8 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertMapStringsToSecureString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 
 public class CustomSecretSettings implements SecretSettings {
     public static final String NAME = "custom_secret_settings";

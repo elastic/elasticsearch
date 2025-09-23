@@ -31,9 +31,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.core.inference.util.InferenceUtils.extractRequiredString;
 
 /**
  * Maintains the settings for SageMaker that cannot be changed without impacting semantic search and AI assistants.

@@ -198,6 +198,33 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             && licenseService.allowPatternTextTemplating(isTemplateValidation) == false) {
             additionalSettings.put(PatternTextFieldMapper.DISABLE_TEMPLATING_SETTING.getKey(), true);
         }
+
+        if (isLogsDB && isTemplateValidation == false && IndexSortConfig.INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
+            IndexSortConfig.validateSortSettings(settings);
+            if (mappingHints.sortOnHostName) {
+                applyHostnameTimestampSort(additionalSettings);
+            } else {
+                applyTimestampSort(additionalSettings);
+            }
+        }
+    }
+
+    private static void applyHostnameTimestampSort(Settings.Builder builder) {
+        builder.putList(
+            IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
+            IndexMode.HOST_NAME,
+            DataStreamTimestampFieldMapper.DEFAULT_PATH
+        );
+        builder.putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "asc", "desc");
+        builder.putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min", "min");
+        builder.putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last", "_last");
+    }
+
+    private static void applyTimestampSort(Settings.Builder builder) {
+        builder.putList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        builder.putList(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc");
+        builder.putList(IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(), "min");
+        builder.putList(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last");
     }
 
     record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName, boolean addHostNameField) {

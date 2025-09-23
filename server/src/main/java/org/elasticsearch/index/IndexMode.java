@@ -393,7 +393,7 @@ public enum IndexMode {
         }
     };
 
-    static final String HOST_NAME = "host.name";
+    public static final String HOST_NAME = "host.name";
 
     private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);

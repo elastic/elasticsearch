@@ -102,25 +102,6 @@ public final class IndexSortConfig {
         Setting.Property.ServerlessPublic
     );
 
-    public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
-    static {
-        FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
-        timeStampSpec.order = SortOrder.DESC;
-        TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
-        TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
-
-        FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
-        hostnameSpec.order = SortOrder.ASC;
-        hostnameSpec.missingValue = "_last";
-        hostnameSpec.mode = MultiValueMode.MIN;
-        HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };
-
-        // Older indexes use ascending ordering for host name and timestamp.
-        HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] {
-            new FieldSortSpec(IndexMode.HOST_NAME),
-            new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
-    }
-
     private static String validateMissingValue(String missing) {
         if ("_last".equals(missing) == false && "_first".equals(missing) == false) {
             throw new IllegalArgumentException("Illegal missing value:[" + missing + "], " + "must be one of [_last, _first]");
@@ -146,6 +127,98 @@ public final class IndexSortConfig {
         return mode;
     }
 
+    private static void checkSizeMismatch(String firstKey, List<?> first, String secondKey, List<?> second) {
+        if (first.size() != second.size()) {
+            throw new IllegalArgumentException(firstKey + ":" + first + " " + secondKey + ":" + second + ", size mismatch");
+        }
+    }
+
+    public static void validateSortSettings(Settings settings) {
+        List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+
+        if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+            var order = INDEX_SORT_ORDER_SETTING.get(settings);
+            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_ORDER_SETTING.getKey(), order);
+        }
+
+        if (INDEX_SORT_MODE_SETTING.exists(settings)) {
+            var mode = INDEX_SORT_MODE_SETTING.get(settings);
+            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MODE_SETTING.getKey(), mode);
+        }
+
+        if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
+            var missing = INDEX_SORT_MISSING_SETTING.get(settings);
+            checkSizeMismatch(INDEX_SORT_FIELD_SETTING.getKey(), fields, INDEX_SORT_MISSING_SETTING.getKey(), missing);
+        }
+    }
+
+    public static class IndexSortConfigDefaults {
+        public static final FieldSortSpec[] TIME_SERIES_SORT, TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_SORT, HOSTNAME_TIMESTAMP_BWC_SORT;
+
+        static {
+            FieldSortSpec timeStampSpec = new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+            timeStampSpec.order = SortOrder.DESC;
+            TIME_SERIES_SORT = new FieldSortSpec[] { new FieldSortSpec(TimeSeriesIdFieldMapper.NAME), timeStampSpec };
+            TIMESTAMP_SORT = new FieldSortSpec[] { timeStampSpec };
+
+            FieldSortSpec hostnameSpec = new FieldSortSpec(IndexMode.HOST_NAME);
+            hostnameSpec.order = SortOrder.ASC;
+            hostnameSpec.missingValue = "_last";
+            hostnameSpec.mode = MultiValueMode.MIN;
+            HOSTNAME_TIMESTAMP_SORT = new FieldSortSpec[] { hostnameSpec, timeStampSpec };
+
+            // Older indexes use ascending ordering for host name and timestamp.
+            HOSTNAME_TIMESTAMP_BWC_SORT = new FieldSortSpec[] {
+                new FieldSortSpec(IndexMode.HOST_NAME),
+                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
+        }
+
+        public static FieldSortSpec[] getDefaultSortSpecs(IndexSettings indexSettings) {
+            final Settings settings = indexSettings.getSettings();
+
+            IndexMode indexMode = indexSettings.getMode();
+            if (indexMode == IndexMode.TIME_SERIES) {
+                return TIME_SERIES_SORT;
+            } else if (indexMode == IndexMode.LOGSDB) {
+                if (INDEX_SORT_FIELD_SETTING.exists(settings)) {
+                    return null;
+                }
+
+                var version = indexSettings.getIndexVersionCreated();
+                if (version.onOrAfter(IndexVersions.LOGSDB_EXPLICIT_INDEX_SORTING_DEFAULTS)) {
+                    return null;
+                }
+
+                List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+                if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+                    var order = INDEX_SORT_ORDER_SETTING.get(settings);
+                    throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.order:" + order + ", size mismatch");
+                }
+                if (INDEX_SORT_MODE_SETTING.exists(settings)) {
+                    var mode = INDEX_SORT_MODE_SETTING.get(settings);
+                    throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.mode:" + mode + ", size mismatch");
+                }
+                if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
+                    var missing = INDEX_SORT_MISSING_SETTING.get(settings);
+                    throw new IllegalArgumentException(
+                        "index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch"
+                    );
+                }
+                if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
+                    || version.between(
+                        IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT,
+                        IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                    )) {
+                    return (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
+                } else {
+                    return HOSTNAME_TIMESTAMP_BWC_SORT;
+                }
+            }
+
+            return null;
+        }
+    }
+
     // visible for tests
     final FieldSortSpec[] sortSpecs;
     private final IndexVersion indexCreatedVersion;
@@ -158,34 +231,13 @@ public final class IndexSortConfig {
         this.indexName = indexSettings.getIndex().getName();
         this.indexMode = indexSettings.getMode();
 
-        if (indexMode == IndexMode.TIME_SERIES) {
-            sortSpecs = TIME_SERIES_SORT;
+        var defaultSortSpecs = IndexSortConfigDefaults.getDefaultSortSpecs(indexSettings);
+        if (defaultSortSpecs != null) {
+            this.sortSpecs = defaultSortSpecs;
             return;
         }
 
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
-        if (indexMode == IndexMode.LOGSDB && INDEX_SORT_FIELD_SETTING.exists(settings) == false) {
-            if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
-                var order = INDEX_SORT_ORDER_SETTING.get(settings);
-                throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.order:" + order + ", size mismatch");
-            }
-            if (INDEX_SORT_MODE_SETTING.exists(settings)) {
-                var mode = INDEX_SORT_MODE_SETTING.get(settings);
-                throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.mode:" + mode + ", size mismatch");
-            }
-            if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
-                var missing = INDEX_SORT_MISSING_SETTING.get(settings);
-                throw new IllegalArgumentException("index.sort.fields:" + fields + " index.sort.missing:" + missing + ", size mismatch");
-            }
-            var version = indexSettings.getIndexVersionCreated();
-            if (version.onOrAfter(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME)
-                || version.between(IndexVersions.LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
-                sortSpecs = (IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(settings)) ? HOSTNAME_TIMESTAMP_SORT : TIMESTAMP_SORT;
-            } else {
-                sortSpecs = HOSTNAME_TIMESTAMP_BWC_SORT;
-            }
-            return;
-        }
         sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {

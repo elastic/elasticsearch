@@ -1357,7 +1357,7 @@ public class EsqlCapabilities {
         /**
          * FUSE command
          */
-        FUSE_V3(Build.current().isSnapshot()),
+        FUSE_V4(Build.current().isSnapshot()),
 
         /**
          * Support improved behavior for LIKE operator when used with index fields.
@@ -1459,6 +1459,11 @@ public class EsqlCapabilities {
          * URL encoding function.
          */
         URL_ENCODE(Build.current().isSnapshot()),
+
+        /**
+         * URL component encoding function.
+         */
+        URL_ENCODE_COMPONENT(Build.current().isSnapshot()),
 
         /**
          * URL decoding function.

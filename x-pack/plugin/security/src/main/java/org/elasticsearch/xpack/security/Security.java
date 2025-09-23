@@ -1196,6 +1196,7 @@ public class Security extends Plugin
         );
         remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
         remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());
+        components.add(new PluginComponentBinding<>(RemoteClusterAuthenticationService.class, remoteClusterAuthenticationService.get()));
         var remoteClusterTransportInterceptor = remoteClusterSecurityExtension.get().getTransportInterceptor();
         components.add(new PluginComponentBinding<>(RemoteClusterTransportInterceptor.class, remoteClusterTransportInterceptor));
 

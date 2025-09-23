@@ -88,6 +88,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     protected record NodeInfo(String id, Version version) {}
 
     private static Map<String, NodeInfo> nodeToInfo;
+
     private Map<String, NodeInfo> nodeToInfo() throws IOException {
         if (nodeToInfo == null) {
             nodeToInfo = fetchNodeToInfo(client());

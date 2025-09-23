@@ -423,6 +423,7 @@ import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
+import org.elasticsearch.xpack.security.transport.RemoteClusterTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.extension.RemoteClusterSecurityComponents;
@@ -1196,6 +1197,7 @@ public class Security extends Plugin
         remoteClusterSecurityExtension.set(this.getRemoteClusterSecurityExtension(rcsComponents));
         remoteClusterAuthenticationService.set(remoteClusterSecurityExtension.get().getAuthenticationService());
         var remoteClusterTransportInterceptor = remoteClusterSecurityExtension.get().getTransportInterceptor();
+        components.add(new PluginComponentBinding<>(RemoteClusterTransportInterceptor.class, remoteClusterTransportInterceptor));
 
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(

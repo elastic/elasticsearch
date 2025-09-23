@@ -1325,7 +1325,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
-            if (request.scroll() != null) {
+            if (request != null && request.scroll() != null) {
                 decreaseScrollContexts = openScrollContexts::decrementAndGet;
                 if (openScrollContexts.incrementAndGet() > maxOpenScrollContext) {
                     throw new TooManyScrollContextsException(maxOpenScrollContext, MAX_OPEN_SCROLL_CONTEXT.getKey());

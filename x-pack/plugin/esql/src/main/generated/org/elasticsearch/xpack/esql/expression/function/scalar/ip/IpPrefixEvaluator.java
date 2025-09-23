@@ -125,8 +125,11 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
+        BytesRef ip = ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch);
+        int prefixLengthV4 = prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p));
+        int prefixLengthV6 = prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p));
         try {
-          result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthV4Block.getInt(prefixLengthV4Block.getFirstValueIndex(p)), prefixLengthV6Block.getInt(prefixLengthV6Block.getFirstValueIndex(p)), this.scratch));
+          result.appendBytesRef(IpPrefix.process(ip, prefixLengthV4, prefixLengthV6, this.scratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -141,8 +144,11 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef ip = ipVector.getBytesRef(p, ipScratch);
+        int prefixLengthV4 = prefixLengthV4Vector.getInt(p);
+        int prefixLengthV6 = prefixLengthV6Vector.getInt(p);
         try {
-          result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthV4Vector.getInt(p), prefixLengthV6Vector.getInt(p), this.scratch));
+          result.appendBytesRef(IpPrefix.process(ip, prefixLengthV4, prefixLengthV6, this.scratch));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

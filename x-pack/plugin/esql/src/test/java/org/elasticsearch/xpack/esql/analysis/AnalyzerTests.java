@@ -3622,7 +3622,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testValidFuse() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         LogicalPlan plan = analyze("""
              from test metadata _id, _index, _score
@@ -3646,7 +3646,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFuseError() {
-        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("requires FUSE capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         var e = expectThrows(VerificationException.class, () -> analyze("""
             from test
@@ -3739,7 +3739,14 @@ public class AnalyzerTests extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return withDefaultLimitWarning(super.filteredWarnings());
+        return withInlinestatsWarning(withDefaultLimitWarning(super.filteredWarnings()));
+    }
+
+    // TODO: drop after next minor release
+    public static List<String> withInlinestatsWarning(List<String> warnings) {
+        List<String> allWarnings = warnings != null ? new ArrayList<>(warnings) : new ArrayList<>();
+        allWarnings.add("INLINESTATS is deprecated, use INLINE STATS instead");
+        return allWarnings;
     }
 
     private static LogicalPlan analyzeWithEmptyFieldCapsResponse(String query) throws IOException {
@@ -4392,12 +4399,25 @@ public class AnalyzerTests extends ESTestCase {
             """, "Found 1 problem\n" + "line 2:43: Unknown column [x]", "mapping-default.json");
     }
 
-    public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+    public void testGroupingOverridesInInlineStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         verifyUnsupported("""
             from test
-            | inlinestats MIN(salary) BY x = languages, x = x + 1
-            """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
+            | inline stats MIN(salary) BY x = languages, x = x + 1
+            """, "Found 1 problem\n" + "line 2:50: Unknown column [x]", "mapping-default.json");
+    }
+
+    public void testInlineStatsStats() {
+        assumeTrue("INLINE STATS required", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        verifyUnsupported("""
+            from test
+            | inline stats stats
+            """, "Found 1 problem\n" + "line 2:16: Unknown column [stats]", "mapping-default.json");
+        // TODO: drop after next minor release
+        verifyUnsupported("""
+            from test
+            | inlinestats stats
+            """, "Found 1 problem\n" + "line 2:15: Unknown column [stats]", "mapping-default.json");
     }
 
     public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {

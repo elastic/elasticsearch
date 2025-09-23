@@ -841,13 +841,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  @Override public void enterInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInlinestatsCommand(EsqlBaseParser.InlinestatsCommandContext ctx) { }
+  @Override public void exitInlineStatsCommand(EsqlBaseParser.InlineStatsCommandContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -872,6 +872,18 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void enterFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx) { }
+  /**
+   * {@inheritDoc}
+   *
+   * <p>The default implementation does nothing.</p>
+   */
+  @Override public void exitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -179,15 +179,15 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats count(1) by multi_typed", analyzer)
         );
-        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             assertEquals(
-                "1:38: Cannot use field [unsupported] with unsupported type [flattened]",
-                error("from test* | inlinestats count(1) by unsupported", analyzer)
+                "1:39: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inline stats count(1) by unsupported", analyzer)
             );
             assertEquals(
-                "1:38: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                "1:39: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
-                error("from test* | inlinestats count(1) by multi_typed", analyzer)
+                error("from test* | inline stats count(1) by multi_typed", analyzer)
             );
         }
 
@@ -200,15 +200,15 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | stats values(multi_typed)", analyzer)
         );
-        if (EsqlCapabilities.Cap.INLINESTATS.isEnabled()) {
+        if (EsqlCapabilities.Cap.INLINE_STATS.isEnabled()) {
             assertEquals(
-                "1:33: Cannot use field [unsupported] with unsupported type [flattened]",
-                error("from test* | inlinestats values(unsupported)", analyzer)
+                "1:34: Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | inline stats values(unsupported)", analyzer)
             );
             assertEquals(
-                "1:33: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
+                "1:34: Cannot use field [multi_typed] due to ambiguities being mapped as [2] incompatible types:"
                     + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
-                error("from test* | inlinestats values(multi_typed)", analyzer)
+                error("from test* | inline stats values(multi_typed)", analyzer)
             );
         }
 
@@ -2095,23 +2095,23 @@ public class VerifierTests extends ESTestCase {
 
     public void testCategorizeWithInlineStats() {
         assumeTrue("CATEGORIZE must be enabled", EsqlCapabilities.Cap.CATEGORIZE_V6.isEnabled());
-        assumeTrue("INLINESTATS must be enabled", EsqlCapabilities.Cap.INLINESTATS_V11.isEnabled());
+        assumeTrue("INLINE STATS must be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
         assertEquals(
-            "1:37: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
-                + "INLINESTATS [INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
-            error("FROM test | INLINESTATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
+            "1:38: CATEGORIZE [CATEGORIZE(last_name, { \"similarity_threshold\": 1 })] is not yet supported with "
+                + "INLINE STATS [INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })]",
+            error("FROM test | INLINE STATS COUNT(*) BY CATEGORIZE(last_name, { \"similarity_threshold\": 1 })")
         );
 
         assertEquals("""
-            3:35: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
-            INLINESTATS [INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)]
-            line 2:91: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
-            line 2:32: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
-            INLINESTATS [INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
+            3:36: CATEGORIZE [CATEGORIZE(gender)] is not yet supported with \
+            INLINE STATS [INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)]
+            line 2:92: CATEGORIZE grouping function [CATEGORIZE(first_name)] can only be in the first grouping expression
+            line 2:33: CATEGORIZE [CATEGORIZE(last_name, { "similarity_threshold": 1 })] is not yet supported with \
+            INLINE STATS [INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), \
             c2 = CATEGORIZE(first_name)]""", error("""
             FROM test
-            | INLINESTATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
-            | INLINESTATS SUM(salary) BY c3 = CATEGORIZE(gender)
+            | INLINE STATS COUNT(*) BY c1 = CATEGORIZE(last_name, { "similarity_threshold": 1 }), c2 = CATEGORIZE(first_name)
+            | INLINE STATS SUM(salary) BY c3 = CATEGORIZE(gender)
             """));
     }
 
@@ -2568,7 +2568,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
@@ -2585,6 +2585,14 @@ public class VerifierTests extends ESTestCase {
         query(queryPrefix + " | fuse linear");
         query(queryPrefix + " | fuse linear with { \"normalizer\": \"minmax\" } ");
         query(queryPrefix + " | fuse linear with { \"weights\": { \"fork1\":  123 } }");
+
+        query(queryPrefix + " | fuse linear score by _score with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_score = _score + 1 | fuse linear score by new_score with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear group by _fork with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_fork = to_upper(_fork) | fuse linear group by new_fork with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear key by _id,_index with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | eval new_id = concat(_id, _index) | fuse linear key by new_id with { \"normalizer\": \"minmax\" } ");
+        query(queryPrefix + " | fuse linear score by _score key by _id, _index group by _fork with { \"normalizer\": \"minmax\" } ");
 
         assertThat(error(queryPrefix + " | fuse rrf WITH { \"abc\": 123 }"), containsString("unknown option [abc]"));
 
@@ -2650,6 +2658,27 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error(queryPrefix + " | fuse linear WITH { \"normalizer\": \"foo\" }"),
             containsString("[\"foo\"] is not a valid normalizer")
+        );
+
+        assertThat(error(queryPrefix + " | fuse linear SCORE BY foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(error(queryPrefix + " | fuse linear GROUP BY foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(error(queryPrefix + " | fuse linear KEY BY _id, foobar"), containsString("Unknown column [foobar]"));
+
+        assertThat(
+            error(queryPrefix + " | fuse linear SCORE BY first_name"),
+            containsString("expected SCORE BY column [first_name] to be DOUBLE, not KEYWORD")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear GROUP BY _score"),
+            containsString("expected GROUP BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
+        );
+
+        assertThat(
+            error(queryPrefix + " | fuse linear KEY BY _score"),
+            containsString("expected KEY BY field [_score] to be KEYWORD or TEXT, not DOUBLE")
         );
     }
 

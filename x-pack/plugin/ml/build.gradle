@@ -111,7 +111,6 @@ def mlCppVersion(){
       (project.version + "-SNAPSHOT") : project.version;
 }
 
-
 tasks.named('assemble').configure {
   dependsOn tasks.named('jar')
 }

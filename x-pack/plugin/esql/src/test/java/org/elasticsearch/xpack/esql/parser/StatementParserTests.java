@@ -97,12 +97,14 @@ import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatter
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
 import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -399,58 +401,141 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineStatsWithGroups() {
-        var query = "inlinestats b = min(a) by c, d.e";
-        if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
-                () -> processingCommand(query)
-            );
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
-        assertEquals(
-            new InlineStats(
-                EMPTY,
-                new Aggregate(
-                    EMPTY,
-                    PROCESSING_CMD_INPUT,
-                    List.of(attribute("c"), attribute("d.e")),
-                    List.of(
-                        new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                        attribute("c"),
-                        attribute("d.e")
+        for (var cmd : List.of("INLINE STATS", "INLINESTATS")) {
+            var query = cmd + " b = MIN(a) BY c, d.e";
+            assertThat(
+                processingCommand(query),
+                is(
+                    new InlineStats(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            PROCESSING_CMD_INPUT,
+                            List.of(attribute("c"), attribute("d.e")),
+                            List.of(
+                                new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                attribute("c"),
+                                attribute("d.e")
+                            )
+                        )
                     )
                 )
-            ),
-            processingCommand(query)
-        );
+            );
+        }
     }
 
     public void testInlineStatsWithoutGroups() {
-        var query = "inlinestats min(a), c = 1";
-        if (Build.current().isSnapshot() == false) {
-            expectThrows(
-                ParsingException.class,
-                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
-                () -> processingCommand(query)
-            );
+        if (releaseBuildForInlineStats(null)) {
             return;
         }
-        assertEquals(
-            new InlineStats(
-                EMPTY,
-                new Aggregate(
-                    EMPTY,
-                    PROCESSING_CMD_INPUT,
-                    List.of(),
-                    List.of(
-                        new Alias(EMPTY, "min(a)", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
-                        new Alias(EMPTY, "c", integer(1))
+        for (var cmd : List.of("INLINE STATS", "INLINESTATS")) {
+            var query = cmd + " MIN(a), c = 1";
+            assertThat(
+                processingCommand(query),
+                is(
+                    new InlineStats(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            PROCESSING_CMD_INPUT,
+                            List.of(),
+                            List.of(
+                                new Alias(EMPTY, "MIN(a)", new UnresolvedFunction(EMPTY, "MIN", DEFAULT, List.of(attribute("a")))),
+                                new Alias(EMPTY, "c", integer(1))
+                            )
+                        )
                     )
                 )
-            ),
-            processingCommand(query)
+            );
+        }
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return withInlinestatsWarning(super.filteredWarnings());
+    }
+
+    public void testInlineStatsParsing() {
+        if (releaseBuildForInlineStats(null)) {
+            return;
+        }
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:19: token recognition error at: 'I'"),
+            () -> statement("FROM foo | INLINE INLINE STATS COUNT(*)")
         );
+        expectThrows(
+            ParsingException.class,
+            containsString("line 1:19: token recognition error at: 'F'"),
+            () -> statement("FROM foo | INLINE FOO COUNT(*)")
+        );
+    }
+
+    /*
+     * Fork[[]]
+     * |_Eval[[fork1[KEYWORD] AS _fork#3]]
+     * | \_Limit[11[INTEGER],false]
+     * |   \_Filter[:(?a,baz[KEYWORD])]
+     * |     \_UnresolvedRelation[foo*]
+     * |_Eval[[fork2[KEYWORD] AS _fork#3]]
+     * | \_Aggregate[[],[?COUNT[*] AS COUNT(*)#4]]
+     * |   \_UnresolvedRelation[foo*]
+     * \_Eval[[fork3[KEYWORD] AS _fork#3]]
+     *   \_InlineStats[]
+     *     \_Aggregate[[],[?COUNT[*] AS COUNT(*)#5]]
+     *       \_UnresolvedRelation[foo*]
+     */
+    public void testInlineStatsWithinFork() {
+        if (releaseBuildForInlineStats(null)) {
+            return;
+        }
+        var query = """
+            FROM foo*
+            | FORK ( WHERE a:"baz" | LIMIT 11 )
+                   ( STATS COUNT(*) )
+                   ( INLINE STATS COUNT(*) )
+            """;
+        var plan = statement(query);
+        var fork = as(plan, Fork.class);
+        var subPlans = fork.children();
+
+        // first subplan
+        var eval = as(subPlans.get(0), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        var filter = as(limit.child(), Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("a"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("baz")));
+
+        // second subplan
+        eval = as(subPlans.get(1), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+        var aggregate = as(eval.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        var alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("COUNT(*)"));
+        var countFn = as(alias.child(), UnresolvedFunction.class);
+        assertThat(countFn.children().get(0), instanceOf(Literal.class));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
+
+        // third subplan
+        eval = as(subPlans.get(2), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+        var inlineStats = as(eval.child(), InlineStats.class);
+        aggregate = as(inlineStats.child(), Aggregate.class);
+        assertThat(aggregate.aggregates().size(), equalTo(1));
+        alias = as(aggregate.aggregates().get(0), Alias.class);
+        assertThat(alias.name(), equalTo("COUNT(*)"));
+        countFn = as(alias.child(), UnresolvedFunction.class);
+        assertThat(countFn.children().get(0), instanceOf(Literal.class));
+        assertThat(countFn.children().get(0).fold(FoldContext.small()), equalTo(BytesRefs.toBytesRef("*")));
     }
 
     public void testStringAsIndexPattern() {
@@ -1084,7 +1169,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'eval'"),
-                    containsString("'stats'"),
+                    containsString("'limit'"),
                     containsString("'where'")
                 ),
                 () -> statement(queryWithUnexpectedCmd.v1())
@@ -3763,7 +3848,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         query = """
             FROM foo*
             | FORK
-               ( INLINESTATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
+               ( INLINE STATS x = MIN(a), y = MAX(b) WHERE d > 1000 )
                ( INSIST_🐔 a )
                ( LOOKUP_🐔 a on b )
             | KEEP a
@@ -4134,7 +4219,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testValidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         LogicalPlan plan = statement("""
                 FROM foo* METADATA _id, _index, _score
@@ -4144,11 +4229,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """);
 
         var fuse = as(plan, Fuse.class);
-        assertThat(fuse.groupings().size(), equalTo(2));
-        assertThat(fuse.groupings().get(0), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.groupings().get(0).name(), equalTo("_id"));
-        assertThat(fuse.groupings().get(1), instanceOf(UnresolvedAttribute.class));
-        assertThat(fuse.groupings().get(1).name(), equalTo("_index"));
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("_id"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("_index"));
         assertThat(fuse.discriminator().name(), equalTo("_fork"));
         assertThat(fuse.score().name(), equalTo("_score"));
         assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
@@ -4193,16 +4278,70 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(((MapExpression) options.get("weights")).get("fork1"), equalTo(Literal.fromDouble(null, 0.33)));
 
         assertThat(fuse.child(), instanceOf(Fork.class));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE SCORE BY my_score KEY BY my_key1,my_key2 GROUP BY my_group WITH {"rank_constant": 15 }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("my_group"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
+
+        plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | FUSE GROUP BY my_group KEY BY my_key1,my_key2 SCORE BY my_score WITH {"rank_constant": 15 }
+            """);
+
+        fuse = as(plan, Fuse.class);
+        assertThat(fuse.keys().size(), equalTo(2));
+        assertThat(fuse.keys().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(0).name(), equalTo("my_key1"));
+        assertThat(fuse.keys().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(fuse.keys().get(1).name(), equalTo("my_key2"));
+        assertThat(fuse.discriminator().name(), equalTo("my_group"));
+        assertThat(fuse.score().name(), equalTo("my_score"));
+        assertThat(fuse.fuseType(), equalTo(Fuse.FuseType.RRF));
+        options = fuse.options();
+        assertThat(options.get("rank_constant"), equalTo(Literal.integer(null, 15)));
     }
 
     public void testInvalidFuse() {
-        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V3.isEnabled());
+        assumeTrue("FUSE requires corresponding capability", EsqlCapabilities.Cap.FUSE_V4.isEnabled());
 
         String queryPrefix = "from test metadata _score, _index, _id | fork (where true) (where true)";
 
         expectError(queryPrefix + " | FUSE BLA", "line 1:75: Fuse type BLA is not supported");
 
         expectError(queryPrefix + " | FUSE WITH 1", "line 1:85: mismatched input '1' expecting '{'");
+
+        expectError(
+            queryPrefix + " | FUSE  WITH {\"rank_constant\": 15 }  WITH {\"rank_constant\": 15 }",
+            "line 1:110: Only one WITH can be specified"
+        );
+
+        expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score GROUP BY bar", "line 1:111: Only one GROUP BY can be specified");
+
+        expectError(
+            queryPrefix + " | FUSE SCORE BY my_score GROUP BY bar SCORE BY another_score",
+            "line 1:111: Only one SCORE BY can be specified"
+        );
+
+        expectError(queryPrefix + " | FUSE KEY BY bar SCORE BY another_score KEY BY bar", "line 1:114: Only one KEY BY can be specified");
+
+        expectError(queryPrefix + " | FUSE GROUP BY foo SCORE BY my_score LINEAR", "line 1:111: extraneous input 'LINEAR' expecting <EOF>");
     }
 
     public void testDoubleParamsForIdentifier() {
